@@ -12,12 +12,10 @@ cp .env.example .env   # then fill in LINZ_BASEMAP_API_KEY; never commit .env
 uv run pre-commit install   # installs pre-commit and pre-push hooks
 ```
 
-Pushing runs `scripts/pre-push-review.sh`: it sends the outgoing diff to Claude
-Code (`claude -p`, read-only) and blocks the push on P0-P2 findings, writing
-them to `ISSUES.md`. Fix them, delete `ISSUES.md`, commit, and push again. The
-diff is sent to Anthropic, so `claude` must be installed and logged in, and `jq`
-and GNU `timeout` must be on PATH. macOS lacks `timeout`: run
-`brew install coreutils` and add its `gnubin` directory to PATH.
+Pushing runs `scripts/pre-push-review.sh`: headless Claude Code (`claude -p`)
+reviews the outgoing commits and writes any P0-P2 findings to `ISSUES.md`, which
+blocks the push. Fix them, delete `ISSUES.md`, commit, and push again. The code
+is sent to Anthropic, so `claude` must be installed and logged in.
 
 ## Run
 
