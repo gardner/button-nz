@@ -82,6 +82,16 @@ def test_prompt_names_refs_from_pre_commit(repo: Path, fake_dir: Path) -> None:
     assert "read-only" in args
 
 
+def test_prompt_reads_context_at_the_pushed_ref(repo: Path, fake_dir: Path) -> None:
+    _run(repo, fake_dir, "abc", "def")
+    assert "git show def:<path>" in (fake_dir / "args").read_text(encoding="utf-8")
+
+
+def test_prompt_keeps_the_reviewer_out_of_secrets(repo: Path, fake_dir: Path) -> None:
+    _run(repo, fake_dir, "abc", "def")
+    assert "Do not read `.env`" in (fake_dir / "args").read_text(encoding="utf-8")
+
+
 def test_claude_failure_fails_the_push(repo: Path, fake_dir: Path) -> None:
     result = _run(repo, fake_dir, "abc", "def", FAKE_EXIT="1")
     assert result.returncode == 1
@@ -107,6 +117,14 @@ def test_missing_refs_fails_with_usage(
 )
 def test_reviewer_changing_the_repo_fails_the_push(repo: Path, fake_dir: Path, tamper: str) -> None:
     (fake_dir / "tamper").write_text(tamper, encoding="utf-8")
+    result = _run(repo, fake_dir, "abc", "def")
+    assert result.returncode == 1
+    assert "reviewer changed the repository" in result.stderr
+
+
+def test_reviewer_overwriting_an_untracked_file_fails_the_push(repo: Path, fake_dir: Path) -> None:
+    (repo / "wip.py").write_text("draft\n", encoding="utf-8")
+    (fake_dir / "tamper").write_text("echo lost > wip.py", encoding="utf-8")
     result = _run(repo, fake_dir, "abc", "def")
     assert result.returncode == 1
     assert "reviewer changed the repository" in result.stderr

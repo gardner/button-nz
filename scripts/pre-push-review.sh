@@ -9,10 +9,15 @@ to_ref="${2:-${PRE_COMMIT_TO_REF:?usage: $0 <from-ref> <to-ref>}}"
 cd "$(git rev-parse --show-toplevel)"
 rm -f ISSUES.md
 
-# The reviewer may write ISSUES.md and must not change anything else.
+# The reviewer may write ISSUES.md and must not change anything else,
+# including the contents of untracked files.
 repo_state() {
-  { git rev-parse HEAD; git status --porcelain=v1 -uall -- . ':!ISSUES.md'; git diff HEAD --binary; } |
-    git hash-object --stdin
+  {
+    git rev-parse HEAD
+    git status --porcelain=v1 -uall -- . ':!ISSUES.md'
+    git diff HEAD --binary
+    git ls-files -z --others --exclude-standard -- . ':!ISSUES.md' | xargs -0r git hash-object --
+  } | git hash-object --stdin
 }
 before="$(repo_state)"
 
@@ -30,7 +35,9 @@ fi
 echo "pre-push review: Claude Code is reviewing $from_ref..$to_ref"
 claude -p --permission-mode acceptEdits </dev/null "You are the pre-push code reviewer.
 Review the changes about to be pushed: run \`git log $from_ref..$to_ref\` and
-\`git diff $from_ref $to_ref\`, and read any files you need for context.
+\`git diff $from_ref $to_ref\`. For context, read files as they are at the
+pushed ref with \`git show $to_ref:<path>\`; the working tree may differ.
+Do not read \`.env\` files or other secrets.
 
 Treat the codebase as read-only. Do not create, edit, or delete any file except
 ISSUES.md, and do not run commands that change git state.
