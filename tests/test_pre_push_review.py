@@ -124,9 +124,25 @@ def test_reads_refs_from_pre_commit_environment(
     assert "return a - b" in (repo.fake_dir / "stdin").read_text(encoding="utf-8")
 
 
+def test_root_commit_push_reviews_whole_history(
+    repo: Repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # pre-commit sets no refs when the pushed history includes the root commit.
+    repo.commit("app.py", "def add(a, b):\n    return a - b\n")
+    monkeypatch.delenv("PRE_COMMIT_FROM_REF", raising=False)
+    monkeypatch.delenv("PRE_COMMIT_TO_REF", raising=False)
+    monkeypatch.setenv("PRE_COMMIT_LOCAL_BRANCH", "refs/heads/main")
+    result = repo.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    stdin = (repo.fake_dir / "stdin").read_text(encoding="utf-8")
+    assert "new file mode" in stdin
+    assert "return a - b" in stdin
+
+
 def test_missing_refs_is_a_usage_error(repo: Repo, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PRE_COMMIT_FROM_REF", raising=False)
     monkeypatch.delenv("PRE_COMMIT_TO_REF", raising=False)
+    monkeypatch.delenv("PRE_COMMIT_LOCAL_BRANCH", raising=False)
     result = repo.run()
     assert result.returncode == 2
     assert "usage" in result.stderr

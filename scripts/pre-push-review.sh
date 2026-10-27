@@ -38,7 +38,12 @@ fail() {
 
 from_ref="${1:-${PRE_COMMIT_FROM_REF:-}}"
 to_ref="${2:-${PRE_COMMIT_TO_REF:-}}"
-if [[ -z "$from_ref" || -z "$to_ref" ]]; then
+if [[ -n "$from_ref" && -n "$to_ref" ]]; then
+  range=("$from_ref...$to_ref")
+elif [[ -n "${PRE_COMMIT_LOCAL_BRANCH:-}" ]]; then
+  # Pushing history from its root commit: pre-commit sets no refs, so review it all.
+  range=("$(git hash-object -t tree /dev/null)" "$PRE_COMMIT_LOCAL_BRANCH")
+else
   echo "usage: $0 <from-ref> <to-ref> (or run as a pre-commit pre-push hook)" >&2
   exit 2
 fi
@@ -46,7 +51,7 @@ fi
 issues_file="$(git rev-parse --show-toplevel)/ISSUES.md"
 rm -f "$issues_file"
 
-diff="$(git diff "$from_ref...$to_ref" -- . ':(exclude,glob)**/uv.lock' ':(exclude,glob)**/pnpm-lock.yaml')"
+diff="$(git diff "${range[@]}" -- . ':(exclude,glob)**/uv.lock' ':(exclude,glob)**/pnpm-lock.yaml')"
 if [[ -z "$diff" ]]; then
   echo "pre-push review: no reviewable changes."
   exit 0
