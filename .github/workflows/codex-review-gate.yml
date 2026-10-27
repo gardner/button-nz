@@ -64,15 +64,19 @@ jobs:
                       return;
                     }
 
-                    core.setFailed(
-                      'Codex review has unresolved findings'
+                    // Findings may be resolved without a new commit,
+                    // which updates this state in place but fires no
+                    // pull_request event. Keep polling until the
+                    // deadline instead of failing permanently.
+                    core.info(
+                      'Codex review has unresolved findings; ' +
+                      'waiting for resolution...'
                     );
-                    return;
                   }
 
                   if (
                     review.status &&
-                    !['running', 'queued', 'pending'].includes(
+                    !['running', 'queued', 'pending', 'completed'].includes(
                       review.status
                     )
                   ) {
@@ -91,5 +95,6 @@ jobs:
             }
 
             core.setFailed(
-              'Timed out waiting for current-head Codex review'
+              'Timed out waiting for clean current-head Codex review ' +
+              '(unresolved findings or no completed review)'
             );
