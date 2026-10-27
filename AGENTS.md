@@ -22,7 +22,7 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 
 ## Pre-push review
 
-- Before pushing, review the outgoing diff with headless Muse (`claude -p --permission-mode plan`, structured findings). Treat findings like CI Codex findings: fix real P1/P2 issues, state why anything else is not relevant, push once clean. Automated hook tracked in #20; until it lands, run this review manually on non-trivial changes. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
+- Before pushing, review the outgoing diff with headless Muse (`claude -p --permission-mode plan`, structured findings). Treat findings like CI Codex findings: fix real P1/P2 issues, state why anything else is not relevant, push once clean. If the review writes `ISSUES.md`, fix the relevant findings, delete `ISSUES.md`, then push again. Automated hook tracked in #20; until it lands, run this loop manually on non-trivial changes. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
 
 # IMPORTANT
 
