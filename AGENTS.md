@@ -32,4 +32,5 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - Keep things elegant.
 - Please make descriptive commits at reasonable intervals.
 - Conduct a code review at the end of a large work slice and resolve any issues identified.
-- NO FALLBACKS
+- NO FALLBACKS: accurate results are important. If a system or process fails then we need to fix it. If you need help then stop and ask.
+
