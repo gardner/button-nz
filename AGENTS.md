@@ -22,7 +22,7 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 
 ## Pre-push review
 
-- Before pushing, review the outgoing diff with headless Muse: `git diff origin/master...HEAD | claude -p --permission-mode plan "Review this outgoing diff; report only serious findings with severity, file:line, and issue."` Fix every real P0/P1/P2 finding; state why anything else is not relevant. Push once clean. If the review writes `ISSUES.md`, fix the relevant findings, delete `ISSUES.md`, then push again. Automated hook tracked in #20; until it lands, run this loop manually on non-trivial changes. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
+- `git push` runs the pre-push hook `scripts/pre-push-review.sh`, which sends the outgoing diff to headless Muse (`claude -p`, read-only) and blocks the push on P0/P1/P2 findings, writing them to `ISSUES.md`. Fix every real finding, delete `ISSUES.md`, commit, then push again for a fresh review. State why any finding is not relevant. Install the hook with `uv run pre-commit install`. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
 
 # IMPORTANT
 
