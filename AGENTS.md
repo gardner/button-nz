@@ -15,10 +15,10 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - Rely on the pre-commit hooks to run the checks, don't manually run the pre-commit checks. Ensure the pre-commit hooks are installed and working.
 - Before picking up a GitHub Issue to work on: Review the issue, then review the existing code, then conduct any research to validate the contents of the issue or update the issue with a plan. Make sure to include a plain language explanation of "The Problem" that we're solving, the proposed plan to solve it, and any other options considered.
 - When working on a GitHub Issue, create a new branch so we can submit a PR when it is ready.
-- After submitting a PR, monitor the PR for any review comments.
-- If there are review comments then please evaluate if any of them are actually real or relevant, and then resolve the important issues with a new commit and resolve the GitHub PR conversation with information about the resolution, or with a comment saying why it is not relevant. After pushing a new commit, monitor the PR for new review comments and continue the process.
-- You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
-- Use the GitHub Project board: https://github.com/users/gardner/projects/4
+- After submitting a PR, monitor the PR for any review comments. Use a subagent that:
+    - If there are review comments then please evaluate if any of them are actually real or relevant, and then resolve the important issues with a new commit and resolve the GitHub PR conversation with information about the resolution, or with a comment saying why it is not relevant. After pushing a new commit, monitor the PR for new review comments and continue the process.
+    - You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
+- Keep the GitHub Project board up to date: https://github.com/users/gardner/projects/4
 
 # IMPORTANT
 
