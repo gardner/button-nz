@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 35
 
     steps:
-      - name: Wait for clean Codex review
+      - name: Wait for Codex review completion
         uses: actions/github-script@v8
         with:
           script: |
@@ -59,24 +59,20 @@ jobs:
 
                 if (review?.commit_sha === sha) {
                   if (review.status === 'completed') {
-                    if (review.has_unresolved_findings === false) {
-                      core.info('Codex review passed');
-                      return;
-                    }
-
-                    // Findings may be resolved without a new commit,
-                    // which updates this state in place but fires no
-                    // pull_request event. Keep polling until the
-                    // deadline instead of failing permanently.
+                    // Completion only. Unresolved findings are enforced
+                    // by the branch ruleset requiring conversation
+                    // resolution, which updates merge eligibility
+                    // instantly without holding a runner open.
                     core.info(
-                      'Codex review has unresolved findings; ' +
-                      'waiting for resolution...'
+                      `Codex completed review of ${sha}. ` +
+                      `Unresolved findings: ${review.has_unresolved_findings}`
                     );
+                    return;
                   }
 
                   if (
                     review.status &&
-                    !['running', 'queued', 'pending', 'completed'].includes(
+                    !['running', 'queued', 'pending'].includes(
                       review.status
                     )
                   ) {
@@ -95,6 +91,5 @@ jobs:
             }
 
             core.setFailed(
-              'Timed out waiting for clean current-head Codex review ' +
-              '(unresolved findings or no completed review)'
+              'Timed out waiting for current-head Codex review'
             );
