@@ -59,7 +59,10 @@ jobs:
           ! -name '*.d.ts' ! -name '*.test.*' ! -name '*.spec.*'
           -print | sort)
 
-      - name: Lint
+      - name: Format check (Prettier)
+        run: pnpm format:check
+
+      - name: Lint (includes cyclomatic complexity, max 10)
         run: pnpm lint
 
       - name: Build (includes TypeScript checks)
