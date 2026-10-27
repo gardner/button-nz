@@ -9,6 +9,10 @@ to_ref="${2:-${PRE_COMMIT_TO_REF:?usage: $0 <from-ref> <to-ref>}}"
 cd "$(git rev-parse --show-toplevel)"
 rm -f ISSUES.md
 
+# The reviewer must not edit code; ISSUES.md is gitignored so it is not counted.
+tracked_state() { git diff HEAD --binary | git hash-object --stdin; }
+before="$(tracked_state)"
+
 echo "pre-push review: Claude Code is reviewing $from_ref..$to_ref"
 claude -p --permission-mode acceptEdits </dev/null "You are the pre-push code reviewer.
 Review the changes about to be pushed: run \`git log $from_ref..$to_ref\` and
@@ -26,6 +30,11 @@ Skip style nits and speculation.
 If you find any, write them to ISSUES.md at the repository root as a Markdown
 list, one item per finding: severity, \`file:line\`, the problem, and the fix.
 If you find none, do not create ISSUES.md."
+
+if [[ "$(tracked_state)" != "$before" ]]; then
+  echo "pre-push review: the reviewer modified tracked files; inspect with git diff." >&2
+  exit 1
+fi
 
 if [[ -f ISSUES.md ]]; then
   cat ISSUES.md
