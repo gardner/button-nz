@@ -16,7 +16,8 @@ Pushing runs `scripts/pre-push-review.sh`: it sends the outgoing diff to Claude
 Code (`claude -p`, read-only) and blocks the push on P0-P2 findings, writing
 them to `ISSUES.md`. Fix them, delete `ISSUES.md`, commit, and push again. The
 diff is sent to Anthropic, so `claude` must be installed and logged in, and `jq`
-must be on PATH.
+and GNU `timeout` must be on PATH. macOS lacks `timeout`: run
+`brew install coreutils` and add its `gnubin` directory to PATH.
 
 ## Run
 
