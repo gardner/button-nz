@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -185,3 +186,16 @@ def test_failed_review_blocks_push(repo: Repo, payload: object, exit_code: int) 
     assert result.returncode == 1
     assert "review failed" in result.stderr
     assert not repo.issues.exists()
+
+
+def test_missing_required_tool_is_reported_by_name(repo: Repo) -> None:
+    head = repo.commit("app.py", "def add(a, b):\n    return a - b\n")
+    for tool in ("bash", "git", "rm", "cat", "timeout"):  # everything except jq
+        (repo.fake_dir / tool).symlink_to(shutil.which(tool) or tool)
+    env = {"PATH": str(repo.fake_dir), "FAKE_DIR": str(repo.fake_dir)}
+    result = subprocess.run(
+        [str(SCRIPT), repo.base, head], cwd=repo.root, env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 1
+    assert "jq" in result.stderr
+    assert not (repo.fake_dir / "stdin").exists()

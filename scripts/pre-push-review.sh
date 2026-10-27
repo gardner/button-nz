@@ -36,6 +36,10 @@ fail() {
   exit 1
 }
 
+for tool in claude jq timeout; do
+  command -v "$tool" >/dev/null || fail "$tool is not on PATH"
+done
+
 from_ref="${1:-${PRE_COMMIT_FROM_REF:-}}"
 to_ref="${2:-${PRE_COMMIT_TO_REF:-}}"
 if [[ -n "$from_ref" && -n "$to_ref" ]]; then
