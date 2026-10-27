@@ -33,3 +33,10 @@ def test_main_returns_zero_when_all_files_within_limit(tmp_path: Path) -> None:
 def test_main_returns_one_when_a_file_exceeds_limit(tmp_path: Path) -> None:
     big = _write(tmp_path / "big.py", 9)
     assert main(["--max-lines", "5", str(big)]) == 1
+
+
+def test_main_flags_over_limit_typescript_files(tmp_path: Path) -> None:
+    big_tsx = _write(tmp_path / "big.tsx", 9)
+    small_ts = _write(tmp_path / "small.ts", 2)
+    assert main(["--max-lines", "5", str(big_tsx)]) == 1
+    assert main(["--max-lines", "5", str(small_ts)]) == 0
