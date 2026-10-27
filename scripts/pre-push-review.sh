@@ -43,7 +43,9 @@ done
 from_ref="${1:-${PRE_COMMIT_FROM_REF:-}}"
 to_ref="${2:-${PRE_COMMIT_TO_REF:-}}"
 if [[ -n "$from_ref" && -n "$to_ref" ]]; then
-  range=("$from_ref...$to_ref")
+  # Compare the endpoint trees, not the merge base, so a force push that drops
+  # remote commits shows those removals.
+  range=("$from_ref" "$to_ref")
 elif [[ -n "${PRE_COMMIT_LOCAL_BRANCH:-}" ]]; then
   # Pushing history from its root commit: pre-commit sets no refs, so review it all.
   range=("$(git hash-object -t tree /dev/null)" "$PRE_COMMIT_LOCAL_BRANCH")

@@ -162,6 +162,16 @@ def test_sends_outgoing_diff_without_lockfiles_to_read_only_reviewer(repo: Repo)
     assert "--json-schema" in args
 
 
+def test_force_push_to_ancestor_reviews_removed_changes(repo: Repo) -> None:
+    # A non-fast-forward push resets the remote tip back to an older commit.
+    remote_tip = repo.commit("app.py", "def add(a, b):\n    return a - b\n")
+    result = repo.run(remote_tip, repo.base)
+    assert result.returncode == 0, result.stdout + result.stderr
+    stdin = (repo.fake_dir / "stdin").read_text(encoding="utf-8")
+    assert "-    return a - b" in stdin
+    assert "+    return a + b" in stdin
+
+
 def test_lockfile_only_push_skips_review(repo: Repo) -> None:
     head = repo.commit("uv.lock", "lock-noise\n")
     result = repo.run(repo.base, head)
