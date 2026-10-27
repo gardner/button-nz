@@ -17,3 +17,9 @@ dist/
 
 # Blender backups
 *.blend1
+
+# Root-level markdown stays local and ephemeral (docs/ is unaffected)
+# Keep only the two root files every clone needs.
+/*.md
+!/README.md
+!/AGENTS.md
