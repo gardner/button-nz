@@ -16,7 +16,7 @@ repo_state() {
     git rev-parse HEAD
     git status --porcelain=v1 -uall -- . ':!ISSUES.md'
     git diff HEAD --binary
-    git ls-files -z --others --exclude-standard -- . ':!ISSUES.md' | xargs -0r git hash-object --
+    git ls-files -z --others --exclude-standard -- . ':!ISSUES.md' | xargs -0 git hash-object --
   } | git hash-object --stdin
 }
 before="$(repo_state)"

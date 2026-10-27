@@ -1,6 +1,7 @@
 """Tests for scripts/pre-push-review.sh, driven with a stubbed `claude` on PATH."""
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -128,6 +129,18 @@ def test_reviewer_overwriting_an_untracked_file_fails_the_push(repo: Path, fake_
     result = _run(repo, fake_dir, "abc", "def")
     assert result.returncode == 1
     assert "reviewer changed the repository" in result.stderr
+
+
+def test_runs_with_bsd_xargs_which_lacks_r(repo: Path, fake_dir: Path) -> None:
+    bsd_xargs = fake_dir / "xargs"
+    real_xargs = shutil.which("xargs")
+    bsd_xargs.write_text(
+        f'#!/usr/bin/env bash\n[[ "$1" == -*r* ]] && exit 1\nexec {real_xargs} "$@"\n',
+        encoding="utf-8",
+    )
+    bsd_xargs.chmod(0o755)
+    result = _run(repo, fake_dir, "abc", "def")
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_background_notes_are_sent_to_the_reviewer(repo: Path, fake_dir: Path) -> None:
