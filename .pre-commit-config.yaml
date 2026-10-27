@@ -50,5 +50,5 @@ repos:
         language: system
         stages: [pre-push]
         pass_filenames: false
-        # pre-commit drops deleted paths, so a deletion-only push would skip review.
+        # pre-commit drops deleted paths, so a push whose commits only delete files would skip review.
         always_run: true
