@@ -22,7 +22,7 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 
 ## Pre-push review
 
-- `git push` runs the pre-push hook `scripts/pre-push-review.sh`, where headless Muse (`claude -p`) reviews the outgoing commits and writes any P0/P1/P2 findings to `ISSUES.md`, which blocks the push. Fix every real finding, delete `ISSUES.md`, commit, then push again for a fresh review. State why any finding is not relevant. Install the hook with `uv run pre-commit install`. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
+- `git push` runs the pre-push hook `scripts/pre-push-review.sh`, where headless Muse (`claude -p`) reviews the outgoing commits and writes any P0/P1/P2 findings to `ISSUES.md`, which blocks the push. Fix every real finding, delete `ISSUES.md`, commit, then push again for a fresh review. For any finding you won't fix, say why in `BACKGROUND.md` at the repo root; the reviewer reads it on the next push. `BACKGROUND.md` is local and gitignored: clear it when starting a new branch so stale notes don't hide new findings. Install the hook with `uv run pre-commit install`. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
 
 # IMPORTANT
 

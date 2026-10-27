@@ -110,3 +110,16 @@ def test_reviewer_changing_the_repo_fails_the_push(repo: Path, fake_dir: Path, t
     result = _run(repo, fake_dir, "abc", "def")
     assert result.returncode == 1
     assert "reviewer changed the repository" in result.stderr
+
+
+def test_background_notes_are_sent_to_the_reviewer(repo: Path, fake_dir: Path) -> None:
+    (repo / "BACKGROUND.md").write_text("We're not adding a timeout.\n", encoding="utf-8")
+    result = _run(repo, fake_dir, "abc", "def")
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = (fake_dir / "args").read_text(encoding="utf-8")
+    assert "We're not adding a timeout." in args
+
+
+def test_prompt_has_no_background_section_without_notes(repo: Path, fake_dir: Path) -> None:
+    _run(repo, fake_dir, "abc", "def")
+    assert "BACKGROUND.md" not in (fake_dir / "args").read_text(encoding="utf-8")

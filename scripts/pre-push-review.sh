@@ -16,6 +16,17 @@ repo_state() {
 }
 before="$(repo_state)"
 
+# BACKGROUND.md (local, gitignored) lets the author answer earlier findings.
+background=""
+if [[ -f BACKGROUND.md ]]; then
+  background="
+
+The author left these notes in BACKGROUND.md. Do not re-report findings they
+already address unless the reasoning is wrong:
+
+$(cat BACKGROUND.md)"
+fi
+
 echo "pre-push review: Claude Code is reviewing $from_ref..$to_ref"
 claude -p --permission-mode acceptEdits </dev/null "You are the pre-push code reviewer.
 Review the changes about to be pushed: run \`git log $from_ref..$to_ref\` and
@@ -32,7 +43,7 @@ Skip style nits and speculation.
 
 If you find any, write them to ISSUES.md at the repository root as a Markdown
 list, one item per finding: severity, \`file:line\`, the problem, and the fix.
-If you find none, do not create ISSUES.md."
+If you find none, do not create ISSUES.md.$background"
 
 if [[ "$(repo_state)" != "$before" ]]; then
   echo "pre-push review: the reviewer changed the repository; inspect with git status and git log." >&2
@@ -41,7 +52,7 @@ fi
 
 if [[ -f ISSUES.md ]]; then
   cat ISSUES.md
-  echo "Fix the relevant findings, delete ISSUES.md, commit, then push again." >&2
+  echo "Fix the relevant findings, or explain in BACKGROUND.md why not; delete ISSUES.md, then push again." >&2
   exit 1
 fi
 echo "pre-push review: no serious findings."
