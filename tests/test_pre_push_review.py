@@ -8,12 +8,12 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "pre-push-review.sh"
 
-# Records its arguments, writes ISSUES.md when given findings, can edit a
-# tracked file, and exits as told.
+# Records its arguments, writes ISSUES.md when given findings, runs a tamper
+# script if given one, and exits as told.
 FAKE_CLAUDE = """#!/usr/bin/env bash
 printf '%s\\n' "$@" > "$FAKE_DIR/args"
 if [[ -f "$FAKE_DIR/findings" ]]; then cp "$FAKE_DIR/findings" ISSUES.md; fi
-if [[ -f "$FAKE_DIR/tamper" ]]; then echo "# edited" >> app.py; fi
+if [[ -f "$FAKE_DIR/tamper" ]]; then bash "$FAKE_DIR/tamper"; fi
 exit "${FAKE_EXIT:-0}"
 """
 
@@ -96,8 +96,17 @@ def test_missing_refs_fails_with_usage(
     assert "usage" in result.stderr
 
 
-def test_reviewer_editing_tracked_files_fails_the_push(repo: Path, fake_dir: Path) -> None:
-    (fake_dir / "tamper").touch()
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "echo '# edited' >> app.py",
+        "git -c user.name=T -c user.email=t@example.com commit -q --allow-empty -m sneaky",
+        "touch new.py",
+    ],
+    ids=["edit", "commit", "new-file"],
+)
+def test_reviewer_changing_the_repo_fails_the_push(repo: Path, fake_dir: Path, tamper: str) -> None:
+    (fake_dir / "tamper").write_text(tamper, encoding="utf-8")
     result = _run(repo, fake_dir, "abc", "def")
     assert result.returncode == 1
-    assert "modified tracked files" in result.stderr
+    assert "reviewer changed the repository" in result.stderr
