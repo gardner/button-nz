@@ -1,0 +1,95 @@
+name: Codex Review Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: codex-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  codex-review-gate:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Wait for clean Codex review
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const sha = pr.head.sha;
+            const deadline = Date.now() + 30 * 60_000;
+
+            while (Date.now() < deadline) {
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  per_page: 100
+                }
+              );
+
+              const summary = comments
+                .filter(c =>
+                  c.user?.login === 'chatgpt-codex-connector[bot]' &&
+                  c.body?.includes('<!-- codex-review-state:v1 ')
+                )
+                .sort((a, b) =>
+                  Date.parse(b.updated_at) -
+                  Date.parse(a.updated_at)
+                )[0];
+
+              const match = summary?.body?.match(
+                /<!-- codex-review-state:v1 (\{[^\n]+\}) -->/
+              );
+
+              if (match) {
+                const { code_review: review } =
+                  JSON.parse(match[1]);
+
+                if (review?.commit_sha === sha) {
+                  if (review.status === 'completed') {
+                    if (review.has_unresolved_findings === false) {
+                      core.info('Codex review passed');
+                      return;
+                    }
+
+                    core.setFailed(
+                      'Codex review has unresolved findings'
+                    );
+                    return;
+                  }
+
+                  if (
+                    review.status &&
+                    !['running', 'queued', 'pending'].includes(
+                      review.status
+                    )
+                  ) {
+                    core.setFailed(
+                      `Codex review state: ${review.status}`
+                    );
+                    return;
+                  }
+                }
+              }
+
+              core.info(
+                `Waiting for completed Codex review of ${sha}...`
+              );
+              await new Promise(r => setTimeout(r, 30_000));
+            }
+
+            core.setFailed(
+              'Timed out waiting for current-head Codex review'
+            );
