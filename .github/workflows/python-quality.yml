@@ -1,0 +1,63 @@
+name: Python Quality
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/python-quality.yml"
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/python-quality.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.3.2
+
+      - name: Sync locked dependencies
+        run: uv sync --locked
+
+      - name: Ruff lint (includes McCabe complexity)
+        run: uv run --locked ruff check src tests scripts
+
+      - name: Ruff format check
+        run: uv run --locked ruff format --check src tests scripts
+
+      - name: File length (max 500 lines, first-party source)
+        run: >-
+          uv run --locked python scripts/check_file_length.py
+          --max-lines 500
+          $(find src scripts -name '*.py' | sort)
+
+      - name: Pyright (strict)
+        run: uv run --locked pyright
+
+      - name: Tests
+        run: uv run --locked pytest -q
