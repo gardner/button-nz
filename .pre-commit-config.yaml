@@ -1,0 +1,30 @@
+repos:
+  - repo: local
+    hooks:
+      - id: file-length
+        name: Maximum 500 lines per Python source file
+        entry: uv run --locked python scripts/check_file_length.py
+        args: [--max-lines, "500"]
+        language: system
+        # First-party source only; vendored .agents skills are exempt.
+        files: ^(src|scripts)/.*\.py$
+        exclude: (^|/)(tests?(/|\.py$)|test_[^/]*\.py$|[^/]*_test\.py$|conftest\.py$)
+        types: [python]
+      - id: ruff
+        name: Ruff lint and McCabe complexity
+        entry: uv run --locked ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        files: ^(src|tests|scripts)/
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --locked ruff format
+        language: system
+        types_or: [python, pyi]
+        files: ^(src|tests|scripts)/
+      - id: pyright
+        name: Pyright type checking
+        entry: uv run --locked pyright
+        language: system
+        pass_filenames: false
+        files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)

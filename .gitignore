@@ -1,0 +1,19 @@
+# Secrets — never commit real keys (this repo is public)
+.env
+.env.*
+!.env.example
+
+# Python (uv)
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node (pnpm)
+node_modules/
+.next/
+dist/
+
+# Blender backups
+*.blend1

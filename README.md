@@ -1,0 +1,30 @@
+# Button NZ
+
+Unlock the housing hiding in your backyard. Button NZ turns a real property
+into interactive, evidence-backed 3D housing concepts using Meta AI models,
+LINZ geospatial data, and Blender. See [docs/plan.md](docs/plan.md).
+
+## Setup
+
+```bash
+uv sync
+cp .env.example .env   # then fill in LINZ_BASEMAP_API_KEY; never commit .env
+uv run pre-commit install
+```
+
+## Run
+
+```bash
+uv run button-nz
+uv run pytest
+```
+
+## Layout
+
+- `src/button_nz/` — Python package (geo, lidar, perception, agent,
+  blender_worker, evaluation, catalogue, api).
+- `apps/` — Next.js web app, generated with the pnpm CLI (see apps/README.md).
+- `tests/` — pytest suite. Write the failing test first.
+- `scripts/` — quality-gate scripts run by pre-commit.
+- `data/` — property data notes and provenance (see data/README.md).
+- `docs/` — hackathon plan and architecture notes.

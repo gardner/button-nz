@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "blender": {
+      "source": "howells/skills",
+      "sourceType": "github",
+      "skillPath": "blender/SKILL.md",
+      "computedHash": "9ddd5abf753ffca9f582318b548f07281ab6e5124ffded910ab358b9539f3557"
+    },
+    "modal": {
+      "source": "k-dense-ai/scientific-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/modal/SKILL.md",
+      "computedHash": "c35b342308cc78087909fd2cf70a1ccb959f19c17a53cc0bdbe18ea77123be95"
+    },
+    "point-cloud-lidar": {
+      "source": "muend/geoai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/point-cloud-lidar/SKILL.md",
+      "computedHash": "7447ff5ea2c5fda996cf3336c763887f4a7192ebc401cfb7a338a8c9efcbe718"
+    },
+    "react-three-fiber": {
+      "source": "freshtechbro/claudedesignskills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/react-three-fiber/SKILL.md",
+      "computedHash": "d672dfba48620140185d451bc9b6841833eed4306277776efab2e2a82c7b8fbf"
+    },
+    "terrain-hydrology": {
+      "source": "muend/geoai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/terrain-hydrology/SKILL.md",
+      "computedHash": "0dd4d425fd96ca49e4dce6d64a6def10f99e94d243ee1c437dd15f14a5ef1fd7"
+    }
+  }
+}
