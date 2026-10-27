@@ -20,6 +20,10 @@ To ensure code quality stays high and readable: Use strong types, code formattin
     - You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
 - Keep the GitHub Project board up to date: https://github.com/users/gardner/projects/4
 
+## Pre-push review
+
+- Before pushing, review the outgoing diff with headless Muse (`claude -p`, read-only, structured findings). Treat findings like CI Codex findings: fix real P1/P2 issues, state why anything else is not relevant, push once clean. Automated hook tracked in #20; until it lands, run this review manually on non-trivial changes. Bypass only with `git push --no-verify` and say so in the PR.
+
 # IMPORTANT
 
 - Use TDD "Red, green, refactor" where possible. WRITE THE FAILING TESTS FIRST.
@@ -28,3 +32,4 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - Keep things elegant.
 - Please make descriptive commits at reasonable intervals.
 - Conduct a code review at the end of a large work slice and resolve any issues identified.
+- NO FALLBACKS
