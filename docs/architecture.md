@@ -28,7 +28,8 @@ Blender runs on the local GPU only. Modal is a stretch goal.
 
 ## Quality gates
 
-Pre-commit runs a 500-line file limit, Ruff lint with McCabe complexity,
+Pre-commit runs a 500-line-per-file limit for Python and TypeScript
+source, Ruff lint with McCabe complexity,
 Ruff format, and Pyright in strict mode. Configuration lives in
 `pyproject.toml` and `.pre-commit-config.yaml`. Tests use pytest with a
 red-green-refactor workflow.

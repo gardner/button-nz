@@ -1,7 +1,8 @@
-"""Fail if any given Python source file exceeds the line limit.
+"""Fail if any given source file exceeds the line limit.
 
-Used by the ``file-length`` pre-commit hook. Test files are excluded by the
-hook configuration, not by this script.
+Used by the ``file-length`` and ``file-length-ts`` pre-commit hooks for
+Python and TypeScript source. Test files are excluded by the hook
+configuration, not by this script.
 """
 
 import argparse

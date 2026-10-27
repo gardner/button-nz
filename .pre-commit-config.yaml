@@ -28,3 +28,11 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
+      - id: file-length-ts
+        name: Maximum 500 lines per TypeScript source file
+        entry: uv run --locked python scripts/check_file_length.py
+        args: [--max-lines, "500"]
+        language: system
+        # First-party source only; generated declarations are exempt.
+        files: ^apps/web/.*\.(ts|tsx)$
+        exclude: (^apps/web/(node_modules|\.next)/|\.d\.ts$|\.(test|spec)\.(ts|tsx)$)
