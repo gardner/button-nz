@@ -3,7 +3,7 @@
 # Markdown: model, turns, duration, cost, findings posted (inline comments
 # whose call succeeded), tool calls (attempts), and denied calls. Prints tool
 # names, commands and paths only, never output, so the summary is safe for the
-# public job log. Exits non-zero if no shell command succeeded.
+# public job log. Exits 3 if no shell command succeeded (no review happened).
 set -euo pipefail
 
 trace="${1:?usage: $0 <execution-file>}"
@@ -51,5 +51,5 @@ if ! jq -e '
         | select(.type == "tool_use" and .name == "Bash"); .id | IN($succeeded[]))
 ' "$trace" > /dev/null; then
   echo "The reviewer could not run a single shell command, so no review happened." >&2
-  exit 1
+  exit 3
 fi

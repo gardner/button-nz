@@ -105,12 +105,12 @@ def test_a_review_that_ran_no_command_fails(tmp_path: Path) -> None:
         _tool_result("toolu_2", is_error=True),
         _result(),
     )
-    assert result.returncode != 0
+    assert result.returncode == 3
     assert "| claude-opus-5-5 | 7 | 125s | $1.23 | 0 | 0 |" in result.stdout
     assert "could not run a single shell command" in result.stderr
 
 
 def test_run_without_a_result_fails(tmp_path: Path) -> None:
     result = _run(tmp_path, INIT)
-    assert result.returncode != 0
+    assert result.returncode not in (0, 3)
     assert "no result" in result.stderr

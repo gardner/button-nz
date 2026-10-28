@@ -131,3 +131,12 @@ def test_a_review_that_ran_nothing_is_reported_not_fatal(fake_dir: Path, tmp_pat
     result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
     assert result.returncode == 0, result.stderr
     assert result.stdout.count("**No review happened:** no shell command succeeded.") == 2
+
+
+def test_a_broken_trace_fails_with_its_real_error(fake_dir: Path, tmp_path: Path) -> None:
+    (fake_dir / "trace.json").write_text(json.dumps([TRACE[0]]), encoding="utf-8")
+    artifacts = _artifacts((101, "claude-review-trace-1", "2026-10-28T07:00:00Z"))
+    result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
+    assert result.returncode != 0
+    assert "no result message" in result.stderr
+    assert "No review happened" not in result.stdout
