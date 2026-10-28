@@ -79,12 +79,21 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
     walls, _ = _one_ring(rooms[0])
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
+    enclosed = Polygon(walls)
     floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
-    if floor.area < MIN_FLOOR_COVER * Polygon(walls).area:
+    if floor.intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
         raise DesignError(
             "The Dwelling's lowest point isn't its floor: something (piles, steps, a "
-            "deck) is below it. Make the underside of the floor, spanning the walls, "
-            "the Dwelling's lowest point."
+            "deck or terrace) is below it. Make the underside of the floor, spanning "
+            "the walls, the Dwelling's lowest point."
+        )
+    under = floor.intersection(enclosed.convex_hull).area
+    if enclosed.area < MIN_FLOOR_COVER * under:
+        raise DesignError(
+            f"{cut:g} m above the floor the Dwelling's walls enclose only "
+            f"{enclosed.area:.0f} m², but the floor within them spans {under:.0f} m²: a "
+            "doorway or opening breaks their outline. Model the Dwelling as a solid "
+            "envelope, with no doors or windows cut through it."
         )
     return walls
 

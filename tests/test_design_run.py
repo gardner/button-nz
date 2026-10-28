@@ -2,6 +2,7 @@
 Excluded by default; run with `pytest -m blender`."""
 
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -320,3 +321,44 @@ def _pixels(png: Path) -> NDArray[np.float64]:
     rio: Any = rasterio
     with rio.open(png) as image:
         return np.asarray(image.read(), dtype=np.float64)
+
+
+def test_runaway_modifiers_hit_the_measuring_passs_memory_limit(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """A small mesh whose modifiers expand beyond memory is the model's feedback,
+    not an exhausted host."""
+    explode = "m = dwelling.modifiers.new('more', 'SUBSURF')\nm.levels = 11\nm.render_levels = 11\n"
+    out = run_design(scene, BOX + explode, tmp_path, timeout_s=300)
+    assert out.measurements["error"]
+    assert out.glb is None and out.png is None
+
+
+def test_a_forged_saved_frame_doesnt_replace_the_design(tmp_path: Path, scene: SceneInput) -> None:
+    forge = "import os, sys\nos.write(int(sys.argv[-1]), b'B' + (4).to_bytes(8, 'big') + b'junk')\n"
+    out = run_design(scene, BOX + forge, tmp_path)
+    assert out.measurements["error"] is None  # the runner's own, later frame wins
+
+
+def test_an_unreadable_design_file_is_the_models_feedback(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """Pass 1 stands in, sending junk as the design file; real Blender measures it."""
+    real = shutil.which("blender")
+    assert real is not None
+    fake = tmp_path / "bin" / "blender"
+    fake.parent.mkdir()
+    fake.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os, sys\n"
+        "if any(a.endswith('design_script.py') for a in sys.argv):\n"
+        "    fd = int(sys.argv[-1])\n"
+        "    os.write(fd, b'S' + bytes(8))\n"
+        "    os.write(fd, b'B' + (4).to_bytes(8, 'big') + b'junk')\n"
+        "else:\n"
+        f"    os.execv({real!r}, [{real!r}, *sys.argv[1:]])\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    out = run_design(scene, BOX, tmp_path / "run", blender=str(fake))
+    assert "couldn't be read" in str(out.measurements["error"])

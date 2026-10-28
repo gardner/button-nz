@@ -32,6 +32,7 @@ b: Any = bpy  # no type stubs inside Blender
 build_scene: Any = _build_scene
 design_io: Any = _design_io
 MAX_TRIANGLES = 200_000
+UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
     "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
     "not its fine detail."
@@ -45,7 +46,11 @@ def main(argv: list[str]) -> None:
     build_scene.use_gpu(b.context.scene)
     path = os.path.join(out_dir, "measurements.json")
     design_io.write_json(path, {"error": design_io.DID_NOT_FINISH})
-    objects = _load(blend_path, design_io.site_names(scene))
+    try:
+        objects = _load(blend_path, design_io.site_names(scene))
+    except (OSError, RuntimeError) as error:  # only the model's script could have spoilt it
+        design_io.write_json(path, {"error": UNREADABLE.format(reason=error)})
+        return
     error = _broken_contract(objects)
     if error is not None:
         design_io.write_json(path, {"error": error})

@@ -27,6 +27,7 @@ NOT_OVER_ALLOTMENTS = (
 MAX_FLOOR_AREA_M2 = 70.0
 MAX_HEIGHT_ABOVE_FLOOR_M = 4.0
 MAX_FLOOR_ABOVE_GROUND_M = 1.0
+MIN_STOREY_M = 2.1  # the least headroom a storey can have (a doorway's height)
 MIN_SEPARATION_M = 2.0  # from any legal boundary and any other residential building
 TYPICAL_WALL_M = 0.3  # thickest common external wall (timber or steel frame, cladding)
 MAX_WALL_M = 0.6  # thickest realistic external wall (straw bale, rammed earth, ICF)
@@ -213,11 +214,22 @@ def height(proposal: Proposal) -> Check:
 
 
 def single_storey(proposal: Proposal) -> Check:
-    if proposal.storeys is None:
-        return Check("single_storey", Status.UNKNOWN, "Storeys not given.", {}, SCHEDULE_1A)
-    status = Status.PASS if proposal.storeys == 1 else Status.FAIL
-    detail = f"{proposal.storeys} storey(s); single storey required."
-    return Check("single_storey", status, detail, {"storeys": proposal.storeys}, SCHEDULE_1A)
+    """Single storey, from the measured height: a storey needs ``MIN_STOREY_M`` of
+    headroom, so a building lower than two of them can't have two. A stated
+    count over one fails; a stated one is only a claim, never a pass on its own."""
+    rule = f"{SCHEDULE_1A}; a storey needs at least {MIN_STOREY_M:g} m of headroom"
+    height, stated = proposal.height_above_floor_m, proposal.storeys
+    measured: dict[str, float] = {} if height is None else {"height_above_floor_m": height}
+    if stated is not None:
+        measured["stated_storeys"] = stated
+    if stated is not None and stated > 1:
+        detail = f"The design has {stated} storeys; single storey required."
+        return Check("single_storey", Status.FAIL, detail, measured, rule)
+    if height is not None and height < 2 * MIN_STOREY_M:
+        detail = f"{height:.2f} m above the floor leaves no room for a second storey."
+        return Check("single_storey", Status.PASS, detail, measured, rule)
+    detail = "The outside envelope can't show internal floors; the storeys are unmeasured."
+    return Check("single_storey", Status.UNKNOWN, detail, measured, rule)
 
 
 def floor_level(footprint: Polygon, proposal: Proposal, site: SiteContext) -> Check:

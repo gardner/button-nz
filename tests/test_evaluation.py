@@ -156,10 +156,20 @@ def test_a_stated_area_too_small_for_a_small_footprint_is_flagged_not_failed() -
 
 
 @pytest.mark.parametrize(
-    ("storeys", "status"), [(None, Status.UNKNOWN), (1, Status.PASS), (2, Status.FAIL)]
+    ("storeys", "height", "status"),
+    [
+        (None, 3.8, Status.PASS),  # too low for two storeys, whatever is stated
+        (1, 3.8, Status.PASS),
+        (2, 3.8, Status.FAIL),  # a design that says it has two storeys fails
+        (1, 4.5, Status.UNKNOWN),  # room for two: the stated 1 can't be checked
+        (None, None, Status.UNKNOWN),
+    ],
 )
-def test_single_storey(storeys: int | None, status: Status) -> None:
-    assert check(proposal(storeys=storeys), "single_storey").status is status
+def test_single_storey_is_measured_not_taken_on_trust(
+    storeys: int | None, height: float | None, status: Status
+) -> None:
+    result = check(proposal(storeys=storeys, height_above_floor_m=height), "single_storey")
+    assert result.status is status
 
 
 @pytest.mark.parametrize(

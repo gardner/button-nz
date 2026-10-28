@@ -18,7 +18,8 @@ Scene contract:
 - Units are metres in a local frame: x east, y north, z up. z is relative to the \
 datum below.
 - Create exactly one mesh object named "Dwelling" whose geometry is the building's \
-outside envelope: a closed mesh whose lowest point is the underside of a floor \
+outside envelope: a closed, solid mesh (no doors or windows cut through it) whose \
+lowest point is the underside of a floor \
 spanning its walls (no piles or steps below it). Put all building geometry \
 (walls, roof, decks, eaves) in that one mesh: other geometry is rejected. Floor \
 area is measured inside the walls, 1 m above the floor; setbacks from everything \

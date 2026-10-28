@@ -112,3 +112,33 @@ def test_two_substantial_wall_outlines_are_feedback_with_their_sizes() -> None:
     joined = box(0, 0, 0, 4, 4, 3) + box(6, 0, 0, 10, 4, 3) + box(0, 0, 3, 10, 4, 3.2)
     with pytest.raises(DesignError, match=r"16 m², 16 m²"):
         parse_measurements(measured_with(joined))
+
+
+def _hollow_house(door: bool) -> list[list[list[float]]]:
+    """A 12 m x 10 m house the usual bpy way: slab, four 0.2 m walls, roof."""
+    slab = box(0, 0, 0, 12, 10, 0.2)
+    north, east, west = (
+        box(0, 9.8, 0.2, 12, 10, 3),
+        box(11.8, 0, 0.2, 12, 10, 3),
+        box(0, 0, 0.2, 0.2, 10, 3),
+    )
+    south = (
+        box(0.2, 0, 0.2, 5.5, 0.2, 3) + box(6.5, 0, 0.2, 11.8, 0.2, 3)
+        if door
+        else box(0.2, 0, 0.2, 11.8, 0.2, 3)
+    )
+    lintel = box(5.5, 0, 2.1, 6.5, 0.2, 3) if door else []
+    roof = box(0, 0, 3, 12, 10, 3.2)
+    return slab + north + east + west + south + lintel + roof
+
+
+def test_a_doorway_through_the_walls_is_feedback_not_a_tiny_footprint() -> None:
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(_hollow_house(door=True)))
+
+
+def test_a_terrace_beside_the_walls_is_not_their_floor() -> None:
+    house = box(0, 0, 0.9, 8, 8, 4)
+    terrace = box(8, 0, 0, 15.5, 8, 0.2)
+    with pytest.raises(DesignError, match="lowest"):
+        parse_measurements(measured_with(house + terrace))

@@ -26,6 +26,7 @@ SCRATCH = "/tmp/scratch"  # nested in the sandbox's own /tmp
 SCRATCH_BYTES = 1 << 30
 TMPFS_BYTES = 512 << 20
 UNTRUSTED_MEMORY_BYTES = 16 << 30
+RENDER_MEMORY_BYTES = 16 << 30  # pass 2's heap: the model's geometry, evaluated
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,8 @@ class Sandbox:
         args += ["--", *command]
         if self.untrusted:
             args = ["prlimit", f"--as={UNTRUSTED_MEMORY_BYTES}", "--", *args]
+        else:  # CUDA reserves address space it never uses: cap the data segment instead
+            args = ["prlimit", f"--data={RENDER_MEMORY_BYTES}", "--", *args]
         return args
 
 
