@@ -37,13 +37,13 @@ max-complexity = 10
 
 [tool.pyright]
 include = ["src", "tests", "scripts"]
-extraPaths = ["src", "scripts"]
+extraPaths = ["src", "scripts", "tests"]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "scripts"]
+pythonpath = ["src", "scripts", "tests"]
 markers = [
     "live: queries real third-party services; run with `pytest -m live`",
     "blender: runs headless Blender with a GPU; run with `pytest -m blender`",
