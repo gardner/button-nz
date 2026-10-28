@@ -72,7 +72,7 @@ def test_raised_ground_nothing_labelled_is_reported() -> None:
     other = SHED_HEIGHT.copy()
     other[20:25, 30:35] = 4.0  # a 5 m x 5 m something nobody labelled
     labelled = features([mask("shed", slice(5, 9), slice(10, 16))], grid(other), BBOX, PIXEL_M)
-    (found,) = unlabelled(labelled, grid(other))
+    (found,) = unlabelled(labelled, grid(other), BBOX)
     assert found.status is Status.UNLABELLED
     assert found.polygon.bounds == pytest.approx((1030.0, 2005.0, 1035.0, 2010.0))
     assert found.max_height_m == pytest.approx(4.0)
@@ -82,3 +82,29 @@ def test_a_mask_that_does_not_match_the_crop_raises() -> None:
     wrong = Mask("shed", 0.9, np.zeros((10, 10), dtype=bool))
     with pytest.raises(ValueError, match="crop"):
         features([wrong], grid(), BBOX, PIXEL_M)
+
+
+def test_raised_ground_outside_the_crop_is_not_reported() -> None:
+    """The LiDAR grid is read with a margin; no mask could label what's outside the crop."""
+    other = SHED_HEIGHT.copy()
+    other[20:25, 30:35] = 4.0
+    crop = (1000.0, 2000.0, 1025.0, 2030.0)  # stops short of the block at x 1030-1035
+    (shed,) = unlabelled([], grid(other), crop)  # only the shed, inside the crop
+    assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))
+
+
+def test_the_unlabelled_part_of_a_raised_area_is_reported() -> None:
+    """A shed with an unlabelled lean-to: the lean-to is reported, the shed isn't."""
+    other = SHED_HEIGHT.copy()
+    other[5:9, 16:21] = 2.5  # a 5 m x 4 m lean-to joined to the shed's east wall
+    labelled = features([mask("shed", slice(5, 9), slice(10, 16))], grid(other), BBOX, PIXEL_M)
+    (found,) = unlabelled(labelled, grid(other), BBOX)
+    assert found.polygon.bounds == pytest.approx((1016.0, 2021.0, 1021.0, 2025.0), abs=0.3)
+    assert found.area_m2 == pytest.approx(20.0, abs=2.0)
+
+
+def test_a_crop_the_lidar_doesnt_cover_raises() -> None:
+    beyond = (990.0, 2000.0, 1030.0, 2030.0)  # 10 m west of the grid
+    pixels = np.zeros((120, 160), dtype=bool)
+    with pytest.raises(ValueError, match="LiDAR"):
+        features([Mask("shed", 0.9, pixels)], grid(), beyond, PIXEL_M)

@@ -19,11 +19,11 @@ import shapely
 from numpy.typing import NDArray
 from rasterio import features as _features  # pyright: ignore[reportMissingTypeStubs]
 from rasterio import transform as _transform  # pyright: ignore[reportMissingTypeStubs]
-from shapely import MultiPolygon, Polygon, union_all
+from shapely import MultiPolygon, Polygon, box, union_all
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.geo.geometry import BBox
+from button_nz.geo.geometry import BBox, covers
 from button_nz.geo.terrain import TerrainGrid
 
 # rasterio has no type stubs: typed Any, and everything from it converted at once.
@@ -40,6 +40,7 @@ GROUND_HEIGHT_M = 0.5  # nDSM below this counts as open ground
 MIN_STRUCTURE_SHARE = 0.5
 MIN_GROUND_SHARE = 0.8
 MIN_UNLABELLED_M2 = 4.0
+SLIVER_M = 0.3
 
 
 class Status(StrEnum):
@@ -70,6 +71,8 @@ class Feature:
 
 def features(masks: Sequence[Mask], grid: TerrainGrid, bbox: BBox, pixel_m: float) -> list[Feature]:
     """Each mask on the crop of ``bbox`` (``pixel_m`` per pixel) as a checked feature."""
+    if not covers(grid.bbox, bbox):
+        raise ValueError(f"the LiDAR grid {grid.bbox} doesn't cover the crop {bbox}")
     west, south, east, north = bbox
     expected = (round((north - south) / pixel_m), round((east - west) / pixel_m))
     transform = rio_transform.from_origin(west, north, pixel_m, pixel_m)
@@ -86,28 +89,28 @@ def features(masks: Sequence[Mask], grid: TerrainGrid, bbox: BBox, pixel_m: floa
     return found
 
 
-def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid) -> list[Feature]:
-    """Areas the LiDAR shows standing up that no labelled feature mostly covers."""
+def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid, bbox: BBox) -> list[Feature]:
+    """What the LiDAR shows standing up inside the crop ``bbox`` that no labelled
+    feature covers: each uncovered piece of at least ``MIN_UNLABELLED_M2``, so a
+    lean-to joined to a labelled shed is still reported, without the shed."""
     raised = grid.ndsm >= STRUCTURE_HEIGHT_M
     left, _, _, top = grid.bbox
     transform = rio_transform.from_origin(left, top, grid.cell_m, grid.cell_m)
+    shapes = rio_features.shapes(raised.astype(np.uint8), mask=raised, transform=transform)
+    standing = union_all([shape(geometry) for geometry, _ in shapes]).intersection(box(*bbox))
     covered = union_all([f.polygon for f in labelled])
+    # Opening drops the slivers where 0.25 m mask edges meet 1 m LiDAR cells.
+    left_over = _area(standing.difference(covered).buffer(-SLIVER_M).buffer(SLIVER_M))
+    pieces = list(left_over.geoms) if isinstance(left_over, MultiPolygon) else [left_over]
     found: list[Feature] = []
-    for geometry, _ in rio_features.shapes(
-        raised.astype(np.uint8), mask=raised, transform=transform
-    ):
-        area = _area(shape(geometry))
-        if area.area < MIN_UNLABELLED_M2 or area.intersection(covered).area >= area.area / 2:
+    for piece in pieces:
+        if piece.is_empty or piece.area < MIN_UNLABELLED_M2:
             continue
-        heights = _heights(area, grid)
-        note = (
-            f"The LiDAR shows {area.area:.0f} m² standing up to {heights.max():.1f} m; "
-            "no mask labels it."
-        )
+        heights = _heights(piece, grid)
+        tallest = float(heights.max()) if heights.size else None
+        note = f"The LiDAR shows {piece.area:.0f} m² standing up here; no mask labels it."
         found.append(
-            Feature(
-                "unlabelled", None, area, area.area, float(heights.max()), Status.UNLABELLED, note
-            )
+            Feature("unlabelled", None, piece, piece.area, tallest, Status.UNLABELLED, note)
         )
     return found
 
