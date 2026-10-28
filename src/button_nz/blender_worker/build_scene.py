@@ -67,7 +67,7 @@ def export(glb_path: str, png_path: str) -> None:
     _render(png_path)
 
 
-def _material(name: str, rgba: tuple[float, float, float, float]) -> Any:
+def material(name: str, rgba: tuple[float, float, float, float]) -> Any:
     material = b.data.materials.new(name)
     material.diffuse_color = rgba
     material.use_nodes = True
@@ -94,7 +94,7 @@ def _terrain(grid: dict[str, Any]) -> None:
     mesh = b.data.meshes.new("Terrain")
     mesh.from_pydata(verts, [], faces)
     mesh.update()
-    _object("Terrain", mesh, _material("Ground", (0.32, 0.45, 0.22, 1.0)))
+    _object("Terrain", mesh, material("Ground", (0.32, 0.45, 0.22, 1.0)))
 
 
 def _columns(terrain: dict[str, Any], ndsm: dict[str, Any]) -> None:
@@ -116,7 +116,7 @@ def _columns(terrain: dict[str, Any], ndsm: dict[str, Any]) -> None:
     mesh = b.data.meshes.new("AboveGround")
     mesh.from_pydata(verts, [], faces)
     mesh.update()
-    _object("AboveGround", mesh, _material("Evidence", (0.85, 0.45, 0.12, 1.0)))
+    _object("AboveGround", mesh, material("Evidence", (0.85, 0.45, 0.12, 1.0)))
 
 
 def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> None:
@@ -130,7 +130,7 @@ def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> No
     spline.points.add(len(points) - 1)
     for point, (x, y) in zip(spline.points, points, strict=True):
         point.co = (x, y, terrain_math.height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
-    _object(name, curve, _material("Boundary", (0.9, 0.1, 0.1, 1.0)))
+    _object(name, curve, material("Boundary", (0.9, 0.1, 0.1, 1.0)))
 
 
 def _camera_and_light(grid: dict[str, Any]) -> None:

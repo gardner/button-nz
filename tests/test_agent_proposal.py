@@ -21,6 +21,10 @@ def measured(**overrides: object) -> dict[str, object]:
     return raw | overrides
 
 
+def measured_with(triangles: object) -> dict[str, object]:
+    return measured(triangles=triangles)
+
+
 def test_measurements_become_an_nztm_proposal() -> None:
     proposal = to_proposal(parse_measurements(measured()), FRAME, DATUM)
     xs = [x for x, _ in proposal.footprint]
@@ -93,3 +97,217 @@ def test_an_open_mesh_is_feedback() -> None:
     sheet = [[[0.0, 0.0, 0.0], [4.0, 0.0, 2.0], [4.0, 4.0, 2.0]]]
     with pytest.raises(DesignError, match="closed"):
         parse_measurements(measured(triangles=sheet))
+
+
+def test_posts_and_balustrades_do_not_split_the_walls() -> None:
+    house = box(0, 0, 0, 8, 6, 3)
+    veranda = box(0, 6, 2.7, 8, 8.5, 2.9)
+    posts = box(0.1, 8.2, 0, 0.3, 8.4, 2.7) + box(7.7, 8.2, 0, 7.9, 8.4, 2.7)
+    measured = parse_measurements(measured_with(house + veranda + posts))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(48.0)
+
+
+def test_two_substantial_wall_outlines_are_feedback_with_their_sizes() -> None:
+    joined = box(0, 0, 0, 4, 4, 3) + box(6, 0, 0, 10, 4, 3) + box(0, 0, 3, 10, 4, 3.2)
+    with pytest.raises(DesignError, match=r"16 m², 16 m²"):
+        parse_measurements(measured_with(joined))
+
+
+def _hollow_house(
+    door: bool, slab: bool = True, door_x: float = 5.5, door_width: float = 1.0
+) -> list[list[list[float]]]:
+    """A 12 m x 10 m house the usual bpy way: slab, four 0.2 m walls, roof; the
+    door is a ``door_width`` gap in the south wall from ``door_x``."""
+    floor = box(0, 0, 0, 12, 10, 0.2) if slab else []
+    north, east, west = (
+        box(0, 9.8, 0.2, 12, 10, 3),
+        box(11.8, 0, 0.2, 12, 10, 3),
+        box(0, 0, 0.2, 0.2, 10, 3),
+    )
+    south = (
+        box(0.2, 0, 0.2, door_x, 0.2, 3) + box(door_x + door_width, 0, 0.2, 11.8, 0.2, 3)
+        if door
+        else box(0.2, 0, 0.2, 11.8, 0.2, 3)
+    )
+    lintel = box(door_x, 0, 2.1, door_x + door_width, 0.2, 3) if door else []
+    roof = box(0, 0, 3, 12, 10, 3.2)
+    return floor + north + east + west + south + lintel + roof
+
+
+def test_a_doorway_through_the_walls_is_feedback_not_a_tiny_footprint() -> None:
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(_hollow_house(door=True)))
+
+
+def test_a_terrace_beside_the_walls_is_not_their_floor() -> None:
+    house = box(0, 0, 0.9, 8, 8, 4)
+    terrace = box(8, 0, 0, 15.5, 8, 0.2)
+    with pytest.raises(DesignError, match="lowest"):
+        parse_measurements(measured_with(house + terrace))
+
+
+def test_a_doorway_is_caught_without_a_floor_slab_too() -> None:
+    """Walls standing on z_min, door gap to the ground: the floor section has the gap too."""
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(_hollow_house(door=True, slab=False)))
+
+
+def test_an_l_shaped_solid_house_is_fine() -> None:
+    l_shape = box(0, 0, 0, 10, 4, 3) + box(0, 4, 0, 4, 10, 3)
+    measured = parse_measurements(measured_with(l_shape))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(64.0)
+
+
+def test_a_doorway_into_one_room_of_two_is_caught() -> None:
+    """The closed east room fills in; the west room's front door must still be caught."""
+    house = _hollow_house(door=True, door_x=2.5) + box(5.9, 0.2, 0.2, 6.1, 9.8, 3)
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(house))
+
+
+def test_a_u_shaped_house_with_a_wide_courtyard_is_fine() -> None:
+    u_shape = box(0, 0, 0, 10, 3, 3) + box(0, 3, 0, 3, 8, 3) + box(7, 3, 0, 10, 8, 3)
+    measured = parse_measurements(measured_with(u_shape))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(60.0)
+
+
+def test_a_house_without_a_roof_is_feedback() -> None:
+    roofless = [t for t in _hollow_house(door=False) if min(p[2] for p in t) < 3.0]
+    with pytest.raises(DesignError, match="roof"):
+        parse_measurements(measured_with(roofless))
+
+
+def test_an_opening_too_wide_to_bridge_is_still_caught() -> None:
+    """A 3 m opening (garage door, slider) leaves the walls a thin strip of their hull."""
+    wide = _hollow_house(door=True, door_x=4.0, door_width=3.0)
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(wide))
+
+
+def _a_frame(width: float, length: float, ridge: float) -> list[list[list[float]]]:
+    """A triangular prism along y: two roof slopes from the floor to the ridge."""
+    a, b, c = [0.0, 0.0, 0.0], [width, 0.0, 0.0], [width / 2, 0.0, ridge]
+    d, e, f = [0.0, length, 0.0], [width, length, 0.0], [width / 2, length, ridge]
+    return [
+        [a, b, c],
+        [d, f, e],  # gable ends
+        [a, d, e],
+        [a, e, b],  # floor
+        [a, c, f],
+        [a, f, d],  # west slope
+        [b, e, f],
+        [b, f, c],  # east slope
+    ]
+
+
+def test_an_a_frame_is_a_closed_envelope() -> None:
+    measured = parse_measurements(measured_with(_a_frame(7.0, 9.0, 3.9)))
+    assert measured.footprint is not None
+
+
+def test_a_mesh_without_a_bottom_face_has_no_floor() -> None:
+    """Walls and a roof but no bottom: the wall ring sections as full, yet nothing closes it."""
+    closed = box(0, 0, 0, 8, 6, 3)
+    no_bottom = closed[2:]  # box() lists the two bottom triangles first
+    with pytest.raises(DesignError, match="lowest"):
+        parse_measurements(measured_with(no_bottom))
+
+
+def test_an_a_frame_is_measured_near_its_floor() -> None:
+    """Its slopes narrow as they rise: a cut 1 m up would understate the floor."""
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9)))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0  # the 0.5 m cut: about 78 m² of 90
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_non_finite_coordinates_are_feedback(bad: float) -> None:
+    broken = box(0, 0, 0, 8, 6, 3)
+    broken[0] = [[bad, 0.0, 0.0], broken[0][1], broken[0][2]]
+    with pytest.raises(DesignError, match="finite"):
+        parse_measurements(measured_with(broken))
+
+
+def test_a_step_below_the_wall_cut_is_not_mistaken_for_the_walls() -> None:
+    """A raised house with a doorway and a solid front step: the step at 0.5 m must
+    not stand in for the walls at 1 m."""
+    raised = [[[x, y, z + 0.6] for x, y, z in tri] for tri in _hollow_house(door=True)]
+    step = box(4.5, -3, 0, 7.5, 0.2, 0.6)
+    with pytest.raises(DesignError, match="lowest|solid"):  # the step is below the floor too
+        parse_measurements(measured_with(raised + step))
+
+
+def test_a_deck_at_floor_level_is_not_part_of_the_walls() -> None:
+    house = box(0, 0, 0, 8, 6, 3)
+    deck = box(8, 0, 0, 12, 6, 0.6)  # underside level with the floor
+    measured = parse_measurements(measured_with(house + deck))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(48.0)
+
+
+def test_an_a_frame_with_an_entry_platform_is_still_measured_near_its_floor() -> None:
+    platform = box(0, -3, 0, 10, 0, 0.6)
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + platform))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0
+
+
+def _banded(triangles: list[list[list[float]]], z: float) -> list[list[list[float]]]:
+    """``triangles`` with every edge crossing height ``z`` split there, as a
+    subdivided or loop-cut mesh would be: no triangle crosses ``z`` any more."""
+    out: list[list[list[float]]] = []
+    for tri in triangles:
+        below = [p for p in tri if p[2] < z]
+        if not below or len(below) == 3:
+            out.append(tri)
+            continue
+        out += _split(tri, z)
+    return out
+
+
+def _split(tri: list[list[float]], z: float) -> list[list[list[float]]]:
+    def cross(a: list[float], b: list[float]) -> list[float]:
+        a, b = sorted((a, b))  # the same point from both triangles sharing the edge
+        t = (z - a[2]) / (b[2] - a[2])
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), z]
+
+    lone = next(
+        i
+        for i in range(3)
+        if (tri[i][2] < z) != (tri[(i + 1) % 3][2] < z)
+        and (tri[i][2] < z) != (tri[(i + 2) % 3][2] < z)
+    )
+    a, b, c = tri[lone], tri[(lone + 1) % 3], tri[(lone + 2) % 3]
+    ab, ac = cross(a, b), cross(a, c)
+    return [[a, ab, ac], [ab, b, c], [ab, c, ac]]
+
+
+def test_a_banded_a_frame_is_still_measured_near_its_floor() -> None:
+    """Loop-cut at 0.75 m, no triangle crossing the 0.5 m cut reaches 1 m."""
+    banded = _banded(_a_frame(10.0, 9.0, 3.9), 0.75)
+    measured = parse_measurements(measured_with(banded))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0
+
+
+def test_an_a_frame_with_a_deck_on_its_long_side_is_measured_near_its_floor() -> None:
+    deck = box(10, 0, 0, 13, 9, 0.6)
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + deck))
+    assert measured.footprint is not None
+    assert 75.0 < Polygon(measured.footprint).area < 85.0  # the A-frame, not the deck
+
+
+def test_a_screen_wall_joined_to_the_house_widens_its_outline() -> None:
+    screen = [[[8.0, 3.0, 0.0], [14.0, 3.0, 0.0], [14.0, 3.0, 2.0]]]
+    measured = parse_measurements(measured_with(box(0, 0, 0, 8, 6, 3) + screen))
+    assert measured.parts == 1 and measured.outline is not None
+    assert max(x for x, _ in measured.outline) == pytest.approx(14.0, abs=0.01)
+
+
+def test_a_detached_screen_wall_is_a_separate_piece() -> None:
+    screen = [[[10.0, 3.0, 0.0], [14.0, 3.0, 0.0], [14.0, 3.0, 2.0]]]
+    with pytest.raises(DesignError, match="pieces"):
+        to_proposal(parse_measurements(measured_with(box(0, 0, 0, 8, 6, 3) + screen)), FRAME, DATUM)

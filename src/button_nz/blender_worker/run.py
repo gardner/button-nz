@@ -140,13 +140,17 @@ def _script_outcome(data: bytes, failure: BlenderError | None, blend: Path) -> s
         frames = design_io.frames(data)
     except ValueError:
         return GARBLED  # only the model's script could have garbled the stream
-    for kind, payload in frames[1:]:
-        if kind == design_io.FAILED:
-            return payload.decode("utf-8", errors="replace")
-        if kind == design_io.SAVED:
-            blend.write_bytes(payload)
-            return None
-    return DID_NOT_FINISH
+    # The last conclusive frame: the runner sends its own after the script ends, so
+    # a frame the script forged first is superseded (one sent later, e.g. from an
+    # atexit hook, only spoils the model's own design: pass 2 reports it unreadable).
+    conclusive = [f for f in frames[1:] if f[0] in (design_io.FAILED, design_io.SAVED)]
+    if not conclusive:
+        return DID_NOT_FINISH
+    kind, payload = conclusive[-1]
+    if kind == design_io.FAILED:
+        return payload.decode("utf-8", errors="replace")
+    blend.write_bytes(payload)
+    return None
 
 
 def _measure_pass(
@@ -222,7 +226,12 @@ def _run_blender(
     output = _Reader(read_fd, OUTPUT_TAIL_BYTES, keep="tail")
     try:
         process = subprocess.Popen(
-            command, stdout=write_fd, stderr=write_fd, env=env, pass_fds=pass_fds
+            command,
+            stdin=subprocess.DEVNULL,  # no host input for the model's code to read
+            stdout=write_fd,
+            stderr=write_fd,
+            env=env,
+            pass_fds=pass_fds,
         )
     except OSError as error:
         raise BlenderError(f"could not run Blender: {error}") from error

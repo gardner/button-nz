@@ -2,10 +2,14 @@
 Excluded by default; run with `pytest -m blender`."""
 
 import os
+import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
+import rasterio  # pyright: ignore[reportMissingTypeStubs]
+from numpy.typing import NDArray
 from shapely import Polygon
 
 from button_nz.agent.proposal import parse_measurements
@@ -282,3 +286,200 @@ def test_eaves_are_in_the_outline_but_not_the_wall_footprint(
     assert Polygon(measured.footprint).area == pytest.approx(30.0)  # the 6 m x 5 m walls
     assert Polygon(measured.outline).area == pytest.approx(56.0)  # the 8 m x 7 m roof
     assert (measured.z_min, measured.z_max) == pytest.approx((0.0, 3.9))
+
+
+def test_a_hidden_dwelling_is_still_rendered(tmp_path: Path, scene: SceneInput) -> None:
+    """What is checked is what is shown: hiding the Dwelling from the render doesn't work."""
+    shown = run_design(scene, BOX, tmp_path / "shown")
+    hidden = run_design(scene, BOX + "dwelling.hide_render = True\n", tmp_path / "hidden")
+    assert shown.png is not None and hidden.png is not None
+    a, b = _pixels(shown.png), _pixels(hidden.png)
+    assert np.abs(a - b).mean() < 2.0
+
+
+def test_too_detailed_a_dwelling_is_feedback_without_a_render(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    dense = (
+        "bpy.ops.mesh.primitive_grid_add(x_subdivisions=400, y_subdivisions=400, size=6)\n"
+        "bpy.context.active_object.name = 'Dwelling'\n"
+    )
+    out = run_design(scene, dense, tmp_path)
+    assert "triangles" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None
+    assert not (tmp_path / "design.glb").exists()
+
+
+def test_the_script_sees_no_host_terminals(tmp_path: Path, scene: SceneInput) -> None:
+    probe = "import os\nraise SystemExit(repr(sorted(os.listdir('/dev/pts'))))\n"
+    out = run_design(scene, probe, tmp_path)
+    assert "['ptmx']" in str(out.measurements["error"])
+
+
+def _pixels(png: Path) -> NDArray[np.float64]:
+    """A rendered PNG's pixels (GDAL reads PNG too)."""
+    rio: Any = rasterio
+    with rio.open(png) as image:
+        return np.asarray(image.read(), dtype=np.float64)
+
+
+def test_runaway_modifiers_hit_the_measuring_passs_memory_limit(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """A small mesh whose modifiers expand beyond memory is the model's feedback,
+    not an exhausted host."""
+    explode = "m = dwelling.modifiers.new('more', 'SUBSURF')\nm.levels = 11\nm.render_levels = 11\n"
+    out = run_design(scene, BOX + explode, tmp_path, timeout_s=300)
+    assert out.measurements["error"]
+    assert out.glb is None and out.png is None
+
+
+def test_a_forged_saved_frame_doesnt_replace_the_design(tmp_path: Path, scene: SceneInput) -> None:
+    forge = "import os, sys\nos.write(int(sys.argv[-1]), b'B' + (4).to_bytes(8, 'big') + b'junk')\n"
+    out = run_design(scene, BOX + forge, tmp_path)
+    assert out.measurements["error"] is None  # the runner's own, later frame wins
+
+
+def test_an_unreadable_design_file_is_the_models_feedback(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """Pass 1 stands in, sending junk as the design file; real Blender measures it."""
+    real = shutil.which("blender")
+    assert real is not None
+    fake = tmp_path / "bin" / "blender"
+    fake.parent.mkdir()
+    fake.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os, sys\n"
+        "if any(a.endswith('design_script.py') for a in sys.argv):\n"
+        "    fd = int(sys.argv[-1])\n"
+        "    os.write(fd, b'S' + bytes(8))\n"
+        "    os.write(fd, b'B' + (4).to_bytes(8, 'big') + b'junk')\n"
+        "else:\n"
+        f"    os.execv({real!r}, [{real!r}, *sys.argv[1:]])\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    out = run_design(scene, BOX, tmp_path / "run", blender=str(fake))
+    assert "couldn't be read" in str(out.measurements["error"])
+
+
+def test_modifiers_are_measured_as_they_render(tmp_path: Path, scene: SceneInput) -> None:
+    """An Array hidden from the viewport still renders: it must be measured too."""
+    copies = "m = dwelling.modifiers.new('copies', 'ARRAY')\nm.count = 3\nm.show_viewport = False\n"
+    out = run_design(scene, BOX + copies, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.outline is not None
+    xs = [x for x, _ in measured.outline]
+    assert max(xs) - min(xs) == pytest.approx(18.0)  # three 6 m boxes side by side
+
+
+def test_the_script_sees_only_system_directories(tmp_path: Path, scene: SceneInput) -> None:
+    probe = "import os\nraise SystemExit(repr(sorted(os.listdir('/'))))\n"
+    out = run_design(scene, probe, tmp_path)
+    listing = str(out.measurements["error"])
+    for hidden in ("'srv'", "'var'", "'root'", "'mnt'", "'media'"):
+        assert hidden not in listing
+
+
+def test_a_fork_bomb_hits_the_task_limit(tmp_path: Path, scene: SceneInput) -> None:
+    bomb = (
+        "import os, time\n"
+        "children = 0\n"
+        "try:\n"
+        "    for _ in range(5000):\n"
+        "        if os.fork() == 0:\n"
+        "            time.sleep(30)\n"
+        "            os._exit(0)\n"
+        "        children += 1\n"
+        "except OSError as error:\n"
+        "    raise SystemExit(f'stopped after {children}: {error}')\n"
+    )
+    out = run_design(scene, BOX + bomb, tmp_path, timeout_s=120)
+    assert "stopped after" in str(out.measurements["error"])
+
+
+def test_geometry_that_differs_in_the_render_is_feedback(tmp_path: Path, scene: SceneInput) -> None:
+    """A node tree asking Is Viewport can build one thing to measure and another to render."""
+    nodes = (
+        "tree = bpy.data.node_groups.new('switch', 'GeometryNodeTree')\n"
+        "tree.nodes.new('GeometryNodeIsViewport')\n"
+        "dwelling.modifiers.new('nodes', 'NODES').node_group = tree\n"
+    )
+    out = run_design(scene, BOX + nodes, tmp_path)
+    assert "Is Viewport" in str(out.measurements["error"])
+
+
+def test_a_transparent_dwelling_is_still_rendered(tmp_path: Path, scene: SceneInput) -> None:
+    """The render uses a trusted opaque material: what is checked is what is shown."""
+    glass = (
+        "mat = bpy.data.materials.new('invisible')\n"
+        "mat.use_nodes = True\n"
+        "nodes = mat.node_tree.nodes\n"
+        "nodes.remove(nodes['Principled BSDF'])\n"
+        "clear = nodes.new('ShaderNodeBsdfTransparent')\n"
+        "mat.node_tree.links.new(clear.outputs[0], nodes['Material Output'].inputs[0])\n"
+        "dwelling.data.materials.append(mat)\n"
+    )
+    shown = run_design(scene, BOX, tmp_path / "shown")
+    hidden = run_design(scene, BOX + glass, tmp_path / "hidden")
+    assert shown.png is not None and hidden.png is not None
+    assert np.abs(_pixels(shown.png) - _pixels(hidden.png)).mean() < 2.0
+
+
+def test_the_script_gets_no_gpu(tmp_path: Path, scene: SceneInput) -> None:
+    probe = (
+        "import glob\nraise SystemExit(repr(glob.glob('/dev/nvidia*') + glob.glob('/dev/dri')))\n"
+    )
+    out = run_design(scene, probe, tmp_path)
+    assert "[]" in str(out.measurements["error"])
+
+
+INSTANCES = """
+tree = bpy.data.node_groups.new('copies', 'GeometryNodeTree')
+tree.interface.new_socket('Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
+tree.interface.new_socket('Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
+inp, out = tree.nodes.new('NodeGroupInput'), tree.nodes.new('NodeGroupOutput')
+line = tree.nodes.new('GeometryNodeMeshLine')
+line.inputs['Count'].default_value = 3
+line.inputs['Offset'].default_value = (12.0, 0.0, 0.0)
+cube = tree.nodes.new('GeometryNodeMeshCube')
+place = tree.nodes.new('GeometryNodeInstanceOnPoints')
+join = tree.nodes.new('GeometryNodeJoinGeometry')
+tree.links.new(line.outputs[0], place.inputs['Points'])
+tree.links.new(cube.outputs[0], place.inputs['Instance'])
+tree.links.new(inp.outputs[0], join.inputs[0])
+tree.links.new(place.outputs[0], join.inputs[0])
+tree.links.new(join.outputs[0], out.inputs[0])
+dwelling.modifiers.new('copies', 'NODES').node_group = tree
+"""
+
+
+def test_geometry_nodes_instances_are_measured(tmp_path: Path, scene: SceneInput) -> None:
+    """Unrealised instances render, so they must be measured too."""
+    out = run_design(scene, BOX + INSTANCES, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.outline is not None or measured.parts > 1
+    triangles = out.measurements["triangles"]
+    xs = [p[0] for tri in triangles for p in tri]
+    assert max(xs) > 20.0  # the third cube, 24 m along x
+
+
+def test_non_finite_geometry_is_feedback_not_a_crash(tmp_path: Path, scene: SceneInput) -> None:
+    out = run_design(scene, BOX + "dwelling.data.vertices[0].co.x = float('nan')\n", tmp_path)
+    assert "finite" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None
+
+
+def test_the_script_cannot_read_the_hosts_stdin_or_config(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    probe = (
+        "import os, sys\n"
+        "seen = (sys.stdin.read(), sorted(os.listdir('/etc')), os.path.exists('/opt'))\n"
+        "raise SystemExit(repr(seen))\n"
+    )
+    seen = str(run_design(scene, probe, tmp_path).measurements["error"])
+    assert "SystemExit: ('', [" in seen  # nothing on stdin
+    assert "'ssh'" not in seen and "'shadow'" not in seen  # only the few /etc files bound
+    assert seen.endswith(", False)")  # no /opt
