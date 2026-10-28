@@ -26,6 +26,7 @@ from button_nz.geo.geometry import Ring
 
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
 LOW_SECTION_M = 0.5  # and again nearer the floor, for walls that lean in
+CONTAINS_TOLERANCE_M = 0.01
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
 OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
@@ -84,14 +85,18 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
             f"one closed outline of walls, but finds {len(rooms)} ({sizes or 'none'}). "
             "Make the Dwelling one closed mesh standing on its floor, its rooms joined."
         )
-    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
-    low = _rooms(triangles, z_min + low_cut)
-    if len(low) == 1 and low[0].area > rooms[0].area:
-        rooms, cut = low, low_cut
     walls, _ = _one_ring(rooms[0])
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
     _check_envelope(triangles, Polygon(walls), z_min, cut)
+    # Lower down, the same walls may be wider (an A-frame, a dome): measure there
+    # only if that outline contains the walls, not if it is something else (a step).
+    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
+    low = _rooms(triangles, z_min + low_cut)
+    if len(low) == 1 and low[0].buffer(CONTAINS_TOLERANCE_M).contains(Polygon(walls)):
+        lower, _ = _one_ring(low[0])
+        if lower is not None and Polygon(lower).area > Polygon(walls).area:
+            return lower
     return walls
 
 

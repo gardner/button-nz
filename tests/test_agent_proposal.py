@@ -229,3 +229,12 @@ def test_non_finite_coordinates_are_feedback(bad: float) -> None:
     broken[0] = [[bad, 0.0, 0.0], broken[0][1], broken[0][2]]
     with pytest.raises(DesignError, match="finite"):
         parse_measurements(measured_with(broken))
+
+
+def test_a_step_below_the_wall_cut_is_not_mistaken_for_the_walls() -> None:
+    """A raised house with a doorway and a solid front step: the step at 0.5 m must
+    not stand in for the walls at 1 m."""
+    raised = [[[x, y, z + 0.6] for x, y, z in tri] for tri in _hollow_house(door=True)]
+    step = box(4.5, -3, 0, 7.5, 0.2, 0.6)
+    with pytest.raises(DesignError, match="lowest|solid"):  # the step is below the floor too
+        parse_measurements(measured_with(raised + step))
