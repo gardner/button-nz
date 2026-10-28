@@ -107,15 +107,21 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
         )
     distance = min(footprint.distance(Polygon(b)) for b in site.confirmed_buildings)
     measured["distance_m"] = distance
-    status = Status.PASS if distance >= MIN_SEPARATION_M - _EPS else Status.FAIL
-    return Check(
-        "building_separation",
-        status,
-        f"{distance:.2f} m from the nearest confirmed building; "
-        f"at least {MIN_SEPARATION_M:g} m required.",
-        measured,
-        SCHEDULE_1A,
+    detail = (
+        f"{distance:.2f} m from the nearest listed building; "
+        f"at least {MIN_SEPARATION_M:g} m required."
     )
+    if distance < MIN_SEPARATION_M - _EPS:
+        status = Status.FAIL  # too close to a listed building, complete list or not
+    elif site.buildings_confirmed:
+        status = Status.PASS
+    else:  # an unlisted building could still be closer
+        status = Status.UNKNOWN
+        detail += (
+            f" The owner hasn't confirmed the list is complete; LiDAR shows {evidence} cells "
+            f"over {EVIDENCE_HEIGHT_M:g} m within {MIN_SEPARATION_M:g} m of the footprint."
+        )
+    return Check("building_separation", status, detail, measured, SCHEDULE_1A)
 
 
 def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
@@ -135,6 +141,12 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     rule = f"{SCHEDULE_1A}; walls assumed at most {MAX_WALL_M:g} m thick"
     if stated is not None and stated > outside + _EPS:
         detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
+        return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if stated is not None and stated < least_inside - _EPS:
+        detail = (
+            f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
+            f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
+        )
         return Check("floor_area", Status.FAIL, detail, measured, rule)
     if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
         detail = (

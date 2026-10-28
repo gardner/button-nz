@@ -51,7 +51,10 @@ def check(report_proposal: Proposal, name: str, context: SiteContext | None = No
 
 
 def test_a_good_placement_passes_every_measured_check() -> None:
-    report = evaluate(proposal(), site(confirmed_buildings=(rect(30, 5, 36, 12),)))
+    report = evaluate(
+        proposal(),
+        site(confirmed_buildings=(rect(30, 5, 36, 12),), buildings_confirmed=True),
+    )
     statuses = {c.name: c.status for c in report.checks}
     assert statuses == {
         "within_site": Status.PASS,
@@ -118,6 +121,7 @@ def test_lidar_evidence_near_the_footprint_is_reported() -> None:
         (rect(5, 5, 13, 11), None, Status.PASS),  # 48 m² outside the walls: under 70 inside
         (rect(2, 2, 11, 10.5), None, Status.UNKNOWN),  # 76.5 m² outside: depends on the walls
         (rect(2, 2, 11, 10.5), 66.0, Status.PASS),
+        (rect(2, 2, 11, 10.5), 1.0, Status.FAIL),  # less than 0.3 m walls could leave
         (rect(2, 2, 11, 10.5), 70.5, Status.FAIL),
         (rect(2, 2, 11, 10.5), 80.0, Status.FAIL),  # more than the footprint: impossible
         (rect(2, 2, 14, 12), 60.0, Status.FAIL),  # 120 m²: no wall makes that 70 inside
@@ -236,3 +240,16 @@ def test_impossible_proposal_values_are_rejected(bad: dict[str, float]) -> None:
 def test_a_footprint_beyond_the_terrain_is_rejected() -> None:
     with pytest.raises(InvalidProposal, match="terrain"):
         evaluate(proposal(footprint=rect(40, 5, 48, 11)), site())
+
+
+def test_far_listed_buildings_pass_only_if_the_list_is_confirmed_complete() -> None:
+    listed = (rect(30, 5, 36, 12),)
+    unconfirmed = check(proposal(), "building_separation", site(confirmed_buildings=listed))
+    assert unconfirmed.status is Status.UNKNOWN
+    confirmed = site(confirmed_buildings=listed, buildings_confirmed=True)
+    assert check(proposal(), "building_separation", confirmed).status is Status.PASS
+
+
+def test_a_close_listed_building_fails_whether_or_not_the_list_is_complete() -> None:
+    near = site(confirmed_buildings=(rect(14, 5, 18, 11),))
+    assert check(proposal(), "building_separation", near).status is Status.FAIL
