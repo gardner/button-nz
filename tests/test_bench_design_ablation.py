@@ -9,7 +9,14 @@ import pytest
 
 from button_nz.agent.conversation import Observe, Turn
 from button_nz.agent.site import DesignSite
-from button_nz.bench.design_ablation import CONDITIONS, RunResult, report, run, summarise
+from button_nz.bench.design_ablation import (
+    CONDITIONS,
+    RunResult,
+    parse_options,
+    report,
+    run,
+    summarise,
+)
 from button_nz.blender_worker.run import BlenderError, DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.evaluation import SiteContext
@@ -150,3 +157,31 @@ def test_an_output_directory_holds_one_run(site: DesignSite, tmp_path: Path) -> 
     run(["A studio."], CONDITIONS[:1], 1, site, Always("good"), tmp_path, fake_runner)
     with pytest.raises(FileExistsError, match="already"):
         run(["A studio."], CONDITIONS[:1], 1, site, Always("good"), tmp_path, fake_runner)
+
+
+def test_the_command_chooses_the_model_effort_and_conditions() -> None:
+    options = parse_options(
+        ["out", "--model", "muse-wonder-1.0", "--effort", "max", "--conditions", "evaluator_lidar"]
+    )
+    assert options.model == "muse-wonder-1.0" and options.effort == "max"
+    assert [c.name for c in options.conditions] == ["evaluator_lidar"]
+    defaults = parse_options(["out"])
+    assert defaults.model == "muse-spark-1.3" and defaults.effort is None
+    assert defaults.conditions == CONDITIONS
+
+
+def test_an_unknown_condition_is_refused() -> None:
+    with pytest.raises(SystemExit):
+        parse_options(["out", "--conditions", "evaluator,telepathy"])
+
+
+def test_the_report_names_the_reasoning_effort() -> None:
+    meta = {"model": "muse-spark-1.3", "effort": "max", "briefs": 1, "repeats": 1}
+    text = report([_result("evaluator", True, False, ("pass",))], meta)
+    assert "`muse-spark-1.3` (reasoning effort max)" in text
+
+
+def test_a_repeated_condition_is_refused() -> None:
+    """It would run into the same directories, overwriting the first pass's runs."""
+    with pytest.raises(SystemExit):
+        parse_options(["out", "--conditions", "evaluator,evaluator"])

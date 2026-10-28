@@ -43,14 +43,17 @@ TOOLS: list[dict[str, Any]] = [
 class ChatModel:
     client: OpenAI
     model: str = "muse-spark-1.3"
+    reasoning_effort: str | None = None  # e.g. "max" (Spark 1.3); None: the API's default
 
     @classmethod
-    def from_env(cls, model: str = "muse-spark-1.3") -> ChatModel:
+    def from_env(
+        cls, model: str = "muse-spark-1.3", reasoning_effort: str | None = None
+    ) -> ChatModel:
         """A client for the Meta Model API using the ``META_API_KEY`` key."""
         key = os.environ.get("META_API_KEY")
         if not key:
             raise KeyError("META_API_KEY is not set: get a Meta Model API key")
-        return cls(OpenAI(base_url=META_BASE_URL, api_key=key), model)
+        return cls(OpenAI(base_url=META_BASE_URL, api_key=key), model, reasoning_effort)
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         tools = TOOLS + (OBSERVATION_TOOLS if allow_observations else [])
@@ -59,6 +62,10 @@ class ChatModel:
             messages=cast("Any", _messages(conversation)),
             tools=cast("Any", tools),
             tool_choice="auto",  # the only choice the Meta Model API accepts
+            # Sent raw: the SDK's type for it doesn't know the API's "max".
+            extra_body={"reasoning_effort": self.reasoning_effort}
+            if self.reasoning_effort
+            else None,
         )
         message = response.choices[0].message
         offered = {t["function"]["name"] for t in tools}
