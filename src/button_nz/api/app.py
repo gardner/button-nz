@@ -5,7 +5,8 @@ poll and inspect.
     POST /designs {brief, allow_observations}     queue a design; 202 with the job
     POST /designs/{id}/revisions {instruction}    revise its accepted design; 202
     GET  /designs/{id}                            status, attempts, accepted attempt
-    GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png
+    GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
+                                                  visual.png, visual.json
 
 The surveyed site features are served too (``api.features``). Only those
 artifact names are served, and only as regular files in the job's own run
@@ -30,7 +31,9 @@ from button_nz.api.jobs import Worker
 from button_nz.api.store import Job, Store
 from button_nz.demo_site import DemoSite
 
-ARTIFACT = re.compile(r"design\.glb|design\.png|observation-[1-9][0-9]*\.png")
+ARTIFACT = re.compile(
+    r"design\.glb|design\.png|observation-[1-9][0-9]*\.png|visual\.png|visual\.json"
+)
 
 
 class DesignRequest(BaseModel):
@@ -64,6 +67,7 @@ class JobView(BaseModel):
     parent_id: str | None
     instruction: str | None
     attempts: list[AttemptView]
+    illustrating: bool  # done, and its AI visual is still being made: look again
 
 
 def create_app(
@@ -155,7 +159,16 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         parent_id=job.parent_id,
         instruction=job.instruction,
         attempts=attempts,
+        illustrating=_illustrating(worker, job),
     )
+
+
+def _illustrating(worker: Worker, job: Job) -> bool:
+    """Whether the accepted attempt's visual is still to come: this server makes
+    them, the job is done, and ``visual.json`` (written however it went) isn't there."""
+    if worker.illustrator is None or job.status != "done" or job.accepted_attempt is None:
+        return False
+    return not (_attempt_dir(worker, job, job.accepted_attempt) / "visual.json").exists()
 
 
 def _files(worker: Worker, job: Job, number: int) -> dict[str, str]:

@@ -163,6 +163,15 @@ class Store:
             )
         return cursor.rowcount
 
+    def accepted_jobs(self) -> list[Job]:
+        """Every done job with an accepted attempt."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT * FROM jobs WHERE status = ? AND accepted_attempt IS NOT NULL",
+                (JobStatus.DONE,),
+            ).fetchall()
+        return [_job(row) for row in rows]
+
     def add_attempt(self, attempt: AttemptRecord) -> None:
         with self._db() as db:
             db.execute(
