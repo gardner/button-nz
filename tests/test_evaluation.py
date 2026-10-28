@@ -132,10 +132,12 @@ def test_lidar_evidence_near_the_footprint_is_reported() -> None:
         (rect(5, 5, 13, 11), 37.4, Status.PASS),  # 0.4 m walls: under 70 whatever the walls
         (rect(2, 2, 11, 10.5), None, Status.UNKNOWN),  # 76.5 m² outside: depends on the walls
         (rect(2, 2, 11, 10.5), 66.0, Status.PASS),
-        (rect(2, 2, 11, 10.5), 1.0, Status.FAIL),  # less than 0.3 m walls could leave
+        (rect(2, 2, 11, 10.5), 1.0, Status.FAIL),  # less than even 0.6 m walls could leave
+        (rect(2, 2, 11, 10.5), 63.1, Status.UNKNOWN),  # 0.4 m walls: possible, not typical
         (rect(2, 2, 11, 10.5), 70.5, Status.FAIL),
         (rect(2, 2, 11, 10.5), 80.0, Status.FAIL),  # more than the footprint: impossible
-        (rect(2, 2, 14, 12), 60.0, Status.FAIL),  # 120 m²: no wall makes that 70 inside
+        (rect(2, 2, 11, 11), None, Status.UNKNOWN),  # 81 m²: 0.45 m straw bale leaves 65.6
+        (rect(2, 2, 14, 12), 60.0, Status.FAIL),  # 120 m²: no realistic wall makes that 70
     ],
 )
 def test_floor_area_is_checked_against_the_measured_footprint(

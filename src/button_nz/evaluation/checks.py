@@ -28,7 +28,8 @@ MAX_FLOOR_AREA_M2 = 70.0
 MAX_HEIGHT_ABOVE_FLOOR_M = 4.0
 MAX_FLOOR_ABOVE_GROUND_M = 1.0
 MIN_SEPARATION_M = 2.0  # from any legal boundary and any other residential building
-MAX_WALL_M = 0.3  # thickest external wall assumed when bounding internal area
+TYPICAL_WALL_M = 0.3  # thickest common external wall (timber or steel frame, cladding)
+MAX_WALL_M = 0.6  # thickest realistic external wall (straw bale, rammed earth, ICF)
 EVIDENCE_HEIGHT_M = 2.0  # nDSM above this is reported as possible structure
 _EPS = 1e-9
 
@@ -138,9 +139,11 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
 
 def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     """Internal floor area <= 70 m², bounded by the measured footprint: the
-    inside can't exceed the outside of the walls, and walls are at most
-    ``MAX_WALL_M`` thick. The stated area decides only what geometry can't."""
+    inside can't exceed the outside of the walls, and no realistic wall is more
+    than ``MAX_WALL_M`` thick. Geometry decides where it can; a stated area that
+    only unusually thick walls explain is unknown, not failed."""
     outside, perimeter = footprint.area, footprint.exterior.length
+    typical_inside = outside - perimeter * TYPICAL_WALL_M
     least_inside = outside - perimeter * MAX_WALL_M
     stated = proposal.floor_area_m2
     measured: dict[str, float] = {
@@ -150,18 +153,15 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     }
     if stated is not None:
         measured["value"] = stated
-    rule = f"{SCHEDULE_1A}; walls assumed at most {MAX_WALL_M:g} m thick"
+    rule = f"{SCHEDULE_1A}; walls at most {MAX_WALL_M:g} m thick"
     if stated is not None and stated > outside + _EPS:
         detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
         return Check("floor_area", Status.FAIL, detail, measured, rule)
-    implausible = _implausibly_small(stated, outside, least_inside)
     if outside <= MAX_FLOOR_AREA_M2 + _EPS:  # geometry decides; a stated area can't fail it
         detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
-        if implausible is not None:
-            detail += f" {implausible} Check the stated value."
+        if stated is not None and stated < typical_inside - _EPS:
+            detail += f" {_thick_walls(stated, outside, typical_inside)} Check the stated value."
         return Check("floor_area", Status.PASS, detail, measured, rule)
-    if implausible is not None:
-        return Check("floor_area", Status.FAIL, implausible, measured, rule)
     if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
         detail = (
             f"The footprint is {outside:.1f} m²: even with {MAX_WALL_M:g} m walls the inside "
@@ -173,17 +173,36 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
             f"The footprint is {outside:.1f} m²; the internal area depends on the walls: state it."
         )
         return Check("floor_area", Status.UNKNOWN, detail, measured, rule)
-    status = Status.PASS if stated <= MAX_FLOOR_AREA_M2 + _EPS else Status.FAIL
-    detail = f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+    status, detail = _stated_area(stated, outside, typical_inside, least_inside)
     return Check("floor_area", status, detail, measured, rule)
 
 
-def _implausibly_small(stated: float | None, outside: float, least_inside: float) -> str | None:
-    if stated is None or stated >= least_inside - _EPS:
-        return None
+def _stated_area(
+    stated: float, outside: float, typical_inside: float, least_inside: float
+) -> tuple[Status, str]:
+    """The verdict on a stated area, for a footprint that walls could bring under 70."""
+    if stated < least_inside - _EPS:
+        return Status.FAIL, (
+            f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
+            f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
+        )
+    if stated > MAX_FLOOR_AREA_M2 + _EPS:
+        return Status.FAIL, (
+            f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+        )
+    if stated < typical_inside - _EPS:
+        return Status.UNKNOWN, (
+            f"{_thick_walls(stated, outside, typical_inside)} Confirm the wall thickness."
+        )
+    return Status.PASS, (
+        f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+    )
+
+
+def _thick_walls(stated: float, outside: float, typical_inside: float) -> str:
     return (
-        f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
-        f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
+        f"The stated {stated:g} m² needs walls over {TYPICAL_WALL_M:g} m thick in this "
+        f"{outside:.1f} m² footprint ({typical_inside:.1f} m² inside {TYPICAL_WALL_M:g} m walls)."
     )
 
 
