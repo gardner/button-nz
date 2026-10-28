@@ -19,6 +19,13 @@ import {
   record,
   text,
 } from "./fields";
+import {
+  type Decision,
+  type SiteFeature,
+  type Survey,
+  parseFeature,
+  parseSurvey,
+} from "./features";
 
 export { ApiError };
 
@@ -103,6 +110,39 @@ export async function createDesign(
 
 export async function getDesign(id: string): Promise<Job> {
   return parseJob(await request(`/designs/${encodeURIComponent(id)}`));
+}
+
+export async function getFeatures(): Promise<Survey> {
+  return parseSurvey(await request("/site/features"));
+}
+
+export async function decideFeature(
+  id: string,
+  decision: Decision,
+): Promise<SiteFeature> {
+  return parseFeature(
+    await put(`/site/features/${encodeURIComponent(id)}`, { decision }),
+  );
+}
+
+/** Say every building on the site is listed (or not). Refused (409) while
+ * anything that might be a building is undecided. */
+export async function setBuildingsComplete(
+  complete: boolean,
+): Promise<boolean> {
+  const survey = record(
+    await put("/site/survey", { buildings_complete: complete }),
+    "survey",
+  );
+  return flag(survey, "buildings_complete");
+}
+
+function put(path: string, body: object): Promise<unknown> {
+  return request(path, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
