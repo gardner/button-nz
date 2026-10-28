@@ -12,7 +12,9 @@ from numpy.typing import NDArray
 from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.evaluation.model import Check, Proposal, SiteContext, Status
+from button_nz.blender_worker.terrain_math import height_at, mesh_crossings
+from button_nz.evaluation.model import Check, InvalidProposal, Proposal, SiteContext, Status
+from button_nz.geo.terrain import TerrainGrid
 
 SCHEDULE_1A = (
     "Building Act 2004, Schedule 1A (granny flats exemption); "
@@ -22,6 +24,7 @@ MAX_FLOOR_AREA_M2 = 70.0
 MAX_HEIGHT_ABOVE_FLOOR_M = 4.0
 MAX_FLOOR_ABOVE_GROUND_M = 1.0
 MIN_SEPARATION_M = 2.0  # from any legal boundary and any other residential building
+MAX_WALL_M = 0.3  # thickest external wall assumed when bounding internal area
 EVIDENCE_HEIGHT_M = 2.0  # nDSM above this is reported as possible structure
 _EPS = 1e-9
 
@@ -84,6 +87,14 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
         "lidar_cells_over_2m_within_2m": float(evidence),
         "required_m": MIN_SEPARATION_M,
     }
+    if not site.confirmed_buildings and site.buildings_confirmed:
+        return Check(
+            "building_separation",
+            Status.PASS,
+            "The owner confirms there are no other residential buildings on the title.",
+            measured,
+            SCHEDULE_1A,
+        )
     if not site.confirmed_buildings:
         return Check(
             "building_separation",
@@ -107,8 +118,41 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
     )
 
 
-def floor_area(proposal: Proposal) -> Check:
-    return _limit("floor_area", proposal.floor_area_m2, MAX_FLOOR_AREA_M2, "m² internal floor area")
+def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
+    """Internal floor area <= 70 m², bounded by the measured footprint: the
+    inside can't exceed the outside of the walls, and walls are at most
+    ``MAX_WALL_M`` thick. The stated area decides only what geometry can't."""
+    outside, perimeter = footprint.area, footprint.exterior.length
+    least_inside = outside - perimeter * MAX_WALL_M
+    stated = proposal.floor_area_m2
+    measured: dict[str, float] = {
+        "footprint_area_m2": outside,
+        "least_internal_area_m2": least_inside,
+        "maximum": MAX_FLOOR_AREA_M2,
+    }
+    if stated is not None:
+        measured["value"] = stated
+    rule = f"{SCHEDULE_1A}; walls assumed at most {MAX_WALL_M:g} m thick"
+    if stated is not None and stated > outside + _EPS:
+        detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
+        return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
+        detail = (
+            f"The footprint is {outside:.1f} m²: even with {MAX_WALL_M:g} m walls the inside "
+            f"is at least {least_inside:.1f} m², over {MAX_FLOOR_AREA_M2:g}."
+        )
+        return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if outside <= MAX_FLOOR_AREA_M2 + _EPS:
+        detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
+        return Check("floor_area", Status.PASS, detail, measured, rule)
+    if stated is None:
+        detail = (
+            f"The footprint is {outside:.1f} m²; the internal area depends on the walls: state it."
+        )
+        return Check("floor_area", Status.UNKNOWN, detail, measured, rule)
+    status = Status.PASS if stated <= MAX_FLOOR_AREA_M2 + _EPS else Status.FAIL
+    detail = f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+    return Check("floor_area", status, detail, measured, rule)
 
 
 def height(proposal: Proposal) -> Check:
@@ -151,7 +195,8 @@ def preservation_areas(footprint: Polygon, site: SiteContext) -> Check:
     rule = "The owner's preservation areas"
     if not site.preservation_areas:
         return Check("preservation_areas", Status.PASS, "No preservation areas given.", {}, rule)
-    overlap = sum(footprint.intersection(Polygon(a)).area for a in site.preservation_areas)
+    areas = union_all([Polygon(a) for a in site.preservation_areas])
+    overlap = footprint.intersection(areas).area
     status = Status.PASS if overlap <= 1e-6 else Status.FAIL
     detail = f"{overlap:.2f} m² of the footprint is in a preservation area."
     return Check("preservation_areas", status, detail, {"overlap_m2": overlap}, rule)
@@ -185,12 +230,42 @@ def _cell_centres(site: SiteContext) -> tuple[NDArray[np.float64], NDArray[np.fl
 
 
 def _ground_range(footprint: Polygon, site: SiteContext) -> tuple[float, float]:
+    """Lowest and highest ground under the footprint: every cell centre inside it,
+    plus every point where its outline crosses a terrain-mesh triangle edge,
+    interpolated on the same triangles as the rendered terrain."""
+    grid = site.terrain
+    heights = _height_grid(grid)
+    ring = [[float(x), float(y)] for x, y in footprint.exterior.coords]
+    outline = mesh_crossings(ring, heights)
+    if not all(_on_grid(grid, x, y) for x, y in outline):
+        raise InvalidProposal("the terrain grid does not cover the whole footprint")
+    samples = [height_at(heights, x, y) for x, y in outline]
     x, y = _cell_centres(site)
     inside = shapely.contains_xy(footprint, x, y)
-    if not inside.any():
-        raise ValueError("the terrain grid has no cell centre inside the footprint")
-    ground = site.terrain.dem[inside]
-    return float(ground.min()), float(ground.max())
+    samples += [float(h) for h in grid.dem[inside]]
+    return min(samples), max(samples)
+
+
+def _height_grid(grid: TerrainGrid) -> dict[str, object]:
+    """The terrain in the scene's height-grid form (samples at cell centres)."""
+    rows, cols = grid.dem.shape
+    return {
+        "rows": rows,
+        "cols": cols,
+        "cell_m": grid.cell_m,
+        "x0": grid.bbox[0] + grid.cell_m / 2,
+        "y0": grid.bbox[3] - grid.cell_m / 2,
+        "heights": [float(h) for h in grid.dem.ravel()],
+    }
+
+
+def _on_grid(grid: TerrainGrid, x: float, y: float) -> bool:
+    """Whether (x, y) lies within the cell centres, where heights are measured."""
+    half = grid.cell_m / 2
+    return (
+        grid.bbox[0] + half - _EPS <= x <= grid.bbox[2] - half + _EPS
+        and grid.bbox[1] + half - _EPS <= y <= grid.bbox[3] - half + _EPS
+    )
 
 
 def _lidar_cells_near(footprint: Polygon, site: SiteContext) -> int:
