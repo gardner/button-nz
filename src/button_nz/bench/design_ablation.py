@@ -112,7 +112,8 @@ def _run_one(
             evaluator_feedback=condition.evaluator_feedback,
         )
     except Exception as error:  # recorded, not dropped: the report counts it
-        return RunResult(b, condition.name, repeat, 0, 0, False, False, 0, (), 0.0, repr(error))
+        seconds = time.monotonic() - started
+        return RunResult(b, condition.name, repeat, 0, 0, False, False, 0, (), seconds, repr(error))
     return _measured(b, condition.name, repeat, outcome, time.monotonic() - started)
 
 

@@ -21,6 +21,7 @@ from button_nz.blender_worker.terrain_math import height_at
 from button_nz.evaluation import ground_range
 from button_nz.geo.geometry import Ring
 from button_nz.lidar import inspect_elevation
+from button_nz.lidar.analysis import gradients
 
 DIRECTIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 MIN_GRADE = 0.05  # 1 in 20: gentler ground has no clear downhill direction
@@ -31,7 +32,7 @@ HEIGHT_TOLERANCE_M = 0.2
 RELIEF_TOLERANCE_M = 0.25
 AREA_HALF_M = 2.5  # the squares compared for steepness
 RELIEF_HALF_M = 5.0
-STEP_M = 0.5  # half the span of a central difference
+MARGIN_M = 0.5  # keep marks this far inside the title and the measured grid
 TRIES_PER_QUESTION = 200
 
 
@@ -94,23 +95,17 @@ class _Terrain:
     def __init__(self, site: DesignSite) -> None:
         self.surface = cast("dict[str, Any]", site.scene["terrain"])  # height_at's shape
         self.grid, self.frame = site.context.terrain, site.frame
+        self.east, self.north = gradients(self.grid)
         frame = site.frame
         title = union_all([Polygon([frame.to_local(p) for p in r]) for r in site.context.parcels])
         s = self.surface
         x0, y0, cell = float(s["x0"]), float(s["y0"]), float(s["cell_m"])
         cols, rows = int(s["cols"]), int(s["rows"])
         measured = box(x0, y0 - (rows - 1) * cell, x0 + (cols - 1) * cell, y0)
-        self.region = title.intersection(measured).buffer(-STEP_M)  # room for differences
+        self.region = title.intersection(measured).buffer(-MARGIN_M)
 
     def height(self, x: float, y: float) -> float:
         return height_at(self.surface, x, y)
-
-    def gradient(self, x: float, y: float) -> tuple[float, float]:
-        h = self.height
-        return (
-            (h(x + STEP_M, y) - h(x - STEP_M, y)) / (2 * STEP_M),
-            (h(x, y + STEP_M) - h(x, y - STEP_M)) / (2 * STEP_M),
-        )
 
     def place(self, rng: np.random.Generator, half_m: float, label: str) -> Mark | None:
         west, south, east, north = self.region.bounds
@@ -118,6 +113,14 @@ class _Terrain:
         y = round(float(rng.uniform(south, north)), 1)
         shape = box(x - half_m, y - half_m, x + half_m, y + half_m) if half_m else Point(x, y)
         return Mark(label, x, y, half_m) if self.region.contains(shape) else None
+
+    def cell_gradient(self, mark: Mark) -> tuple[float, float]:
+        """dz/dx and dz/dy of the DEM cell under ``mark``, as the normal map and
+        hillshade the model reads compute them (lidar.analysis.gradients)."""
+        x, y = self.frame.to_nztm((mark.x, mark.y))
+        west, _, _, north = self.grid.bbox
+        row, col = int((north - y) // self.grid.cell_m), int((x - west) // self.grid.cell_m)
+        return float(self.east[row, col]), float(self.north[row, col])
 
     def square(self, mark: Mark) -> Ring:
         """``mark``'s square in NZTM, as the tools take it."""
@@ -141,7 +144,7 @@ def _aspect(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
     a = terrain.place(rng, 0.0, "A")
     if a is None:
         return None
-    gx, gy = terrain.gradient(a.x, a.y)
+    gx, gy = terrain.cell_gradient(a)
     if math.hypot(gx, gy) < MIN_GRADE:
         return None
     bearing = math.degrees(math.atan2(-gx, -gy)) % 360  # downhill, clockwise from north

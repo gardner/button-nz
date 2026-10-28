@@ -9,13 +9,22 @@ from numpy.typing import NDArray
 from shapely import Polygon
 
 from button_nz.agent.site import DesignSite
-from button_nz.bench.questions import Mark, Question, _mean_slope, _Terrain, generate, score  # pyright: ignore[reportPrivateUsage]
+from button_nz.bench.questions import (
+    DIRECTIONS,
+    Mark,
+    Question,
+    _mean_slope,  # pyright: ignore[reportPrivateUsage]
+    _Terrain,  # pyright: ignore[reportPrivateUsage]
+    generate,
+    score,
+)
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.lidar import inspect_elevation
+from button_nz.lidar.analysis import gradients
 
 # One 60 m x 40 m parcel over a 70 m x 50 m grid of 1 m cells; local origin at its centre.
 PARCEL: Ring = ((5.0, 5.0), (65.0, 5.0), (65.0, 45.0), (5.0, 45.0), (5.0, 5.0))
@@ -124,3 +133,19 @@ def test_ground_truth_is_what_the_models_tools_report() -> None:
     )
     low, high = ground_range(Polygon(ring), terrain.grid)
     assert high - low == pytest.approx(3.0)  # the whole band lies inside
+
+
+def test_aspect_is_read_from_the_same_gradient_as_the_views() -> None:
+    """The answer is the downhill sector of A's cell in lidar.analysis.gradients, which
+    the normal map and hillshade draw, not a finer difference they don't show."""
+    rng = np.random.default_rng(3)
+    x, _ = centres()
+    dem = 100.0 + 0.07 * x + rng.normal(0.0, 0.03, x.shape)  # gentle, noisy ground
+    s = site(dem)
+    east, north = gradients(s.context.terrain)
+    for q in of_kind(generate(s, per_kind=20, seed=9), "aspect"):
+        (a,) = q.marks
+        px, py = s.frame.to_nztm((a.x, a.y))
+        row, col = int(50 - py), int(px)
+        bearing = math.degrees(math.atan2(-east[row, col], -north[row, col])) % 360
+        assert q.answer == DIRECTIONS[round(bearing / 45) % 8]

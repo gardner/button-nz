@@ -76,6 +76,7 @@ def test_a_run_that_cannot_complete_is_recorded_not_dropped(
 
     (result,) = run(["A studio."], CONDITIONS[:1], 1, site, Scripted(), tmp_path, no_gpu)
     assert result.error is not None and "no GPU" in result.error
+    assert result.seconds > 0.0  # the time it took to fail is still measured
     assert not result.accepted
 
 
