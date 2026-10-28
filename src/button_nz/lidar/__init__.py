@@ -9,7 +9,7 @@ from button_nz.lidar.analysis import (
     slope_degrees,
 )
 from button_nz.lidar.render import View
-from button_nz.lidar.views import contours, hillshade, ndsm_map, normal_map, slope_map
+from button_nz.lidar.views import contours, hillshade, ndsm_map, normal_map, overlay, slope_map
 
 __all__ = [
     "CrossSection",
@@ -21,6 +21,7 @@ __all__ = [
     "ndsm_map",
     "normal_map",
     "normals",
+    "overlay",
     "slope_degrees",
     "slope_map",
 ]

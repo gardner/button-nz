@@ -1,10 +1,15 @@
 """Map views of the terrain grid, each on a fixed scale so colours mean the same
 thing every time. These re-present the LiDAR measurements; they add no data."""
 
+import io
 import math
+from collections.abc import Sequence
+from dataclasses import replace
 
 import numpy as np
+from PIL import Image, ImageDraw
 
+from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.lidar.analysis import normals, slope_degrees
 from button_nz.lidar.render import View, colour_scale, grey, to_png
@@ -75,3 +80,24 @@ def normal_map(grid: TerrainGrid, scale: int = 8) -> View:
     facts = {"mean_up_component": float(n[..., 2].mean())}
     notes = "Surface normals: red east, green north, blue up; flat ground is light blue."
     return View("normals", to_png(rgb, scale), facts, notes)
+
+
+def overlay(
+    view: View,
+    grid: TerrainGrid,
+    rings: Sequence[Ring],
+    scale: int = 8,
+    colour: tuple[int, int, int] = (230, 30, 30),
+) -> View:
+    """``view`` with ``rings`` (NZTM) drawn on it, e.g. the parcels and the current
+    footprint, so the model can relate the image to its own coordinates. ``scale``
+    must be the one the view was rendered at."""
+    image = Image.open(io.BytesIO(view.png)).convert("RGB")
+    draw = ImageDraw.Draw(image)
+    left, top, cell = grid.bbox[0], grid.bbox[3], grid.cell_m
+    for ring in rings:
+        pixels = [((x - left) / cell * scale, (top - y) / cell * scale) for x, y in ring]
+        draw.line(pixels, fill=colour, width=2)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return replace(view, png=buffer.getvalue())

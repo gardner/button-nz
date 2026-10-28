@@ -16,6 +16,7 @@ from button_nz.lidar import (
     inspect_elevation,
     ndsm_map,
     normal_map,
+    overlay,
     slope_degrees,
     slope_map,
 )
@@ -111,3 +112,17 @@ def test_a_polygon_outside_the_grid_raises() -> None:
     far = ((100.0, 100.0), (110.0, 100.0), (110.0, 110.0), (100.0, 100.0))
     with pytest.raises(ValueError, match="no cell"):
         inspect_elevation(plane(), far)
+
+
+def test_overlay_draws_outlines_in_the_views_pixel_space() -> None:
+    g = plane(east=0.1)
+    square = ((10.0, 10.0), (20.0, 10.0), (20.0, 20.0), (10.0, 20.0), (10.0, 10.0))
+    view = overlay(hillshade(g, scale=4), g, [square], scale=4)
+    pixels = image(view.png)
+    # NZTM (10, 20) is column 10, row 20 from the north edge: pixel (40, 80).
+    red, green, blue = (int(v) for v in pixels[80, 60])  # on the north edge of the square
+    assert red > 200 and green < 80 and blue < 80
+    assert tuple(pixels[100, 60]) == tuple(
+        image(hillshade(g, scale=4).png)[100, 60]
+    )  # inside: untouched
+    assert view.facts == hillshade(g, scale=4).facts
