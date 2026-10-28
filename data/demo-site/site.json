@@ -1,0 +1,82 @@
+{
+  "name": "35 Victory Street, Reefton",
+  "verified_on": "2026-10-28",
+  "crs": { "horizontal": "EPSG:2193", "vertical": "EPSG:7839" },
+  "address": { "linz_address_id": 3213224, "nztm": [1505941.6, 5336793.7] },
+  "title": "354613",
+  "valuation_number": "1905027200",
+  "parcels_file": "parcels.geojson",
+  "parcel_ids": [3652040, 3621992, 3615590, 3625049],
+  "extent": {
+    "nztm": [1505926.13, 5336777.48, 1505969.74, 5336822.22]
+  },
+  "rasters": {
+    "dem": {
+      "title": "West Coast LiDAR 1m DEM (2020-2024)",
+      "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/collection.json",
+      "tile": "BS21_10000_0503",
+      "asset": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0503.tiff",
+      "resolution_m": 1.0,
+      "capture": { "start": "2020-05-15T12:00:00Z", "end": "2024-07-10T12:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, West Coast Regional Council"
+    },
+    "dsm": {
+      "title": "West Coast LiDAR 1m DSM (2020-2024)",
+      "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/collection.json",
+      "tile": "BS21_10000_0503",
+      "asset": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/BS21_10000_0503.tiff",
+      "resolution_m": 1.0,
+      "capture": { "start": "2020-05-15T12:00:00Z", "end": "2024-07-10T12:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, West Coast Regional Council"
+    },
+    "aerial": {
+      "title": "Buller 0.075m Urban Aerial Photos (2024-2025)",
+      "collection": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193/collection.json",
+      "tile": "BS21_1000_4730",
+      "asset": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193/BS21_1000_4730.tiff",
+      "resolution_m": 0.075,
+      "capture": { "start": "2024-12-15T11:00:00Z", "end": "2025-09-18T12:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, Buller District Council"
+    },
+    "aerial_rural": {
+      "title": "West Coast 0.2m Rural Aerial Photos (2024-2026)",
+      "collection": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2024-2026_0.2m/rgb/2193/collection.json",
+      "tile": "BS21_5000_1006",
+      "asset": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2024-2026_0.2m/rgb/2193/BS21_5000_1006.tiff",
+      "resolution_m": 0.2,
+      "capture": { "start": "2024-12-16T11:00:00Z", "end": "2026-03-02T11:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, West Coast Regional Council"
+    }
+  },
+  "vectors": {
+    "parcels": {
+      "title": "Buller District Council property parcels",
+      "service": "https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Property_Master_Public_View/FeatureServer/1",
+      "licence": "CC-BY-4.0",
+      "attribution": "Buller District Council; LINZ, Crown copyright reserved"
+    },
+    "building_outlines": {
+      "title": "LINZ NZ Building Outlines",
+      "service": "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0",
+      "capture": { "start": "2015-12-26T00:00:00Z", "end": "2016-06-01T00:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand"
+    }
+  },
+  "observations": {
+    "ground_elevation_m": [189.25, 191.26],
+    "site_cells_1m": 987,
+    "cells_over_2m_above_ground": 91,
+    "cells_over_4m_above_ground": 67,
+    "max_above_ground_m": 14.33,
+    "linz_building_outlines_on_site": 0
+  },
+  "open_items": [
+    "Owner permission to publish imagery and renders. Gates public release, not development.",
+    "Owner confirmation of the structures and vegetation the LiDAR shows on site; LINZ records no building outline on these parcels."
+  ]
+}
