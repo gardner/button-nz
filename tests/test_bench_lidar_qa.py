@@ -147,3 +147,10 @@ def test_the_report_counts_the_observations_the_agent_chose() -> None:
     chose = Result("relief-1", "relief", "agent", "1.0", True, ("inspect_elevation",), None, 1.0)
     text = report([chose], {"model": "m", "seed": 1, "questions": 1})
     assert "agent: inspect_elevation x1" in text
+
+
+def test_the_report_says_the_agent_also_gets_numbers() -> None:
+    """The agent can query exact elevations, which no fixed map gives: its gain
+    over fixed_all is active observation with numeric queries, not view choice."""
+    text = report([_result("agent", "relief", True)], {"model": "m", "seed": 1, "questions": 1})
+    assert "numeric queries" in text and "not view choice alone" in text

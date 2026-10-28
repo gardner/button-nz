@@ -1,8 +1,9 @@
 """What the model sees under each Experiment A condition (plan §11): the aerial
 photograph alone, with contours, with nDSM and slope maps, or with every fixed
 map (``fixed_all``: hillshade, contours, nDSM, slope, normals); or the aerial plus the
-observation tools it can call itself (``agent``). ``fixed_all`` against
-``agent`` separates choosing views from merely having them.
+observation tools it can call itself (``agent``). Those include numeric queries
+(elevation statistics, cross-sections) that no fixed map gives, so ``fixed_all``
+against ``agent`` measures active observation with numbers, not view choice alone.
 
 Every image covers the LiDAR grid's bbox at ``SCALE`` pixels per metre, north
 up, with the question's marks drawn on it, so an image's pixels line up with

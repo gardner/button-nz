@@ -1,6 +1,6 @@
 """Experiment A (plan §11): does a model understand a site's terrain better with
 LiDAR views than from the aerial photograph alone, and better still when it
-chooses its own views?
+observes the site itself: choosing its views and querying exact elevations?
 
     uv run --env-file .env python -m button_nz.bench.lidar_qa OUT_DIR \\
         [--per-kind 10] [--seed 2026]
@@ -171,7 +171,9 @@ def report(results: Sequence[Result], meta: Mapping[str, object]) -> str:
         f"Model `{meta['model']}`; {meta['questions']} questions (seed {meta['seed']}), "
         "each asked under every condition and scored against answers computed from the "
         "LiDAR DEM and nDSM (`button_nz.bench.questions`). Replies without an answer count "
-        "as wrong.",
+        "as wrong. The `agent` condition can also make numeric queries (elevation "
+        "statistics over an area, cross-sections) that no fixed map gives, so its gain over "
+        "`fixed_all` measures active observation with numbers, not view choice alone.",
         "",
         "| Condition | n | Correct | Accuracy | No answer | Mean s |",
         "|---|---|---|---|---|---|",
