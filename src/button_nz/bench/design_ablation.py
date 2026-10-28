@@ -1,7 +1,7 @@
 """Experiment C (plan §11): how much does each kind of feedback help a model
 design a dwelling that passes the checks?
 
-    MODEL_API_KEY=... uv run python -m button_nz.bench.design_ablation OUT_DIR \\
+    uv run --env-file .env python -m button_nz.bench.design_ablation OUT_DIR \\
         [--repeats 2]
 
 Each brief is designed under each condition, ``repeats`` times, as a full run

@@ -51,7 +51,7 @@ def test_the_answer_comes_from_the_answer_tool() -> None:
     assert answerer.answer(QUESTION, allow_observations=False) == "SW"
     request = sent[0]
     assert [t["function"]["name"] for t in request["tools"]] == [ANSWER_TOOL]
-    assert request["tool_choice"] == "required"
+    assert request["tool_choice"] == "auto"  # the Meta Model API accepts nothing else
     content = request["messages"][1]["content"]
     assert [part["type"] for part in content] == ["text", "text", "image_url", "text", "image_url"]
     assert content[2]["image_url"]["url"].startswith("data:image/png;base64,")

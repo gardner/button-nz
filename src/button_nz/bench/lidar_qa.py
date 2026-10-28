@@ -2,7 +2,7 @@
 LiDAR views than from the aerial photograph alone, and better still when it
 chooses its own views?
 
-    MODEL_API_KEY=... uv run python -m button_nz.bench.lidar_qa OUT_DIR \\
+    uv run --env-file .env python -m button_nz.bench.lidar_qa OUT_DIR \\
         [--per-kind 10] [--seed 2026]
 
 Every generated question (``bench.questions``) is asked under every condition

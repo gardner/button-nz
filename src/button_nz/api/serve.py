@@ -1,6 +1,6 @@
 """Serve the API for the demo site:
 
-    MODEL_API_KEY=... uv run python -m button_nz.api.serve [--data var] [--port 8000]
+    uv run --env-file .env python -m button_nz.api.serve [--data var] [--port 8000]
 
 Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``. The
 model key is read per job, so the server starts without one and a job queued

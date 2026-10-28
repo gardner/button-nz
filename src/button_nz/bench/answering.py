@@ -59,9 +59,9 @@ class ChatAnswerer:
 
     @classmethod
     def from_env(cls, model: str = "muse-spark-1.3") -> ChatAnswerer:
-        key = os.environ.get("MODEL_API_KEY")
+        key = os.environ.get("META_API_KEY")
         if not key:
-            raise KeyError("MODEL_API_KEY is not set: get a Meta Model API key")
+            raise KeyError("META_API_KEY is not set: get a Meta Model API key")
         return cls(OpenAI(base_url=META_BASE_URL, api_key=key), model)
 
     def answer(self, turns: Sequence[QaTurn], allow_observations: bool) -> str | Observe:
@@ -70,7 +70,7 @@ class ChatAnswerer:
             model=self.model,
             messages=cast("Any", _messages(turns)),
             tools=cast("Any", tools),
-            tool_choice="required",
+            tool_choice="auto",  # the only choice the Meta Model API accepts
         )
         offered = {t["function"]["name"] for t in tools}
         for call in response.choices[0].message.tool_calls or []:

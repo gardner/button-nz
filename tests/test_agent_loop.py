@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from button_nz.agent.conversation import ModelReplyError, Observe
-from button_nz.agent.loop import DesignResult, DesignSite, Turn, design
+from button_nz.agent.loop import DesignResult, DesignSite, Revision, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.evaluation import SiteContext, Status
@@ -283,6 +283,20 @@ def test_without_evaluator_feedback_a_rejected_design_also_ends_the_run(
     assert result.accepted is None
 
 
+def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    before = Revision(
+        script="near", feedback="Evaluator verdict: fail.", instructions=("Move it east.",)
+    )
+    result = design(
+        "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before
+    )
+    roles = [t.role for t in model.seen[0]]
+    assert roles == ["system", "user", "design", "feedback", "user"]
+    assert model.seen[0][2].text == "near" and model.seen[0][4].text == "Move it east."
+    assert result.accepted is result.attempts[0]
+
+
 def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path) -> None:
     """Preservation areas and listed buildings are in the prompt, in local coordinates."""
     garden: Ring = ((10.0, 2.0), (14.0, 2.0), (14.0, 6.0), (10.0, 6.0), (10.0, 2.0))
@@ -293,3 +307,13 @@ def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path)
     prompt = model.seen[0][0].text
     assert "kept clear" in prompt and "(10.00, 2.00)" in prompt
     assert "existing buildings" in prompt and "(30.00, 12.00)" in prompt
+
+
+def test_earlier_changes_are_already_built_and_only_the_latest_is_asked_for() -> None:
+    """The revised script already includes the earlier changes: asking for them
+    again would apply a relative change ("3 m further back") twice."""
+    request = Revision("s", "f", ("Move it 3 m further back.", "Make it bigger.")).request
+    already, now = request.split("Now:")
+    assert "already includes" in already and "Move it 3 m further back." in already
+    assert "Make it bigger." in now and "Move it" not in now
+    assert Revision("s", "f", ("Make it bigger.",)).request == "Make it bigger."
