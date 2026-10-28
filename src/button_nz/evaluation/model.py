@@ -49,6 +49,7 @@ class Proposal:
     """A proposed dwelling. Fields left as None make their checks unknown."""
 
     footprint: Ring  # NZTM, the outside of the external walls
+    outline: Ring | None = None  # NZTM, all it covers seen from above (eaves too); else footprint
     floor_level_m: float | None = None  # NZVD2016
     height_above_floor_m: float | None = None
     floor_area_m2: float | None = None  # internal, as the exemption measures it

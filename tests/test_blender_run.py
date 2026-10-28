@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from button_nz.blender_worker.run import BUILD_SCRIPT, BlenderError, build_scene
+from button_nz.blender_worker import run
+from button_nz.blender_worker.design_io import DID_NOT_FINISH
+from button_nz.blender_worker.run import BUILD_SCRIPT, BlenderError, build_scene, run_design
 from button_nz.blender_worker.scene_input import SceneInput
 
 # Records its arguments; writes the GLB and PNG it was given unless told not to.
@@ -119,3 +121,68 @@ def test_without_nvidia_smi_gpu_choice_is_left_to_blender(
     monkeypatch.setattr("button_nz.blender_worker.run.shutil.which", no_command)
     build_scene(SCENE, tmp_path / "out", blender=str(blender))
     assert (blender.parent / "gpus").read_text(encoding="utf-8") == "unset"
+
+
+# Stands in for both passes of a design run: pass 1 reports over its results
+# pipe as the `mode` file says; pass 2 notes that the model's geometry was being
+# measured and then crashes, as a segfault in runaway geometry would.
+FAKE_PASSES = """#!/usr/bin/env python3
+import os, signal, sys
+args = sys.argv[sys.argv.index("--") + 1 :]
+here = os.path.dirname(os.path.abspath(__file__))
+mode = open(os.path.join(here, "mode")).read().strip()
+if any(a.endswith("design_script.py") for a in sys.argv):
+    out = os.fdopen(int(args[-1]), "wb")
+    def send(kind, payload=b""):
+        out.write(kind + len(payload).to_bytes(8, "big") + payload)
+        out.flush()
+    send(b"S")
+    if mode == "huge":
+        send(b"B", b"x" * 4096)
+    elif mode == "garbled":
+        out.write(b"junk")
+    else:
+        send(b"B", b"blend")
+else:
+    unfinished = open(os.path.join(here, "unfinished.json")).read()
+    open(os.path.join(args[-1], "measurements.json"), "w").write(unfinished)
+    os.kill(os.getpid(), signal.SIGSEGV)
+"""
+
+
+@pytest.fixture
+def passes(blender: Path) -> Path:
+    blender.write_text(FAKE_PASSES, encoding="utf-8")
+    (blender.parent / "unfinished.json").write_text(
+        json.dumps({"error": DID_NOT_FINISH}), encoding="utf-8"
+    )
+    (blender.parent / "mode").write_text("save", encoding="utf-8")
+    return blender
+
+
+@pytest.mark.blender  # needs bubblewrap, as every design run does
+def test_a_crash_while_measuring_in_the_sandbox_is_the_models_feedback(
+    tmp_path: Path, passes: Path
+) -> None:
+    """bwrap reports a child killed by signal n as exit 128 + n, not -n."""
+    out = run_design(SCENE, "x = 1\n", tmp_path / "run", blender=str(passes))
+    assert out.measurements["error"] == DID_NOT_FINISH
+    assert out.glb is None and out.png is None
+
+
+@pytest.mark.blender
+def test_a_design_file_over_the_limit_is_feedback(
+    tmp_path: Path, passes: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(run, "RESULT_LIMIT_BYTES", 1024)
+    (passes.parent / "mode").write_text("huge", encoding="utf-8")
+    out = run_design(SCENE, "x = 1\n", tmp_path / "run", blender=str(passes))
+    assert "Keep the geometry simple" in str(out.measurements["error"])
+    assert not (tmp_path / "run" / "script" / "design.blend").exists()
+
+
+@pytest.mark.blender
+def test_garbled_results_are_the_models_feedback(tmp_path: Path, passes: Path) -> None:
+    (passes.parent / "mode").write_text("garbled", encoding="utf-8")
+    out = run_design(SCENE, "x = 1\n", tmp_path / "run", blender=str(passes))
+    assert "results channel" in str(out.measurements["error"])

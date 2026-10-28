@@ -236,3 +236,17 @@ def test_impossible_proposal_values_are_rejected(bad: dict[str, float]) -> None:
 def test_a_footprint_beyond_the_terrain_is_rejected() -> None:
     with pytest.raises(InvalidProposal, match="terrain"):
         evaluate(proposal(footprint=rect(40, 5, 48, 11)), site())
+
+
+def test_setbacks_use_the_outline_but_floor_area_uses_the_walls() -> None:
+    """Eaves count towards how close the building comes, not towards its floor area."""
+    walls = rect(3, 5, 11, 11)  # 48 m², 3 m from the west boundary
+    eaves = rect(2.5, 4.5, 11.5, 11.5)  # 0.5 m overhang: 2.5 m from it
+    with_eaves = proposal(footprint=walls, outline=eaves)
+    assert check(with_eaves, "title_boundary_setback").measured["distance_m"] == pytest.approx(2.5)
+    assert check(with_eaves, "floor_area").measured["footprint_area_m2"] == pytest.approx(48.0)
+
+
+def test_an_outline_must_contain_the_wall_footprint() -> None:
+    with pytest.raises(InvalidProposal, match="outline"):
+        evaluate(proposal(outline=rect(5, 5, 9, 9)), site())

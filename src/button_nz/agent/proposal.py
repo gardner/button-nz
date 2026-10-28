@@ -1,20 +1,31 @@
 """Turn what Blender measured of the model's ``Dwelling`` into a Proposal.
 
 The evaluator only ever sees geometry measured from the built scene, never the
-model's description of it. Problems with the model's script (an exception, no
-``Dwelling``, a footprint in pieces) are ``DesignError``s: feedback for the
-model's next attempt, not crashes.
+model's description of it. From the Dwelling's triangles come its outline seen
+from above (eaves included), the outside of its external walls (a horizontal
+section ``WALL_SECTION_M`` above the floor), its floor (its lowest point,
+which must be a floor spanning those walls, not a pile or a step) and its top.
+
+Problems with the model's script (an exception, no ``Dwelling``, a footprint in
+pieces, an open mesh, something below the floor) are ``DesignError``s:
+feedback for the model's next attempt, not crashes.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from shapely import MultiPolygon, Polygon, union_all
+from shapely import MultiPolygon, Polygon
+from shapely.geometry.base import BaseGeometry
 
+from button_nz.agent.sections import Triangle, outline, section
 from button_nz.evaluation import Proposal
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
+
+WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
+FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
+MIN_FLOOR_COVER = 0.9  # of the wall footprint
 
 
 class DesignError(ValueError):
@@ -23,11 +34,12 @@ class DesignError(ValueError):
 
 @dataclass(frozen=True)
 class Measurements:
-    """What ``run_design.py`` measured, in the scene's local frame."""
+    """What ``design_measure.py`` measured, in the scene's local frame."""
 
     error: str | None
-    footprint: Ring | None  # outer ring of the Dwelling's faces projected onto XY
-    parts: int  # connected pieces of that footprint
+    footprint: Ring | None  # the outside of the external walls
+    outline: Ring | None  # all the Dwelling covers, seen from above (eaves included)
+    parts: int  # connected pieces of that outline
     z_min: float | None  # relative to the scene datum
     z_max: float | None
     floor_area_m2: float | None
@@ -35,19 +47,39 @@ class Measurements:
 
 
 def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
-    """Parse ``measurements.json``, joining the Dwelling's projected faces into
-    its footprint (Blender's Python has no shapely, so the union is done here)."""
-    faces = cast("list[list[list[float]]] | None", raw.get("faces_xy"))
-    footprint, parts = _footprint(faces) if faces else (None, 0)
-    return Measurements(
-        error=cast("str | None", raw.get("error")),
-        footprint=footprint,
-        parts=parts,
-        z_min=_optional_float(raw.get("z_min")),
-        z_max=_optional_float(raw.get("z_max")),
-        floor_area_m2=_dwelling_number(raw.get("floor_area_m2"), "floor_area_m2"),
-        storeys=_dwelling_storeys(raw.get("storeys")),
-    )
+    """Parse ``measurements.json``: the Dwelling's triangles, in the local frame,
+    become its outline, wall footprint and floor (Blender's Python has no
+    shapely, so the geometry is done here)."""
+    triangles = cast("list[Triangle] | None", raw.get("triangles"))
+    error = cast("str | None", raw.get("error"))
+    area = _dwelling_number(raw.get("floor_area_m2"), "floor_area_m2")
+    storeys = _dwelling_storeys(raw.get("storeys"))
+    if not triangles:
+        return Measurements(error, None, None, 0, None, None, area, storeys)
+    heights = [float(p[2]) for t in triangles for p in t]
+    z_min, z_max = min(heights), max(heights)
+    plan, parts = _one_ring(outline(triangles))
+    walls = _walls(triangles, z_min, z_max) if parts == 1 else None
+    return Measurements(error, walls, plan, parts, z_min, z_max, area, storeys)
+
+
+def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
+    """The outside of the external walls, checked to stand on a floor at ``z_min``."""
+    cut = min(WALL_SECTION_M, (z_max - z_min) / 2)
+    walls, parts = _one_ring(section(triangles, z_min + cut))
+    if walls is None or parts != 1:
+        raise DesignError(
+            f"A horizontal cut through the Dwelling {cut:g} m above its floor isn't one "
+            "closed outline. Make the Dwelling one closed mesh standing on its floor."
+        )
+    floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
+    if floor.area < MIN_FLOOR_COVER * Polygon(walls).area:
+        raise DesignError(
+            "The Dwelling's lowest point isn't its floor: something (piles, steps, a "
+            "deck) is below it. Make the underside of the floor, spanning the walls, "
+            "the Dwelling's lowest point."
+        )
+    return walls
 
 
 def _dwelling_number(value: object, name: str) -> float | None:
@@ -78,8 +110,10 @@ def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -
         )
     if measurements.footprint is None or measurements.z_min is None or measurements.z_max is None:
         raise DesignError("Your script did not create a mesh object named 'Dwelling'.")
+    plan = measurements.outline or measurements.footprint
     return Proposal(
         footprint=tuple(frame.to_nztm(point) for point in measurements.footprint),
+        outline=tuple(frame.to_nztm(point) for point in plan),
         floor_level_m=datum_m + measurements.z_min,
         height_above_floor_m=measurements.z_max - measurements.z_min,
         floor_area_m2=measurements.floor_area_m2,
@@ -87,20 +121,15 @@ def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -
     )
 
 
-def _footprint(faces: list[list[list[float]]]) -> tuple[Ring | None, int]:
-    polygons = [Polygon(face) for face in faces if len(face) >= 3]
-    union = union_all([p for p in polygons if p.is_valid and p.area > 1e-9])
-    if union.is_empty:
+def _one_ring(shape: BaseGeometry) -> tuple[Ring | None, int]:
+    """``shape``'s outer ring if it is one polygon, and how many pieces it has."""
+    if shape.is_empty:
         return None, 0
-    if isinstance(union, MultiPolygon):
-        return None, len(union.geoms)
-    if not isinstance(union, Polygon):
+    if isinstance(shape, MultiPolygon):
+        return None, len(shape.geoms)
+    if not isinstance(shape, Polygon):
         return None, 0
-    outline = union.simplify(1e-6)
-    if not isinstance(outline, Polygon):
+    simple = shape.simplify(1e-6)
+    if not isinstance(simple, Polygon):
         return None, 0
-    return tuple((float(x), float(y)) for x, y in outline.exterior.coords), 1
-
-
-def _optional_float(value: object) -> float | None:
-    return None if value is None else float(cast("float", value))
+    return tuple((float(x), float(y)) for x, y in simple.exterior.coords), 1
