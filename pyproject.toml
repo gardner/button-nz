@@ -47,7 +47,7 @@ pythonVersion = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "scripts", "tests"]
+pythonpath = ["src", "scripts", "scripts/demo", "tests"]
 markers = [
     "live: queries real third-party services; run with `pytest -m live`",
     "blender: runs headless Blender with a GPU; run with `pytest -m blender`",

@@ -7,6 +7,8 @@ marked, so ``cut.py`` can caption it and speed up the waits.
 """
 
 import argparse
+import re
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -61,6 +63,37 @@ def wait_for(page: Page, done: Callable[[str], bool], limit_s: float) -> int:
     raise TimeoutError(f"the page didn't finish within {limit_s} s")
 
 
+IN_PROGRESS = ("Design queued…", "Design running…")
+
+
+def outcome(text: str) -> str | None:
+    """How the shown design ended, read from its status line (not from words in
+    attempt feedback, which can say "running"); None while it is being made."""
+    if any(status in text for status in IN_PROGRESS):
+        return None
+    if "The design run failed:" in text:
+        return "the design run failed"
+    if "No attempt passed every check." in text:
+        return "no attempt passed every check"
+    if re.search(r"Accepted: attempt \d+", text):
+        return "accepted"
+    return None
+
+
+def partial_path(out: Path) -> Path:
+    """Where a failed take's footage goes: paid calls aren't thrown away."""
+    return out.with_name(f"{out.stem}-partial{out.suffix}")
+
+
+def until_accepted(page: Page) -> int:
+    """Wait for the shown design to end; anything but accepted fails the take."""
+    took = wait_for(page, lambda t: outcome(t) is not None, DESIGN_LIMIT_S)
+    ended = outcome(page.inner_text("body"))
+    if ended != "accepted":
+        raise RuntimeError(f"no design was accepted: {ended}")
+    return took
+
+
 def open_site(run: Run, base_url: str) -> None:
     run.page.goto(base_url, wait_until="networkidle")
     run.cast.mark("the site: title, parcels and the aerial")
@@ -97,21 +130,18 @@ def design(run: Run, brief: str) -> None:
     box.press_sequentially(brief, delay=35)
     page.get_by_role("button", name="Design").click()
     run.cast.mark("Muse designs (live; Blender builds and the evaluator checks each attempt)")
-    took = wait_for(
-        page, lambda t: "Change this design" in t or "No attempt passed" in t, DESIGN_LIMIT_S
-    )
-    print("design took", took, "s", flush=True)
+    print("design took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(2000)
     run.cast.mark("the accepted design")
 
 
 def show_visual(run: Run) -> None:
-    """Wait for Muse Image's checked, labelled visual, and show it; go on without one."""
+    """Wait for Muse Image's checked, labelled visual, and show it. The take
+    promises one, so without it the take fails (its footage is kept apart)."""
     try:
         took = wait_for(run.page, lambda t: "AI-illustrated" in t, VISUAL_LIMIT_S)
-    except TimeoutError:
-        print("no AI visual shown", flush=True)
-        return
+    except TimeoutError as error:
+        raise RuntimeError("no checked AI visual was shown") from error
     run.cast.mark(f"the AI visual (Muse Image, silhouette checked by SAM 3.1; {took} s later)")
     run.page.get_by_text("AI-illustrated", exact=False).last.scroll_into_view_if_needed()
     run.page.wait_for_timeout(5000)
@@ -123,10 +153,6 @@ def view_3d(run: Run) -> None:
     run.page.wait_for_timeout(6000)
 
 
-def revised(text: str) -> bool:
-    return "After" in text and "running" not in text and "queued" not in text
-
-
 def revise(run: Run, change: str) -> None:
     page = run.page
     instruction = page.get_by_label("Change this design")
@@ -135,8 +161,9 @@ def revise(run: Run, change: str) -> None:
     instruction.press_sequentially(change, delay=35)
     page.get_by_role("button", name="Revise").click()
     run.cast.mark("revising in plain words (live)")
-    page.wait_for_timeout(3000)
-    print("revision took", wait_for(page, revised, DESIGN_LIMIT_S), "s", flush=True)
+    # The revision is shown once it starts; until then the last design's status shows.
+    wait_for(page, lambda t: any(status in t for status in IN_PROGRESS), 60)
+    print("revision took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(3000)
 
 
@@ -147,6 +174,7 @@ def before_and_after(run: Run) -> None:
 
 
 def record(args: Options) -> None:
+    args.out.parent.mkdir(parents=True, exist_ok=True)  # before any paid call
     with sync_playwright() as p:
         browser = p.chromium.launch(
             executable_path=args.chromium, args=["--use-gl=angle", "--use-angle=swiftshader"]
@@ -154,20 +182,30 @@ def record(args: Options) -> None:
         context = browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
         run = Run(page, Screencast(context, page, ffmpeg=args.ffmpeg))
-        open_site(run, args.base_url)
-        confirm_survey(run)
-        design(run, args.brief)
-        show_visual(run)
-        view_3d(run)
-        revise(run, args.change)
-        if args.screenshot is not None:
-            page.screenshot(path=args.screenshot, full_page=True)
-        show_visual(run)
-        before_and_after(run)
-        print(page.inner_text("body")[-3500:])
+        try:
+            take(run, args)
+        except Exception:
+            partial = partial_path(args.out)
+            run.cast.encode(partial, fps=args.fps)
+            print(f"the take failed; its footage is in {partial}", file=sys.stderr)
+            raise
         run.cast.encode(args.out, fps=args.fps)
         print(len(run.cast.frames), "frames")
         browser.close()
+
+
+def take(run: Run, args: Options) -> None:
+    open_site(run, args.base_url)
+    confirm_survey(run)
+    design(run, args.brief)
+    show_visual(run)
+    view_3d(run)
+    revise(run, args.change)
+    if args.screenshot is not None:
+        run.page.screenshot(path=args.screenshot, full_page=True)
+    show_visual(run)
+    before_and_after(run)
+    print(run.page.inner_text("body")[-3500:])
 
 
 def main(argv: list[str] | None = None) -> None:
