@@ -25,8 +25,9 @@ from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.perception.confirm import Decision, Survey, confirmed
-from button_nz.perception.visual import Visual, save
+from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
+INTERRUPTED = "interrupted by a restart"
 log = logging.getLogger(__name__)
 NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
 
@@ -75,6 +76,7 @@ class Worker:
         return True
 
     def start(self) -> None:
+        self.recover_visuals()
         self._thread = threading.Thread(target=self._loop, name="design-worker", daemon=True)
         self._thread.start()
 
@@ -111,6 +113,16 @@ class Worker:
             ancestor = self.store.get_job(ancestor.parent_id) if ancestor.parent_id else None
         trace = self.runs_dir / parent.id / f"attempt-{parent.accepted_attempt}" / "attempt.json"
         return _revision(trace, tuple(instructions))
+
+    def recover_visuals(self) -> None:
+        """Record every visual a restart cut off, so no job says its visual is
+        still coming for ever (``visual.json`` ends the wait, however it went)."""
+        if self.illustrator is None:
+            return
+        for job in self.store.accepted_jobs():
+            directory = self.runs_dir / job.id / f"attempt-{job.accepted_attempt}"
+            if directory.is_dir() and not (directory / VISUAL_JSON).exists():
+                save(Visual.failed(INTERRUPTED), directory)
 
     def _illustrate(self, accepted: Attempt) -> None:
         """Make and save the visual of ``accepted``; a failure is its record."""

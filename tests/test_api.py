@@ -1,6 +1,7 @@
 """Tests for button_nz.api: design jobs over HTTP, run by the worker with a
 scripted model and a fake Blender runner."""
 
+import json
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -402,3 +403,18 @@ def test_without_an_illustrator_no_visual_is_awaited(service: Service) -> None:
     job_id = service.queue()
     service.worker.run_next()
     assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+
+
+def test_a_visual_cut_off_by_a_restart_is_recorded_as_such(tmp_path: Path) -> None:
+    """Otherwise the job would say its visual is coming for ever."""
+    service = Service(tmp_path, illustrator=FakeIllustrator(ACCEPTED_VISUAL))
+    job_id = service.queue()
+    service.worker.run_next()
+    attempt = tmp_path / "runs" / job_id / "attempt-2"
+    for name in ("visual.json", "visual.png"):  # as if the server stopped mid-visual
+        (attempt / name).unlink()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is True
+    service.worker.recover_visuals()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+    record = json.loads((attempt / "visual.json").read_text(encoding="utf-8"))
+    assert record["accepted"] is False and record["reason"] == "interrupted by a restart"
