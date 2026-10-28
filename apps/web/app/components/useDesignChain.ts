@@ -10,11 +10,15 @@ import {
   reviseDesign,
 } from "@/lib/api";
 
+import { useVisuals } from "./useVisuals";
+
 /** The designs made on this page: an original, then each revision in the
  * order it was asked for. The newest is polled until it is done or failed.
  * A transient poll failure is shown and retried; a permanent one (the API no
  * longer has the job) stops polling. One design is started at a time.
- * The design shown is the newest unless an earlier step is selected. */
+ * The design shown is the newest unless an earlier step is selected. AI
+ * visuals still being made are followed separately (`useVisuals`), and the
+ * forms don't wait for them. */
 export function useDesignChain(pollMs: number) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -24,10 +28,11 @@ export function useDesignChain(pollMs: number) {
   const starting = useRef(false); // guards clicks before the re-render disables the forms
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
   const newest = chain.at(-1);
-  const active =
+  const working =
     !lost && (newest?.status === "queued" || newest?.status === "running");
+  useVisuals(chain, setChain, pollMs);
   useEffect(() => {
-    if (!active || newest === undefined) return;
+    if (!working || newest === undefined) return;
     const timer = setTimeout(() => {
       getDesign(newest.id).then(
         (next) => {
@@ -42,7 +47,7 @@ export function useDesignChain(pollMs: number) {
       );
     }, pollMs);
     return () => clearTimeout(timer);
-  }, [active, newest, pollMs, retries]);
+  }, [working, newest, pollMs, retries]);
 
   /** Send `request` unless one is already on its way; `follow` adds the job
    * it returns to the chain. */
@@ -91,7 +96,7 @@ export function useDesignChain(pollMs: number) {
     shown,
     select: setSelected,
     problem,
-    busy: submitting || active,
+    busy: submitting || working,
     design,
     revise,
   };
