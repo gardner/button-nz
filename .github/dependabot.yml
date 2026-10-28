@@ -13,6 +13,15 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      # react-dom throws "Incompatible React versions" unless it matches react.
+      react:
+        patterns: ["react", "react-dom"]
+    ignore:
+      # Types must match the Node runtime (24, in web-quality.yml), or code can
+      # type-check against APIs Node 24 doesn't have. Bump both together.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
 
   # Python dependencies are managed with uv (uv.lock). Dependabot cannot
   # update uv.lock, so upgrade deliberately with: uv lock --upgrade
