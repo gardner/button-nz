@@ -42,8 +42,11 @@ pythonVersion = "3.14"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "scripts"]
-markers = ["live: queries real third-party services; run with `pytest -m live`"]
-addopts = "-m 'not live'"
+markers = [
+    "live: queries real third-party services; run with `pytest -m live`",
+    "blender: runs headless Blender with a GPU; run with `pytest -m blender`",
+]
+addopts = "-m 'not live and not blender'"
 
 [dependency-groups]
 dev = [

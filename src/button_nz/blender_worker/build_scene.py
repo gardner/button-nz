@@ -154,10 +154,10 @@ def _use_gpu(scene: Any) -> None:
         except TypeError:
             continue
         prefs.get_devices()
-        gpus = [d for d in prefs.devices if d.type != "CPU"]
+        gpus = [d for d in prefs.devices if d.type == backend]
         if gpus:
             for device in prefs.devices:
-                device.use = device.type != "CPU"
+                device.use = device.type == backend
             scene.cycles.device = "GPU"
             return
     raise RuntimeError("no GPU available to Cycles")
