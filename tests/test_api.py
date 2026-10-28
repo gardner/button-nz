@@ -379,3 +379,26 @@ def test_a_design_is_done_before_its_visual_is_made(tmp_path: Path) -> None:
 def test_a_slow_edit_is_not_retried() -> None:
     """Each retry of a slow edit would wait again, and be billed again."""
     assert visual_client("key").max_retries == 0
+
+
+def test_a_job_says_while_its_visual_is_being_made(tmp_path: Path) -> None:
+    """Done, with the visual still to come: the web app keeps looking for it."""
+    during: list[bool] = []
+    service: Service | None = None
+
+    def illustrator(render: Path, mask: Path) -> Visual:
+        assert service is not None
+        during.append(service.client.get(f"/designs/{job_id}").json()["illustrating"])
+        return ACCEPTED_VISUAL
+
+    service = Service(tmp_path, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert during == [True]
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+
+
+def test_without_an_illustrator_no_visual_is_awaited(service: Service) -> None:
+    job_id = service.queue()
+    service.worker.run_next()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
