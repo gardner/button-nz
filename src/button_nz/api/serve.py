@@ -19,6 +19,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.perception.survey import SURVEY_FILE
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -28,7 +29,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
-    survey = args.data / "survey.geojson"
+    survey = args.data / SURVEY_FILE
     worker = Worker(
         store,
         site=demo_site,
