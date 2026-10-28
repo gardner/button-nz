@@ -33,7 +33,7 @@ $(cat BACKGROUND.md)"
 fi
 
 echo "pre-push review: Claude Code is reviewing $from_ref..$to_ref"
-claude -p --permission-mode acceptEdits </dev/null "You are the pre-push code reviewer.
+claude -p --model claude-opus-5-5 --effort xhigh --permission-mode acceptEdits </dev/null "You are the pre-push code reviewer.
 Review the changes about to be pushed: run \`git log $from_ref..$to_ref\` and
 \`git diff $from_ref $to_ref\`. For context, read files as they are at the
 pushed ref with \`git show $to_ref:<path>\`; the working tree may differ.

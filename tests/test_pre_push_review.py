@@ -93,6 +93,13 @@ def test_prompt_keeps_the_reviewer_out_of_secrets(repo: Path, fake_dir: Path) ->
     assert "Do not read `.env`" in (fake_dir / "args").read_text(encoding="utf-8")
 
 
+def test_reviewer_runs_opus_at_xhigh_effort(repo: Path, fake_dir: Path) -> None:
+    _run(repo, fake_dir, "abc", "def")
+    args = (fake_dir / "args").read_text(encoding="utf-8").splitlines()
+    assert args[args.index("--model") + 1] == "claude-opus-5-5"
+    assert args[args.index("--effort") + 1] == "xhigh"
+
+
 def test_claude_failure_fails_the_push(repo: Path, fake_dir: Path) -> None:
     result = _run(repo, fake_dir, "abc", "def", FAKE_EXIT="1")
     assert result.returncode == 1
