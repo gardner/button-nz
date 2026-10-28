@@ -156,10 +156,20 @@ def test_a_stated_area_too_small_for_a_small_footprint_is_flagged_not_failed() -
 
 
 @pytest.mark.parametrize(
-    ("storeys", "status"), [(None, Status.UNKNOWN), (1, Status.PASS), (2, Status.FAIL)]
+    ("storeys", "height", "status"),
+    [
+        (None, 3.8, Status.PASS),  # too low for two storeys, whatever is stated
+        (1, 3.8, Status.PASS),
+        (2, 3.8, Status.FAIL),  # a design that says it has two storeys fails
+        (1, 4.5, Status.UNKNOWN),  # room for two: the stated 1 can't be checked
+        (None, None, Status.UNKNOWN),
+    ],
 )
-def test_single_storey(storeys: int | None, status: Status) -> None:
-    assert check(proposal(storeys=storeys), "single_storey").status is status
+def test_single_storey_is_measured_not_taken_on_trust(
+    storeys: int | None, height: float | None, status: Status
+) -> None:
+    result = check(proposal(storeys=storeys, height_above_floor_m=height), "single_storey")
+    assert result.status is status
 
 
 @pytest.mark.parametrize(
@@ -265,6 +275,20 @@ def test_impossible_proposal_values_are_rejected(bad: dict[str, float]) -> None:
 def test_a_footprint_beyond_the_terrain_is_rejected() -> None:
     with pytest.raises(InvalidProposal, match="terrain"):
         evaluate(proposal(footprint=rect(40, 5, 48, 11)), site())
+
+
+def test_setbacks_use_the_outline_but_floor_area_uses_the_walls() -> None:
+    """Eaves count towards how close the building comes, not towards its floor area."""
+    walls = rect(3, 5, 11, 11)  # 48 m², 3 m from the west boundary
+    eaves = rect(2.5, 4.5, 11.5, 11.5)  # 0.5 m overhang: 2.5 m from it
+    with_eaves = proposal(footprint=walls, outline=eaves)
+    assert check(with_eaves, "title_boundary_setback").measured["distance_m"] == pytest.approx(2.5)
+    assert check(with_eaves, "floor_area").measured["footprint_area_m2"] == pytest.approx(48.0)
+
+
+def test_an_outline_must_contain_the_wall_footprint() -> None:
+    with pytest.raises(InvalidProposal, match="outline"):
+        evaluate(proposal(outline=rect(5, 5, 9, 9)), site())
 
 
 def test_far_listed_buildings_pass_only_if_the_list_is_confirmed_complete() -> None:
