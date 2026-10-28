@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 
 from screencast import Screencast, find_chromium, find_ffmpeg
 
@@ -115,6 +115,12 @@ def until_accepted(page: Page) -> int:
     return took
 
 
+def centre(element: Locator) -> None:
+    """Bring ``element`` to the middle of the screen. Playwright's "if needed"
+    leaves a partly visible element where it is, half off screen."""
+    element.evaluate("e => e.scrollIntoView({block: 'center'})")
+
+
 def open_site(run: Run, base_url: str) -> None:
     run.page.goto(base_url, wait_until="networkidle")
     run.cast.mark("the site: title, parcels and the aerial")
@@ -168,7 +174,7 @@ def show_visual(run: Run) -> None:
     except PlaywrightError as error:
         raise RuntimeError("the AI visual didn't load") from error
     run.cast.mark(f"the AI visual (Muse Image, silhouette checked by SAM 3.1; {took} s later)")
-    run.page.get_by_text("AI-illustrated", exact=False).last.scroll_into_view_if_needed()
+    centre(run.page.get_by_alt_text(re.compile(r"^AI illustration")).last)
     run.page.wait_for_timeout(5000)
 
 
@@ -180,7 +186,7 @@ def view_3d(run: Run) -> None:
         viewer.wait_for(state="visible", timeout=60_000)
     except PlaywrightError as error:
         raise RuntimeError("the 3D model didn't load") from error
-    viewer.scroll_into_view_if_needed()
+    centre(viewer)
     run.cast.mark("the 3D model")
     run.page.wait_for_timeout(6000)
 
@@ -206,7 +212,7 @@ def before_and_after(run: Run) -> None:
         raise RuntimeError("the before and after renders didn't load") from error
     run.cast.mark("before and after")
     # The renders themselves, not the first text that says "Before".
-    run.page.get_by_alt_text(re.compile(r"^Before")).first.scroll_into_view_if_needed()
+    centre(run.page.get_by_alt_text(re.compile(r"^Before")).first)
     run.page.wait_for_timeout(6000)
 
 
