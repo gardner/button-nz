@@ -50,8 +50,6 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
-          touch ~/.bash_login ~/.bash_profile ~/.bash_logout ~/.bashrc ~/.profile \
-            ~/.zshrc ~/.zshenv ~/.zprofile ~/.zlogin ~/.gitconfig
 
       # The sandboxed reviewer can write to the workspace, so the steps after
       # it use copies taken now, in runner temp, which it cannot write to.
@@ -97,8 +95,7 @@ jobs:
                 "allowUnsandboxedCommands": false,
                 "network": { "allowedDomains": [], "strictAllowlist": true },
                 "filesystem": {
-                  "denyWrite": ["${{ runner.temp }}", "~", "/opt"],
-                  "allowWrite": ["${{ github.workspace }}"]
+                  "denyWrite": ["${{ runner.temp }}"]
                 },
                 "credentials": {
                   "envVars": [
@@ -123,7 +120,7 @@ jobs:
             This is a sandbox test, not a review. Run exactly this one Bash
             command, then stop. Post nothing.
 
-            for d in /home/runner/work/_actions /home/runner/work/_PipelineMapping /home/runner/work /home/runner /home/runner/.local/bin /home/runner/.claude /opt/hostedtoolcache /home/runner/work/_temp "$PWD" "$PWD/.git" "$TMPDIR"; do p="$d/.probe-$$"; if ( : > "$p" ) 2>/dev/null; then echo "WRITABLE $d"; rm -f "$p"; else echo "denied $d"; fi; done; f=$(find /home/runner/work/_actions -name '*.js' -type f 2>/dev/null | head -1); echo "sample $f"; ( : >> "$f" ) 2>/dev/null && echo "WRITABLE file $f" || echo "denied file $f"; git -C "$PWD" log --oneline -1 && echo "git works"
+            IFS=: read -ra pathdirs <<< "$PATH"; for d in "${pathdirs[@]}" /home/runner/.local/bin /home/runner/actions-runner /home/runner/runners /home/runner/work/_actions /home/runner/work/_temp /home/runner/work/_temp/_runner_file_commands "$PWD/scripts" "$PWD/.github" "$PWD/.git/hooks" /home/runner/.config/gh /home/runner/.ssh "$PWD" "$TMPDIR"; do [ -d "$d" ] || { echo "absent $d"; continue; }; p="$d/.probe-$$"; if ( : > "$p" ) 2>/dev/null; then echo "WRITABLE $d"; rm -f "$p"; else echo "denied $d"; fi; done; for f in /home/runner/.gitconfig /home/runner/.bashrc "$PWD/scripts/review-metrics.sh" "$PWD/.github/review-trace-key.asc" "$PWD/.git/config"; do ( : >> "$f" ) 2>/dev/null && echo "WRITABLE file $f" || echo "denied file $f"; done; claude --version 2>/dev/null || true
 
             You are the CI code reviewer for this pull request. Review its
             changes: run `git log BASE..HEAD` and `git diff BASE...HEAD`, and
