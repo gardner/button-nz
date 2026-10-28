@@ -11,7 +11,7 @@ property owner or the team lead. Nothing that needs their word is assumed.
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | Two takes recorded; final take after Experiment A's re-run |
 | 3 | Source repository | this repository, GNU GPL (`LICENSE`) | Public |
 | 4 | Technical README | [README.md](../README.md) | Done |
-| 5 | Evaluation report | [docs/results](results/README.md) | Experiment C done; Experiment A re-running |
+| 5 | Evaluation report | [docs/results](results/README.md) | Done: Experiments A and C, and the model comparison |
 | 6 | Sample project artifacts | each design run's attempt folder (below) | Produced by every attempt whose script ran; to be packaged |
 | 7 | Product story | [docs/product.md](product.md) | Done |
 
@@ -55,8 +55,8 @@ The takes so far show:
 
 - **Experiment C** on the surveyed and the plain site;
 - **the design-model comparison**;
-- **Experiment A**: its first full run, and its re-run (in progress) after
-  the reminder fix (#60).
+- **Experiment A**: the full run after the reminder fix (#60), with the first
+  run kept for the record.
 
 ## 6. Sample project artifacts
 

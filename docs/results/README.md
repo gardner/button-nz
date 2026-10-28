@@ -59,19 +59,38 @@ the fastest.
 
 ## Experiment A: does Muse understand LiDAR? (`button_nz.bench.lidar_qa`)
 
-**First full run** ([report](experiment-a-first-run/report.md), code
-2f1eeec). 47 questions, each under five conditions.
+**Full run** ([report](experiment-a/report.md), code c007e76). 47 questions
+about the site's terrain, each asked under five conditions: the aerial photo
+alone, with contours, with nDSM and slope maps, with every fixed map, and
+the agent, which chooses its own views and can query exact elevations.
+Answers are computed from the LiDAR DEM and nDSM.
 
 | Condition | n | Correct | Accuracy | No answer | Mean s |
 |---|---|---|---|---|---|
-| aerial | 47 | 25 | 53% | 0 | 24.4 |
-| aerial_contours | 47 | 27 | 57% | 0 | 36.3 |
-| aerial_ndsm_slope | 47 | 26 | 55% | 0 | 20.0 |
-| fixed_all | 47 | 28 | 60% | 0 | 27.5 |
-| agent | 47 | 33 | 70% | 14 | 20.4 |
+| aerial | 47 | 23 | 49% | 0 | 23.8 |
+| aerial_contours | 47 | 26 | 55% | 0 | 39.7 |
+| aerial_ndsm_slope | 47 | 27 | 57% | 0 | 20.5 |
+| fixed_all | 47 | 31 | 66% | 0 | 27.9 |
+| agent | 47 | 39 | 83% | 7 | 14.9 |
 
-This run exposed a harness flaw: the API can't require the answer tool, and
-14 agent-condition replies came as text, each scored wrong at once (6 of its
-7 "tallest" questions among them). #60 gives such a reply one reminder, as
-the design loop does; the full re-run on that code replaces this one as the
-headline result when it finishes.
+By kind of question (correct / n):
+
+| Condition | aspect | height_difference | relief | steepest | tallest |
+|---|---|---|---|---|---|
+| aerial | 9/10 | 2/10 | 1/10 | 5/10 | 6/7 |
+| aerial_contours | 8/10 | 4/10 | 2/10 | 7/10 | 5/7 |
+| aerial_ndsm_slope | 9/10 | 2/10 | 2/10 | 8/10 | 6/7 |
+| fixed_all | 9/10 | 3/10 | 3/10 | 9/10 | 7/7 |
+| agent | 8/10 | 10/10 | 7/10 | 10/10 | 4/7 |
+
+The agent's gain is in what fixed maps can't give precisely: height
+differences (10/10 against at most 4/10) and relief (7/10 against at most
+3/10). It does worse on the tallest feature (4/7 against 7/7 with every map),
+where three of its replies never called the answer tool. A reply that doesn't
+call the tool gets one reminder (the API can't require it); 7 agent replies
+still didn't, and count as wrong.
+
+**First full run** ([report](experiment-a-first-run/report.md), code
+2f1eeec): the agent scored 70% against 53–60% for the fixed views, with 14
+replies that weren't tool calls scored wrong at once, which is what #60
+fixed. It is kept for the record; the run above replaces it.
