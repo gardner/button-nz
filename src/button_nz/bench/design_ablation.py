@@ -22,7 +22,7 @@ from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.demo import demo_site
-from button_nz.agent.loop import DesignResult, Runner, design
+from button_nz.agent.loop import Attempt, DesignResult, Runner, design
 from button_nz.agent.model import ChatModel
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import run_design
@@ -55,11 +55,11 @@ class RunResult:
     condition: str
     repeat: int
     attempts: int
-    executed: int  # attempts whose script built a measurable Dwelling
+    executed: int  # attempts whose script built a measurable Dwelling (the evaluator judged)
     accepted: bool  # no check failed on the final attempt
     repaired: bool  # accepted after a first attempt that wasn't
     observations: int
-    verdicts: tuple[str, ...]  # each attempt's pass, fail, unknown or error
+    verdicts: tuple[str, ...]  # each attempt's pass, fail, unknown, rejected or error
     seconds: float
     error: str | None  # why the run couldn't complete, if it couldn't
 
@@ -122,14 +122,20 @@ def _measured(b: int, name: str, repeat: int, outcome: DesignResult, seconds: fl
         condition=name,
         repeat=repeat,
         attempts=len(attempts),
-        executed=sum(a.report is not None for a in attempts),
+        executed=sum(a.judged for a in attempts),
         accepted=accepted,
         repaired=accepted and outcome.accepted is not attempts[0],
         observations=sum(len(a.observations) for a in attempts),
-        verdicts=tuple(a.status for a in attempts),
+        verdicts=tuple(_verdict(a) for a in attempts),
         seconds=seconds,
         error=None,
     )
+
+
+def _verdict(attempt: Attempt) -> str:
+    """The attempt's status, telling a proposal the evaluator rejected (it ran and
+    was measured) apart from a script that never built a Dwelling."""
+    return "rejected" if attempt.judged and attempt.report is None else attempt.status
 
 
 def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
@@ -139,7 +145,9 @@ def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
         mine = [r for r in results if r.condition == name]
         done = [r for r in mine if r.error is None]
         attempts = sum(r.attempts for r in done)
-        first_failed = [r for r in done if r.verdicts and r.verdicts[0] in ("fail", "error")]
+        first_failed = [
+            r for r in done if r.verdicts and r.verdicts[0] in ("fail", "rejected", "error")
+        ]
         summary[name] = {
             "runs": len(mine),
             "incomplete": len(mine) - len(done),

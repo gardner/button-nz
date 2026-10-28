@@ -21,7 +21,8 @@ from meshes import box
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
 GOOD = {"triangles": box(15, 7, 0.3, 21, 12, 3.9), "floor_area_m2": 26.0, "storeys": 1}
 NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the boundary
-MEASURED = {"good": GOOD, "near": NEAR, "broken": {"error": "NameError: x"}}
+OFF = GOOD | {"triangles": box(38, 7, 0.3, 44, 12, 3.9)}  # past the terrain: rejected
+MEASURED = {"good": GOOD, "near": NEAR, "off": OFF, "broken": {"error": "NameError: x"}}
 
 
 @pytest.fixture
@@ -108,3 +109,20 @@ def test_the_report_states_method_and_sample_sizes() -> None:
     assert "muse-spark-1.3" in text
     assert "| one_shot | 1 | 0 (0%) |" in text
     assert "| evaluator | 1 | 1 (100%) |" in text
+
+
+class Always:
+    def __init__(self, script: str) -> None:
+        self.script = script
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        return self.script
+
+
+def test_an_attempt_the_evaluator_rejected_still_executed(site: DesignSite, tmp_path: Path) -> None:
+    """Built and measured, then rejected (off the terrain): it ran, and is labelled so."""
+    (result,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("off"), tmp_path, fake_runner)
+    assert result.executed == 1
+    assert result.verdicts == ("rejected",)
+    (broken,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("broken"), tmp_path, fake_runner)
+    assert broken.executed == 0 and broken.verdicts == ("error",)
