@@ -22,6 +22,7 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
           line
           isResolved
           comments(first: 100) {
+            totalCount
             nodes { author { login __typename } authorAssociation body }
           }
         }
@@ -30,6 +31,9 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
   }
 }' | jq -j '
   [.[].data.repository.pullRequest.reviewThreads.nodes[]]
+  | map(if .comments.totalCount > (.comments.nodes | length)
+      then error("\(.path): thread has more than 100 comments; paginate them")
+      else . end)
   | if length == 0 then "No earlier review threads.\n"
     else map(
       "## \(.path)\(if .line then ":\(.line)" else "" end)"

@@ -25,12 +25,15 @@ def _comment(login: str, body: str, association: str = "OWNER", kind: str = "Use
     }
 
 
-def _thread(path: str, line: int | None, resolved: bool, *comments: object) -> object:
+def _thread(
+    path: str, line: int | None, resolved: bool, *comments: object, total: int | None = None
+) -> object:
+    nodes = list(comments)
     return {
         "path": path,
         "line": line,
         "isResolved": resolved,
-        "comments": {"nodes": list(comments)},
+        "comments": {"totalCount": len(nodes) if total is None else total, "nodes": nodes},
     }
 
 
@@ -147,6 +150,13 @@ def test_threads_from_every_page_are_listed(fake_dir: Path) -> None:
         "## a.py:1 (resolved)\n\n**gardner:** First page.\n\n"
         "## b.py:2 (open)\n\n**gardner:** Second page.\n\n"
     )
+
+
+def test_a_truncated_thread_fails_instead_of_dropping_comments(fake_dir: Path) -> None:
+    response = _response(_thread("a.py", 1, True, _comment("gardner", "First."), total=101))
+    result = _run(fake_dir, response)
+    assert result.returncode != 0
+    assert "a.py" in result.stderr
 
 
 def test_gh_failure_fails_the_script(fake_dir: Path) -> None:
