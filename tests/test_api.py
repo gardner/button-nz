@@ -238,3 +238,19 @@ def test_only_an_accepted_design_can_be_revised(tmp_path: Path) -> None:
     assert service.client.post("/designs/nope/revisions", json=revise).status_code == 404
     empty = {"instruction": ""}
     assert service.client.post(f"/designs/{job_id}/revisions", json=empty).status_code == 422
+
+
+def test_a_revision_of_a_revision_keeps_every_instruction(tmp_path: Path) -> None:
+    model = ScriptedModel("good", "good", "good")
+    service = Service(tmp_path, model=lambda: model)
+    first = service.queue()
+    service.worker.run_next()
+    second = service.client.post(
+        f"/designs/{first}/revisions", json={"instruction": "Move it away from the street."}
+    ).json()["id"]
+    service.worker.run_next()
+    service.client.post(f"/designs/{second}/revisions", json={"instruction": "Make it bigger."})
+    service.worker.run_next()
+    asked = model.seen[-1][-1].text
+    assert "Move it away from the street." in asked and "Make it bigger." in asked
+    assert asked.index("away from the street") < asked.index("bigger")  # oldest first

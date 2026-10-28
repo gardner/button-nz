@@ -80,13 +80,19 @@ class Worker:
             self._wake.clear()
 
     def _revising(self, job: Job) -> Revision | None:
+        """The parent's accepted design, and every instruction up the chain."""
         if job.parent_id is None or job.instruction is None:
             return None
         parent = self.store.get_job(job.parent_id)
         if parent.accepted_attempt is None:
             raise ValueError(f"design {parent.id} has no accepted attempt to revise")
+        instructions = [job.instruction]
+        ancestor: Job | None = parent
+        while ancestor is not None and ancestor.instruction is not None:
+            instructions.insert(0, ancestor.instruction)
+            ancestor = self.store.get_job(ancestor.parent_id) if ancestor.parent_id else None
         trace = self.runs_dir / parent.id / f"attempt-{parent.accepted_attempt}" / "attempt.json"
-        return _revision(trace, job.instruction)
+        return _revision(trace, tuple(instructions))
 
     def _design(self, job: Job) -> int | None:
         def record(attempt: Attempt) -> None:
@@ -110,10 +116,10 @@ class Worker:
         return None if result.accepted is None else result.accepted.number
 
 
-def _revision(trace: Path, instruction: str) -> Revision:
+def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:
     """The accepted attempt a revision starts from, from its trace."""
     attempt = json.loads(trace.read_text(encoding="utf-8"))
-    return Revision(attempt["script"], attempt["feedback"], instruction)
+    return Revision(attempt["script"], attempt["feedback"], instructions)
 
 
 def _reason(error: Exception) -> str:

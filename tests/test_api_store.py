@@ -1,5 +1,6 @@
 """Tests for button_nz.api.store: durable design jobs and their attempts."""
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -92,3 +93,24 @@ def test_a_revision_records_what_it_revises(store: Store) -> None:
     assert store.get_job(child.id).parent_id == parent.id
     assert store.get_job(child.id).instruction == "Face north."
     assert store.get_job(parent.id).parent_id is None
+
+
+OLD_SCHEMA = """
+CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, brief TEXT NOT NULL, allow_observations INTEGER NOT NULL,
+    status TEXT NOT NULL, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT,
+    error TEXT, accepted_attempt INTEGER
+);
+INSERT INTO jobs (id, brief, allow_observations, status, created_at)
+VALUES ('old', 'A studio.', 1, 'queued', '2026-10-28T09:00:00+00:00');
+"""
+
+
+def test_a_database_from_before_revisions_is_migrated(tmp_path: Path) -> None:
+    path = tmp_path / "button.db"
+    with sqlite3.connect(path) as db:
+        db.executescript(OLD_SCHEMA)
+    store = Store(path)
+    assert store.get_job("old").parent_id is None
+    child = store.create_job("A studio.", True, parent_id="old", instruction="Face north.")
+    assert store.get_job(child.id).instruction == "Face north."

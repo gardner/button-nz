@@ -244,7 +244,7 @@ def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> N
 def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("good")
     before = Revision(
-        script="near", feedback="Evaluator verdict: fail.", instruction="Move it east."
+        script="near", feedback="Evaluator verdict: fail.", instructions=("Move it east.",)
     )
     result = design(
         "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before

@@ -79,6 +79,7 @@ class Store:
         with self._db() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript(SCHEMA)
+            _migrate(db)
 
     def create_job(
         self,
@@ -206,6 +207,20 @@ class Store:
                 yield db
         finally:
             db.close()
+
+
+ADDED_COLUMNS = {  # added after the first release: present in new databases, added to old
+    "parent_id": "TEXT REFERENCES jobs (id)",
+    "instruction": "TEXT",
+}
+
+
+def _migrate(db: sqlite3.Connection) -> None:
+    """Add any columns a database from an earlier version lacks."""
+    present = {row[1] for row in db.execute("PRAGMA table_info(jobs)")}
+    for name, kind in ADDED_COLUMNS.items():
+        if name not in present:
+            db.execute(f"ALTER TABLE jobs ADD COLUMN {name} {kind}")
 
 
 def _now() -> str:

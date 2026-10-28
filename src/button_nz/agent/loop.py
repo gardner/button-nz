@@ -38,11 +38,19 @@ type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
 @dataclass(frozen=True)
 class Revision:
     """A design to change: the script that built it, the evaluator's verdict on
-    it, and what the owner wants changed, in their own words."""
+    it, and every change the owner has asked for, in their own words, oldest
+    first (a revision of a revision keeps the earlier requests)."""
 
     script: str
     feedback: str
-    instruction: str
+    instructions: tuple[str, ...]
+
+    @property
+    def request(self) -> str:
+        if len(self.instructions) == 1:
+            return self.instructions[0]
+        asked = "\n".join(f"{n}. {text}" for n, text in enumerate(self.instructions, 1))
+        return f"The owner has asked for these changes, oldest first; keep them all:\n{asked}"
 
 
 @dataclass(frozen=True)
@@ -95,7 +103,7 @@ def design(
         conversation += [
             Turn("design", revising.script),
             Turn("feedback", revising.feedback),
-            Turn("user", revising.instruction),
+            Turn("user", revising.request),
         ]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
