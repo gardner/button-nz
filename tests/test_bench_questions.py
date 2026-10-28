@@ -30,8 +30,9 @@ from button_nz.lidar.analysis import gradients
 PARCEL: Ring = ((5.0, 5.0), (65.0, 5.0), (65.0, 45.0), (5.0, 45.0), (5.0, 5.0))
 
 
-def site(dem: NDArray[np.float64]) -> DesignSite:
-    grid = TerrainGrid((0.0, 0.0, 70.0, 50.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+def site(dem: NDArray[np.float64], ndsm: NDArray[np.float64] | None = None) -> DesignSite:
+    above = np.zeros_like(dem) if ndsm is None else ndsm
+    grid = TerrainGrid((0.0, 0.0, 70.0, 50.0), 1.0, dem, above, ("synthetic",))
     frame = LocalFrame.centred_on(grid.bbox)
     return DesignSite(
         scene_input(grid, frame, [PARCEL]), frame, SiteContext(parcels=(PARCEL,), terrain=grid)
@@ -149,3 +150,19 @@ def test_aspect_is_read_from_the_same_gradient_as_the_views() -> None:
         row, col = int(50 - py), int(px)
         bearing = math.degrees(math.atan2(-east[row, col], -north[row, col])) % 360
         assert q.answer == DIRECTIONS[round(bearing / 45) % 8]
+
+
+def test_the_tallest_question_is_answered_from_the_ndsm() -> None:
+    """Something 6 m tall stands at NZTM x 40-45; nothing else stands up."""
+    ndsm = np.zeros((50, 70))
+    ndsm[15:30, 40:45] = 6.0
+    tallest = of_kind(generate(site(np.full((50, 70), 100.0), ndsm), per_kind=5, seed=4), "tallest")
+    for q in tallest:
+        winner = next(m for m in q.marks if m.label == q.answer)
+        # The block is local x 5..10 (origin x 35): the winning square overlaps it.
+        assert winner.x + winner.half_m > 5.0 and winner.x - winner.half_m < 10.0
+
+
+def test_no_tallest_question_where_nothing_stands() -> None:
+    asked = {q.kind for q in generate(site(np.full((50, 70), 100.0)), per_kind=5, seed=5)}
+    assert "tallest" not in asked

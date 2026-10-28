@@ -28,6 +28,8 @@ MIN_GRADE = 0.05  # 1 in 20: gentler ground has no clear downhill direction
 SECTOR_MARGIN_DEG = 10.0  # keep aspects this far inside their 45° sector
 MIN_HEIGHT_DIFFERENCE_M = 0.3
 MIN_SLOPE_LEAD_DEG = 2.0  # the steepest area must lead the next by this much
+MIN_STANDING_M = 2.0  # the tallest thing must stand at least this high
+MIN_HEIGHT_LEAD_M = 1.5  # and lead the next square's tallest by this much
 HEIGHT_TOLERANCE_M = 0.2
 RELIEF_TOLERANCE_M = 0.25
 AREA_HALF_M = 2.5  # the squares compared for steepness
@@ -49,7 +51,7 @@ class Mark:
 @dataclass(frozen=True)
 class Question:
     id: str
-    kind: str  # aspect, height_difference, relief or steepest
+    kind: str  # aspect, height_difference, relief, steepest or tallest
     text: str
     marks: tuple[Mark, ...]
     answer: str | float
@@ -66,6 +68,7 @@ def generate(site: DesignSite, per_kind: int, seed: int) -> list[Question]:
         ("height_difference", lambda: _height_difference(terrain, rng)),
         ("relief", lambda: _relief(terrain, rng)),
         ("steepest", lambda: _steepest(terrain, rng)),
+        ("tallest", lambda: _tallest(terrain, rng)),
     ]
     questions: list[Question] = []
     for kind, make in makers:
@@ -187,11 +190,8 @@ def _relief(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
 
 
 def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
-    areas = [terrain.place(rng, AREA_HALF_M, label) for label in ("1", "2", "3")]
-    if any(a is None for a in areas):
-        return None
-    marks = tuple(a for a in areas if a is not None)
-    if any(_overlap(m, n) for i, m in enumerate(marks) for n in marks[i + 1 :]):
+    marks = _three_squares(terrain, rng)
+    if marks is None:
         return None
     slopes = sorted(((_mean_slope(terrain, m), m.label) for m in marks), reverse=True)
     if slopes[0][0] - slopes[1][0] < MIN_SLOPE_LEAD_DEG:
@@ -202,6 +202,40 @@ def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
         "steepest ground on average? Answer 1, 2 or 3."
     )
     return Question("", "steepest", text, marks, slopes[0][1], ("1", "2", "3"))
+
+
+def _tallest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
+    """Which of three squares has the tallest thing standing above the ground: the
+    nDSM, as inspect_elevation reports it (max_above_ground_m)."""
+    marks = _three_squares(terrain, rng)
+    if marks is None:
+        return None
+    heights = sorted(
+        (
+            (inspect_elevation(terrain.grid, terrain.square(m))["max_above_ground_m"], m.label)
+            for m in marks
+        ),
+        reverse=True,
+    )
+    if heights[0][0] < MIN_STANDING_M or heights[0][0] - heights[1][0] < MIN_HEIGHT_LEAD_M:
+        return None
+    centres = ", ".join(f"{m.label} at ({m.x:.1f}, {m.y:.1f})" for m in marks)
+    text = (
+        f"Which of the {2 * AREA_HALF_M:g} m squares centred on {centres} has the tallest "
+        "thing standing above the ground (a building, tree or anything else)? Answer 1, 2 or 3."
+    )
+    return Question("", "tallest", text, marks, heights[0][1], ("1", "2", "3"))
+
+
+def _three_squares(terrain: _Terrain, rng: np.random.Generator) -> tuple[Mark, ...] | None:
+    """Three non-overlapping squares labelled 1, 2 and 3, or None if they didn't fit."""
+    areas = [terrain.place(rng, AREA_HALF_M, label) for label in ("1", "2", "3")]
+    if any(a is None for a in areas):
+        return None
+    marks = tuple(a for a in areas if a is not None)
+    if any(_overlap(m, n) for i, m in enumerate(marks) for n in marks[i + 1 :]):
+        return None
+    return marks
 
 
 def _mean_slope(terrain: _Terrain, mark: Mark) -> float:
