@@ -138,3 +138,15 @@ def test_requests_and_observations_become_tool_calls_and_results(tmp_path: Path)
     assert json.loads(call["function"]["arguments"]) == {"interval_m": 0.5}
     assert messages[3]["tool_call_id"] == call["id"]
     assert messages[4]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+@pytest.mark.parametrize("arguments", ['{"code": "x', "[1, 2]", '"just a string"'])
+def test_malformed_tool_arguments_are_a_reply_error(arguments: str) -> None:
+    call = {
+        "id": "t1",
+        "type": "function",
+        "function": {"name": "run_blender_script", "arguments": arguments},
+    }
+    model, _ = _model({"role": "assistant", "content": None, "tool_calls": [call]})
+    with pytest.raises(ModelReplyError, match="malformed"):
+        model.propose([Turn("system", "c"), Turn("user", "b")], False)

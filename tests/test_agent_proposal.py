@@ -61,3 +61,12 @@ def test_a_split_footprint_is_feedback_for_the_model() -> None:
     with pytest.raises(DesignError, match="one connected"):
         apart = [[[0, 0], [1, 0], [1, 1], [0, 1]], [[5, 5], [6, 5], [6, 6], [5, 6]]]
         to_proposal(parse_measurements(measured(faces_xy=apart)), FRAME, DATUM)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [{"storeys": 1.5}, {"storeys": "one"}, {"floor_area_m2": "big"}, {"floor_area_m2": [26.0]}],
+)
+def test_malformed_dwelling_properties_are_feedback(bad: dict[str, object]) -> None:
+    with pytest.raises(DesignError, match="Dwelling"):
+        to_proposal(parse_measurements(measured(**bad)), FRAME, DATUM)

@@ -26,6 +26,15 @@ are in its job summary, and its transcript is kept for 90 days as an encrypted
 artifact: `scripts/review-traces.sh [count]` downloads, decrypts and summarises
 the latest ones (needs the "button-nz CI review traces" GPG key).
 
+## Blender
+
+Scenes are built in headless Blender with Cycles on a local NVIDIA GPU. Use the
+official blender.org build (Ubuntu's package has no OptiX): unpack it under
+`~/.local/opt/` and put a `blender` launcher in `~/.local/bin/`. Model-written
+design scripts run sandboxed (bubblewrap): no network, an empty home with only
+Blender, the worker scripts and the Cycles kernel cache mounted, and a cleared
+environment. `pytest -m blender` runs the Blender tests.
+
 ## Run
 
 ```bash
