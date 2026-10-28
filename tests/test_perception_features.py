@@ -148,3 +148,19 @@ def test_a_shed_inside_a_lawn_mask_is_still_reported() -> None:
     labelled = features([lawn], grid(SHED_HEIGHT), BBOX, PIXEL_M)
     (shed,) = unlabelled(labelled, grid(SHED_HEIGHT), BBOX)
     assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))
+
+
+def test_a_label_with_no_rule_doesnt_hide_a_shed() -> None:
+    """Only labels known to stand up explain raised ground; unknown ones err to asking."""
+    paved = mask("paved area", slice(2, 17), slice(5, 30))
+    labelled = features([paved], grid(SHED_HEIGHT), BBOX, PIXEL_M)
+    (shed,) = unlabelled(labelled, grid(SHED_HEIGHT), BBOX)
+    assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))
+
+
+def test_a_roof_label_explains_its_height() -> None:
+    labelled = features(
+        [mask("roof", slice(5, 9), slice(10, 16))], grid(SHED_HEIGHT), BBOX, PIXEL_M
+    )
+    assert labelled[0].status is Status.AGREES
+    assert unlabelled(labelled, grid(SHED_HEIGHT), BBOX) == []

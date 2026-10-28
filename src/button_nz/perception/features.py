@@ -30,10 +30,11 @@ from button_nz.geo.terrain import TerrainGrid
 rio_features: Any = _features
 rio_transform: Any = _transform
 
-STRUCTURES = frozenset({"building", "house", "shed", "garage", "carport"})
+STRUCTURES = frozenset({"building", "house", "roof", "shed", "garage", "carport"})
 VEGETATION = frozenset({"tree", "hedge", "shrub"})
 GROUND = frozenset({"driveway", "path", "lawn", "garden bed", "patio"})
 TRANSIENT = frozenset({"vehicle", "car", "trailer"})
+EXPLAINS_HEIGHT = STRUCTURES | VEGETATION | TRANSIENT
 STRUCTURE_HEIGHT_M = 2.0  # nDSM above this counts as standing up
 VEGETATION_HEIGHT_M = 1.5
 GROUND_HEIGHT_M = 0.5  # nDSM below this counts as open ground
@@ -102,8 +103,9 @@ def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid, bbox: BBox) -> li
     shapes = rio_features.shapes(raised.astype(np.uint8), mask=raised, transform=transform)
     raised_areas = union_all([shape(geometry) for geometry, _ in shapes])
     standing = _area(raised_areas.intersection(box(*bbox)))
-    # Only labels that stand up explain raised ground: a lawn or driveway says nothing does.
-    explaining = [f.polygon for f in labelled if f.concept not in GROUND]
+    # Only labels known to stand up explain raised ground; a lawn says nothing does,
+    # and a label with no rule errs towards asking a person.
+    explaining = [f.polygon for f in labelled if f.concept in EXPLAINS_HEIGHT]
     covered = union_all(explaining).buffer(grid.cell_m)
     left_over = _area(standing.difference(covered))
     pieces = list(left_over.geoms) if isinstance(left_over, MultiPolygon) else [left_over]
