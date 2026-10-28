@@ -82,6 +82,12 @@ export interface Site {
   parcels: Parcel[];
   sources: Source[];
   openItems: string[];
+  aerial: Aerial | null; // a photo to draw under the plan, if the API has one
+}
+
+export interface Aerial {
+  bbox: [number, number, number, number]; // NZTM west, south, east, north
+  url: string; // through the proxy
 }
 
 const JOB_STATUSES: readonly JobStatus[] = [
@@ -248,6 +254,15 @@ export function parseSite(raw: unknown): Site {
     openItems: list(site, "open_items").map((item) =>
       asText(item, "open item"),
     ),
+    aerial: site.aerial === null ? null : parseAerial(site.aerial),
+  };
+}
+
+function parseAerial(raw: unknown): Aerial {
+  const aerial = record(raw, "aerial");
+  return {
+    bbox: numbers(aerial.bbox, 4) as Aerial["bbox"],
+    url: `${API}${text(aerial, "url")}`,
   };
 }
 

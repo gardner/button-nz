@@ -125,6 +125,22 @@ describe("the client", () => {
     expect((error as ApiError).transient).toBe(false);
   });
 
+  it("reads a site without an aerial", () => {
+    const site = parseSite({
+      crs: "EPSG:2193",
+      name: "n",
+      title: "t",
+      valuation_number: "v",
+      address: [0, 0],
+      extent: [0, 0, 1, 1],
+      parcels: { features: [] },
+      sources: {},
+      open_items: [],
+      aerial: null,
+    });
+    expect(site.aerial).toBeNull();
+  });
+
   it("refuses a site that isn't in NZTM", () => {
     expect(() => parseSite({ crs: "EPSG:4326" })).toThrow("EPSG:2193");
   });
@@ -170,9 +186,17 @@ describe("the client", () => {
         },
       },
       open_items: ["Confirm the boundary pegs."],
+      aerial: {
+        bbox: [1505916, 5336767, 1505980, 5336833],
+        url: "/site/aerial.png",
+      },
     };
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(site)));
     const parsed = await getSite();
+    expect(parsed.aerial).toEqual({
+      bbox: [1505916, 5336767, 1505980, 5336833],
+      url: "/api/site/aerial.png", // through the proxy
+    });
     expect(parsed.parcels[0].appellation).toBe("Section 700 Town of Reefton");
     expect(parsed.parcels[0].ring).toHaveLength(4);
     expect(parsed.sources[0]).toMatchObject({
