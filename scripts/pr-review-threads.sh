@@ -8,18 +8,20 @@ set -euo pipefail
 repo="${1:?usage: $0 <owner/repo> <pr-number>}"
 number="${2:?usage: $0 <owner/repo> <pr-number>}"
 
-# $owner, $name and $number are GraphQL variables, not shell expansions.
+# $owner, $name, $number and $endCursor are GraphQL variables, not shell
+# expansions. --paginate follows $endCursor through every page of threads.
 # shellcheck disable=SC2016
-gh api graphql -f owner="${repo%%/*}" -f name="${repo#*/}" -F number="$number" -f query='
-query($owner: String!, $name: String!, $number: Int!) {
+gh api graphql --paginate --slurp -f owner="${repo%%/*}" -f name="${repo#*/}" -F number="$number" -f query='
+query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           path
           line
           isResolved
-          comments(first: 50) {
+          comments(first: 100) {
             nodes { author { login __typename } authorAssociation body }
           }
         }
@@ -27,7 +29,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     }
   }
 }' | jq -j '
-  .data.repository.pullRequest.reviewThreads.nodes
+  [.[].data.repository.pullRequest.reviewThreads.nodes[]]
   | if length == 0 then "No earlier review threads.\n"
     else map(
       "## \(.path)\(if .line then ":\(.line)" else "" end)"

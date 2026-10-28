@@ -34,9 +34,14 @@ def _thread(path: str, line: int | None, resolved: bool, *comments: object) -> o
     }
 
 
-def _response(*threads: object) -> str:
+def _page(*threads: object) -> object:
     pr = {"reviewThreads": {"nodes": list(threads)}}
-    return json.dumps({"data": {"repository": {"pullRequest": pr}}})
+    return {"data": {"repository": {"pullRequest": pr}}}
+
+
+def _response(*threads: object) -> str:
+    """A one-page response, as `gh api --paginate --slurp` prints it."""
+    return json.dumps([_page(*threads)])
 
 
 @pytest.fixture
@@ -68,6 +73,8 @@ def test_queries_the_named_pull_request(fake_dir: Path) -> None:
     assert "owner=octo" in args
     assert "name=repo" in args
     assert "number=24" in args
+    assert "--paginate" in args
+    assert "--slurp" in args
 
 
 def test_no_threads(fake_dir: Path) -> None:
@@ -126,6 +133,19 @@ def test_comments_from_untrusted_authors_are_omitted(fake_dir: Path) -> None:
         "(comment from an untrusted author omitted)\n\n"
         "**member:** Fixed.\n\n"
         "**collab:** Agreed.\n\n"
+    )
+
+
+def test_threads_from_every_page_are_listed(fake_dir: Path) -> None:
+    pages = [
+        _page(_thread("a.py", 1, True, _comment("gardner", "First page."))),
+        _page(_thread("b.py", 2, False, _comment("gardner", "Second page."))),
+    ]
+    result = _run(fake_dir, json.dumps(pages))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == (
+        "## a.py:1 (resolved)\n\n**gardner:** First page.\n\n"
+        "## b.py:2 (open)\n\n**gardner:** Second page.\n\n"
     )
 
 
