@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { type Attempt, type Job, createDesign, getDesign } from "@/lib/api";
 
@@ -16,13 +16,13 @@ const VERDICT_STYLE: Record<Attempt["status"], string> = {
 /** Brief the design agent, then follow its attempts as the independent
  * evaluator checks each one, ending with the accepted concept in 3D. */
 export function DesignPanel({ pollMs = 2000 }: { pollMs?: number }) {
-  const { job, problem, active, start } = useDesignJob(pollMs);
+  const { job, problem, busy, start } = useDesignJob(pollMs);
   const [viewing, setViewing] = useState<number | null>(null);
   const model = job && modelUrl(job, viewing ?? job.acceptedAttempt);
   return (
     <section className="flex flex-col gap-4">
       <BriefForm
-        busy={active}
+        busy={busy}
         onSubmit={(brief, observe) => {
           setViewing(null);
           start(brief, observe);
@@ -47,26 +47,45 @@ function modelUrl(job: Job, number: number | null): string | undefined {
   return job.attempts.find((a) => a.number === number)?.files["design.glb"];
 }
 
-/** A design job: started on request, then polled until it is done or failed. */
+/** A design job: started on request, then polled until it is done or failed.
+ * A failed poll is shown and retried; one design is started at a time. */
 function useDesignJob(pollMs: number) {
   const [job, setJob] = useState<Job | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [retries, setRetries] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const starting = useRef(false); // guards clicks before the re-render disables Design
   const active = job?.status === "queued" || job?.status === "running";
   useEffect(() => {
     if (!active || job === null) return;
     const timer = setTimeout(() => {
-      getDesign(job.id).then(setJob, (e: Error) => setProblem(e.message));
+      getDesign(job.id).then(
+        (next) => {
+          setProblem(null);
+          setJob(next);
+        },
+        (e: Error) => {
+          setProblem(e.message);
+          setRetries((n) => n + 1);
+        },
+      );
     }, pollMs);
     return () => clearTimeout(timer);
-  }, [active, job, pollMs]);
+  }, [active, job, pollMs, retries]);
 
   function start(brief: string, observe: boolean) {
+    if (starting.current) return;
+    starting.current = true;
+    setSubmitting(true);
     setProblem(null);
-    createDesign(brief, observe).then(setJob, (e: Error) =>
-      setProblem(e.message),
-    );
+    createDesign(brief, observe)
+      .then(setJob, (e: Error) => setProblem(e.message))
+      .finally(() => {
+        starting.current = false;
+        setSubmitting(false);
+      });
   }
-  return { job, problem, active, start };
+  return { job, problem, busy: submitting || active, start };
 }
 
 function BriefForm({

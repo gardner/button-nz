@@ -97,6 +97,46 @@ describe("DesignPanel", () => {
     expect(JSON.parse(String(init.body)).allow_observations).toBe(false);
   });
 
+  it("keeps polling after a failed poll and clears the error", async () => {
+    const fetch = vi.fn();
+    fetch.mockResolvedValueOnce(
+      respond({
+        ...JOB,
+        status: "queued",
+        accepted_attempt: null,
+        attempts: [],
+      }),
+    );
+    fetch.mockResolvedValueOnce(respond({ detail: "Bad Gateway" }, 502));
+    fetch.mockResolvedValueOnce(
+      respond({ ...JOB, attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT] }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    expect(await screen.findByText("Accepted: attempt 2")).toBeTruthy();
+    expect(screen.queryByText("Bad Gateway")).toBeNull();
+  });
+
+  it("sends one design however often Design is clicked", async () => {
+    let finish: (r: Response) => void = () => {};
+    const fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await userEvent.type(screen.getByLabelText("Brief"), "A small studio.");
+    const design = screen.getByRole("button", { name: "Design" });
+    await userEvent.dblClick(design);
+    await userEvent.click(design);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    finish(respond({ ...JOB, status: "done", attempts: [] }));
+    expect(await screen.findByText("Accepted: attempt 2")).toBeTruthy();
+  });
+
   it("needs a brief", async () => {
     serve();
     render(<DesignPanel pollMs={5} />);
