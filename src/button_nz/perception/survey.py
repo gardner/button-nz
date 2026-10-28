@@ -30,7 +30,6 @@ from button_nz.perception.features import (
     STRUCTURES,
     Feature,
     Mask,
-    Status,
     features,
     unlabelled,
 )
@@ -80,15 +79,12 @@ def _distinct(labelled: Sequence[Feature]) -> list[Feature]:
 
 def _merged(kept: Feature, other: Feature) -> Feature:
     """``kept``, noting that ``other`` matched it too. If only one of them is a
-    structure, the score mustn't settle whether it's a building: a conflict."""
+    structure, the score mustn't settle whether it's a building: the structure
+    is kept, with its LiDAR evidence, so the owner must decide it."""
     if other.concept == kept.concept or f"as a {other.concept}" in kept.note:
         return kept
-    if (kept.concept in STRUCTURES) != (other.concept in STRUCTURES):
-        note = (
-            f"Matched as a {kept.concept} and as a {other.concept}, so it may or may not "
-            "be a building: please decide."
-        )
-        return replace(kept, status=Status.CONFLICT, note=note)
+    if other.concept in STRUCTURES and kept.concept not in STRUCTURES:
+        kept, other = other, kept
     return replace(kept, note=f"{kept.note} Also matched as a {other.concept}.")
 
 

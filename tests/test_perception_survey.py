@@ -119,8 +119,8 @@ def test_one_thing_matched_by_two_concepts_is_one_feature() -> None:
 
 def test_a_structure_outscored_by_something_else_is_left_to_the_owner() -> None:
     """One outline matched as a car (0.85) and a shed (0.6): the score mustn't
-    decide whether it's a building. It's a conflict, so the owner must decide it
-    before saying every building is listed."""
+    decide whether it's a building. The shed is kept, with its LiDAR evidence, so
+    the owner must decide it before saying every building is listed."""
 
     def car_or_shed(rgb: NDArray[np.uint8], concept: str) -> list[Mask]:
         pixels = np.zeros(rgb.shape[:2], dtype=bool)
@@ -130,6 +130,7 @@ def test_a_structure_outscored_by_something_else_is_left_to_the_owner() -> None:
 
     found = survey(car_or_shed, AERIAL, GRID, BBOX, PIXEL_M)
     thing = found[0]
-    assert thing.status is Status.CONFLICT and "shed" in thing.note and "car" in thing.note
+    assert thing.concept == "shed" and thing.status is Status.AGREES
+    assert thing.max_height_m == pytest.approx(2.6) and "car" in thing.note
     survey_ = Survey("s", to_geojson(found, {}))
     assert "1" in undecided_buildings(survey_, {})
