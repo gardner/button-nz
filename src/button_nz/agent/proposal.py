@@ -89,7 +89,8 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
 def _check_envelope(triangles: list[Triangle], enclosed: Polygon, z_min: float, cut: float) -> None:
     """That ``enclosed`` (the walls' outline at ``cut``) is a solid envelope: a
     floor under it, no opening through it, and a roof over it."""
-    floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
+    band = z_min + min(FLOOR_SECTION_M, cut / 2)  # faces this low are the floor's underside
+    floor = outline([tri for tri in triangles if max(p[2] for p in tri) <= band])
     if floor.intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
         raise DesignError(
             "The Dwelling's lowest point isn't its floor: something (piles, steps, a "

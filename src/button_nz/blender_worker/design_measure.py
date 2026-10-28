@@ -58,26 +58,21 @@ def main(argv: list[str]) -> None:
         return
     dwelling = objects["Dwelling"]
     b.context.scene.collection.objects.link(dwelling)
-    _show(dwelling)
-    measurements = {"error": None} | _measure(dwelling)
+    _evaluate_as_rendered(dwelling)
+    measurements: dict[str, Any] = {"error": None} | _measure(dwelling)
     if measurements["error"] is not None:  # e.g. too detailed: don't render it either
         design_io.write_json(path, measurements)
         return
+    _bake(dwelling, measurements["triangles"])  # render and export exactly what was measured
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)
 
 
-def _show(dwelling: Any) -> None:
-    """Make the Dwelling, and its modifiers, evaluate as they render: what is
-    checked is what is shown (the measuring depsgraph uses viewport settings)."""
-    dwelling.hide_render = False
+def _evaluate_as_rendered(dwelling: Any) -> None:
+    """Make the Dwelling's modifiers evaluate as they render (the measuring
+    depsgraph uses viewport settings)."""
     dwelling.hide_viewport = False
-    dwelling.visible_camera = True
-    dwelling.data.materials.clear()  # a material can't hide it (e.g. Transparent BSDF)
-    dwelling.data.materials.append(build_scene.material("Dwelling", DWELLING_RGBA))
-    for polygon in dwelling.data.polygons:
-        polygon.material_index = 0
     for modifier in dwelling.modifiers:
         modifier.show_viewport = modifier.show_render
         if hasattr(modifier, "render_levels"):  # subdivision and multires
@@ -139,24 +134,57 @@ def _solid(obj: Any) -> bool:
 
 
 def _measure(dwelling: Any) -> dict[str, Any]:
-    """The Dwelling's triangles in the local frame (the host derives its outline,
-    walls and floor from them) and its stated properties."""
-    evaluated = dwelling.evaluated_get(b.context.evaluated_depsgraph_get())
-    mesh = evaluated.to_mesh()
-    try:
-        mesh.calc_loop_triangles()
-        if len(mesh.loop_triangles) > MAX_TRIANGLES:
-            return {"error": TOO_DETAILED.format(n=len(mesh.loop_triangles))}
-        world = evaluated.matrix_world
-        points = [list(world @ v.co) for v in mesh.vertices]
-        triangles = [[points[i] for i in tri.vertices] for tri in mesh.loop_triangles]
-    finally:
-        evaluated.to_mesh_clear()
+    """Every triangle the Dwelling evaluates to, in the local frame: its mesh and
+    any instances its modifiers make (e.g. Geometry Nodes), as a renderer would
+    see them. The host derives the outline, walls and floor from them."""
+    triangles: list[list[list[float]]] = []
+    for instance in b.context.evaluated_depsgraph_get().object_instances:
+        owner = instance.parent if instance.is_instance else instance.object
+        if owner is None or owner.original != dwelling:
+            continue
+        error = _add_triangles(instance.object, instance.matrix_world.copy(), triangles)
+        if error is not None:
+            return {"error": error}
     return {
         "triangles": triangles,
         "floor_area_m2": _plain(dwelling.get("floor_area_m2")),
         "storeys": _plain(dwelling.get("storeys")),
     }
+
+
+def _add_triangles(obj: Any, world: Any, triangles: list[list[list[float]]]) -> str | None:
+    """Append ``obj``'s surface triangles, placed by ``world``; an error if too many."""
+    try:
+        mesh = obj.to_mesh()
+    except RuntimeError:  # no surface to measure (points, volumes): nothing renders solid
+        return None
+    if mesh is None:
+        return None
+    try:
+        mesh.calc_loop_triangles()
+        total = len(triangles) + len(mesh.loop_triangles)
+        if total > MAX_TRIANGLES:
+            return TOO_DETAILED.format(n=total)
+        points = [list(world @ v.co) for v in mesh.vertices]
+        triangles += [[points[i] for i in tri.vertices] for tri in mesh.loop_triangles]
+    finally:
+        obj.to_mesh_clear()
+    return None
+
+
+def _bake(dwelling: Any, triangles: list[list[list[float]]]) -> None:
+    """Replace the model's Dwelling in the scene with a plain mesh of exactly the
+    measured triangles and an opaque material: no modifier, instancer setting or
+    material can make the render differ from what was checked."""
+    b.context.scene.collection.objects.unlink(dwelling)
+    dwelling.name = "Dwelling.model"
+    vertices = [tuple(point) for triangle in triangles for point in triangle]
+    faces = [(3 * i, 3 * i + 1, 3 * i + 2) for i in range(len(triangles))]
+    mesh = b.data.meshes.new("Dwelling")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    mesh.materials.append(build_scene.material("Dwelling", DWELLING_RGBA))
+    b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 
 def _plain(value: Any) -> Any:

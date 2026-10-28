@@ -433,3 +433,33 @@ def test_the_script_gets_no_gpu(tmp_path: Path, scene: SceneInput) -> None:
     )
     out = run_design(scene, probe, tmp_path)
     assert "[]" in str(out.measurements["error"])
+
+
+INSTANCES = """
+tree = bpy.data.node_groups.new('copies', 'GeometryNodeTree')
+tree.interface.new_socket('Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
+tree.interface.new_socket('Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
+inp, out = tree.nodes.new('NodeGroupInput'), tree.nodes.new('NodeGroupOutput')
+line = tree.nodes.new('GeometryNodeMeshLine')
+line.inputs['Count'].default_value = 3
+line.inputs['Offset'].default_value = (12.0, 0.0, 0.0)
+cube = tree.nodes.new('GeometryNodeMeshCube')
+place = tree.nodes.new('GeometryNodeInstanceOnPoints')
+join = tree.nodes.new('GeometryNodeJoinGeometry')
+tree.links.new(line.outputs[0], place.inputs['Points'])
+tree.links.new(cube.outputs[0], place.inputs['Instance'])
+tree.links.new(inp.outputs[0], join.inputs[0])
+tree.links.new(place.outputs[0], join.inputs[0])
+tree.links.new(join.outputs[0], out.inputs[0])
+dwelling.modifiers.new('copies', 'NODES').node_group = tree
+"""
+
+
+def test_geometry_nodes_instances_are_measured(tmp_path: Path, scene: SceneInput) -> None:
+    """Unrealised instances render, so they must be measured too."""
+    out = run_design(scene, BOX + INSTANCES, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.outline is not None or measured.parts > 1
+    triangles = out.measurements["triangles"]
+    xs = [p[0] for tri in triangles for p in tri]
+    assert max(xs) > 20.0  # the third cube, 24 m along x

@@ -206,3 +206,11 @@ def _a_frame(width: float, length: float, ridge: float) -> list[list[list[float]
 def test_an_a_frame_is_a_closed_envelope() -> None:
     measured = parse_measurements(measured_with(_a_frame(7.0, 9.0, 3.9)))
     assert measured.footprint is not None
+
+
+def test_a_mesh_without_a_bottom_face_has_no_floor() -> None:
+    """Walls and a roof but no bottom: the wall ring sections as full, yet nothing closes it."""
+    closed = box(0, 0, 0, 8, 6, 3)
+    no_bottom = closed[2:]  # box() lists the two bottom triangles first
+    with pytest.raises(DesignError, match="lowest"):
+        parse_measurements(measured_with(no_bottom))
