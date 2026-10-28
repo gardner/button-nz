@@ -32,7 +32,8 @@ GOOD = {
 }
 NEAR = GOOD | {"faces_xy": [rect(0.5, 7, 6.5, 12)]}  # 0.5 m from the title boundary
 BROKEN = {"error": 'Traceback (most recent call last):\n  File "design.py", line 1\nNameError: x'}
-MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN}
+OFF_TERRAIN = GOOD | {"faces_xy": [rect(38, 7, 44, 12)]}  # past the terrain's east edge
+MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN}
 
 
 @pytest.fixture
@@ -179,12 +180,29 @@ def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) 
     assert result.accepted is result.attempts[0]
 
 
-def test_observations_are_capped_per_attempt(site: DesignSite, tmp_path: Path) -> None:
+def test_once_the_budget_is_spent_the_model_must_design(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel(SLOPE, SLOPE, "good")
+    result = run(site, model, tmp_path)
+    assert model.allowed == [True, True, False]
+    assert "1 observation left" in model.seen[1][-1].text
+    assert "0 observations left" in model.seen[2][-1].text
+    assert result.attempts[0].observations == ("render_height_map", "render_height_map")
+    assert result.accepted is result.attempts[0]
+
+
+def test_a_request_over_the_budget_is_refused_not_fatal(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel(SLOPE, SLOPE, SLOPE, "good")
+    result = run(site, model, tmp_path)
+    assert "No observations left" in model.seen[3][-1].text
+    assert result.attempts[0].observations == ("render_height_map", "render_height_map")
+    assert result.accepted is result.attempts[0]
+
+
+def test_a_model_that_never_designs_loses_the_attempt(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel(*[SLOPE] * 5, "good")
     result = run(site, model, tmp_path)
     first, second = result.attempts
     assert first.status == "error" and "observation" in first.feedback
-    assert first.observations == ("render_height_map", "render_height_map")
     assert result.accepted is second
 
 
@@ -195,3 +213,11 @@ def test_observations_can_be_switched_off(site: DesignSite, tmp_path: Path) -> N
     assert "not available" in model.seen[1][-1].text
     assert result.attempts[0].observations == ()
     assert result.accepted is result.attempts[0]
+
+
+def test_a_proposal_the_evaluator_rejects_is_fed_back(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("off", "good")
+    result = run(site, model, tmp_path)
+    assert result.attempts[0].status == "error"
+    assert "terrain" in model.seen[1][-1].text
+    assert result.accepted is result.attempts[1]

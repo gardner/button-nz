@@ -19,7 +19,7 @@ from button_nz.agent.proposal import DesignError, parse_measurements, to_proposa
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
-from button_nz.evaluation import Check, Report, Status, evaluate
+from button_nz.evaluation import Check, InvalidProposal, Report, Status, evaluate
 
 __all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Turn", "design"]
 
@@ -94,7 +94,9 @@ def design(
 
 @dataclass
 class _Ask:
-    """One attempt's exchange: answer observation requests until a script arrives."""
+    """One attempt's exchange: answer observation requests until a script arrives.
+    Once the budget is spent the model is offered only the script tool, and has
+    two more turns to use it before the attempt is lost."""
 
     model: Model
     site: DesignSite
@@ -106,9 +108,9 @@ class _Ask:
     observed: tuple[str, ...] = ()
 
     def script(self) -> str | None:
-        for _ in range(self.max_observations + 1):
+        for _ in range(self.max_observations + 2):
             try:
-                action = self.model.propose(self.conversation, self.allow_observations)
+                action = self.model.propose(self.conversation, self._may_observe())
             except ModelReplyError as error:
                 self.error = str(error)
                 return None
@@ -129,12 +131,20 @@ class _Ask:
         )
         if not self.allow_observations:
             text, image = "Observations are not available in this run; submit a design.", None
-        elif len(self.observed) >= self.max_observations:
+        elif not self._may_observe():
             text, image = "No observations left for this attempt; submit a design.", None
         else:
             self.observed += (request.tool,)
             text, image = self._observe(request)
+            text += f"\n\n{self._left()} left for this attempt."
         self.conversation.append(Turn("observation", text, image))
+
+    def _may_observe(self) -> bool:
+        return self.allow_observations and len(self.observed) < self.max_observations
+
+    def _left(self) -> str:
+        left = self.max_observations - len(self.observed)
+        return f"{left} observation{'' if left == 1 else 's'}"
 
     def _observe(self, request: Observe) -> tuple[str, Path | None]:
         try:
@@ -163,7 +173,7 @@ def _attempt(
         datum = site.scene["frame"]["datum_m"]
         report = evaluate(to_proposal(measurements, site.frame, datum), site.context)
         feedback = describe(report)
-    except DesignError as error:
+    except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
     attempt = Attempt(number, script, feedback, report, directory, observations)
     _write_attempt(attempt)

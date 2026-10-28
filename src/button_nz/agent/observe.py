@@ -7,7 +7,7 @@ feedback for the model, not a crash.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from button_nz.agent.conversation import Observe
@@ -59,7 +59,12 @@ OBSERVATION_TOOLS: list[dict[str, Any]] = [
         {"azimuth_deg": {"type": "number"}, "altitude_deg": {"type": "number"}},
         [],
     ),
-    _tool("render_contours", "Elevation contours.", {"interval_m": {"type": "number"}}, []),
+    _tool(
+        "render_contours",
+        "Elevation contours.",
+        {"interval_m": {"type": "number", "exclusiveMinimum": 0}},
+        [],
+    ),
     _tool(
         "render_height_map",
         "Heatmap of ground slope, height above ground (structures/vegetation), or surface normals.",
@@ -104,8 +109,7 @@ def _observe(site: DesignSite, tool: str, args: Mapping[str, Any]) -> Observatio
             raise ObservationError(f"render_height_map: mode must be one of {sorted(modes)}")
         view = modes[args["mode"]](grid, SCALE)
     elif tool == "render_cross_section":
-        start, end = _local(site, args["start"]), _local(site, args["end"])
-        return _described(cross_section(grid, start, end).view, outlined=False)
+        return _described(_cross_section(site, args["start"], args["end"]), outlined=False)
     elif tool == "inspect_elevation":
         polygon = tuple(_local(site, point) for point in args["polygon"])
         stats = inspect_elevation(grid, polygon)
@@ -114,6 +118,17 @@ def _observe(site: DesignSite, tool: str, args: Mapping[str, Any]) -> Observatio
         raise ObservationError(f"unknown observation tool {tool!r}")
     outlined = overlay(view, grid, site.context.parcels, SCALE)
     return _described(outlined, outlined=True)
+
+
+def _cross_section(site: DesignSite, start: Sequence[float], end: Sequence[float]) -> View:
+    """The profile, described in the local coordinates the model asked in."""
+    section = cross_section(site.context.terrain, _local(site, start), _local(site, end))
+    notes = f"Terrain profile from {_label(start)} to {_label(end)} (local metres)."
+    return replace(section.view, notes=notes)
+
+
+def _label(point: Sequence[float]) -> str:
+    return f"({float(point[0]):.1f}, {float(point[1]):.1f})"
 
 
 def _local(site: DesignSite, point: Sequence[float]) -> Point:

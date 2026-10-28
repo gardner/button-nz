@@ -33,6 +33,10 @@ def hillshade(
 
 def contours(grid: TerrainGrid, interval_m: float = 0.5, scale: int = 8) -> View:
     """Dark lines every ``interval_m`` of elevation over a light elevation tint."""
+    if not 0 < interval_m < math.inf:
+        raise ValueError(
+            f"the contour interval must be a positive number of metres, not {interval_m}"
+        )
     band = np.floor(grid.dem / interval_m)
     line = np.zeros(band.shape, dtype=bool)
     line[:, :-1] |= band[:, :-1] != band[:, 1:]

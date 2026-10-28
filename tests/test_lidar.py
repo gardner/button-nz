@@ -76,6 +76,12 @@ def test_contours_of_a_cone_are_circles_at_the_interval() -> None:
     assert view.facts["interval_m"] == 5.0
 
 
+@pytest.mark.parametrize("interval", [0.0, -0.5, math.nan, math.inf])
+def test_contours_need_a_positive_interval(interval: float) -> None:
+    with pytest.raises(ValueError, match="interval"):
+        contours(plane(east=0.1), interval_m=interval)
+
+
 def test_normal_map_of_a_plane_is_one_colour() -> None:
     pixels = image(normal_map(plane(east=0.3)).png)
     assert len(np.unique(pixels.reshape(-1, 3), axis=0)) == 1
@@ -95,6 +101,22 @@ def test_cross_section_of_a_plane_follows_it_exactly() -> None:
     assert section.heights == pytest.approx([100.0 + 0.2 * (5.0 + d) for d in section.distances])
     assert section.view.facts["relief_m"] == pytest.approx(6.0)
     assert section.view.png.startswith(b"\x89PNG")
+
+
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [
+        ((5.0, 20.0), (200.0, 20.0)),  # runs off the east edge
+        ((-3.0, 20.0), (5.0, 20.0)),  # starts west of the grid
+        ((0.2, 20.0), (5.0, 20.0)),  # inside the bbox but outside the cell centres
+        ((5.0, 20.0), (5.0e6, 6.0e6)),  # NZTM-sized coordinates
+    ],
+)
+def test_cross_sections_must_stay_on_the_measured_grid(
+    start: tuple[float, float], end: tuple[float, float]
+) -> None:
+    with pytest.raises(ValueError, match="outside the terrain"):
+        cross_section(plane(east=0.2), start, end)
 
 
 def test_inspect_elevation_inside_a_polygon() -> None:

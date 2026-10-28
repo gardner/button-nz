@@ -45,9 +45,26 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
         parts=parts,
         z_min=_optional_float(raw.get("z_min")),
         z_max=_optional_float(raw.get("z_max")),
-        floor_area_m2=_optional_float(raw.get("floor_area_m2")),
-        storeys=None if raw.get("storeys") is None else int(cast("int", raw["storeys"])),
+        floor_area_m2=_dwelling_number(raw.get("floor_area_m2"), "floor_area_m2"),
+        storeys=_dwelling_storeys(raw.get("storeys")),
     )
+
+
+def _dwelling_number(value: object, name: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise DesignError(f"Dwelling['{name}'] must be a number, not {value!r}.")
+    return float(value)
+
+
+def _dwelling_storeys(value: object) -> int | None:
+    if value is None:
+        return None
+    whole = isinstance(value, int) or (isinstance(value, float) and value.is_integer())
+    if isinstance(value, bool) or not whole:
+        raise DesignError(f"Dwelling['storeys'] must be a whole number, not {value!r}.")
+    return int(cast("float", value))
 
 
 def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -> Proposal:
