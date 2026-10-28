@@ -68,10 +68,15 @@ def main(argv: list[str]) -> None:
 
 
 def _show(dwelling: Any) -> None:
-    """Make the Dwelling visible to the camera: what is checked is what is shown."""
+    """Make the Dwelling, and its modifiers, evaluate as they render: what is
+    checked is what is shown (the measuring depsgraph uses viewport settings)."""
     dwelling.hide_render = False
     dwelling.hide_viewport = False
     dwelling.visible_camera = True
+    for modifier in dwelling.modifiers:
+        modifier.show_viewport = modifier.show_render
+        if hasattr(modifier, "render_levels"):  # subdivision and multires
+            modifier.levels = modifier.render_levels
 
 
 def _load(blend_path: str, site: set[str]) -> dict[str, Any]:

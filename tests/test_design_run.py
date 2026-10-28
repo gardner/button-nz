@@ -362,3 +362,13 @@ def test_an_unreadable_design_file_is_the_models_feedback(
     fake.chmod(0o755)
     out = run_design(scene, BOX, tmp_path / "run", blender=str(fake))
     assert "couldn't be read" in str(out.measurements["error"])
+
+
+def test_modifiers_are_measured_as_they_render(tmp_path: Path, scene: SceneInput) -> None:
+    """An Array hidden from the viewport still renders: it must be measured too."""
+    copies = "m = dwelling.modifiers.new('copies', 'ARRAY')\nm.count = 3\nm.show_viewport = False\n"
+    out = run_design(scene, BOX + copies, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.outline is not None
+    xs = [x for x, _ in measured.outline]
+    assert max(xs) - min(xs) == pytest.approx(18.0)  # three 6 m boxes side by side

@@ -26,6 +26,7 @@ from button_nz.geo.geometry import Ring
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
+MIN_SOLIDITY = 0.5  # of the walls' convex hull: L, T and U plans pass, open strips don't
 MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 
 
@@ -87,13 +88,13 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
             "deck or terrace) is below it. Make the underside of the floor, spanning "
             "the walls, the Dwelling's lowest point."
         )
-    under = floor.intersection(enclosed.convex_hull).area
-    if enclosed.area < MIN_FLOOR_COVER * under:
+    hull = enclosed.convex_hull.area  # an opening in the walls leaves a thin, open shape
+    if enclosed.area < MIN_SOLIDITY * hull:
         raise DesignError(
             f"{cut:g} m above the floor the Dwelling's walls enclose only "
-            f"{enclosed.area:.0f} m², but the floor within them spans {under:.0f} m²: a "
-            "doorway or opening breaks their outline. Model the Dwelling as a solid "
-            "envelope, with no doors or windows cut through it."
+            f"{enclosed.area:.0f} m² of the {hull:.0f} m² they span: a doorway or "
+            "opening breaks their outline. Model the Dwelling as a solid envelope, "
+            "with no doors or windows cut through it."
         )
     return walls
 

@@ -114,9 +114,9 @@ def test_two_substantial_wall_outlines_are_feedback_with_their_sizes() -> None:
         parse_measurements(measured_with(joined))
 
 
-def _hollow_house(door: bool) -> list[list[list[float]]]:
+def _hollow_house(door: bool, slab: bool = True) -> list[list[list[float]]]:
     """A 12 m x 10 m house the usual bpy way: slab, four 0.2 m walls, roof."""
-    slab = box(0, 0, 0, 12, 10, 0.2)
+    floor = box(0, 0, 0, 12, 10, 0.2) if slab else []
     north, east, west = (
         box(0, 9.8, 0.2, 12, 10, 3),
         box(11.8, 0, 0.2, 12, 10, 3),
@@ -129,7 +129,7 @@ def _hollow_house(door: bool) -> list[list[list[float]]]:
     )
     lintel = box(5.5, 0, 2.1, 6.5, 0.2, 3) if door else []
     roof = box(0, 0, 3, 12, 10, 3.2)
-    return slab + north + east + west + south + lintel + roof
+    return floor + north + east + west + south + lintel + roof
 
 
 def test_a_doorway_through_the_walls_is_feedback_not_a_tiny_footprint() -> None:
@@ -142,3 +142,16 @@ def test_a_terrace_beside_the_walls_is_not_their_floor() -> None:
     terrace = box(8, 0, 0, 15.5, 8, 0.2)
     with pytest.raises(DesignError, match="lowest"):
         parse_measurements(measured_with(house + terrace))
+
+
+def test_a_doorway_is_caught_without_a_floor_slab_too() -> None:
+    """Walls standing on z_min, door gap to the ground: the floor section has the gap too."""
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(_hollow_house(door=True, slab=False)))
+
+
+def test_an_l_shaped_solid_house_is_fine() -> None:
+    l_shape = box(0, 0, 0, 10, 4, 3) + box(0, 4, 0, 4, 10, 3)
+    measured = parse_measurements(measured_with(l_shape))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(64.0)
