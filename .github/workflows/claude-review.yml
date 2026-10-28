@@ -15,8 +15,12 @@ concurrency:
 jobs:
   # Passing means the review ran. Findings are posted as review threads, and
   # the branch ruleset requires every thread to be resolved before merge.
+  #
+  # Dependabot PRs are skipped whoever triggers the run, and a skipped job
+  # still satisfies the required check. So a Dependabot action bump never runs
+  # new upstream code with the token. Dependency bumps are reviewed by hand.
   claude-review:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

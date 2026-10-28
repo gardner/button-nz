@@ -24,7 +24,8 @@ Pull requests are reviewed again in CI by `.github/workflows/claude-review.yml`
 secret from `claude setup-token`). Findings arrive as review threads, and every
 thread must be resolved before merge: fix it, or reply with why not and resolve
 it; the next review reads those replies. CI and local reviews share one
-subscription quota.
+subscription quota. Dependabot PRs skip the CI review, so the token never reaches
+a freshly bumped action; review those by hand.
 
 ## Run
 
