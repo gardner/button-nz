@@ -17,6 +17,12 @@ from button_nz.geo.geometry import Point, Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.lidar.render import View
 
+EDGE_TOLERANCE_M = 1e-6
+
+
+class NoCellsInside(ValueError):
+    """The polygon is real, but too small to contain a cell centre."""
+
 
 def gradients(grid: TerrainGrid) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """dz/dx (east) and dz/dy (north) at each cell, in m per m."""
@@ -97,7 +103,7 @@ def inspect_elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
     x, y = np.meshgrid(xs, ys)
     inside = shapely.contains_xy(Polygon(polygon), x, y)
     if not inside.any():
-        raise ValueError("no cell centre of the terrain grid is inside the polygon")
+        raise NoCellsInside("no cell centre of the terrain grid is inside the polygon")
     ground = grid.dem[inside]
     slope = slope_degrees(grid)[inside]
     return {
@@ -113,9 +119,13 @@ def inspect_elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
 
 
 def _on_grid(grid: TerrainGrid, point: Point) -> bool:
-    half = grid.cell_m / 2
+    """Within the cell centres, allowing for the rounding of a local-to-NZTM trip."""
+    half, e = grid.cell_m / 2, EDGE_TOLERANCE_M
     west, south, east, north = grid.bbox
-    return west + half <= point[0] <= east - half and south + half <= point[1] <= north - half
+    return (
+        west + half - e <= point[0] <= east - half + e
+        and south + half - e <= point[1] <= north - half + e
+    )
 
 
 def _surface(grid: TerrainGrid) -> dict[str, Any]:

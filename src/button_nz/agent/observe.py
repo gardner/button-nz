@@ -28,6 +28,7 @@ from button_nz.lidar import (
     overlay,
     slope_map,
 )
+from button_nz.lidar.analysis import NoCellsInside
 
 _EPS = 1e-9
 SCALE = 8  # pixels per metre cell
@@ -133,7 +134,7 @@ def _elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
     low, high = ground_range(Polygon(polygon), grid)
     try:
         stats = inspect_elevation(grid, polygon)
-    except ValueError:  # narrower than a cell: no centre inside to average
+    except NoCellsInside:  # narrower than a cell: no centre inside to average
         stats = {}
     return stats | {"min_m": low, "max_m": high, "relief_m": high - low}
 
