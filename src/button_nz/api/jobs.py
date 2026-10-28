@@ -6,10 +6,11 @@ A job that raises is marked failed with the reason, e.g. a missing
 in progress. Each job's files are kept under ``runs_dir/<job id>``.
 
 Given an ``illustrator``, a job with an accepted attempt then gets an AI visual
-of it (``perception.visual``) before it is marked done: ``visual.json`` always
-says how that went, and ``visual.png`` is there only if the visual was
-accepted. The visual is extra: its failure is recorded in ``visual.json`` and
-changes nothing about the job, its verdict or its acceptance.
+of it (``perception.visual``) once it is marked done: ``visual.json`` says how
+that went (until it exists, the visual is still being made), and ``visual.png``
+is there only if the visual was accepted. The visual is extra: its failure is
+recorded in ``visual.json`` and changes nothing about the job, its verdict or
+its acceptance.
 """
 
 import json
@@ -68,9 +69,9 @@ class Worker:
             log.exception("design job %s failed", job.id)
             self.store.mark_failed(job.id, _reason(error))
         else:
-            if accepted is not None:
-                self._illustrate(accepted)
             self.store.mark_done(job.id, None if accepted is None else accepted.number)
+            if accepted is not None:  # after: a restart mid-visual mustn't cost the design
+                self._illustrate(accepted)
         return True
 
     def start(self) -> None:

@@ -167,6 +167,9 @@ def _measure_pass(
     try:
         _run_blender(blender, MEASURE_PASS, args, timeout_s, sandbox)
     except BlenderError as error:
+        if _finished(measurements_path, glb, png):  # only the optional silhouette was lost
+            mask.unlink(missing_ok=True)
+            return DesignOutputs(_read_json(measurements_path), script_path, glb, png)
         # A timeout or crash while the model's geometry is measured or rendered is
         # its to fix; a Python error is this runner's, and Blender's otherwise.
         if not (error.killed and _unfinished(measurements_path)):
@@ -177,8 +180,16 @@ def _measure_pass(
     measurements = _read_json(measurements_path)
     if measurements.get("error"):
         return DesignOutputs(measurements, script_path, None, None)
-    _require(glb, png, mask)
-    return DesignOutputs(measurements, script_path, glb, png, mask)
+    _require(glb, png)
+    return DesignOutputs(measurements, script_path, glb, png, mask if mask.is_file() else None)
+
+
+def _finished(path: Path, glb: Path, png: Path) -> bool:
+    """Whether pass 2 had measured, exported and rendered the design: its final
+    measurements are written only then, before the optional silhouette."""
+    if not os.path.lexists(path) or _read_json(path).get("error", DID_NOT_FINISH) is not None:
+        return False
+    return all(p.is_file() and not p.is_symlink() for p in (glb, png))
 
 
 def _unfinished(path: Path) -> bool:

@@ -70,8 +70,11 @@ def main(argv: list[str]) -> None:
     _bake(dwelling, measurements["triangles"])  # render and export exactly what was measured
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
-    build_scene.render_silhouette(os.path.join(out_dir, "dwelling-mask.png"), "Dwelling")
-    design_io.write_json(path, measurements)
+    design_io.write_json(path, measurements)  # the design is done: the silhouette is extra
+    try:  # only the AI visual needs it, and its absence is recorded there
+        build_scene.render_silhouette(os.path.join(out_dir, "dwelling-mask.png"), "Dwelling")
+    except Exception as error:  # noqa: BLE001 - nothing about the design depends on it
+        print(f"no silhouette: {error}", file=sys.stderr)
 
 
 def _evaluate_as_rendered(dwelling: Any) -> None:

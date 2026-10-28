@@ -137,8 +137,14 @@ def illustrate_from_env(render_png: Path, mask_png: Path) -> Visual:
     key = os.environ.get("META_API_KEY")
     if not key:
         raise KeyError("META_API_KEY is not set: get a Meta Model API key")
-    client = OpenAI(base_url=META_BASE_URL, api_key=key, timeout=EDIT_TIMEOUT_S)
+    client = visual_client(key)
     return illustrate(render_png, mask_png, client, Segmenter(client))
+
+
+def visual_client(key: str) -> OpenAI:
+    """A Meta Model API client for the visual: one try each, since a retried slow
+    edit would wait, and be billed, again."""
+    return OpenAI(base_url=META_BASE_URL, api_key=key, timeout=EDIT_TIMEOUT_S, max_retries=0)
 
 
 def iou(a: NDArray[np.bool_], b: NDArray[np.bool_]) -> float:

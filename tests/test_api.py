@@ -22,7 +22,7 @@ from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
-from button_nz.perception.visual import VISUAL_MODEL, Visual
+from button_nz.perception.visual import VISUAL_MODEL, Visual, visual_client
 from meshes import box
 
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
@@ -356,3 +356,26 @@ def test_a_design_with_nothing_accepted_gets_no_visual(tmp_path: Path) -> None:
     assert illustrator.calls == []
     for attempt in service.client.get(f"/designs/{job_id}").json()["attempts"]:
         assert not {"visual.png", "visual.json"} & set(attempt["files"])
+
+
+def test_a_design_is_done_before_its_visual_is_made(tmp_path: Path) -> None:
+    """The visual is extra: a restart while Muse Image works mustn't cost the
+    accepted design, so the job is already done when the visual starts."""
+    seen: list[tuple[str, int | None]] = []
+    service: Service | None = None
+
+    def illustrator(render: Path, mask: Path) -> Visual:
+        assert service is not None
+        job = service.store.get_job(job_id)
+        seen.append((job.status, job.accepted_attempt))
+        return ACCEPTED_VISUAL
+
+    service = Service(tmp_path, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert seen == [("done", 2)]
+
+
+def test_a_slow_edit_is_not_retried() -> None:
+    """Each retry of a slow edit would wait again, and be billed again."""
+    assert visual_client("key").max_retries == 0
