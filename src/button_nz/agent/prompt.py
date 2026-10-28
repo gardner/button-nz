@@ -38,6 +38,11 @@ above the floor;
 below the highest;
 - clear of the owner's preservation areas.
 "Unknown" means it could not be verified; it is reported, never treated as a pass.
+
+If observation tools are offered (hillshade, contours, height maps, cross-sections, \
+elevation statistics), you may call them before a design to look at the measured \
+site, in the same local coordinates. They re-present the LiDAR; use them when you \
+are unsure about slopes, banks or what stands on the ground.
 """
 
 

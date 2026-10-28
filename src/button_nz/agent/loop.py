@@ -12,24 +12,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from button_nz.agent.conversation import Model, ModelReplyError, Turn
+from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
+from button_nz.agent.observe import ObservationError, observe
 from button_nz.agent.prompt import describe, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
+from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
-from button_nz.evaluation import Check, Report, SiteContext, Status, evaluate
-from button_nz.geo.crs import LocalFrame
+from button_nz.evaluation import Check, Report, Status, evaluate
 
 __all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Turn", "design"]
 
 type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
-
-
-@dataclass(frozen=True)
-class DesignSite:
-    scene: SceneInput
-    frame: LocalFrame
-    context: SiteContext
 
 
 @dataclass(frozen=True)
@@ -39,6 +33,7 @@ class Attempt:
     feedback: str
     report: Report | None  # None if the script didn't produce a measurable dwelling
     directory: Path
+    observations: tuple[str, ...] = ()  # the observation tools used before this attempt
 
     @property
     def status(self) -> str:
@@ -66,24 +61,28 @@ def design(
     runs_dir: Path,
     max_attempts: int = 3,
     runner: Runner = run_design,
+    allow_observations: bool = True,
+    max_observations: int = 4,
 ) -> DesignResult:
+    """Design for ``brief`` on ``site``. Before each attempt the model may request
+    up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
+    they don't count as attempts."""
     conversation = [Turn("system", system_prompt(site.scene)), Turn("user", brief)]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
         directory = runs_dir / f"attempt-{number}"
-        try:
-            script = model.propose(conversation)
-        except ModelReplyError as error:
-            script = ""
-            attempt = Attempt(number, script, str(error), None, directory)
-            directory.mkdir(parents=True, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
+        ask = _Ask(model, site, conversation, directory, allow_observations, max_observations)
+        script = ask.script()
+        if script is None:
+            attempt = Attempt(number, "", ask.error, None, directory, ask.observed)
             _write_attempt(attempt)
         else:
-            attempt = _attempt(number, script, site, runner, directory)
+            attempt = _attempt(number, script, site, runner, directory, ask.observed)
         attempts.append(attempt)
-        image = attempt.directory / "design.png"
+        image = directory / "design.png"
         conversation += [
-            Turn("design", script),
+            Turn("design", attempt.script),
             Turn("feedback", attempt.feedback, image if image.is_file() else None),
         ]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
@@ -93,8 +92,69 @@ def design(
     return result
 
 
+@dataclass
+class _Ask:
+    """One attempt's exchange: answer observation requests until a script arrives."""
+
+    model: Model
+    site: DesignSite
+    conversation: list[Turn]
+    directory: Path
+    allow_observations: bool
+    max_observations: int
+    error: str = ""
+    observed: tuple[str, ...] = ()
+
+    def script(self) -> str | None:
+        for _ in range(self.max_observations + 1):
+            try:
+                action = self.model.propose(self.conversation, self.allow_observations)
+            except ModelReplyError as error:
+                self.error = str(error)
+                return None
+            if isinstance(action, str):
+                return action
+            self._answer(action)
+        self.error = (
+            f"You used all {self.max_observations} observations without submitting a design. "
+            "Call run_blender_script with your design."
+        )
+        return None
+
+    def _answer(self, request: Observe) -> None:
+        self.conversation.append(
+            Turn(
+                "request", json.dumps({"tool": request.tool, "arguments": dict(request.arguments)})
+            )
+        )
+        if not self.allow_observations:
+            text, image = "Observations are not available in this run; submit a design.", None
+        elif len(self.observed) >= self.max_observations:
+            text, image = "No observations left for this attempt; submit a design.", None
+        else:
+            self.observed += (request.tool,)
+            text, image = self._observe(request)
+        self.conversation.append(Turn("observation", text, image))
+
+    def _observe(self, request: Observe) -> tuple[str, Path | None]:
+        try:
+            observation = observe(self.site, request)
+        except ObservationError as error:
+            return str(error), None
+        if observation.png is None:
+            return observation.text, None
+        image = self.directory / f"observation-{len(self.observed)}.png"
+        image.write_bytes(observation.png)
+        return observation.text, image
+
+
 def _attempt(
-    number: int, script: str, site: DesignSite, runner: Runner, directory: Path
+    number: int,
+    script: str,
+    site: DesignSite,
+    runner: Runner,
+    directory: Path,
+    observations: tuple[str, ...],
 ) -> Attempt:
     outputs = runner(site.scene, script, directory)
     report: Report | None = None
@@ -105,7 +165,7 @@ def _attempt(
         feedback = describe(report)
     except DesignError as error:
         feedback = str(error)
-    attempt = Attempt(number, script, feedback, report, directory)
+    attempt = Attempt(number, script, feedback, report, directory, observations)
     _write_attempt(attempt)
     return attempt
 
@@ -117,6 +177,7 @@ def _write_attempt(attempt: Attempt) -> None:
         "status": attempt.status,
         "script": attempt.script,
         "feedback": attempt.feedback,
+        "observations": list(attempt.observations),
         "checks": [
             {
                 "name": c.name,

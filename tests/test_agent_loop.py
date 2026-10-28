@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from button_nz.agent.conversation import ModelReplyError
+from button_nz.agent.conversation import ModelReplyError, Observe
 from button_nz.agent.loop import DesignResult, DesignSite, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
@@ -47,12 +47,14 @@ def site() -> DesignSite:
 class ScriptedModel:
     """Replays scripts in order and records every conversation it was shown."""
 
-    def __init__(self, *scripts: str) -> None:
+    def __init__(self, *scripts: str | Observe) -> None:
         self.scripts = list(scripts)
         self.seen: list[list[Turn]] = []
+        self.allowed: list[bool] = []
 
-    def propose(self, conversation: Sequence[Turn]) -> str:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         self.seen.append(list(conversation))
+        self.allowed.append(allow_observations)
         return self.scripts.pop(0)
 
 
@@ -65,8 +67,23 @@ def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     return DesignOutputs(measurements, out_dir / "design.py", None, None if failed else png)
 
 
-def run(site: DesignSite, model: ScriptedModel, tmp_path: Path, attempts: int = 3) -> DesignResult:
-    return design("Add a small dwelling.", site, model, tmp_path, attempts, runner=fake_runner)
+def run(
+    site: DesignSite,
+    model: ScriptedModel,
+    tmp_path: Path,
+    attempts: int = 3,
+    allow_observations: bool = True,
+) -> DesignResult:
+    return design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        attempts,
+        runner=fake_runner,
+        allow_observations=allow_observations,
+        max_observations=2,
+    )
 
 
 def test_a_failed_check_is_fed_back_and_the_revision_accepted(
@@ -128,11 +145,11 @@ def test_every_attempt_is_traced_on_disk(site: DesignSite, tmp_path: Path) -> No
 class SilentModel(ScriptedModel):
     """Replies without a script the first time, as a model sometimes does."""
 
-    def propose(self, conversation: Sequence[Turn]) -> str:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         if not self.seen:
             self.seen.append(list(conversation))
             raise ModelReplyError("The reply did not call run_blender_script.")
-        return super().propose(conversation)
+        return super().propose(conversation, allow_observations)
 
 
 def test_a_reply_without_a_script_is_an_attempt_with_feedback(
@@ -143,3 +160,38 @@ def test_a_reply_without_a_script_is_an_attempt_with_feedback(
     assert result.attempts[0].status == "error"
     assert "run_blender_script" in model.seen[1][-1].text
     assert result.accepted is result.attempts[1]
+
+
+SLOPE = Observe("render_height_map", {"mode": "slope"})
+
+
+def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel(SLOPE, "good")
+    result = run(site, model, tmp_path)
+    request, observation = model.seen[1][-2:]
+    assert request.role == "request" and "render_height_map" in request.text
+    assert observation.role == "observation" and "slope" in observation.text
+    assert observation.image == tmp_path / "attempt-1" / "observation-1.png"
+    assert observation.image is not None and observation.image.read_bytes().startswith(b"\x89PNG")
+    assert result.attempts[0].observations == ("render_height_map",)
+    trace = json.loads((tmp_path / "attempt-1" / "attempt.json").read_text(encoding="utf-8"))
+    assert trace["observations"] == ["render_height_map"]
+    assert result.accepted is result.attempts[0]
+
+
+def test_observations_are_capped_per_attempt(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel(SLOPE, SLOPE, SLOPE, "good")
+    result = run(site, model, tmp_path)
+    first, second = result.attempts
+    assert first.status == "error" and "observation" in first.feedback
+    assert first.observations == ("render_height_map", "render_height_map")
+    assert result.accepted is second
+
+
+def test_observations_can_be_switched_off(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel(SLOPE, "good")
+    result = run(site, model, tmp_path, allow_observations=False)
+    assert model.allowed == [False, False]
+    assert "not available" in model.seen[1][-1].text
+    assert result.attempts[0].observations == ()
+    assert result.accepted is result.attempts[0]

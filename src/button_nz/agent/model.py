@@ -10,11 +10,13 @@ import json
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 from openai import OpenAI
 
-from button_nz.agent.conversation import ModelReplyError, Turn
+from button_nz.agent.conversation import ModelReplyError, Observe, Turn
+from button_nz.agent.observe import OBSERVATION_TOOLS
 
 __all__ = ["META_BASE_URL", "ChatModel", "ModelReplyError"]
 
@@ -50,54 +52,70 @@ class ChatModel:
             raise KeyError("MODEL_API_KEY is not set: get a Meta Model API key")
         return cls(OpenAI(base_url=META_BASE_URL, api_key=key), model)
 
-    def propose(self, conversation: Sequence[Turn]) -> str:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        tools = TOOLS + (OBSERVATION_TOOLS if allow_observations else [])
         response = self.client.chat.completions.create(
             model=self.model,
             messages=cast("Any", _messages(conversation)),
-            tools=cast("Any", TOOLS),
+            tools=cast("Any", tools),
             tool_choice="required",
         )
         message = response.choices[0].message
+        offered = {t["function"]["name"] for t in tools}
         for call in message.tool_calls or []:
-            if call.type == "function" and call.function.name == TOOL:
-                code = json.loads(call.function.arguments).get("code")
-                if isinstance(code, str) and code.strip():
-                    return code
+            if call.type != "function" or call.function.name not in offered:
+                continue
+            arguments = json.loads(call.function.arguments or "{}")
+            if call.function.name != TOOL:
+                return Observe(call.function.name, arguments)
+            code = arguments.get("code")
+            if isinstance(code, str) and code.strip():
+                return code
         raise ModelReplyError(
             f"The reply did not call {TOOL} with a script. Call it with your script."
         )
 
 
 def _messages(conversation: Sequence[Turn]) -> list[dict[str, Any]]:
+    """OpenAI messages: designs and observation requests become the model's tool
+    calls, and feedback and observations their results (with the image)."""
     messages: list[dict[str, Any]] = []
     for n, turn in enumerate(conversation):
-        call_id = f"attempt_{n}"
         if turn.role in ("system", "user"):
             messages.append({"role": turn.role, "content": turn.text})
-        elif turn.role == "design":
-            arguments = json.dumps({"code": turn.text})
-            call = {
-                "id": call_id,
-                "type": "function",
-                "function": {"name": TOOL, "arguments": arguments},
-            }
-            messages.append({"role": "assistant", "content": None, "tool_calls": [call]})
-        else:  # feedback answers the design turn before it
-            messages.append(
-                {"role": "tool", "tool_call_id": f"attempt_{n - 1}", "content": turn.text}
-            )
+        elif turn.role in ("design", "request"):
+            messages.append({"role": "assistant", "content": None, "tool_calls": [_call(n, turn)]})
+        else:  # feedback or an observation answers the call before it
+            messages.append({"role": "tool", "tool_call_id": f"call_{n - 1}", "content": turn.text})
             if turn.image is not None:
-                data = base64.b64encode(turn.image.read_bytes()).decode("ascii")
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "The preview render of that attempt:"},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/png;base64,{data}"},
-                            },
-                        ],
-                    }
+                caption = (
+                    "The preview render of that attempt:"
+                    if turn.role == "feedback"
+                    else "The view:"
                 )
+                messages.append(_image_message(caption, turn.image))
     return messages
+
+
+def _call(n: int, turn: Turn) -> dict[str, Any]:
+    if turn.role == "design":
+        name, arguments = TOOL, json.dumps({"code": turn.text})
+    else:
+        request = json.loads(turn.text)
+        name, arguments = request["tool"], json.dumps(request["arguments"])
+    return {
+        "id": f"call_{n}",
+        "type": "function",
+        "function": {"name": name, "arguments": arguments},
+    }
+
+
+def _image_message(caption: str, image: Path) -> dict[str, Any]:
+    data = base64.b64encode(image.read_bytes()).decode("ascii")
+    return {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": caption},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}},
+        ],
+    }
