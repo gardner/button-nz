@@ -1,0 +1,235 @@
+{"question": "aspect-1", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 19.250310049392283}
+{"question": "aspect-1", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 28.021207122132182}
+{"question": "aspect-1", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 14.623528893105686}
+{"question": "aspect-1", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 49.146889365278184}
+{"question": "aspect-1", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "render_cross_section", "render_cross_section"], "error": null, "seconds": 17.672130906023085}
+{"question": "aspect-2", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 19.109492789953947}
+{"question": "aspect-2", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 28.677778844721615}
+{"question": "aspect-2", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 7.9716580072417855}
+{"question": "aspect-2", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 10.74902962334454}
+{"question": "aspect-2", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_hillshade", "render_contours", "render_cross_section"], "error": null, "seconds": 20.775325106456876}
+{"question": "aspect-3", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 21.64693011343479}
+{"question": "aspect-3", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 12.679334706626832}
+{"question": "aspect-3", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 16.827725548297167}
+{"question": "aspect-3", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 26.185626801103354}
+{"question": "aspect-3", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "inspect_elevation", "render_cross_section"], "error": null, "seconds": 26.301193577237427}
+{"question": "aspect-4", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 27.558182576671243}
+{"question": "aspect-4", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 16.581756920553744}
+{"question": "aspect-4", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 23.05801479704678}
+{"question": "aspect-4", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 11.916352742351592}
+{"question": "aspect-4", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 38.36329630110413}
+{"question": "aspect-5", "kind": "aspect", "condition": "aerial", "answer": "SW", "correct": false, "observations": [], "error": null, "seconds": 43.718451670370996}
+{"question": "aspect-5", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": false, "observations": [], "error": null, "seconds": 21.676881331019104}
+{"question": "aspect-5", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": false, "observations": [], "error": null, "seconds": 17.953409193083644}
+{"question": "aspect-5", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": false, "observations": [], "error": null, "seconds": 57.945252186618745}
+{"question": "aspect-5", "kind": "aspect", "condition": "agent", "answer": "N", "correct": false, "observations": ["render_hillshade", "render_contours", "render_cross_section"], "error": null, "seconds": 38.70648240018636}
+{"question": "aspect-6", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 30.607198338024318}
+{"question": "aspect-6", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 25.45549902971834}
+{"question": "aspect-6", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 15.972833515144885}
+{"question": "aspect-6", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 12.04448330681771}
+{"question": "aspect-6", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "render_cross_section", "render_cross_section"], "error": null, "seconds": 17.411198609508574}
+{"question": "aspect-7", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 32.97644713707268}
+{"question": "aspect-7", "kind": "aspect", "condition": "aerial_contours", "answer": "SW", "correct": false, "observations": [], "error": null, "seconds": 55.4885469712317}
+{"question": "aspect-7", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 18.480501379817724}
+{"question": "aspect-7", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 33.28964043781161}
+{"question": "aspect-7", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "render_cross_section", "render_cross_section"], "error": null, "seconds": 12.676470190286636}
+{"question": "aspect-8", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 44.16057540476322}
+{"question": "aspect-8", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 15.664090693928301}
+{"question": "aspect-8", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 17.07830629311502}
+{"question": "aspect-8", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 13.318639572709799}
+{"question": "aspect-8", "kind": "aspect", "condition": "agent", "answer": null, "correct": false, "observations": ["render_contours", "render_hillshade", "inspect_elevation"], "error": "The reply did not call submit_answer with an answer.", "seconds": 25.872826353646815}
+{"question": "aspect-9", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 23.713200363330543}
+{"question": "aspect-9", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 24.190699604339898}
+{"question": "aspect-9", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 8.723884926177561}
+{"question": "aspect-9", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 11.992859366349876}
+{"question": "aspect-9", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_height_map", "render_cross_section", "render_cross_section"], "error": null, "seconds": 17.277660101652145}
+{"question": "aspect-10", "kind": "aspect", "condition": "aerial", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 26.955266441218555}
+{"question": "aspect-10", "kind": "aspect", "condition": "aerial_contours", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 14.78892723377794}
+{"question": "aspect-10", "kind": "aspect", "condition": "aerial_ndsm_slope", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 9.655261557549238}
+{"question": "aspect-10", "kind": "aspect", "condition": "fixed_all", "answer": "S", "correct": true, "observations": [], "error": null, "seconds": 11.045391583815217}
+{"question": "aspect-10", "kind": "aspect", "condition": "agent", "answer": "S", "correct": true, "observations": ["render_contours", "render_cross_section", "render_cross_section"], "error": null, "seconds": 13.292698993347585}
+{"question": "height_difference-1", "kind": "height_difference", "condition": "aerial", "answer": "0.6", "correct": false, "observations": [], "error": null, "seconds": 26.67348665278405}
+{"question": "height_difference-1", "kind": "height_difference", "condition": "aerial_contours", "answer": "1.5", "correct": true, "observations": [], "error": null, "seconds": 60.25095681659877}
+{"question": "height_difference-1", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 29.04072665795684}
+{"question": "height_difference-1", "kind": "height_difference", "condition": "fixed_all", "answer": "1.5", "correct": true, "observations": [], "error": null, "seconds": 32.575296280905604}
+{"question": "height_difference-1", "kind": "height_difference", "condition": "agent", "answer": "1.65", "correct": true, "observations": ["inspect_elevation", "inspect_elevation"], "error": null, "seconds": 7.8704280238598585}
+{"question": "height_difference-2", "kind": "height_difference", "condition": "aerial", "answer": "1.5", "correct": false, "observations": [], "error": null, "seconds": 22.162642302922904}
+{"question": "height_difference-2", "kind": "height_difference", "condition": "aerial_contours", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 65.62018211651593}
+{"question": "height_difference-2", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 60.56764305289835}
+{"question": "height_difference-2", "kind": "height_difference", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 46.26914821192622}
+{"question": "height_difference-2", "kind": "height_difference", "condition": "agent", "answer": "1.73", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 22.753992963582277}
+{"question": "height_difference-3", "kind": "height_difference", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 25.981798777356744}
+{"question": "height_difference-3", "kind": "height_difference", "condition": "aerial_contours", "answer": "0.75", "correct": false, "observations": [], "error": null, "seconds": 60.10118379909545}
+{"question": "height_difference-3", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "0.8", "correct": false, "observations": [], "error": null, "seconds": 25.46531319990754}
+{"question": "height_difference-3", "kind": "height_difference", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 54.23464453872293}
+{"question": "height_difference-3", "kind": "height_difference", "condition": "agent", "answer": "1.12", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "render_cross_section"], "error": null, "seconds": 14.72521401848644}
+{"question": "height_difference-4", "kind": "height_difference", "condition": "aerial", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 34.794606724753976}
+{"question": "height_difference-4", "kind": "height_difference", "condition": "aerial_contours", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 69.2397048426792}
+{"question": "height_difference-4", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 30.54478544089943}
+{"question": "height_difference-4", "kind": "height_difference", "condition": "fixed_all", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 40.970457698218524}
+{"question": "height_difference-4", "kind": "height_difference", "condition": "agent", "answer": "-1.46", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "render_cross_section"], "error": null, "seconds": 9.697070338763297}
+{"question": "height_difference-5", "kind": "height_difference", "condition": "aerial", "answer": "-1.2", "correct": false, "observations": [], "error": null, "seconds": 22.06230540573597}
+{"question": "height_difference-5", "kind": "height_difference", "condition": "aerial_contours", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 49.05697469506413}
+{"question": "height_difference-5", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 32.339058712124825}
+{"question": "height_difference-5", "kind": "height_difference", "condition": "fixed_all", "answer": "-1.5", "correct": false, "observations": [], "error": null, "seconds": 38.49806005973369}
+{"question": "height_difference-5", "kind": "height_difference", "condition": "agent", "answer": "-1.76", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 17.420083541423082}
+{"question": "height_difference-6", "kind": "height_difference", "condition": "aerial", "answer": "0.9", "correct": false, "observations": [], "error": null, "seconds": 41.87590803485364}
+{"question": "height_difference-6", "kind": "height_difference", "condition": "aerial_contours", "answer": "1.5", "correct": true, "observations": [], "error": null, "seconds": 65.46011787839234}
+{"question": "height_difference-6", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 37.100160824134946}
+{"question": "height_difference-6", "kind": "height_difference", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 39.802014521323144}
+{"question": "height_difference-6", "kind": "height_difference", "condition": "agent", "answer": "1.5", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 23.272982944734395}
+{"question": "height_difference-7", "kind": "height_difference", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 26.94323813635856}
+{"question": "height_difference-7", "kind": "height_difference", "condition": "aerial_contours", "answer": "0.75", "correct": false, "observations": [], "error": null, "seconds": 73.39577235095203}
+{"question": "height_difference-7", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 37.03456521965563}
+{"question": "height_difference-7", "kind": "height_difference", "condition": "fixed_all", "answer": "1.5", "correct": false, "observations": [], "error": null, "seconds": 43.37089122552425}
+{"question": "height_difference-7", "kind": "height_difference", "condition": "agent", "answer": "1.03", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "render_hillshade"], "error": null, "seconds": 15.814182372763753}
+{"question": "height_difference-8", "kind": "height_difference", "condition": "aerial", "answer": "1.2", "correct": false, "observations": [], "error": null, "seconds": 26.160745843313634}
+{"question": "height_difference-8", "kind": "height_difference", "condition": "aerial_contours", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 44.88391669187695}
+{"question": "height_difference-8", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 30.84154805727303}
+{"question": "height_difference-8", "kind": "height_difference", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 46.45549868885428}
+{"question": "height_difference-8", "kind": "height_difference", "condition": "agent", "answer": "1.76", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "render_cross_section"], "error": null, "seconds": 13.415551563724875}
+{"question": "height_difference-9", "kind": "height_difference", "condition": "aerial", "answer": "-0.5", "correct": true, "observations": [], "error": null, "seconds": 19.370818501338363}
+{"question": "height_difference-9", "kind": "height_difference", "condition": "aerial_contours", "answer": "-0.5", "correct": true, "observations": [], "error": null, "seconds": 55.237237855792046}
+{"question": "height_difference-9", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "-0.5", "correct": true, "observations": [], "error": null, "seconds": 38.97560131829232}
+{"question": "height_difference-9", "kind": "height_difference", "condition": "fixed_all", "answer": "-1", "correct": false, "observations": [], "error": null, "seconds": 54.6368039464578}
+{"question": "height_difference-9", "kind": "height_difference", "condition": "agent", "answer": "-0.34", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "render_cross_section"], "error": null, "seconds": 18.60228903964162}
+{"question": "height_difference-10", "kind": "height_difference", "condition": "aerial", "answer": "-0.4", "correct": true, "observations": [], "error": null, "seconds": 26.55778470169753}
+{"question": "height_difference-10", "kind": "height_difference", "condition": "aerial_contours", "answer": "-0.25", "correct": true, "observations": [], "error": null, "seconds": 54.63481803704053}
+{"question": "height_difference-10", "kind": "height_difference", "condition": "aerial_ndsm_slope", "answer": "-0.8", "correct": false, "observations": [], "error": null, "seconds": 51.28290627710521}
+{"question": "height_difference-10", "kind": "height_difference", "condition": "fixed_all", "answer": "-0.25", "correct": true, "observations": [], "error": null, "seconds": 93.16472812183201}
+{"question": "height_difference-10", "kind": "height_difference", "condition": "agent", "answer": "-0.35", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 33.75228006020188}
+{"question": "relief-1", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 13.16534545365721}
+{"question": "relief-1", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 55.84700675774366}
+{"question": "relief-1", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "0.8", "correct": false, "observations": [], "error": null, "seconds": 27.968967971391976}
+{"question": "relief-1", "kind": "relief", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 30.736201184801757}
+{"question": "relief-1", "kind": "relief", "condition": "agent", "answer": "1.61", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 3.7406755508854985}
+{"question": "relief-2", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 11.392300091683865}
+{"question": "relief-2", "kind": "relief", "condition": "aerial_contours", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 49.57448137458414}
+{"question": "relief-2", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 29.328063506633043}
+{"question": "relief-2", "kind": "relief", "condition": "fixed_all", "answer": "1.25", "correct": false, "observations": [], "error": null, "seconds": 59.5523028858006}
+{"question": "relief-2", "kind": "relief", "condition": "agent", "answer": "1.83", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 6.017739297822118}
+{"question": "relief-3", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 16.42787906061858}
+{"question": "relief-3", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 87.90475122909993}
+{"question": "relief-3", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 34.82278400566429}
+{"question": "relief-3", "kind": "relief", "condition": "fixed_all", "answer": "1.5", "correct": false, "observations": [], "error": null, "seconds": 46.7906645713374}
+{"question": "relief-3", "kind": "relief", "condition": "agent", "answer": null, "correct": false, "observations": ["inspect_elevation"], "error": "The reply did not call submit_answer with an answer.", "seconds": 15.136982985772192}
+{"question": "relief-4", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 19.875817136839032}
+{"question": "relief-4", "kind": "relief", "condition": "aerial_contours", "answer": "1.5", "correct": true, "observations": [], "error": null, "seconds": 75.75846524722874}
+{"question": "relief-4", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 31.77646318823099}
+{"question": "relief-4", "kind": "relief", "condition": "fixed_all", "answer": "1.5", "correct": true, "observations": [], "error": null, "seconds": 78.36400387156755}
+{"question": "relief-4", "kind": "relief", "condition": "agent", "answer": "1.7", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 7.92851284891367}
+{"question": "relief-5", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": true, "observations": [], "error": null, "seconds": 13.22504235804081}
+{"question": "relief-5", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": true, "observations": [], "error": null, "seconds": 82.05152409616858}
+{"question": "relief-5", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "0.5", "correct": true, "observations": [], "error": null, "seconds": 42.22928675822914}
+{"question": "relief-5", "kind": "relief", "condition": "fixed_all", "answer": "0.5", "correct": true, "observations": [], "error": null, "seconds": 44.94588117208332}
+{"question": "relief-5", "kind": "relief", "condition": "agent", "answer": "0.57", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 5.600951871834695}
+{"question": "relief-6", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 11.623381693847477}
+{"question": "relief-6", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 68.96554772090167}
+{"question": "relief-6", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 32.89680849760771}
+{"question": "relief-6", "kind": "relief", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 40.33821544889361}
+{"question": "relief-6", "kind": "relief", "condition": "agent", "answer": "1.42", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 13.573855457827449}
+{"question": "relief-7", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 25.767142198979855}
+{"question": "relief-7", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 43.88489960599691}
+{"question": "relief-7", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "0.6", "correct": false, "observations": [], "error": null, "seconds": 31.9206540575251}
+{"question": "relief-7", "kind": "relief", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 53.85997341200709}
+{"question": "relief-7", "kind": "relief", "condition": "agent", "answer": "0.86", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 9.6129260212183}
+{"question": "relief-8", "kind": "relief", "condition": "aerial", "answer": "0.6", "correct": false, "observations": [], "error": null, "seconds": 14.695055320858955}
+{"question": "relief-8", "kind": "relief", "condition": "aerial_contours", "answer": "0.75", "correct": false, "observations": [], "error": null, "seconds": 63.518702417612076}
+{"question": "relief-8", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 26.994716584682465}
+{"question": "relief-8", "kind": "relief", "condition": "fixed_all", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 22.5379103673622}
+{"question": "relief-8", "kind": "relief", "condition": "agent", "answer": null, "correct": false, "observations": ["inspect_elevation"], "error": "The reply did not call submit_answer with an answer.", "seconds": 8.960428108461201}
+{"question": "relief-9", "kind": "relief", "condition": "aerial", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 22.525374143384397}
+{"question": "relief-9", "kind": "relief", "condition": "aerial_contours", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 45.79679743107408}
+{"question": "relief-9", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 24.839509529992938}
+{"question": "relief-9", "kind": "relief", "condition": "fixed_all", "answer": "1.25", "correct": false, "observations": [], "error": null, "seconds": 24.698653266765177}
+{"question": "relief-9", "kind": "relief", "condition": "agent", "answer": null, "correct": false, "observations": ["inspect_elevation"], "error": "The reply did not call submit_answer with an answer.", "seconds": 5.260987211018801}
+{"question": "relief-10", "kind": "relief", "condition": "aerial", "answer": "0.6", "correct": false, "observations": [], "error": null, "seconds": 18.568839487619698}
+{"question": "relief-10", "kind": "relief", "condition": "aerial_contours", "answer": "0.25", "correct": false, "observations": [], "error": null, "seconds": 50.34521471336484}
+{"question": "relief-10", "kind": "relief", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 14.847150982357562}
+{"question": "relief-10", "kind": "relief", "condition": "fixed_all", "answer": "0.5", "correct": false, "observations": [], "error": null, "seconds": 52.95359582081437}
+{"question": "relief-10", "kind": "relief", "condition": "agent", "answer": "0.9", "correct": true, "observations": ["inspect_elevation"], "error": null, "seconds": 4.878221604973078}
+{"question": "steepest-1", "kind": "steepest", "condition": "aerial", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 21.944590081460774}
+{"question": "steepest-1", "kind": "steepest", "condition": "aerial_contours", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 10.790389066562057}
+{"question": "steepest-1", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 8.834423318505287}
+{"question": "steepest-1", "kind": "steepest", "condition": "fixed_all", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 7.866859343834221}
+{"question": "steepest-1", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 23.427405434660614}
+{"question": "steepest-2", "kind": "steepest", "condition": "aerial", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 12.99633300025016}
+{"question": "steepest-2", "kind": "steepest", "condition": "aerial_contours", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 7.514151319861412}
+{"question": "steepest-2", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 6.63398623559624}
+{"question": "steepest-2", "kind": "steepest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 2.74254937376827}
+{"question": "steepest-2", "kind": "steepest", "condition": "agent", "answer": "3", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 9.173191740177572}
+{"question": "steepest-3", "kind": "steepest", "condition": "aerial", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 21.369939722120762}
+{"question": "steepest-3", "kind": "steepest", "condition": "aerial_contours", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 8.692631673067808}
+{"question": "steepest-3", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 2.746891845948994}
+{"question": "steepest-3", "kind": "steepest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 3.133469767868519}
+{"question": "steepest-3", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 8.625410733744502}
+{"question": "steepest-4", "kind": "steepest", "condition": "aerial", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 22.531499090604484}
+{"question": "steepest-4", "kind": "steepest", "condition": "aerial_contours", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 5.397334977053106}
+{"question": "steepest-4", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 2.2196512054651976}
+{"question": "steepest-4", "kind": "steepest", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 4.312357386574149}
+{"question": "steepest-4", "kind": "steepest", "condition": "agent", "answer": "1", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 8.276607258245349}
+{"question": "steepest-5", "kind": "steepest", "condition": "aerial", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 29.302979071624577}
+{"question": "steepest-5", "kind": "steepest", "condition": "aerial_contours", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 8.179744068533182}
+{"question": "steepest-5", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 4.651890468783677}
+{"question": "steepest-5", "kind": "steepest", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 6.144411811605096}
+{"question": "steepest-5", "kind": "steepest", "condition": "agent", "answer": "1", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 9.55410684645176}
+{"question": "steepest-6", "kind": "steepest", "condition": "aerial", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 21.706116172485054}
+{"question": "steepest-6", "kind": "steepest", "condition": "aerial_contours", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 5.026464574970305}
+{"question": "steepest-6", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 2.5208556074649096}
+{"question": "steepest-6", "kind": "steepest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 2.5483585754409432}
+{"question": "steepest-6", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 9.538953986950219}
+{"question": "steepest-7", "kind": "steepest", "condition": "aerial", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 40.976123156026006}
+{"question": "steepest-7", "kind": "steepest", "condition": "aerial_contours", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 15.18042746372521}
+{"question": "steepest-7", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 3.273477307520807}
+{"question": "steepest-7", "kind": "steepest", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 2.957325218245387}
+{"question": "steepest-7", "kind": "steepest", "condition": "agent", "answer": "1", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 8.30980194825679}
+{"question": "steepest-8", "kind": "steepest", "condition": "aerial", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 31.324692042544484}
+{"question": "steepest-8", "kind": "steepest", "condition": "aerial_contours", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 128.65347296185791}
+{"question": "steepest-8", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 24.374304936267436}
+{"question": "steepest-8", "kind": "steepest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 9.70207069721073}
+{"question": "steepest-8", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 13.853949571959674}
+{"question": "steepest-9", "kind": "steepest", "condition": "aerial", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 20.502248908393085}
+{"question": "steepest-9", "kind": "steepest", "condition": "aerial_contours", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 19.197496722452343}
+{"question": "steepest-9", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 12.92912888340652}
+{"question": "steepest-9", "kind": "steepest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 18.9950627470389}
+{"question": "steepest-9", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 12.392967086285353}
+{"question": "steepest-10", "kind": "steepest", "condition": "aerial", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 52.37538215331733}
+{"question": "steepest-10", "kind": "steepest", "condition": "aerial_contours", "answer": "3", "correct": false, "observations": [], "error": null, "seconds": 12.327144819311798}
+{"question": "steepest-10", "kind": "steepest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 14.700766910798848}
+{"question": "steepest-10", "kind": "steepest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 8.895252171903849}
+{"question": "steepest-10", "kind": "steepest", "condition": "agent", "answer": "2", "correct": true, "observations": ["inspect_elevation", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 10.164497019723058}
+{"question": "tallest-1", "kind": "tallest", "condition": "aerial", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 8.672787264920771}
+{"question": "tallest-1", "kind": "tallest", "condition": "aerial_contours", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 19.29916695225984}
+{"question": "tallest-1", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 5.369344091974199}
+{"question": "tallest-1", "kind": "tallest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 3.9380894042551517}
+{"question": "tallest-1", "kind": "tallest", "condition": "agent", "answer": null, "correct": false, "observations": ["render_height_map"], "error": "The reply did not call submit_answer with an answer.", "seconds": 11.704699548892677}
+{"question": "tallest-2", "kind": "tallest", "condition": "aerial", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 12.41698760446161}
+{"question": "tallest-2", "kind": "tallest", "condition": "aerial_contours", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 8.6353798834607}
+{"question": "tallest-2", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 4.526788864284754}
+{"question": "tallest-2", "kind": "tallest", "condition": "fixed_all", "answer": "2", "correct": true, "observations": [], "error": null, "seconds": 2.220946785993874}
+{"question": "tallest-2", "kind": "tallest", "condition": "agent", "answer": "2", "correct": true, "observations": ["render_height_map"], "error": null, "seconds": 8.149784573353827}
+{"question": "tallest-3", "kind": "tallest", "condition": "aerial", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 45.16801636386663}
+{"question": "tallest-3", "kind": "tallest", "condition": "aerial_contours", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 50.26123288832605}
+{"question": "tallest-3", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 26.413266005925834}
+{"question": "tallest-3", "kind": "tallest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 29.968632139265537}
+{"question": "tallest-3", "kind": "tallest", "condition": "agent", "answer": "3", "correct": true, "observations": ["render_height_map", "inspect_elevation", "inspect_elevation"], "error": null, "seconds": 39.87334251590073}
+{"question": "tallest-4", "kind": "tallest", "condition": "aerial", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 14.88464240450412}
+{"question": "tallest-4", "kind": "tallest", "condition": "aerial_contours", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 33.958005090244114}
+{"question": "tallest-4", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 10.167383166961372}
+{"question": "tallest-4", "kind": "tallest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 12.315693588927388}
+{"question": "tallest-4", "kind": "tallest", "condition": "agent", "answer": null, "correct": false, "observations": ["render_height_map"], "error": "The reply did not call submit_answer with an answer.", "seconds": 12.057174370624125}
+{"question": "tallest-5", "kind": "tallest", "condition": "aerial", "answer": "2", "correct": false, "observations": [], "error": null, "seconds": 8.047859629616141}
+{"question": "tallest-5", "kind": "tallest", "condition": "aerial_contours", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 13.805031175725162}
+{"question": "tallest-5", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 4.113683557137847}
+{"question": "tallest-5", "kind": "tallest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 6.499594503082335}
+{"question": "tallest-5", "kind": "tallest", "condition": "agent", "answer": null, "correct": false, "observations": ["render_height_map"], "error": "The reply did not call submit_answer with an answer.", "seconds": 9.301316062919796}
+{"question": "tallest-6", "kind": "tallest", "condition": "aerial", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 16.835931165143847}
+{"question": "tallest-6", "kind": "tallest", "condition": "aerial_contours", "answer": "1", "correct": false, "observations": [], "error": null, "seconds": 28.56064537540078}
+{"question": "tallest-6", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 4.8715360425412655}
+{"question": "tallest-6", "kind": "tallest", "condition": "fixed_all", "answer": "3", "correct": true, "observations": [], "error": null, "seconds": 4.245293157175183}
+{"question": "tallest-6", "kind": "tallest", "condition": "agent", "answer": "3", "correct": true, "observations": ["render_height_map"], "error": null, "seconds": 8.888073238544166}
+{"question": "tallest-7", "kind": "tallest", "condition": "aerial", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 10.138387619517744}
+{"question": "tallest-7", "kind": "tallest", "condition": "aerial_contours", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 23.432674298994243}
+{"question": "tallest-7", "kind": "tallest", "condition": "aerial_ndsm_slope", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 4.156183185055852}
+{"question": "tallest-7", "kind": "tallest", "condition": "fixed_all", "answer": "1", "correct": true, "observations": [], "error": null, "seconds": 4.163238202221692}
+{"question": "tallest-7", "kind": "tallest", "condition": "agent", "answer": "1", "correct": true, "observations": ["render_height_map"], "error": null, "seconds": 8.733775277622044}
