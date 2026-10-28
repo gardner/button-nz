@@ -15,7 +15,7 @@ Objects:
   marking measured above-ground evidence (structures or vegetation), not
   modelled buildings.
 - ``Parcel.<n>``: each parcel boundary as a polyline just above the ground,
-  sampled every cell along each edge so it follows the terrain between corners.
+  sampled every half cell along each edge so it follows the terrain between corners.
 """
 
 import json
@@ -125,7 +125,8 @@ def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> No
     curve.dimensions = "3D"
     curve.bevel_depth = 0.08
     spline = curve.splines.new("POLY")
-    points = _densify(ring, terrain["cell_m"])
+    # Every half cell, so no cell centre (a terrain vertex) is ever skipped.
+    points = _densify(ring, terrain["cell_m"] / 2)
     spline.points.add(len(points) - 1)
     for point, (x, y) in zip(spline.points, points, strict=True):
         point.co = (x, y, _height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
