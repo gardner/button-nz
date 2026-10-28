@@ -1,5 +1,6 @@
 """Real headless Blender runs. Excluded by default (no Blender or GPU in CI);
-run with `pytest -m blender`, and the demo site with `pytest -m "blender and live"`."""
+run with `pytest -m blender`. The demo-site test also downloads the DEM/DSM
+windows from LINZ's public S3."""
 
 import json
 import struct
@@ -60,7 +61,6 @@ def test_builds_a_metric_scene(tmp_path: Path) -> None:
     assert out.png.stat().st_size > 10_000
 
 
-@pytest.mark.live
 def test_builds_the_demo_site(tmp_path: Path) -> None:
     out = build_demo_scene(tmp_path)
     gltf = _gltf(out.glb)
@@ -69,3 +69,27 @@ def test_builds_the_demo_site(tmp_path: Path) -> None:
     low, high = _bounds(gltf, "Terrain")
     assert high[1] - low[1] < 10.0  # Reefton site: flat, ~2 m relief plus margin
     assert out.png.stat().st_size > 10_000
+
+
+def test_parcel_edges_drape_over_the_ground_between_corners(tmp_path: Path) -> None:
+    dem = np.full((40, 50), 10.0)
+    dem[:, 19:22] = 12.0  # a 2 m ridge, 3 cells wide, running north-south at x = 19-22
+    grid = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    ring = ((10.0, 10.0), (30.0, 10.0), (30.0, 30.0), (10.0, 30.0), (10.0, 10.0))
+    scene = scene_input(grid, LocalFrame.centred_on(grid.bbox), [ring])
+
+    gltf = _gltf(build_scene(scene, tmp_path).glb)
+
+    _, top = _bounds(gltf, "Parcel.0")
+    assert top[1] > 2.0  # crosses the ridge (2 m above the 10 m datum), not under it
+
+
+def test_the_camera_looks_at_the_terrain_whatever_the_datum(tmp_path: Path) -> None:
+    dem = np.full((40, 50), 190.0)
+    grid = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    scene = scene_input(grid, LocalFrame.centred_on(grid.bbox), [], datum_m=0.0)
+
+    gltf = _gltf(build_scene(scene, tmp_path).glb)
+
+    camera = next(n for n in gltf["nodes"] if n["name"] == "Camera")
+    assert camera["translation"][1] > 190.0  # glTF y is up

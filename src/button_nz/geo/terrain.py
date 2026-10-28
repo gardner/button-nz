@@ -94,7 +94,9 @@ def _cells(grid: _Grid, extent: BBox, margin_m: float) -> tuple[int, int, int, i
 
 def _read(src: Raster, window: Any, name: str) -> NDArray[np.float64]:
     cells = cast("NDArray[np.float64]", src.read(1, window=window)).astype(np.float64)
-    missing: NDArray[np.bool_] = np.isnan(cells)
+    # GDAL's mask covers the nodata value, internal masks and alpha bands.
+    valid = cast("NDArray[np.uint8]", src.read_masks(1, window=window))
+    missing: NDArray[np.bool_] = np.isnan(cells) | (valid == 0)
     nodata = cast("float | None", src.nodata)
     if nodata is not None:
         missing |= cells == nodata

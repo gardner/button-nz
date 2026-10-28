@@ -108,3 +108,14 @@ def test_a_run_that_writes_no_output_raises(
 
 def test_the_build_script_exists() -> None:
     assert BUILD_SCRIPT.is_file()
+
+
+def test_without_nvidia_smi_gpu_choice_is_left_to_blender(
+    tmp_path: Path, blender: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_command(_: str) -> None:
+        return None
+
+    monkeypatch.setattr("button_nz.blender_worker.run.shutil.which", no_command)
+    build_scene(SCENE, tmp_path / "out", blender=str(blender))
+    assert (blender.parent / "gpus").read_text(encoding="utf-8") == "unset"
