@@ -47,10 +47,27 @@ def terrain_faces(rows: int, cols: int) -> list[tuple[int, int, int]]:
     return faces
 
 
-def densify(ring: list[list[float]], step: float) -> list[tuple[float, float]]:
-    """The ring's corners plus points at most ``step`` apart along each edge."""
+def mesh_crossings(ring: list[list[float]], grid: dict[str, Any]) -> list[tuple[float, float]]:
+    """The ring's corners plus every point where its edges cross an edge of the
+    terrain mesh's triangles (vertical and horizontal grid lines through the
+    cell centres, and the NW-SE diagonals). Each segment between consecutive
+    points then lies inside one flat triangle, so a polyline through them,
+    lifted by a constant, follows the rendered ground exactly."""
+    cell, x0, y0 = grid["cell_m"], grid["x0"], grid["y0"]
     points: list[tuple[float, float]] = []
     for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
-        n = max(1, math.ceil(math.hypot(x2 - x1, y2 - y1) / step))
-        points += [(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n) for i in range(n)]
+        c1, r1 = (x1 - x0) / cell, (y0 - y1) / cell
+        c2, r2 = (x2 - x0) / cell, (y0 - y2) / cell
+        ts = {0.0}
+        for a, b in ((c1, c2), (r1, r2), (c1 - r1, c2 - r2)):  # columns, rows, diagonals
+            ts |= _integer_crossings(a, b)
+        points += [(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t) for t in sorted(ts)]
     return [*points, (ring[-1][0], ring[-1][1])]
+
+
+def _integer_crossings(a: float, b: float) -> set[float]:
+    """Parameters t in (0, 1) where a + t (b - a) is a whole number."""
+    if a == b:
+        return set()
+    low, high = sorted((a, b))
+    return {(k - a) / (b - a) for k in range(math.floor(low) + 1, math.ceil(high))}

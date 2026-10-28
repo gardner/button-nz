@@ -14,9 +14,8 @@ Objects:
 - ``AboveGround``: a column per cell whose nDSM exceeds ``COLUMN_MIN_M``,
   marking measured above-ground evidence (structures or vegetation), not
   modelled buildings.
-- ``Parcel.<n>``: each parcel boundary as a polyline just above the ground,
-  sampled every half cell along each edge and placed on the interpolated
-  surface, so it follows the terrain between corners on slopes too.
+- ``Parcel.<n>``: each parcel boundary as a polyline a constant height above
+  the rendered ground, with a point wherever it crosses a mesh triangle edge.
 """
 
 import json
@@ -111,8 +110,9 @@ def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> No
     curve.dimensions = "3D"
     curve.bevel_depth = 0.08
     spline = curve.splines.new("POLY")
-    # Every half cell, so no cell centre (a terrain vertex) is ever skipped.
-    points: list[tuple[float, float]] = terrain_math.densify(ring, terrain["cell_m"] / 2)
+    # A point at every crossing of a mesh triangle edge, so each straight
+    # segment lies on one flat triangle and stays exactly BOUNDARY_LIFT_M up.
+    points: list[tuple[float, float]] = terrain_math.mesh_crossings(ring, terrain)
     spline.points.add(len(points) - 1)
     for point, (x, y) in zip(spline.points, points, strict=True):
         point.co = (x, y, terrain_math.height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
