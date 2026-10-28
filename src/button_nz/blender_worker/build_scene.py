@@ -160,6 +160,46 @@ def _render(png_path: str) -> None:
     b.ops.render.render(write_still=True)
 
 
+def render_silhouette(png_path: str, name: str) -> None:
+    """Render, from the same camera at the same size, white where the object
+    ``name`` is visible and black elsewhere. Every other object stays where it
+    is, in black, so a tree in front of the house hides that part of it. One
+    Cycles sample of unlit emission per pixel, through a box filter narrower
+    than the pixel, gives exactly two values. (Workbench needs OpenGL, which
+    the sandbox doesn't have.)"""
+    scene = b.context.scene
+    white, black = _emission("Silhouette", 1.0), _emission("Background", 0.0)
+    for obj in scene.objects:
+        if obj.data is not None and hasattr(obj.data, "materials"):
+            obj.data.materials.clear()
+            obj.data.materials.append(white if obj.name == name else black)
+    scene.world = b.data.worlds.new("Silhouette")
+    scene.world.use_nodes = True  # a new world's background is grey, not black
+    scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.0
+    scene.cycles.samples, scene.cycles.use_adaptive_sampling = 1, False
+    scene.cycles.use_denoising, scene.cycles.max_bounces = False, 0
+    scene.cycles.pixel_filter_type, scene.cycles.filter_width = "BOX", 0.01
+    scene.render.film_transparent, scene.render.dither_intensity = False, 0.0
+    scene.view_settings.view_transform, scene.view_settings.look = "Standard", "None"
+    scene.view_settings.exposure, scene.view_settings.gamma = 0.0, 1.0
+    scene.render.image_settings.color_mode = "BW"
+    scene.render.filepath = png_path
+    b.ops.render.render(write_still=True)
+
+
+def _emission(name: str, value: float) -> Any:
+    """An unlit material of grey ``value``: the same in the render, whatever the light."""
+    material = b.data.materials.new(name)
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    nodes.clear()
+    emission = nodes.new("ShaderNodeEmission")
+    emission.inputs["Color"].default_value = (value, value, value, 1.0)
+    output = nodes.new("ShaderNodeOutputMaterial")
+    material.node_tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+    return material
+
+
 def use_gpu(scene: Any) -> None:
     """Render on the GPU. No usable GPU is an error, not a slow CPU render."""
     prefs = b.context.preferences.addons["cycles"].preferences
