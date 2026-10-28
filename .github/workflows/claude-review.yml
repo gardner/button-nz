@@ -131,16 +131,36 @@ jobs:
             problem and the fix. Post nothing else. If you find nothing
             serious, post nothing.
 
-      # The log only counts denied tool calls. List them (tool and command or
-      # path, never output) so the allowlist can be tuned.
-      - name: Show denied tool calls
+      # Turns, cost, findings, tool calls and denied calls (names, commands and
+      # paths, never output) go in the job summary for tuning the review.
+      - name: Summarise the review
+        if: always()
+        shell: bash # pipefail, so a metrics failure is not hidden by tee
+        run: |
+          file="$RUNNER_TEMP/claude-execution-output.json"
+          [[ -f "$file" ]] || exit 0
+          scripts/review-metrics.sh "$file" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The full transcript is kept for retrospectives (scripts/review-traces.sh),
+      # encrypted: anyone can download artifacts from this public repo, and a
+      # transcript could hold whatever the reviewer managed to read.
+      - name: Encrypt the transcript
         if: always()
         run: |
           file="$RUNNER_TEMP/claude-execution-output.json"
           [[ -f "$file" ]] || exit 0
-          jq -r '[.[] | select(.type == "result")] | last
-            | .permission_denials // [] | .[]
-            | "denied: \(.tool_name) \(.tool_input.command // .tool_input.file_path // "")"' "$file"
+          GNUPGHOME="$(mktemp -d)" gpg --batch \
+            --recipient-file .github/review-trace-key.asc \
+            --output "$RUNNER_TEMP/claude-review-trace.json.gpg" --encrypt "$file"
+
+      - name: Upload the encrypted transcript
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: claude-review-trace-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/claude-review-trace.json.gpg
+          retention-days: 90
+          if-no-files-found: ignore
 
       # The action hides the API error unless show_full_output prints the whole
       # transcript into this public log. Print only the error fields instead.
