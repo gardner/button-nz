@@ -65,6 +65,7 @@ class Attempt:
     directory: Path
     observations: tuple[str, ...] = ()  # the observation tools used before this attempt
     render: Path | None = None  # this attempt's render, if the runner made one
+    judged: bool = False  # the evaluator reached a verdict on it (or rejected it)
 
     @property
     def status(self) -> str:
@@ -94,13 +95,18 @@ def design(
     runner: Runner = run_design,
     allow_observations: bool = True,
     max_observations: int = 4,
+    evaluator_feedback: bool = True,
     on_attempt: Callable[[Attempt], None] | None = None,
     revising: Revision | None = None,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
     change it as the owner asks. Before each attempt the model may request up to
     ``max_observations`` LiDAR views (none if not ``allow_observations``); they
-    don't count as attempts. ``on_attempt`` sees each attempt as it ends."""
+    don't count as attempts. Without ``evaluator_feedback`` the model hears only
+    execution errors (Experiment C's ablation): a script that ran ends the run,
+    since asking again would tell the model it failed. The evaluator still
+    decides acceptance, and every attempt still records its verdict.
+    ``on_attempt`` sees each attempt as it ends."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
@@ -126,12 +132,15 @@ def design(
         attempts.append(attempt)
         if on_attempt is not None:
             on_attempt(attempt)
-        conversation += [
-            Turn("design", attempt.script),
-            Turn("feedback", attempt.feedback, attempt.render),
-        ]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
             break
+        if attempt.judged and not evaluator_feedback:  # only errors earn another go
+            break
+        conversation += [
+            Turn("design", attempt.script),
+            # The render is evaluator feedback: a contract error can come with one.
+            Turn("feedback", attempt.feedback, attempt.render if evaluator_feedback else None),
+        ]
     result = DesignResult(brief, tuple(attempts))
     _write_summary(result, runs_dir)
     return result
@@ -213,14 +222,19 @@ def _attempt(
 ) -> Attempt:
     outputs = runner(site.scene, script, directory)
     report: Report | None = None
+    judged = False
     try:
         measurements = parse_measurements(outputs.measurements)
         datum = site.scene["frame"]["datum_m"]
-        report = evaluate(to_proposal(measurements, site.frame, datum), site.context)
+        proposal = to_proposal(measurements, site.frame, datum)
+        judged = True  # from here on, it is the evaluator speaking
+        report = evaluate(proposal, site.context)
         feedback = describe(report)
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
-    attempt = Attempt(number, script, feedback, report, directory, observations, outputs.png)
+    attempt = Attempt(
+        number, script, feedback, report, directory, observations, outputs.png, judged
+    )
     _write_attempt(attempt)
     return attempt
 
