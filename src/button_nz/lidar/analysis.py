@@ -44,7 +44,11 @@ class CrossSection:
 
 def cross_section(grid: TerrainGrid, start: Point, end: Point, step_m: float = 0.5) -> CrossSection:
     """The terrain along the line ``start``-``end``, sampled every ``step_m``
-    (bilinear between cell centres, as the terrain mesh interpolates)."""
+    (bilinear between cell centres, as the terrain mesh interpolates). Both ends
+    must lie within the cell centres: the grid measures nothing beyond them."""
+    for point in (start, end):
+        if not _on_grid(grid, point):
+            raise ValueError(f"({point[0]:.1f}, {point[1]:.1f}) is outside the terrain grid")
     length = math.hypot(end[0] - start[0], end[1] - start[1])
     n = max(1, math.ceil(length / step_m))
     distances = [length * i / n for i in range(n + 1)]
@@ -90,6 +94,12 @@ def inspect_elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
         "max_slope_deg": float(slope.max()),
         "max_above_ground_m": float(grid.ndsm[inside].max()),
     }
+
+
+def _on_grid(grid: TerrainGrid, point: Point) -> bool:
+    half = grid.cell_m / 2
+    west, south, east, north = grid.bbox
+    return west + half <= point[0] <= east - half and south + half <= point[1] <= north - half
 
 
 def _height_at(grid: TerrainGrid, point: Point) -> float:
