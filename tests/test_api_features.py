@@ -13,7 +13,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
-from button_nz.perception.confirm import Decision, Survey, confirmed
+from button_nz.perception.confirm import Decision, SiteDecisions, Survey, confirmed
 from test_api import ScriptedModel, Service, fake_runner, synthetic_site
 
 
@@ -190,3 +190,51 @@ def test_confirmed_outlines_become_the_site_context(tmp_path: Path) -> None:
     (building,) = site.context.confirmed_buildings
     (garden,) = site.context.preservation_areas
     assert building[0] == (30.0, 12.0) and garden[0] == (22.0, 12.0)
+
+
+def test_decisions_kept_in_a_file_make_the_same_site(tmp_path: Path) -> None:
+    """The benchmark's surveyed site: a survey and the decisions about it, with who
+    made them, applied exactly as the API applies the owner's."""
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    (tmp_path / "decisions.json").write_text(
+        json.dumps(
+            {
+                "survey": "survey.geojson",
+                "decided_by": "the team",
+                "decisions": {"1": "building", "2": "keep_clear"},
+                "buildings_complete": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    kept = SiteDecisions.read(tmp_path / "decisions.json")
+    assert kept.decided_by == "the team"
+    site = kept.apply(synthetic_site())
+    assert site.context.buildings_confirmed
+    (building,) = site.context.confirmed_buildings
+    assert building[0] == (30.0, 12.0)
+
+
+@pytest.mark.parametrize(
+    ("decisions", "complete", "match"),
+    [
+        ({"1": "building", "9": "ignore"}, False, "no feature 9"),
+        ({"2": "keep_clear"}, True, "decide what these are first: 1"),
+    ],
+)
+def test_kept_decisions_are_checked_like_the_owners(
+    tmp_path: Path, decisions: dict[str, str], complete: bool, match: str
+) -> None:
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    body = {"survey": "survey.geojson", "decided_by": "t", "decisions": decisions}
+    (tmp_path / "decisions.json").write_text(
+        json.dumps(body | {"buildings_complete": complete}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match=match):
+        SiteDecisions.read(tmp_path / "decisions.json")
+
+
+def test_the_demo_sites_kept_decisions_cover_its_survey() -> None:
+    kept = SiteDecisions.read(Path("data/demo-site/decisions.json"))
+    assert "pending the owner's confirmation" in kept.decided_by
+    assert len(kept.decisions) == len(kept.survey.collection["features"]) == 5

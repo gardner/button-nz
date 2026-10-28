@@ -87,3 +87,33 @@ def _rings(geometry: dict[str, Any]) -> list[Ring]:
         for part in parts
         if isinstance(part, Polygon)
     ]
+
+
+@dataclass(frozen=True)
+class SiteDecisions:
+    """A survey and decisions about it kept in a file (``decisions.json`` beside
+    it), with who made them: the benchmark's surveyed site. They are checked as
+    the API checks the owner's, and applied the same way."""
+
+    survey: Survey
+    decisions: dict[str, Decision]
+    complete: bool
+    decided_by: str
+
+    @classmethod
+    def read(cls, path: Path) -> SiteDecisions:
+        kept = json.loads(path.read_text(encoding="utf-8"))
+        survey = Survey.read(path.parent / kept["survey"])
+        if survey is None:
+            raise ValueError(f"{path} names a survey that isn't there: {kept['survey']}")
+        decisions = {k: Decision(v) for k, v in kept["decisions"].items()}
+        unknown = [k for k in decisions if survey.feature(k) is None]
+        if unknown:
+            raise ValueError(f"{path} decides about no feature {', '.join(unknown)}")
+        undecided = undecided_buildings(survey, decisions)
+        if kept["buildings_complete"] and undecided:
+            raise ValueError(f"{path}: decide what these are first: {', '.join(undecided)}")
+        return cls(survey, decisions, bool(kept["buildings_complete"]), str(kept["decided_by"]))
+
+    def apply(self, site: DesignSite) -> DesignSite:
+        return confirmed(site, self.survey, self.decisions, self.complete)

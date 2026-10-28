@@ -185,3 +185,17 @@ def test_a_repeated_condition_is_refused() -> None:
     """It would run into the same directories, overwriting the first pass's runs."""
     with pytest.raises(SystemExit):
         parse_options(["out", "--conditions", "evaluator,evaluator"])
+
+
+def test_the_command_can_design_on_the_surveyed_site() -> None:
+    options = parse_options(["out", "--site-context", "data/demo-site/decisions.json"])
+    assert options.site_context == Path("data/demo-site/decisions.json")
+    assert parse_options(["out"]).site_context is None
+
+
+def test_the_report_says_which_site_and_who_decided() -> None:
+    meta = {"model": "m", "briefs": 1, "repeats": 1, "site": "the surveyed site (decided by t)"}
+    text = report([_result("evaluator", True, False, ("pass",))], meta)
+    assert "on the surveyed site (decided by t)" in text
+    plain = report([_result("evaluator", True, False, ("pass",))], meta | {"site": None})
+    assert "with no confirmed buildings or keep-clear areas" in plain

@@ -2,7 +2,8 @@
 design a dwelling that passes the checks?
 
     uv run --env-file .env python -m button_nz.bench.design_ablation OUT_DIR \\
-        [--repeats 2] [--model muse-spark-1.3] [--effort max] [--conditions a,b]
+        [--repeats 2] [--model muse-spark-1.3] [--effort max] [--conditions a,b] \\
+        [--site-context data/demo-site/decisions.json]
 
 The same briefs and conditions with another ``--model`` (e.g. ``muse-wonder-1.0``)
 or ``--effort`` compare design models (#47).
@@ -29,6 +30,7 @@ from button_nz.agent.loop import Attempt, Runner, design
 from button_nz.agent.model import ChatModel
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import run_design
+from button_nz.perception.confirm import SiteDecisions
 
 
 @dataclass(frozen=True)
@@ -184,7 +186,7 @@ def report(results: Sequence[RunResult], meta: Mapping[str, object]) -> str:
         "",
         f"Model `{meta['model']}`{_effort(meta)}; {meta['briefs']} briefs x "
         f"{meta['repeats']} repeats per "
-        "condition. Each run is the design loop on the demo site: sandboxed Blender builds "
+        f"condition. Each run is the design loop {_site(meta)}: sandboxed Blender builds "
         "each attempt and the independent evaluator checks it. Accepted means no check "
         "failed on the final attempt; repair rate is over runs whose first attempt failed "
         "or errored. Under `errors` the model hears only execution errors, so a script "
@@ -213,6 +215,13 @@ def _rate(value: float | None) -> str:
     return "–" if value is None else f"{value:.0%}"
 
 
+def _site(meta: Mapping[str, object]) -> str:
+    site = meta.get("site")
+    if site:
+        return f"on {site}"
+    return "on the demo site, with no confirmed buildings or keep-clear areas"
+
+
 def _effort(meta: Mapping[str, object]) -> str:
     effort = meta.get("effort")
     return f" (reasoning effort {effort})" if effort else ""
@@ -229,6 +238,7 @@ class Options:
     model: str
     effort: str | None
     conditions: tuple[Condition, ...]
+    site_context: Path | None  # decisions about the surveyed site, if designing on it
 
 
 def parse_options(argv: Sequence[str] | None = None) -> Options:
@@ -240,6 +250,9 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
     parser.add_argument("--effort", help='reasoning effort, e.g. "max"; default: the API\'s')
     names = ",".join(c.name for c in CONDITIONS)
     parser.add_argument("--conditions", default=names, help=f"some of {names}")
+    parser.add_argument(
+        "--site-context", type=Path, help="decisions.json: design on the surveyed site"
+    )
     args = parser.parse_args(argv)
     by_name = {c.name: c for c in CONDITIONS}
     chosen = args.conditions.split(",")
@@ -249,7 +262,9 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
     if len(set(chosen)) != len(chosen):  # each would overwrite the other's runs
         parser.error(f"condition(s) repeated in {args.conditions}")
     conditions = tuple(by_name[name] for name in chosen)
-    return Options(args.out_dir, args.repeats, args.model, args.effort, conditions)
+    return Options(
+        args.out_dir, args.repeats, args.model, args.effort, conditions, args.site_context
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -258,11 +273,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         model = ChatModel.from_env(options.model, options.effort)
     except KeyError as error:
         sys.exit(str(error.args[0]))
-    site = demo_site()
+    site, described = demo_site(), None
+    if options.site_context is not None:
+        kept = SiteDecisions.read(options.site_context)
+        site = kept.apply(site)
+        described = f"the surveyed site (its features decided by {kept.decided_by})"
     results = run(BRIEFS, options.conditions, options.repeats, site, model, options.out_dir)
     meta = {
         "model": model.model,
         "effort": options.effort,
+        "site": described,
         "briefs": len(BRIEFS),
         "repeats": options.repeats,
     }

@@ -1,0 +1,12 @@
+{
+  "survey": "survey.geojson",
+  "decided_by": "the Button NZ team, from the aerial photo and the LiDAR, pending the owner's confirmation",
+  "decisions": {
+    "1": "building",
+    "2": "building",
+    "3": "keep_clear",
+    "4": "keep_clear",
+    "5": "keep_clear"
+  },
+  "buildings_complete": true
+}
