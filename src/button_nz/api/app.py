@@ -8,8 +8,9 @@ poll and inspect.
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
                                                   visual.png, visual.json
 
-Only those artifact names are served, and only as regular files in the job's
-own run directory: never through a symlink.
+The surveyed site features are served too (``api.features``). Only those
+artifact names are served, and only as regular files in the job's own run
+directory: never through a symlink.
 """
 
 import re
@@ -24,6 +25,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Job, Store
 from button_nz.demo_site import DemoSite
@@ -66,7 +68,7 @@ class JobView(BaseModel):
     attempts: list[AttemptView]
 
 
-def create_app(store: Store, worker: Worker, site: DemoSite) -> FastAPI:
+def create_app(store: Store, worker: Worker, site: DemoSite, survey: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
         store.recover()
@@ -76,6 +78,7 @@ def create_app(store: Store, worker: Worker, site: DemoSite) -> FastAPI:
 
     app = FastAPI(title="button-nz", lifespan=lifespan)
     site_view = _site(site)
+    app.include_router(features_router(store, survey))
 
     @app.get("/site")
     def get_site() -> dict[str, Any]:

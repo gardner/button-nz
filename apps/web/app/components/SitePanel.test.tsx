@@ -2,6 +2,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { Site } from "@/lib/api";
+import { parseSurvey } from "@/lib/features";
+import { SURVEY } from "@/lib/fixtures";
 
 import { SitePanel } from "./SitePanel";
 
@@ -60,5 +62,28 @@ describe("SitePanel", () => {
     expect(screen.getByText(/Toitū Te Whenua LINZ/)).toBeTruthy();
     expect(screen.getByText(/2020-05-15 to 2024-07-10/)).toBeTruthy();
     expect(screen.getByText("Confirm the boundary pegs.")).toBeTruthy();
+  });
+
+  it("draws the surveyed features on the plan, undecided ones dashed", () => {
+    const { features } = parseSurvey(SURVEY);
+    const { container } = render(<SitePanel site={SITE} features={features} />);
+    const drawn = [...container.querySelectorAll("svg path.feature")];
+    expect(drawn.map((p) => p.getAttribute("data-decision"))).toEqual([
+      "building",
+      "undecided",
+      "undecided",
+    ]);
+    const [shed, tree] = drawn;
+    expect(shed.getAttribute("stroke-dasharray")).toBeNull();
+    expect(tree.getAttribute("stroke-dasharray")).not.toBeNull();
+    expect(tree.getAttribute("d")?.match(/M/g)).toHaveLength(2); // two pieces
+    expect(shed.textContent).toBe("#1 shed: existing building");
+    expect(screen.getByText("Not decided yet")).toBeTruthy();
+  });
+
+  it("has no features or legend without a survey", () => {
+    const { container } = render(<SitePanel site={SITE} />);
+    expect(container.querySelector("svg path.feature")).toBeNull();
+    expect(screen.queryByText("Not decided yet")).toBeNull();
   });
 });

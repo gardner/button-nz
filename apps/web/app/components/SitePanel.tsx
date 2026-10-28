@@ -1,11 +1,21 @@
 import type { Site } from "@/lib/api";
-import { planView } from "@/lib/plan";
+import type { SiteFeature } from "@/lib/features";
+import { type PlanView, planView } from "@/lib/plan";
+
+import { LOOKS, SHOWN } from "./decisions";
 
 const MARGIN_M = 4;
 
-/** The property: its title, a true-scale plan of its parcels, where every
- * piece of data came from, and what still needs confirming. */
-export function SitePanel({ site }: { site: Site }) {
+/** The property: its title, a true-scale plan of its parcels and any
+ * surveyed features, where every piece of data came from, and what still
+ * needs confirming. */
+export function SitePanel({
+  site,
+  features = [],
+}: {
+  site: Site;
+  features?: SiteFeature[];
+}) {
   const plan = planView(
     site.parcels.map((p) => p.ring),
     site.extent,
@@ -37,6 +47,9 @@ export function SitePanel({ site }: { site: Site }) {
             strokeWidth={0.25}
           />
         ))}
+        {features.map((f) => (
+          <FeatureShape key={f.id} feature={f} plan={plan} />
+        ))}
         <circle cx={ax} cy={ay} r={0.8} fill="rgb(37 99 235)" />
         <line
           x1={1}
@@ -50,6 +63,7 @@ export function SitePanel({ site }: { site: Site }) {
           {plan.scaleBarM} m · N ↑
         </text>
       </svg>
+      {features.length > 0 && <PlanKey />}
       <ul className="text-sm">
         {site.parcels.map((p) => (
           <li key={p.id}>{p.appellation}</li>
@@ -78,5 +92,55 @@ export function SitePanel({ site }: { site: Site }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** A surveyed feature, coloured by its decision; dashed until decided. */
+function FeatureShape({
+  feature,
+  plan,
+}: {
+  feature: SiteFeature;
+  plan: PlanView;
+}) {
+  const shown = feature.decision ?? "undecided";
+  const { label, fill, stroke } = LOOKS[shown];
+  return (
+    <path
+      d={plan.outline(feature.polygons.flat())}
+      className="feature"
+      data-decision={shown}
+      fill={fill}
+      fillRule="evenodd"
+      stroke={stroke}
+      strokeWidth={0.2}
+      strokeDasharray={feature.decision ? undefined : "0.6 0.4"}
+    >
+      <title>{`#${feature.id} ${feature.concept}: ${label.toLowerCase()}`}</title>
+    </path>
+  );
+}
+
+function PlanKey() {
+  return (
+    <ul
+      aria-label="Plan key"
+      className="flex flex-wrap gap-x-4 gap-y-1 text-sm"
+    >
+      {SHOWN.map((shown) => (
+        <li key={shown} className="flex items-center gap-1">
+          <span
+            aria-hidden
+            className="inline-block h-3 w-3 border-2"
+            style={{
+              background: LOOKS[shown].fill,
+              borderColor: LOOKS[shown].stroke,
+              borderStyle: shown === "undecided" ? "dashed" : "solid",
+            }}
+          />
+          {LOOKS[shown].label}
+        </li>
+      ))}
+    </ul>
   );
 }
