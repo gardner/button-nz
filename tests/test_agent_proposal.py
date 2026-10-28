@@ -253,3 +253,41 @@ def test_an_a_frame_with_an_entry_platform_is_still_measured_near_its_floor() ->
     measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + platform))
     assert measured.footprint is not None
     assert Polygon(measured.footprint).area > 75.0
+
+
+def _banded(triangles: list[list[list[float]]], z: float) -> list[list[list[float]]]:
+    """``triangles`` with every edge crossing height ``z`` split there, as a
+    subdivided or loop-cut mesh would be: no triangle crosses ``z`` any more."""
+    out: list[list[list[float]]] = []
+    for tri in triangles:
+        below = [p for p in tri if p[2] < z]
+        if not below or len(below) == 3:
+            out.append(tri)
+            continue
+        out += _split(tri, z)
+    return out
+
+
+def _split(tri: list[list[float]], z: float) -> list[list[list[float]]]:
+    def cross(a: list[float], b: list[float]) -> list[float]:
+        a, b = sorted((a, b))  # the same point from both triangles sharing the edge
+        t = (z - a[2]) / (b[2] - a[2])
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), z]
+
+    lone = next(
+        i
+        for i in range(3)
+        if (tri[i][2] < z) != (tri[(i + 1) % 3][2] < z)
+        and (tri[i][2] < z) != (tri[(i + 2) % 3][2] < z)
+    )
+    a, b, c = tri[lone], tri[(lone + 1) % 3], tri[(lone + 2) % 3]
+    ab, ac = cross(a, b), cross(a, c)
+    return [[a, ab, ac], [ab, b, c], [ab, c, ac]]
+
+
+def test_a_banded_a_frame_is_still_measured_near_its_floor() -> None:
+    """Loop-cut at 0.75 m, no triangle crossing the 0.5 m cut reaches 1 m."""
+    banded = _banded(_a_frame(10.0, 9.0, 3.9), 0.75)
+    measured = parse_measurements(measured_with(banded))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0

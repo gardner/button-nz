@@ -27,7 +27,6 @@ from button_nz.geo.geometry import Ring
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
 LOW_SECTION_M = 0.5  # and again nearer the floor, for walls that lean in
 CONTAINS_TOLERANCE_M = 0.01
-MAX_LEAN_M = 1.0  # walls leaning in move at most this far between the two cuts
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
 OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
@@ -90,21 +89,34 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
     _check_envelope(triangles, Polygon(walls), z_min, cut)
-    # Lower down, the same walls may be wider (an A-frame, a dome): measure there
-    # only if that outline contains the walls, not if it is something else (a step).
-    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
-    # Only faces that also reach the 1 m cut are walls: a deck or platform isn't.
-    rising = [tri for tri in triangles if max(p[2] for p in tri) >= z_min + cut]
-    low = _rooms(rising, z_min + low_cut)
-    if (
-        len(low) == 1
-        and low[0].buffer(CONTAINS_TOLERANCE_M).contains(Polygon(walls))
-        and low[0].hausdorff_distance(Polygon(walls)) <= MAX_LEAN_M  # not a deck or step
-    ):
-        lower, _ = _one_ring(low[0])
-        if lower is not None and Polygon(lower).area > Polygon(walls).area:
-            return lower
+    # Walls that lean in (an A-frame, a dome) are wider near the floor: measure them
+    # there too, as far as they lean, so a deck or step beside them isn't counted.
+    lower = _lower_walls(triangles, Polygon(walls), z_min, z_max, cut)
+    if lower is not None:
+        return lower
     return walls
+
+
+def _lower_walls(
+    triangles: list[Triangle], walls: Polygon, z_min: float, z_max: float, cut: float
+) -> Ring | None:
+    """The walls' outline ``LOW_SECTION_M`` above the floor if they lean out below
+    ``cut``: the low section, kept to within the walls' own lean of their outline
+    at ``cut``. The lean is estimated from how much they narrow above ``cut``."""
+    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
+    high_cut = min(cut + (cut - low_cut), (z_max - z_min) * 3 / 4)
+    high = _rooms(triangles, z_min + high_cut)
+    low = _rooms(triangles, z_min + low_cut)
+    if len(high) != 1 or len(low) != 1 or high_cut <= cut:
+        return None
+    lean = walls.hausdorff_distance(high[0]) * (cut - low_cut) / (high_cut - cut)
+    if lean < CONTAINS_TOLERANCE_M:
+        return None  # upright walls: the outline at ``cut`` is the footprint
+    kept = low[0].intersection(walls.buffer(lean, join_style="mitre"))
+    if not isinstance(kept, Polygon) or kept.area <= walls.area:
+        return None
+    ring, _ = _one_ring(kept)
+    return ring
 
 
 def _rooms(triangles: list[Triangle], z: float) -> list[Polygon]:
