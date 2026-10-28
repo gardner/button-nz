@@ -4,7 +4,7 @@ elevation statistics. Coordinates are NZTM metres; heights NZVD2016."""
 import io
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import shapely
@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 from PIL import Image, ImageDraw
 from shapely import Polygon
 
+from button_nz.blender_worker.terrain_math import height_at
 from button_nz.geo.geometry import Point, Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.lidar.render import View
@@ -42,10 +43,13 @@ class CrossSection:
     view: View
 
 
-def cross_section(grid: TerrainGrid, start: Point, end: Point, step_m: float = 0.5) -> CrossSection:
-    """The terrain along the line ``start``-``end``, sampled every ``step_m``
-    (bilinear between cell centres, as the terrain mesh interpolates). Both ends
-    must lie within the cell centres: the grid measures nothing beyond them."""
+def cross_section(
+    grid: TerrainGrid, start: Point, end: Point, step_m: float = 0.5, datum_m: float = 0.0
+) -> CrossSection:
+    """The terrain along the line ``start``-``end``, sampled every ``step_m`` on
+    the terrain mesh's own triangles (``terrain_math.height_at``). Both ends must
+    lie within the cell centres: the grid measures nothing beyond them. Heights
+    and facts are NZVD2016; the picture is labelled in metres above ``datum_m``."""
     for point in (start, end):
         if not _on_grid(grid, point):
             raise ValueError(f"({point[0]:.1f}, {point[1]:.1f}) is outside the terrain grid")
@@ -58,7 +62,8 @@ def cross_section(grid: TerrainGrid, start: Point, end: Point, step_m: float = 0
         else start
         for d in distances
     ]
-    heights = [_height_at(grid, p) for p in points]
+    surface = _surface(grid)
+    heights = [height_at(surface, x, y) for x, y in points]
     facts = {
         "length_m": length,
         "min_m": min(heights),
@@ -69,7 +74,14 @@ def cross_section(grid: TerrainGrid, start: Point, end: Point, step_m: float = 0
         f"Terrain profile from ({start[0]:.1f}, {start[1]:.1f}) to ({end[0]:.1f}, {end[1]:.1f})."
     )
     return CrossSection(
-        distances, heights, View("cross_section", _profile_png(distances, heights), facts, notes)
+        distances,
+        heights,
+        View(
+            "cross_section",
+            _profile_png(distances, [h - datum_m for h in heights]),
+            facts,
+            notes,
+        ),
     )
 
 
@@ -106,17 +118,17 @@ def _on_grid(grid: TerrainGrid, point: Point) -> bool:
     return west + half <= point[0] <= east - half and south + half <= point[1] <= north - half
 
 
-def _height_at(grid: TerrainGrid, point: Point) -> float:
+def _surface(grid: TerrainGrid) -> dict[str, Any]:
+    """``grid`` as the scene's terrain description, for ``height_at``."""
     rows, cols = grid.dem.shape
-    col = float(np.clip((point[0] - grid.bbox[0]) / grid.cell_m - 0.5, 0, cols - 1))
-    row = float(np.clip((grid.bbox[3] - point[1]) / grid.cell_m - 0.5, 0, rows - 1))
-    c0, r0 = min(int(col), max(cols - 2, 0)), min(int(row), max(rows - 2, 0))
-    c1, r1 = min(c0 + 1, cols - 1), min(r0 + 1, rows - 1)
-    fc, fr = col - c0, row - r0
-    d = grid.dem
-    top = d[r0, c0] * (1 - fc) + d[r0, c1] * fc
-    bottom = d[r1, c0] * (1 - fc) + d[r1, c1] * fc
-    return float(top * (1 - fr) + bottom * fr)
+    return {
+        "x0": grid.bbox[0] + grid.cell_m / 2,
+        "y0": grid.bbox[3] - grid.cell_m / 2,
+        "cell_m": grid.cell_m,
+        "rows": rows,
+        "cols": cols,
+        "heights": grid.dem.ravel().tolist(),
+    }
 
 
 def _profile_png(distances: list[float], heights: list[float]) -> bytes:

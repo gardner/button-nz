@@ -45,6 +45,8 @@ def test_coordinates_are_in_the_local_frame(site: DesignSite) -> None:
     result = observe(site, Observe("render_cross_section", {"start": [-10, 0], "end": [10, 0]}))
     assert "relief_m: 2.00" in result.text
     assert "(-10.0, 0.0) to (10.0, 0.0)" in result.text
+    assert "0.0 m: 0.95" in result.text  # each sample as script z: 101.00 - 100.05
+    assert "20.0 m: 2.95" in result.text
     assert "1010" not in result.text  # NZTM never leaks into the model's frame
 
 

@@ -41,9 +41,9 @@ below the highest;
 
 If observation tools are offered (hillshade, contours, height maps, cross-sections, \
 elevation statistics), you may call them before a design to look at the measured \
-site, in the same local coordinates, with heights as your script's z. They re-present \
-the LiDAR; use them when you \
-are unsure about slopes, banks or what stands on the ground.
+site, in the same local coordinates, with heights as your script's z. They \
+re-present the LiDAR; use them when you are unsure about slopes, banks or what \
+stands on the ground.
 """
 
 

@@ -27,6 +27,7 @@ from button_nz.lidar import (
 
 _EPS = 1e-9
 SCALE = 8  # pixels per metre cell
+PROFILE_SAMPLES = 41  # at most this many cross-section heights in the text
 HEIGHTS = ("min_m", "max_m", "mean_m")  # NZVD2016 in the views' facts; shown as script z
 
 
@@ -125,8 +126,21 @@ def _observe(site: DesignSite, tool: str, args: Mapping[str, Any]) -> Observatio
 
 def _cross_section(site: DesignSite, start: Sequence[float], end: Sequence[float]) -> View:
     """The profile, described in the local coordinates the model asked in."""
-    section = cross_section(site.context.terrain, _local(site, start), _local(site, end))
-    notes = f"Terrain profile from {_label(start)} to {_label(end)} (local metres)."
+    datum = site.scene["frame"]["datum_m"]
+    section = cross_section(
+        site.context.terrain, _local(site, start), _local(site, end), datum_m=datum
+    )
+    samples = range(len(section.heights))
+    if len(samples) > PROFILE_SAMPLES:  # evenly spaced, ends included
+        last = len(samples) - 1
+        samples = sorted({round(i * last / (PROFILE_SAMPLES - 1)) for i in range(PROFILE_SAMPLES)})
+    profile = ", ".join(
+        f"{section.distances[i]:.1f} m: {section.heights[i] - datum:.2f}" for i in samples
+    )
+    notes = (
+        f"Terrain profile from {_label(start)} to {_label(end)} (local metres). "
+        f"Ground z along it (distance: z): {profile}."
+    )
     return replace(section.view, notes=notes)
 
 
