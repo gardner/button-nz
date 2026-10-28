@@ -25,10 +25,11 @@ outside envelope: a closed, solid mesh with a roof over its walls (no doors or \
 windows cut through it) whose \
 lowest point is the underside of a floor \
 spanning its walls (no piles or steps below it). Put all building geometry \
-(walls, roof, decks, eaves) in that one mesh: other geometry is rejected. Floor \
-area is measured inside the walls, 1 m above the floor; setbacks from everything \
-the building covers, eaves included. Changes to the site and other objects \
-(lights, cameras) are discarded.
+(walls, roof, decks, eaves) in that one mesh: other geometry is rejected. Model a \
+deck as a thin slab with posts or balusters, not a solid block: anything solid \
+1 m above the floor counts as walls. Floor area is measured inside the walls, \
+1 m above the floor; setbacks from everything the building covers, eaves included. \
+Changes to the site and other objects (lights, cameras) are discarded.
 - Set Dwelling["floor_area_m2"] to the internal floor area and \
 Dwelling["storeys"] to the number of storeys.
 - Your script can use `bpy`, `math` and `scene` (the scene description, including \
