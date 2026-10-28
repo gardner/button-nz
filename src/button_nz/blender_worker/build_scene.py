@@ -33,8 +33,18 @@ BOUNDARY_LIFT_M = 0.15
 
 def main(argv: list[str]) -> None:
     scene_path, glb_path, png_path = argv[argv.index("--") + 1 :]
+    build(load(scene_path))
+    export(glb_path, png_path)
+
+
+def load(scene_path: str) -> dict[str, Any]:
     with open(scene_path, encoding="utf-8") as f:
         scene: dict[str, Any] = json.load(f)
+    return scene
+
+
+def build(scene: dict[str, Any]) -> None:
+    """Build the site in an empty Blender scene: terrain, evidence, parcels, camera."""
     b.ops.wm.read_factory_settings(use_empty=True)
     terrain = scene["terrain"]
     _terrain(terrain)
@@ -42,6 +52,10 @@ def main(argv: list[str]) -> None:
     for i, ring in enumerate(scene["parcels"]):
         _boundary(f"Parcel.{i}", ring, terrain)
     _camera_and_light(terrain)
+
+
+def export(glb_path: str, png_path: str) -> None:
+    """Export the scene as GLB (with its camera) and render it on the GPU."""
     b.ops.export_scene.gltf(
         filepath=glb_path, export_format="GLB", export_apply=True, export_cameras=True
     )
