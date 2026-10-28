@@ -9,11 +9,13 @@ from numpy.typing import NDArray
 from shapely import Polygon
 
 from button_nz.agent.site import DesignSite
+from button_nz.bench.lidar_qa import Result, report
 from button_nz.bench.questions import (
     DIRECTIONS,
     Mark,
     Question,
     _mean_slope,  # pyright: ignore[reportPrivateUsage]
+    _shows_the_winner,  # pyright: ignore[reportPrivateUsage]
     _Terrain,  # pyright: ignore[reportPrivateUsage]
     generate,
     score,
@@ -174,3 +176,18 @@ def test_no_tallest_question_the_ndsm_map_cant_show() -> None:
     ndsm[15:30, 40:45] = 18.0
     asked = {q.kind for q in generate(site(np.full((50, 70), 100.0), ndsm), per_kind=5, seed=4)}
     assert "tallest" not in asked
+
+
+def test_steepness_is_asked_only_when_the_slope_map_shows_the_same_winner() -> None:
+    """The slope map's colours stop at 30°: a square with a cliff and flats can lead on
+    raw degrees yet look gentler on the map than a uniform 20° square."""
+    cliff = np.full((5, 5), 5.0)
+    cliff[:, :2] = 50.0  # 10 cells at 50°, 15 at 5°: raw mean 23°, shown 15°
+    uniform = np.full((5, 5), 20.0)
+    assert not _shows_the_winner([cliff, uniform, np.zeros((5, 5))])
+    assert _shows_the_winner([uniform, np.full((5, 5), 10.0), np.zeros((5, 5))])
+
+
+def test_the_report_names_both_lidar_surfaces() -> None:
+    tallest = Result("tallest-1", "tallest", "aerial", "1", True, (), None, 1.0)
+    assert "DEM and nDSM" in report([tallest], {"model": "m", "seed": 1, "questions": 1})

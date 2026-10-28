@@ -6,7 +6,8 @@ chooses its own views?
         [--per-kind 10] [--seed 2026]
 
 Every generated question (``bench.questions``) is asked under every condition
-(``bench.views``) and scored against the answer computed from the DEM. Results
+(``bench.views``) and scored against the answer computed from the LiDAR DEM and
+nDSM. Results
 are appended to ``OUT_DIR/results.jsonl`` as they come, and ``report.md`` is
 written from them: nothing is reported that wasn't measured.
 """
@@ -169,7 +170,8 @@ def report(results: Sequence[Result], meta: Mapping[str, object]) -> str:
         "",
         f"Model `{meta['model']}`; {meta['questions']} questions (seed {meta['seed']}), "
         "each asked under every condition and scored against answers computed from the "
-        "LiDAR DEM (`button_nz.bench.questions`). Replies without an answer count as wrong.",
+        "LiDAR DEM and nDSM (`button_nz.bench.questions`). Replies without an answer count "
+        "as wrong.",
         "",
         "| Condition | n | Correct | Accuracy | No answer | Mean s |",
         "|---|---|---|---|---|---|",

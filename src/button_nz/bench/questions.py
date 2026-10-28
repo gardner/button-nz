@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import numpy as np
+import shapely
+from numpy.typing import NDArray
 from shapely import Point, Polygon, box, union_all
 
 from button_nz.agent.site import DesignSite
@@ -21,8 +23,8 @@ from button_nz.blender_worker.terrain_math import height_at
 from button_nz.evaluation import ground_range
 from button_nz.geo.geometry import Ring
 from button_nz.lidar import inspect_elevation
-from button_nz.lidar.analysis import gradients
-from button_nz.lidar.views import NDSM_SCALE_M
+from button_nz.lidar.analysis import gradients, slope_degrees
+from button_nz.lidar.views import NDSM_SCALE_M, SLOPE_SCALE_DEG
 
 DIRECTIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 MIN_GRADE = 0.05  # 1 in 20: gentler ground has no clear downhill direction
@@ -126,6 +128,17 @@ class _Terrain:
         row, col = int((north - y) // self.grid.cell_m), int((x - west) // self.grid.cell_m)
         return float(self.east[row, col]), float(self.north[row, col])
 
+    def cell_slopes(self, mark: Mark) -> NDArray[np.float64]:
+        """The slope of every DEM cell whose centre is in ``mark``'s square, as
+        inspect_elevation and the slope map take it."""
+        rows, cols = self.grid.dem.shape
+        west, _, _, north = self.grid.bbox
+        xs = west + (np.arange(cols, dtype=np.float64) + 0.5) * self.grid.cell_m
+        ys = north - (np.arange(rows, dtype=np.float64) + 0.5) * self.grid.cell_m
+        x, y = np.meshgrid(xs, ys)
+        inside = shapely.contains_xy(Polygon(self.square(mark)), x, y)
+        return slope_degrees(self.grid)[inside]
+
     def square(self, mark: Mark) -> Ring:
         """``mark``'s square in NZTM, as the tools take it."""
         x, y, h = mark.x, mark.y, mark.half_m
@@ -197,12 +210,25 @@ def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
     slopes = sorted(((_mean_slope(terrain, m), m.label) for m in marks), reverse=True)
     if slopes[0][0] - slopes[1][0] < MIN_SLOPE_LEAD_DEG:
         return None
+    if not _shows_the_winner([terrain.cell_slopes(m) for m in marks]):
+        return None
     centres = ", ".join(f"{m.label} at ({m.x:.1f}, {m.y:.1f})" for m in marks)
     text = (
         f"Which of the {2 * AREA_HALF_M:g} m squares centred on {centres} has the "
         "steepest ground on average? Answer 1, 2 or 3."
     )
     return Question("", "steepest", text, marks, slopes[0][1], ("1", "2", "3"))
+
+
+def _shows_the_winner(cell_slopes: list[NDArray[np.float64]]) -> bool:
+    """Whether the slope map, whose colours stop at ``SLOPE_SCALE_DEG``, shows the
+    same steepest square by at least ``MIN_SLOPE_LEAD_DEG``: a cliff in one square
+    can lead on raw degrees yet look gentler than a uniform slope on the map."""
+    raw = [float(s.mean()) for s in cell_slopes]
+    shown = [float(np.minimum(s, SLOPE_SCALE_DEG[1]).mean()) for s in cell_slopes]
+    order = sorted(range(len(shown)), key=lambda i: -shown[i])
+    winner = max(range(len(raw)), key=lambda i: raw[i])
+    return order[0] == winner and shown[order[0]] - shown[order[1]] >= MIN_SLOPE_LEAD_DEG
 
 
 def _tallest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
