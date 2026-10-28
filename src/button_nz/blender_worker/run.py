@@ -85,15 +85,28 @@ def run_design(
     script_path.write_text(script, encoding="utf-8")
     for stale in (measurements_path, glb, png):
         stale.unlink(missing_ok=True)
-    _run_blender(
-        blender, DESIGN_SCRIPT, [scene_path, script_path, out_dir], timeout_s, writable=out_dir
-    )
+    try:
+        _run_blender(
+            blender, DESIGN_SCRIPT, [scene_path, script_path, out_dir], timeout_s, writable=out_dir
+        )
+    except BlenderError:
+        # Died inside the model's work, where run_design.py notes it did not finish:
+        # the model's to fix. Anywhere else, Blender itself failed.
+        if not measurements_path.is_file() or not _measurements(measurements_path).get("error"):
+            raise
+        for partial in (glb, png):
+            partial.unlink(missing_ok=True)
+        return DesignOutputs(_measurements(measurements_path), script_path, None, None)
     _require(measurements_path)
-    measurements = cast("Mapping[str, Any]", json.loads(measurements_path.read_text("utf-8")))
+    measurements = _measurements(measurements_path)
     if measurements.get("error"):
         return DesignOutputs(measurements, script_path, None, None)
     _require(glb, png)
     return DesignOutputs(measurements, script_path, glb, png)
+
+
+def _measurements(path: Path) -> Mapping[str, Any]:
+    return cast("Mapping[str, Any]", json.loads(path.read_text("utf-8")))
 
 
 def _run_blender(
@@ -127,13 +140,14 @@ def _run_blender(
 
 def _sandboxed(command: list[str], writable: Path, env: Mapping[str, str]) -> list[str]:
     """``command`` under bubblewrap, for untrusted model-written scripts:
-    read-only system files; a fresh, empty home and /tmp, with only Blender, the
+    read-only system files; a fresh, empty home, /tmp and /run (no host Unix
+    sockets such as the user's D-Bus or Docker), with only Blender, the
     worker scripts, the Cycles kernel cache and ``writable`` mounted back; a
     cleared environment (no API keys or other secrets); GPU devices; no network."""
     CYCLES_CACHE.mkdir(parents=True, exist_ok=True)
     home = str(Path.home())
     args = ["bwrap", "--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "--proc", "/proc"]
-    args += ["--tmpfs", "/tmp", "--tmpfs", home]
+    args += ["--tmpfs", "/tmp", "--tmpfs", "/run", "--tmpfs", home]
     for path in _sandbox_read_paths(command[0]):
         args += ["--ro-bind", str(path), str(path)]
     for path in (CYCLES_CACHE, writable.resolve()):

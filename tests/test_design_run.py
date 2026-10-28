@@ -24,11 +24,13 @@ dwelling["storeys"] = 1
 """
 
 
+_DEM = np.full((40, 50), 10.0)
+_GRID = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, _DEM, np.zeros_like(_DEM), ("synthetic",))
+
+
 @pytest.fixture
 def scene() -> SceneInput:
-    dem = np.full((40, 50), 10.0)
-    grid = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    return scene_input(grid, LocalFrame.centred_on(grid.bbox), [])
+    return scene_input(_GRID, LocalFrame.centred_on(_GRID.bbox), [])
 
 
 def test_a_dwelling_is_measured_exported_and_rendered(tmp_path: Path, scene: SceneInput) -> None:
@@ -103,3 +105,59 @@ def test_a_main_guarded_script_runs(tmp_path: Path, scene: SceneInput) -> None:
     out = run_design(scene, script, tmp_path)
     assert out.measurements["error"] is None
     assert out.measurements["faces_xy"]
+
+
+def test_building_parts_besides_the_dwelling_are_rejected(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """Only the Dwelling is measured, so a separate roof or deck would go unchecked."""
+    roof = "bpy.ops.mesh.primitive_cube_add(size=1, location=(2.0, 1.0, 5.0))\n"
+    roof += "bpy.context.active_object.name = 'Roof'\n"
+    out = run_design(scene, BOX + roof, tmp_path)
+    error = str(out.measurements["error"])
+    assert "Roof" in error and "Dwelling" in error
+    assert out.glb is None and out.png is None
+
+
+def test_lights_and_cameras_may_be_added(tmp_path: Path, scene: SceneInput) -> None:
+    light = "bpy.ops.object.light_add(type='POINT', location=(0.0, 0.0, 8.0))\n"
+    out = run_design(scene, BOX + light, tmp_path)
+    assert out.measurements["error"] is None
+
+
+def test_removing_a_parcel_boundary_gets_feedback(tmp_path: Path, scene: SceneInput) -> None:
+    parcel = ((10.0, 10.0), (40.0, 10.0), (40.0, 30.0), (10.0, 30.0), (10.0, 10.0))
+    framed = scene_input(_GRID, LocalFrame.centred_on(_GRID.bbox), [parcel])
+    script = BOX + "bpy.data.objects.remove(bpy.data.objects['Parcel.0'])\n"
+    out = run_design(framed, script, tmp_path)
+    assert "Parcel.0" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None
+
+
+@pytest.mark.parametrize("ending", ["import sys\nsys.exit(0)\n", "raise SystemExit(3)\n"])
+def test_a_script_that_exits_gets_feedback(tmp_path: Path, scene: SceneInput, ending: str) -> None:
+    out = run_design(scene, BOX + ending, tmp_path)
+    assert "SystemExit" in str(out.measurements["error"])
+
+
+@pytest.mark.parametrize(
+    ("script", "timeout_s"),
+    [("import os\nos.abort()\n", 120.0), ("import time\ntime.sleep(600)\n", 20.0)],
+)
+def test_a_script_that_crashes_or_hangs_blender_gets_feedback(
+    tmp_path: Path, scene: SceneInput, script: str, timeout_s: float
+) -> None:
+    out = run_design(scene, script, tmp_path, timeout_s=timeout_s)
+    assert "did not finish" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None
+
+
+def test_the_script_cannot_reach_host_sockets(tmp_path: Path, scene: SceneInput) -> None:
+    """Unix sockets under /run (the user's D-Bus, Docker) would escape the sandbox."""
+    script = (
+        "import os, socket\n"
+        "s = socket.socket(socket.AF_UNIX)\n"
+        "s.connect(f'/run/user/{os.getuid()}/bus')\n"
+    )
+    out = run_design(scene, script, tmp_path)
+    assert "FileNotFoundError" in str(out.measurements["error"])
