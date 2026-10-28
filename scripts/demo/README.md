@@ -79,6 +79,11 @@ match the demo site's survey.
 This writes `demo-raw.webm` (VP9, 15 frames a second) and
 `demo-raw.webm.marks.json`.
 
+A take fails, with the reason, if a design or the revision isn't accepted, or
+if no checked AI visual appears. Its footage is still saved, as
+`demo-raw-partial.webm`, so the paid calls aren't lost, but it isn't the take
+the cut expects.
+
 ## Phase marks
 
 The recorder prints and saves a timestamped mark as each phase starts, such
