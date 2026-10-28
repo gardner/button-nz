@@ -11,6 +11,7 @@ pieces, an open mesh, something below the floor) are ``DesignError``s:
 feedback for the model's next attempt, not crashes.
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
@@ -24,6 +25,7 @@ from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
+LOW_SECTION_M = 0.5  # and again nearer the floor, for walls that lean in
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
 OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
@@ -60,6 +62,8 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
     storeys = _dwelling_storeys(raw.get("storeys"))
     if not triangles:
         return Measurements(error, None, None, 0, None, None, area, storeys)
+    if not all(math.isfinite(c) for tri in triangles for point in tri for c in point):
+        raise DesignError("Some of the Dwelling's vertices aren't finite numbers (NaN or inf).")
     heights = [float(p[2]) for t in triangles for p in t]
     z_min, z_max = min(heights), max(heights)
     plan, parts = _one_ring(outline(triangles))
@@ -68,10 +72,11 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
 
 
 def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
-    """The outside of the external walls, checked to stand on a floor at ``z_min``."""
+    """The outside of the external walls, checked to stand on a floor at ``z_min``:
+    the larger of cuts ``WALL_SECTION_M`` and ``LOW_SECTION_M`` above the floor, so
+    walls that lean in (an A-frame, a dome) are measured near the floor."""
     cut = min(WALL_SECTION_M, (z_max - z_min) / 2)
-    pieces = _pieces(section(triangles, z_min + cut))
-    rooms = [p for p in pieces if p.area >= MIN_ROOM_M2]  # not posts or balusters
+    rooms = _rooms(triangles, z_min + cut)
     if len(rooms) != 1:
         sizes = ", ".join(f"{p.area:.0f} m²" for p in sorted(rooms, key=lambda p: -p.area))
         raise DesignError(
@@ -79,11 +84,20 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
             f"one closed outline of walls, but finds {len(rooms)} ({sizes or 'none'}). "
             "Make the Dwelling one closed mesh standing on its floor, its rooms joined."
         )
+    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
+    low = _rooms(triangles, z_min + low_cut)
+    if len(low) == 1 and low[0].area > rooms[0].area:
+        rooms, cut = low, low_cut
     walls, _ = _one_ring(rooms[0])
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
     _check_envelope(triangles, Polygon(walls), z_min, cut)
     return walls
+
+
+def _rooms(triangles: list[Triangle], z: float) -> list[Polygon]:
+    """The pieces of the section at ``z`` big enough to be rooms (not posts or balusters)."""
+    return [p for p in _pieces(section(triangles, z)) if p.area >= MIN_ROOM_M2]
 
 
 def _check_envelope(triangles: list[Triangle], enclosed: Polygon, z_min: float, cut: float) -> None:

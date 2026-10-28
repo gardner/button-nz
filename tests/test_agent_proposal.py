@@ -214,3 +214,18 @@ def test_a_mesh_without_a_bottom_face_has_no_floor() -> None:
     no_bottom = closed[2:]  # box() lists the two bottom triangles first
     with pytest.raises(DesignError, match="lowest"):
         parse_measurements(measured_with(no_bottom))
+
+
+def test_an_a_frame_is_measured_near_its_floor() -> None:
+    """Its slopes narrow as they rise: a cut 1 m up would understate the floor."""
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9)))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0  # the 0.5 m cut: about 78 m² of 90
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_non_finite_coordinates_are_feedback(bad: float) -> None:
+    broken = box(0, 0, 0, 8, 6, 3)
+    broken[0] = [[bad, 0.0, 0.0], broken[0][1], broken[0][2]]
+    with pytest.raises(DesignError, match="finite"):
+        parse_measurements(measured_with(broken))
