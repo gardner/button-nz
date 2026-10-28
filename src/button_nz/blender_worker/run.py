@@ -72,20 +72,21 @@ def build_scene(
 
 
 def _visible_gpus() -> str:
-    """``CUDA_VISIBLE_DEVICES`` for Blender: as set, or every GPU with room."""
+    """``CUDA_VISIBLE_DEVICES`` for Blender: as set, or every GPU with room, by
+    UUID (nvidia-smi's indices follow PCI order, which CUDA's need not)."""
     preset = os.environ.get("CUDA_VISIBLE_DEVICES")
     if preset is not None:
         return preset
-    query = ["nvidia-smi", "--query-gpu=index,memory.free", "--format=csv,noheader,nounits"]
+    query = ["nvidia-smi", "--query-gpu=uuid,memory.free", "--format=csv,noheader,nounits"]
     try:
         listing = subprocess.run(query, capture_output=True, text=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError) as error:
         raise BlenderError(f"could not list GPUs with nvidia-smi: {error}") from error
     free = [
-        index
-        for index, mib in (line.split(",") for line in listing.strip().splitlines())
+        uuid
+        for uuid, mib in (line.split(",") for line in listing.strip().splitlines())
         if int(mib) >= MIN_FREE_GPU_MIB
     ]
     if not free:
         raise BlenderError(f"no GPU has {MIN_FREE_GPU_MIB // 1024} GiB free:\n{listing}")
-    return ",".join(index.strip() for index in free)
+    return ",".join(uuid.strip() for uuid in free)
