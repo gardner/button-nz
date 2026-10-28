@@ -8,12 +8,14 @@ count="${1:-10}"
 out="${2:-$(mktemp -d)}"
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 
-# Newest first. Collected before `head` so it cannot cut gh off mid-page.
-artifacts="$(gh api --paginate 'repos/{owner}/{repo}/actions/artifacts?per_page=100' --jq '
-  .artifacts[]
-  | select(.expired | not)
-  | select(.name | startswith("claude-review-trace"))
-  | "\(.workflow_run.id) \(.name)"')"
+# The API does not list artifacts in date order, so sort all pages newest first.
+# Collected before `head` so it cannot cut gh off mid-page.
+artifacts="$(gh api --paginate --slurp 'repos/{owner}/{repo}/actions/artifacts?per_page=100' \
+  | jq -r '
+    [.[].artifacts[]]
+    | map(select((.expired | not) and (.name | startswith("claude-review-trace"))))
+    | sort_by(.created_at) | reverse
+    | .[] | "\(.workflow_run.id) \(.name)"')"
 
 if [[ -z "$artifacts" ]]; then
   echo "No review traces found."
@@ -25,7 +27,10 @@ while read -r run name; do
   gh run download "$run" --name "$name" --dir "$dir"
   gpg --batch --quiet --decrypt "$dir/claude-review-trace.json.gpg" > "$dir/trace.json"
   printf '# Run %s (%s)\n\n' "$run" "$name"
-  "$scripts_dir/review-metrics.sh" "$dir/trace.json"
+  # A review that ran no command fails the CI check; here it is just reported.
+  if ! "$scripts_dir/review-metrics.sh" "$dir/trace.json" 2> /dev/null; then
+    printf '\n**No review happened:** no shell command succeeded.\n'
+  fi
   echo
 done < <(head -n "$count" <<< "$artifacts")
 

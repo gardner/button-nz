@@ -31,6 +31,14 @@ cat "${@: -1}"
 TRACE: list[object] = [
     {"type": "system", "subtype": "init", "model": "claude-opus-5-5"},
     {
+        "type": "assistant",
+        "message": {"content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {}}]},
+    },
+    {
+        "type": "user",
+        "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "is_error": False}]},
+    },
+    {
         "type": "result",
         "is_error": False,
         "num_turns": 3,
@@ -39,6 +47,17 @@ TRACE: list[object] = [
         "permission_denials": [],
     },
 ]
+
+
+def _artifacts(*artifacts: tuple[int, str, str], expired: bool = False) -> str:
+    """One page of the artifacts API, as `gh api --paginate --slurp` prints it."""
+    page = {
+        "artifacts": [
+            {"name": name, "created_at": created, "expired": expired, "workflow_run": {"id": run}}
+            for run, name, created in artifacts
+        ]
+    }
+    return json.dumps([page])
 
 
 @pytest.fixture
@@ -64,7 +83,11 @@ def _run(fake_dir: Path, artifacts: str, *args: str) -> subprocess.CompletedProc
 
 def test_downloads_decrypts_and_summarises_each_trace(fake_dir: Path, tmp_path: Path) -> None:
     out = tmp_path / "out"
-    result = _run(fake_dir, "101 claude-review-trace-1\n102 claude-review-trace-2\n", "5", str(out))
+    artifacts = _artifacts(
+        (101, "claude-review-trace-1", "2026-10-28T07:00:00Z"),
+        (102, "claude-review-trace-2", "2026-10-28T08:00:00Z"),
+    )
+    result = _run(fake_dir, artifacts, "5", str(out))
     assert result.returncode == 0, result.stderr
     assert "# Run 101 (claude-review-trace-1)" in result.stdout
     assert "# Run 102 (claude-review-trace-2)" in result.stdout
@@ -74,14 +97,37 @@ def test_downloads_decrypts_and_summarises_each_trace(fake_dir: Path, tmp_path: 
 
 
 def test_stops_after_count_traces(fake_dir: Path, tmp_path: Path) -> None:
-    result = _run(fake_dir, "101 a\n102 b\n103 c\n", "2", str(tmp_path / "out"))
+    artifacts = _artifacts(
+        (102, "claude-review-trace-1", "2026-10-28T08:00:00Z"),
+        (103, "claude-review-trace-1", "2026-10-28T09:00:00Z"),
+        (101, "claude-review-trace-1", "2026-10-28T07:00:00Z"),
+        (104, "other-artifact", "2026-10-28T10:00:00Z"),
+    )
+    result = _run(fake_dir, artifacts, "2", str(tmp_path / "out"))
     assert result.returncode == 0, result.stderr
     downloads = [c for c in (fake_dir / "gh-calls").read_text().splitlines() if "download" in c]
-    assert len(downloads) == 2
-    assert "# Run 103" not in result.stdout
+    assert [d.split()[2] for d in downloads] == ["103", "102"]
+
+
+def test_skips_expired_traces(fake_dir: Path, tmp_path: Path) -> None:
+    artifacts = _artifacts((101, "claude-review-trace-1", "2026-10-28T07:00:00Z"), expired=True)
+    result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "No review traces found.\n"
 
 
 def test_no_traces(fake_dir: Path, tmp_path: Path) -> None:
-    result = _run(fake_dir, "", "5", str(tmp_path / "out"))
+    result = _run(fake_dir, _artifacts(), "5", str(tmp_path / "out"))
     assert result.returncode == 0, result.stderr
     assert result.stdout == "No review traces found.\n"
+
+
+def test_a_review_that_ran_nothing_is_reported_not_fatal(fake_dir: Path, tmp_path: Path) -> None:
+    (fake_dir / "trace.json").write_text(json.dumps([TRACE[0], TRACE[-1]]), encoding="utf-8")
+    artifacts = _artifacts(
+        (101, "claude-review-trace-1", "2026-10-28T07:00:00Z"),
+        (102, "claude-review-trace-1", "2026-10-28T08:00:00Z"),
+    )
+    result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.count("**No review happened:** no shell command succeeded.") == 2

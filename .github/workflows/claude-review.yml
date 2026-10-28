@@ -51,6 +51,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
 
+      # The sandboxed reviewer can write to the workspace, so the steps after
+      # it use copies taken now, in runner temp, which it cannot write to.
+      - name: Keep trusted copies of the post-review files
+        run: |
+          mkdir "$RUNNER_TEMP/trusted"
+          cp scripts/review-metrics.sh .github/review-trace-key.asc "$RUNNER_TEMP/trusted/"
+
       - name: Review the pull request
         id: review
         uses: anthropics/claude-code-action@v1.0.264
@@ -72,9 +79,10 @@ jobs:
           # Bash is unrestricted so the reviewer can investigate any way it
           # likes, but every command runs in Claude Code's sandbox: no network
           # (nothing to fetch strangers' comments with or send a token to), no
-          # tokens in its environment, its own /proc, no writes to the workspace
-          # or runner temp (which later, unsandboxed steps trust, and which holds
-          # GITHUB_ENV and GITHUB_PATH), and no unsandboxed retry.
+          # tokens in its environment, its own /proc, no writes to runner temp
+          # (which holds GITHUB_ENV, GITHUB_PATH and the trusted copies used
+          # after the review), and no unsandboxed retry. The workspace stays
+          # writable: the sandbox itself needs it.
           # If the sandbox cannot start, the review fails. Read, Grep and Glob
           # run outside the sandbox, in a process holding the tokens, so they
           # are disabled; Bash does the reading. Recheck the action's env:
@@ -87,7 +95,7 @@ jobs:
                 "allowUnsandboxedCommands": false,
                 "network": { "allowedDomains": [], "strictAllowlist": true },
                 "filesystem": {
-                  "denyWrite": ["${{ github.workspace }}", "${{ runner.temp }}"]
+                  "denyWrite": ["${{ runner.temp }}"]
                 },
                 "credentials": {
                   "envVars": [
@@ -139,15 +147,14 @@ jobs:
 
       # Turns, cost, findings, tool calls and denied calls (names, commands and
       # paths, never output) go in the job summary for tuning the review.
-      # These steps run outside the sandbox, so they only trust the workspace
-      # and runner temp because the sandbox could not write to either.
+      # It fails the check if no shell command succeeded: no review happened.
       - name: Summarise the review
         if: always() && steps.review.outcome != 'skipped'
         shell: bash # pipefail, so a metrics failure is not hidden by tee
         run: |
           file="$RUNNER_TEMP/claude-execution-output.json"
           [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
-          scripts/review-metrics.sh "$file" | tee -a "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/trusted/review-metrics.sh" "$file" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The full transcript is kept for retrospectives (scripts/review-traces.sh),
       # encrypted: anyone can download artifacts from this public repo, and a
@@ -163,7 +170,8 @@ jobs:
           [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
           out="$(mktemp -d)/claude-review-trace.json.gpg"
           GNUPGHOME="$(mktemp -d)" gpg --batch \
-            --recipient-file .github/review-trace-key.asc --output "$out" --encrypt "$file"
+            --recipient-file "$RUNNER_TEMP/trusted/review-trace-key.asc" \
+            --output "$out" --encrypt "$file"
           echo "path=$out" >> "$GITHUB_OUTPUT"
 
       - name: Upload the encrypted transcript

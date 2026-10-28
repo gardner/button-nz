@@ -44,8 +44,10 @@ def test_summarises_a_clean_run(tmp_path: Path) -> None:
     result = _run(
         tmp_path,
         INIT,
-        _tool_use("Bash", command="git diff a...b"),
-        _tool_use("Bash", command="cat x.py"),
+        _tool_use("Bash", "toolu_a", command="git diff a...b"),
+        _tool_result("toolu_a"),
+        _tool_use("Bash", "toolu_b", command="cat x.py"),
+        _tool_result("toolu_b"),
         _result(),
     )
     assert result.returncode == 0, result.stderr
@@ -68,7 +70,8 @@ def test_counts_findings_and_lists_denied_calls(tmp_path: Path) -> None:
         _tool_result("toolu_2"),
         _tool_use(COMMENT_TOOL, "toolu_3", path="c.py", body="P2: off the diff."),
         _tool_result("toolu_3", is_error=True),
-        _tool_use("Bash", command="git log"),
+        _tool_use("Bash", "toolu_4", command="git log"),
+        _tool_result("toolu_4"),
         _result(
             {"tool_name": "Bash", "tool_input": {"command": "curl example.com"}},
             {"tool_name": "Read", "tool_input": {"file_path": "/proc/self/environ"}},
@@ -88,8 +91,23 @@ def test_reports_the_error_of_a_failed_run(tmp_path: Path) -> None:
         INIT,
         _result(is_error=True, result="API Error: 401 OAuth access token is invalid."),
     )
-    assert result.returncode == 0, result.stderr
     assert result.stdout.endswith("\n**Error:** API Error: 401 OAuth access token is invalid.\n")
+
+
+def test_a_review_that_ran_no_command_fails(tmp_path: Path) -> None:
+    """A broken sandbox fails every command; the check must not pass a non-review."""
+    result = _run(
+        tmp_path,
+        INIT,
+        _tool_use("Bash", "toolu_1", command="git log"),
+        _tool_result("toolu_1", is_error=True),
+        _tool_use("Bash", "toolu_2", command="echo hi"),
+        _tool_result("toolu_2", is_error=True),
+        _result(),
+    )
+    assert result.returncode != 0
+    assert "| claude-opus-5-5 | 7 | 125s | $1.23 | 0 | 0 |" in result.stdout
+    assert "could not run a single shell command" in result.stderr
 
 
 def test_run_without_a_result_fails(tmp_path: Path) -> None:
