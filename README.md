@@ -19,6 +19,13 @@ decline a finding, explain why in `BACKGROUND.md` (local, gitignored), which is
 added to the reviewer's prompt. The code is sent to Anthropic, so `claude` must
 be installed and logged in.
 
+Pull requests are reviewed again in CI by `.github/workflows/claude-review.yml`
+(`anthropics/claude-code-action`, authenticated with the `CLAUDE_CODE_OAUTH_TOKEN`
+secret from `claude setup-token`). Findings arrive as review threads, and every
+thread must be resolved before merge: fix it, or reply with why not and resolve
+it; the next review reads those replies. CI and local reviews share one
+subscription quota.
+
 ## Run
 
 ```bash
