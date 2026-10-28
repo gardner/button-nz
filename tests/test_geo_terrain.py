@@ -103,3 +103,25 @@ def test_a_non_nztm_raster_raises(tmp_path: Path, ground: NDArray[np.float32]) -
 def test_an_extent_outside_the_raster_raises(rasters: tuple[str, str]) -> None:
     with pytest.raises(ValueError, match="outside"):
         read_terrain(*rasters, (900.0, 1940.0, 920.0, 1960.0), margin_m=0.0)
+
+
+def test_cells_excluded_by_a_raster_mask_raise(
+    tmp_path: Path, ground: NDArray[np.float32], rasters: tuple[str, str]
+) -> None:
+    path = tmp_path / "masked.tif"
+    profile: dict[str, Any] = {
+        "driver": "GTiff",
+        "height": SIZE,
+        "width": SIZE,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:2193",
+        "transform": rio.transform.from_origin(LEFT, TOP, 1.0, 1.0),
+    }
+    mask = np.full((SIZE, SIZE), 255, dtype=np.uint8)
+    mask[45, 45] = 0
+    with rio.Env(GDAL_TIFF_INTERNAL_MASK=True), rio.open(path, "w", **profile) as dst:
+        dst.write(ground, 1)
+        dst.write_mask(mask)
+    with pytest.raises(ValueError, match="nodata"):
+        read_terrain(str(path), rasters[1], EXTENT, margin_m=0.0)

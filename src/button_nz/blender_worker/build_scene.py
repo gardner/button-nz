@@ -14,7 +14,8 @@ Objects:
 - ``AboveGround``: a column per cell whose nDSM exceeds ``COLUMN_MIN_M``,
   marking measured above-ground evidence (structures or vegetation), not
   modelled buildings.
-- ``Parcel.<n>``: each parcel boundary as a polyline just above the ground.
+- ``Parcel.<n>``: each parcel boundary as a polyline just above the ground,
+  sampled every cell along each edge so it follows the terrain between corners.
 """
 
 import json
@@ -41,7 +42,9 @@ def main(argv: list[str]) -> None:
     for i, ring in enumerate(scene["parcels"]):
         _boundary(f"Parcel.{i}", ring, terrain)
     _camera_and_light(terrain)
-    b.ops.export_scene.gltf(filepath=glb_path, export_format="GLB", export_apply=True)
+    b.ops.export_scene.gltf(
+        filepath=glb_path, export_format="GLB", export_apply=True, export_cameras=True
+    )
     _render(png_path)
 
 
@@ -108,13 +111,23 @@ def _columns(terrain: dict[str, Any], ndsm: dict[str, Any]) -> None:
     _object("AboveGround", mesh, _material("Evidence", (0.85, 0.45, 0.12, 1.0)))
 
 
+def _densify(ring: list[list[float]], step: float) -> list[tuple[float, float]]:
+    """The ring's corners plus points at most ``step`` apart along each edge."""
+    points: list[tuple[float, float]] = []
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
+        n = max(1, math.ceil(math.hypot(x2 - x1, y2 - y1) / step))
+        points += [(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n) for i in range(n)]
+    return [*points, (ring[-1][0], ring[-1][1])]
+
+
 def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> None:
     curve = b.data.curves.new(name, type="CURVE")
     curve.dimensions = "3D"
     curve.bevel_depth = 0.08
     spline = curve.splines.new("POLY")
-    spline.points.add(len(ring) - 1)
-    for point, (x, y) in zip(spline.points, ring, strict=True):
+    points = _densify(ring, terrain["cell_m"])
+    spline.points.add(len(points) - 1)
+    for point, (x, y) in zip(spline.points, points, strict=True):
         point.co = (x, y, _height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
     _object(name, curve, _material("Boundary", (0.9, 0.1, 0.1, 1.0)))
 
@@ -123,9 +136,10 @@ def _camera_and_light(grid: dict[str, Any]) -> None:
     width = grid["cols"] * grid["cell_m"]
     depth = grid["rows"] * grid["cell_m"]
     centre = (grid["x0"] + width / 2, grid["y0"] - depth / 2)
+    ground = (min(grid["heights"]) + max(grid["heights"])) / 2  # whatever the datum
     distance = max(width, depth) * 1.1
     camera = b.data.objects.new("Camera", b.data.cameras.new("Camera"))
-    camera.location = (centre[0], centre[1] - distance, distance * 0.9)
+    camera.location = (centre[0], centre[1] - distance, ground + distance * 0.9)
     camera.rotation_euler = (math.radians(48), 0.0, 0.0)
     b.context.scene.collection.objects.link(camera)
     b.context.scene.camera = camera

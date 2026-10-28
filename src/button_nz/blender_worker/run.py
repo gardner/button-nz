@@ -4,13 +4,15 @@ Blender runs in a subprocess with ``--python-exit-code 1``, so a Python error
 inside the build script fails the run. A run that exits 0 but leaves an output
 missing also raises: a scene is never reported built when it is not.
 
-Blender only sees GPUs with at least ``MIN_FREE_GPU_MIB`` free (other
-processes, such as a local model server, may hold a whole card), unless
-``CUDA_VISIBLE_DEVICES`` already says which to use.
+On NVIDIA machines, Blender only sees GPUs with at least ``MIN_FREE_GPU_MIB``
+free (other processes, such as a local model server, may hold a whole card),
+unless ``CUDA_VISIBLE_DEVICES`` already says which to use. Without
+``nvidia-smi``, the choice is Blender's own; it still fails without a GPU.
 """
 
 import json
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,7 +59,10 @@ def build_scene(
         str(out.glb),
         str(out.png),
     ]
-    env = {**os.environ, "CUDA_VISIBLE_DEVICES": _visible_gpus()}
+    env = dict(os.environ)
+    gpus = _visible_gpus()
+    if gpus is not None:
+        env["CUDA_VISIBLE_DEVICES"] = gpus
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout_s, env=env)
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -71,21 +76,26 @@ def build_scene(
     return out
 
 
-def _visible_gpus() -> str:
-    """``CUDA_VISIBLE_DEVICES`` for Blender: as set, or every GPU with room."""
+def _visible_gpus() -> str | None:
+    """``CUDA_VISIBLE_DEVICES`` for Blender: as set, or every GPU with room, by
+    UUID (nvidia-smi's indices follow PCI order, which CUDA's need not). None
+    without NVIDIA tooling."""
     preset = os.environ.get("CUDA_VISIBLE_DEVICES")
     if preset is not None:
         return preset
-    query = ["nvidia-smi", "--query-gpu=index,memory.free", "--format=csv,noheader,nounits"]
+    nvidia_smi = shutil.which("nvidia-smi")
+    if nvidia_smi is None:
+        return None
+    query = [nvidia_smi, "--query-gpu=uuid,memory.free", "--format=csv,noheader,nounits"]
     try:
         listing = subprocess.run(query, capture_output=True, text=True, check=True).stdout
     except (OSError, subprocess.CalledProcessError) as error:
         raise BlenderError(f"could not list GPUs with nvidia-smi: {error}") from error
     free = [
-        index
-        for index, mib in (line.split(",") for line in listing.strip().splitlines())
+        uuid
+        for uuid, mib in (line.split(",") for line in listing.strip().splitlines())
         if int(mib) >= MIN_FREE_GPU_MIB
     ]
     if not free:
         raise BlenderError(f"no GPU has {MIN_FREE_GPU_MIB // 1024} GiB free:\n{listing}")
-    return ",".join(index.strip() for index in free)
+    return ",".join(uuid.strip() for uuid in free)
