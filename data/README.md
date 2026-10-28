@@ -2,25 +2,46 @@
 
 ## Demo property
 
-35 Victory Street, Reefton (Buller District).
+35 Victory Street, Reefton (Buller District). Verified 2026-10-28 against the
+live LINZ and Buller services (issue #4). `demo-site/site.json` is the source
+of truth; load it with `button_nz.demo_site.load_demo_site()`, which checks the
+manifest's own claims.
 
-- LINZ address ID 3213224. Address point NZTM2000 (1505941.6, 5336793.7).
+- LINZ address ID 3213224. Address point NZTM2000 (1505941.6, 5336793.7), in
+  Section 701.
 - Valuation number 1905027200. Title 354613.
-- Three main sections: Section 700, Section 701, Section 702 TN OF Reefton
-  (survey area 309 each). The address point falls in Section 701.
-- Section 1336 TN OF Reefton (survey area 30) is also on the same title.
-  Confirm whether it forms part of the demo site extent.
+- The site is all four sections on that title: Sections 700, 701 and 702
+  (309 m² each) and Section 1336 (30 m²) TN OF Reefton. Section 1336 adjoins all
+  three, so together they form one contiguous polygon of about 986 m².
+  Geometry: `demo-site/parcels.geojson` (EPSG:2193).
+- Ground is flat: 189.25–191.26 m (NZVD2016). The LiDAR shows 91 one-metre
+  cells more than 2 m above ground on the parcels, up to 14.3 m, but LINZ has no
+  building outline on them. The outlines nearby were traced from 2015–2016
+  aerials, so treat them as dated evidence, not current truth.
 
 ## Sources and provenance
 
-Record source, capture date, licence, and uncertainty for every layer.
-Building outlines near the site derive from West Coast 0.3 m Rural Aerial
-Photos (2015-2016). Treat them as dated evidence, not current truth.
+Every layer is CC BY 4.0. `site.json` records each one's collection, tile,
+asset URL, capture dates, resolution and attribution.
 
-## Still to verify
+| Layer | Dataset | Tile | Capture |
+| --- | --- | --- | --- |
+| DEM | West Coast LiDAR 1m DEM | BS21_10000_0503 | 2020-05 to 2024-07 |
+| DSM | West Coast LiDAR 1m DSM | BS21_10000_0503 | 2020-05 to 2024-07 |
+| Aerial | Buller 0.075m Urban Aerial Photos | BS21_1000_4730 | 2024-12 to 2025-09 |
+| Aerial (rural) | West Coast 0.2m Rural Aerial Photos | BS21_5000_1006 | 2024-12 to 2026-03 |
+| Parcels | Buller District Council property parcels | — | — |
+| Buildings | LINZ NZ Building Outlines | — | 2015-12 to 2016-06 |
 
-- LINZ DEM and DSM coverage over the demo parcels.
-- Aerial imagery capture dates and licensing for publication.
-- Owner permission to publish imagery and renders.
+Elevation is NZTM2000 horizontally and NZVD2016 vertically (EPSG:7839). The
+vertical datum is not recorded in the GeoTIFFs; LINZ's elevation specification
+states it.
 
-Do not commit raw downloads until licensing and size are agreed.
+## Still open
+
+- Owner permission to publish imagery and renders. This gates public release,
+  not development.
+- Owner confirmation of the structures and vegetation the LiDAR shows on site.
+
+Do not commit raw downloads until licensing and size are agreed. The manifest
+pins exact tile URLs on LINZ's public S3, so fetch from there.

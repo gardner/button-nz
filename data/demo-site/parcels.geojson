@@ -1,0 +1,160 @@
+{
+  "type": "FeatureCollection",
+  "name": "demo-site-parcels",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::2193"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": 3652040,
+        "appellation": "Section 700 TN OF Reefton",
+        "survey_area_m2": 309,
+        "title": "354613"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505969.74,
+              5336798.44
+            ],
+            [
+              1505946.8,
+              5336777.48
+            ],
+            [
+              1505939.73,
+              5336785.4
+            ],
+            [
+              1505962.98,
+              5336806.02
+            ],
+            [
+              1505969.74,
+              5336798.44
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": 3621992,
+        "appellation": "Section 701 TN OF Reefton",
+        "survey_area_m2": 309,
+        "title": "354613"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505962.98,
+              5336806.02
+            ],
+            [
+              1505939.73,
+              5336785.4
+            ],
+            [
+              1505932.84,
+              5336793.11
+            ],
+            [
+              1505956.06,
+              5336813.4
+            ],
+            [
+              1505962.98,
+              5336806.02
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": 3615590,
+        "appellation": "Section 702 TN OF Reefton",
+        "survey_area_m2": 309,
+        "title": "354613"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505956.06,
+              5336813.4
+            ],
+            [
+              1505932.84,
+              5336793.11
+            ],
+            [
+              1505926.13,
+              5336800.62
+            ],
+            [
+              1505949.39,
+              5336820.89
+            ],
+            [
+              1505956.06,
+              5336813.4
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": 3625049,
+        "appellation": "Section 1336 TN OF Reefton",
+        "survey_area_m2": 30,
+        "title": "354613"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505950.92,
+              5336822.22
+            ],
+            [
+              1505964.11,
+              5336807.02
+            ],
+            [
+              1505962.98,
+              5336806.02
+            ],
+            [
+              1505956.06,
+              5336813.4
+            ],
+            [
+              1505949.39,
+              5336820.89
+            ],
+            [
+              1505950.92,
+              5336822.22
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
