@@ -1,6 +1,6 @@
 import type { Aerial, Point, Site } from "@/lib/api";
 import type { SiteFeature } from "@/lib/features";
-import { type PlanView, planView } from "@/lib/plan";
+import { interiorPoint, type PlanView, planView } from "@/lib/plan";
 
 import { LOOKS, SHOWN } from "./decisions";
 
@@ -115,7 +115,7 @@ function AerialPhoto({ aerial, plan }: { aerial: Aerial; plan: PlanView }) {
   );
 }
 
-/** The feature's number, as in the list below, in the middle of its outline. */
+/** The feature's number, as in the list below, inside its largest piece. */
 function FeatureLabel({
   feature,
   plan,
@@ -123,14 +123,9 @@ function FeatureLabel({
   feature: SiteFeature;
   plan: PlanView;
 }) {
-  const ring = feature.polygons[0]?.[0] ?? [];
-  if (ring.length === 0) return null;
-  const xs = ring.map(([x]) => x);
-  const ys = ring.map(([, y]) => y);
-  const middle: Point = [
-    (Math.min(...xs) + Math.max(...xs)) / 2,
-    (Math.min(...ys) + Math.max(...ys)) / 2,
-  ];
+  const [largest] = [...feature.polygons].sort((a, b) => area(b) - area(a));
+  if (!largest || largest.length === 0) return null;
+  const middle = interiorPoint(largest);
   const [x, y] = plan.point(middle);
   return (
     <text
@@ -199,4 +194,21 @@ function PlanKey() {
       ))}
     </ul>
   );
+}
+
+/** A polygon's area (its outer ring less its holes), to pick the largest piece. */
+function area(rings: Point[][]): number {
+  const shoelace = (ring: Point[]) =>
+    Math.abs(
+      ring.reduce(
+        (sum, [x, y], i) =>
+          sum +
+          (i + 1 < ring.length ? x * ring[i + 1][1] - ring[i + 1][0] * y : 0),
+        0,
+      ),
+    ) / 2;
+  const [outer, ...holes] = rings;
+  return outer
+    ? shoelace(outer) - holes.reduce((sum, h) => sum + shoelace(h), 0)
+    : 0;
 }
