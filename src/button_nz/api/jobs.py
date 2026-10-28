@@ -6,6 +6,7 @@ A job that raises is marked failed with the reason, e.g. a missing
 in progress. Each job's files are kept under ``runs_dir/<job id>``.
 """
 
+import json
 import logging
 import threading
 from collections.abc import Callable
@@ -13,7 +14,7 @@ from functools import cache
 from pathlib import Path
 
 from button_nz.agent.conversation import Model
-from button_nz.agent.loop import Attempt, DesignSite, Runner, design
+from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 
@@ -78,6 +79,21 @@ class Worker:
             self._wake.wait()
             self._wake.clear()
 
+    def _revising(self, job: Job) -> Revision | None:
+        """The parent's accepted design, and every instruction up the chain."""
+        if job.parent_id is None or job.instruction is None:
+            return None
+        parent = self.store.get_job(job.parent_id)
+        if parent.accepted_attempt is None:
+            raise ValueError(f"design {parent.id} has no accepted attempt to revise")
+        instructions = [job.instruction]
+        ancestor: Job | None = parent
+        while ancestor is not None and ancestor.instruction is not None:
+            instructions.insert(0, ancestor.instruction)
+            ancestor = self.store.get_job(ancestor.parent_id) if ancestor.parent_id else None
+        trace = self.runs_dir / parent.id / f"attempt-{parent.accepted_attempt}" / "attempt.json"
+        return _revision(trace, tuple(instructions))
+
     def _design(self, job: Job) -> int | None:
         def record(attempt: Attempt) -> None:
             self.store.add_attempt(
@@ -95,8 +111,15 @@ class Worker:
             runner=self.runner,
             allow_observations=job.allow_observations,
             on_attempt=record,
+            revising=self._revising(job),
         )
         return None if result.accepted is None else result.accepted.number
+
+
+def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:
+    """The accepted attempt a revision starts from, from its trace."""
+    attempt = json.loads(trace.read_text(encoding="utf-8"))
+    return Revision(attempt["script"], attempt["feedback"], instructions)
 
 
 def _reason(error: Exception) -> str:

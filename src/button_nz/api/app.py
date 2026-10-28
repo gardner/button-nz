@@ -3,6 +3,7 @@ poll and inspect.
 
     GET  /site                                    parcels, extent, sources, open items
     POST /designs {brief, allow_observations}     queue a design; 202 with the job
+    POST /designs/{id}/revisions {instruction}    revise its accepted design; 202
     GET  /designs/{id}                            status, attempts, accepted attempt
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png
 
@@ -34,6 +35,11 @@ class DesignRequest(BaseModel):
     allow_observations: bool = True
 
 
+class RevisionRequest(BaseModel):
+    instruction: str = Field(min_length=1, max_length=2000)
+    allow_observations: bool = True
+
+
 class AttemptView(BaseModel):
     number: int
     status: str  # pass, fail, unknown or error
@@ -52,6 +58,8 @@ class JobView(BaseModel):
     finished_at: datetime | None
     error: str | None
     accepted_attempt: int | None
+    parent_id: str | None
+    instruction: str | None
     attempts: list[AttemptView]
 
 
@@ -73,6 +81,17 @@ def create_app(store: Store, worker: Worker, site: DemoSite) -> FastAPI:
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
         job = store.create_job(request.brief, request.allow_observations)
+        worker.wake()
+        return _job_view(store, worker, job)
+
+    @app.post("/designs/{job_id}/revisions", status_code=202)
+    def post_revision(job_id: str, request: RevisionRequest) -> JobView:
+        parent = _job(store, job_id)
+        if parent.accepted_attempt is None:
+            raise HTTPException(409, f"design {job_id} has no accepted attempt to revise")
+        job = store.create_job(
+            parent.brief, request.allow_observations, parent.id, request.instruction
+        )
         worker.wake()
         return _job_view(store, worker, job)
 
@@ -122,6 +141,8 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         finished_at=job.finished_at,
         error=job.error,
         accepted_attempt=job.accepted_attempt,
+        parent_id=job.parent_id,
+        instruction=job.instruction,
         attempts=attempts,
     )
 

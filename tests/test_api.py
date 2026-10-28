@@ -36,8 +36,10 @@ NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the ed
 class ScriptedModel:
     def __init__(self, *replies: str | Observe) -> None:
         self.replies = list(replies)
+        self.seen: list[list[Turn]] = []
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        self.seen.append(list(conversation))
         return self.replies.pop(0)
 
 
@@ -204,3 +206,51 @@ def test_a_symlinked_artifact_is_neither_listed_nor_served(
         response = service.client.get(f"/designs/{job_id}/attempts/1/{name}")
         assert response.status_code == 404
         assert b"hunter2" not in response.content
+
+
+def test_a_finished_design_can_be_revised_in_plain_words(tmp_path: Path) -> None:
+    model = ScriptedModel("near", "good", "good")
+    service = Service(tmp_path, model=lambda: model)
+    parent = service.queue()
+    service.worker.run_next()
+    response = service.client.post(
+        f"/designs/{parent}/revisions", json={"instruction": "Move it away from the street."}
+    )
+    assert response.status_code == 202
+    child = response.json()
+    assert child["parent_id"] == parent and child["instruction"] == "Move it away from the street."
+    assert child["brief"] == "A small studio."
+    service.worker.run_next()
+    seen = model.seen[-1]
+    assert [t.role for t in seen][-3:] == ["design", "feedback", "user"]
+    assert seen[-3].text == "good"  # the accepted attempt's script
+    assert seen[-1].text == "Move it away from the street."
+    assert service.client.get(f"/designs/{child['id']}").json()["status"] == "done"
+
+
+def test_only_an_accepted_design_can_be_revised(tmp_path: Path) -> None:
+    service = Service(tmp_path, model=lambda: ScriptedModel("near", "near", "near"))
+    job_id = service.queue()
+    revise = {"instruction": "Make it bigger."}
+    assert service.client.post(f"/designs/{job_id}/revisions", json=revise).status_code == 409
+    service.worker.run_next()  # three failed attempts: nothing accepted
+    assert service.client.post(f"/designs/{job_id}/revisions", json=revise).status_code == 409
+    assert service.client.post("/designs/nope/revisions", json=revise).status_code == 404
+    empty = {"instruction": ""}
+    assert service.client.post(f"/designs/{job_id}/revisions", json=empty).status_code == 422
+
+
+def test_a_revision_of_a_revision_keeps_every_instruction(tmp_path: Path) -> None:
+    model = ScriptedModel("good", "good", "good")
+    service = Service(tmp_path, model=lambda: model)
+    first = service.queue()
+    service.worker.run_next()
+    second = service.client.post(
+        f"/designs/{first}/revisions", json={"instruction": "Move it away from the street."}
+    ).json()["id"]
+    service.worker.run_next()
+    service.client.post(f"/designs/{second}/revisions", json={"instruction": "Make it bigger."})
+    service.worker.run_next()
+    asked = model.seen[-1][-1].text
+    assert "Move it away from the street." in asked and "Make it bigger." in asked
+    assert asked.index("away from the street") < asked.index("bigger")  # oldest first
