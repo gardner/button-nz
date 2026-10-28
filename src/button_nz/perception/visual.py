@@ -16,6 +16,7 @@ no network and no keys.
 import base64
 import io
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,16 +51,24 @@ CONCEPT = "house"  # what SAM 3.1 is asked to find in the illustration
 MIN_IOU = 0.6
 EDIT_TIMEOUT_S = 180.0  # an edit took about 24 s in the feasibility test
 VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"
+# Told only to keep the dwelling, Muse Image reframed the shot and drew the small
+# dwelling far bigger (IoU 0.17, then 0.32 asked not to reframe); told its box in
+# the frame, it kept it (0.94, then 0.93). One live run each, on a 32 m² design
+# 133 x 116 px in the 1280 x 960 render. The box comes from the silhouette.
 PROMPT = (
-    "Turn this 3D massing render into a photorealistic photograph of the same scene, "
-    "taken from exactly the same camera position, angle and framing. The plain "
-    "light-coloured building is a new small dwelling: keep it exactly where it is, with "
-    "exactly the same footprint, size, proportions and roof shape, and give it realistic "
-    "cladding, windows and a door. The orange blocks are trees, hedges and existing "
-    "structures measured by LiDAR: show them as what they most resemble, the same size "
-    "and in the same places. The green ground is a grassed New Zealand section; the thin "
-    "red lines are property boundaries and may be left out. Do not add any new buildings, "
-    "and do not move, resize or crop anything."
+    "Edit this image in place. It is a 3D massing render seen from a drone; make it look "
+    "like a real drone photograph of the same place without changing the composition at "
+    "all. Do not zoom, crop, pan, rotate or reframe: every object must stay at exactly the "
+    "same position and size in the frame, including the black area at the top, which "
+    "becomes distant landscape and sky. The plain light-coloured building is a new small "
+    "dwelling. It must stay exactly as big as it is in this picture: it fills only the box "
+    "from {left}% to {right}% of the image width and from {top}% to {bottom}% of its "
+    "height. Keep exactly its position, footprint, size, proportions, roofline and gable "
+    "direction, and give it realistic cladding and windows within that same outline. The "
+    "orange blocks are trees, hedges and existing structures measured by LiDAR: replace "
+    "them with what they most resemble, the same size and in the same places. The green "
+    "ground is a grassed New Zealand section; the thin red lines are property boundaries "
+    "and may be left out. Do not add any new buildings."
 )
 NOT_VISIBLE = "The dwelling isn't visible from the render camera, so there is nothing to keep."
 NO_HOUSE = "SAM 3.1 found no house in the illustration."
@@ -112,7 +121,8 @@ def illustrate(
     silhouette = _silhouette(mask_png, size)
     if not silhouette.any():
         return Visual(model, False, None, NOT_VISIBLE, None)
-    illustration = _edit(render_png, image_client, model).resize(size, Image.Resampling.LANCZOS)
+    edited = _edit(render_png, _prompt(silhouette), image_client, model)
+    illustration = edited.resize(size, Image.Resampling.LANCZOS)
     masks = segmenter.masks(np.asarray(illustration), CONCEPT)
     if not masks:
         return Visual(model, False, 0.0, NO_HOUSE, None)
@@ -156,11 +166,26 @@ def _silhouette(mask_png: Path, size: tuple[int, int]) -> NDArray[np.bool_]:
         return np.asarray(mask.convert("L")) > 127
 
 
-def _edit(render_png: Path, client: OpenAI, model: str) -> Image.Image:
+def _prompt(silhouette: NDArray[np.bool_]) -> str:
+    """``PROMPT`` with the silhouette's bounding box, in whole percent of the
+    image, rounded outwards."""
+    rows, cols = np.nonzero(silhouette)
+    height, width = int(silhouette.shape[0]), int(silhouette.shape[1])
+    top, bottom = int(rows.min()), int(rows.max()) + 1
+    left, right = int(cols.min()), int(cols.max()) + 1
+    return PROMPT.format(
+        left=math.floor(100 * left / width),
+        right=math.ceil(100 * right / width),
+        top=math.floor(100 * top / height),
+        bottom=math.ceil(100 * bottom / height),
+    )
+
+
+def _edit(render_png: Path, prompt: str, client: OpenAI, model: str) -> Image.Image:
     response = client.images.edit(
         model=model,
         image=("design.png", render_png.read_bytes(), "image/png"),
-        prompt=PROMPT,
+        prompt=prompt,
     )
     data = response.data or []
     encoded = data[0].b64_json if data else None

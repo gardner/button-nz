@@ -129,8 +129,18 @@ def test_the_edit_asks_muse_image_to_keep_the_building(tmp_path: Path) -> None:
     (edit,) = api.edits
     assert b'name="model"\r\n\r\nmuse-image-1.0' in edit
     assert b'filename="design.png"' in edit
-    for kept in (b"camera", b"footprint", b"roof", b"Do not add any new buildings"):
+    for kept in (b"zoom, crop", b"footprint", b"roofline", b"Do not add any new buildings"):
         assert kept in edit
+
+
+def test_the_edit_is_told_where_the_dwelling_is_and_how_small(tmp_path: Path) -> None:
+    """Told only to keep it, Muse Image drew the small dwelling far bigger (IoU 0.3);
+    told its box in the frame, it kept it (0.94). FIRST spans columns 141-163 of
+    672 and rows 559-584 of 688."""
+    api = Api()
+    api.illustrate(*_files(tmp_path, FIRST))
+    (edit,) = api.edits
+    assert b"from 20% to 25% of the image width and from 81% to 86% of its height" in edit
 
 
 def test_sam_is_asked_about_the_house_in_the_illustration_at_the_renders_size(
