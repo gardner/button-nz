@@ -58,12 +58,23 @@ TRACE: list[object] = [
 ]
 
 
-def _artifacts(*artifacts: tuple[int, str, str], expired: bool = False) -> str:
+REPO_ID = 7
+
+
+def _artifacts(
+    *artifacts: tuple[int, str, str], expired: bool = False, head_repo: int = REPO_ID
+) -> str:
     """One page of the artifacts API, as `gh api --paginate --slurp` prints it."""
+    run = {"repository_id": REPO_ID, "head_repository_id": head_repo}
     page = {
         "artifacts": [
-            {"name": name, "created_at": created, "expired": expired, "workflow_run": {"id": run}}
-            for run, name, created in artifacts
+            {
+                "name": name,
+                "created_at": created,
+                "expired": expired,
+                "workflow_run": {"id": run_id, **run},
+            }
+            for run_id, name, created in artifacts
         ]
     }
     return json.dumps([page])
@@ -149,3 +160,11 @@ def test_a_broken_trace_fails_with_its_real_error(fake_dir: Path, tmp_path: Path
     assert result.returncode != 0
     assert "no result message" in result.stderr
     assert "No review happened" not in result.stdout
+
+
+def test_skips_traces_uploaded_by_fork_runs(fake_dir: Path, tmp_path: Path) -> None:
+    """A fork PR's own workflow could upload a forged trace under the same name."""
+    artifacts = _artifacts((101, "claude-review-trace-1", "2026-10-28T07:00:00Z"), head_repo=99)
+    result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "No review traces found.\n"

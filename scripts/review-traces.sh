@@ -9,11 +9,14 @@ out="${2:-$(mktemp -d)}"
 scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 
 # The API does not list artifacts in date order, so sort all pages newest first.
+# Fork runs are skipped: a fork PR's own workflow could upload a forged trace
+# under the same name, encrypted to the public key.
 # Collected before `head` so it cannot cut gh off mid-page.
 artifacts="$(gh api --paginate --slurp 'repos/{owner}/{repo}/actions/artifacts?per_page=100' \
   | jq -r '
     [.[].artifacts[]]
-    | map(select((.expired | not) and (.name | startswith("claude-review-trace"))))
+    | map(select((.expired | not) and (.name | startswith("claude-review-trace"))
+        and .workflow_run.head_repository_id == .workflow_run.repository_id))
     | sort_by(.created_at) | reverse
     | .[] | "\(.workflow_run.id) \(.name)"')"
 
