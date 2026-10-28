@@ -103,6 +103,23 @@ def test_cross_section_of_a_plane_follows_it_exactly() -> None:
     assert section.view.png.startswith(b"\x89PNG")
 
 
+def test_cross_sections_follow_the_rendered_triangles_not_a_bilinear_surface() -> None:
+    """Corners 0/1 over 1/0: the mesh's NW-SE diagonal is flat at 0; bilinear says 0.5."""
+    saddle = np.array([[0.0, 1.0], [1.0, 0.0]])
+    grid = TerrainGrid((0.0, 0.0, 2.0, 2.0), 1.0, saddle, np.zeros_like(saddle), ("synthetic",))
+    section = cross_section(grid, (0.5, 1.5), (1.5, 0.5), step_m=0.1)
+    assert section.heights == pytest.approx([0.0] * len(section.heights))
+
+
+def test_a_profile_can_be_labelled_above_a_datum() -> None:
+    """Labelled from datum 100, the picture is the one for ground 100 m lower."""
+    labelled = cross_section(plane(east=0.2), (5.0, 20.0), (35.0, 20.0), datum_m=100.0)
+    x, y = centres()
+    lowered = grid(0.2 * x + 0.0 * y)
+    assert labelled.view.png == cross_section(lowered, (5.0, 20.0), (35.0, 20.0)).view.png
+    assert labelled.view.facts["min_m"] == pytest.approx(101.0)  # facts stay NZVD2016
+
+
 @pytest.mark.parametrize(
     ("start", "end"),
     [
@@ -119,6 +136,12 @@ def test_cross_sections_must_stay_on_the_measured_grid(
         cross_section(plane(east=0.2), start, end)
 
 
+def test_inspect_elevation_rejects_a_polygon_leaving_the_grid() -> None:
+    partly_off = ((30.0, 10.0), (60.0, 10.0), (60.0, 20.0), (30.0, 20.0), (30.0, 10.0))
+    with pytest.raises(ValueError, match="outside the terrain"):
+        inspect_elevation(plane(east=0.1), partly_off)
+
+
 def test_inspect_elevation_inside_a_polygon() -> None:
     square = ((10.0, 10.0), (20.0, 10.0), (20.0, 20.0), (10.0, 20.0), (10.0, 10.0))
     stats = inspect_elevation(plane(east=0.1), square)
@@ -132,8 +155,14 @@ def test_inspect_elevation_inside_a_polygon() -> None:
 
 def test_a_polygon_outside_the_grid_raises() -> None:
     far = ((100.0, 100.0), (110.0, 100.0), (110.0, 110.0), (100.0, 100.0))
-    with pytest.raises(ValueError, match="no cell"):
+    with pytest.raises(ValueError, match="outside the terrain"):
         inspect_elevation(plane(), far)
+
+
+def test_a_polygon_between_cell_centres_raises() -> None:
+    sliver = ((10.6, 10.6), (11.4, 10.6), (11.4, 11.4), (10.6, 10.6))
+    with pytest.raises(ValueError, match="no cell"):
+        inspect_elevation(plane(), sliver)
 
 
 def test_overlay_draws_outlines_in_the_views_pixel_space() -> None:

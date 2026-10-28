@@ -21,17 +21,16 @@ from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
+from meshes import box
 
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
 GOOD = {
     "error": None,
-    "faces_xy": [[[15, 7], [21, 7], [21, 12], [15, 12]]],
-    "z_min": 0.3,
-    "z_max": 3.9,
+    "triangles": box(15, 7, 0.3, 21, 12, 3.9),
     "floor_area_m2": 26.0,
     "storeys": 1,
 }
-NEAR = GOOD | {"faces_xy": [[[0.5, 7], [6.5, 7], [6.5, 12], [0.5, 12]]]}  # 0.5 m from the edge
+NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the edge
 
 
 class ScriptedModel:

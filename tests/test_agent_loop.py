@@ -15,24 +15,18 @@ from button_nz.evaluation import SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
-
-
-def rect(x0: float, y0: float, x1: float, y1: float) -> list[list[float]]:
-    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
-
+from meshes import box
 
 # One 40 m x 20 m parcel; the local frame's origin is NZTM (0, 0), datum 100 m.
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
 GOOD = {
-    "faces_xy": [rect(15, 7, 21, 12)],
-    "z_min": 0.3,
-    "z_max": 3.9,
+    "triangles": box(15, 7, 0.3, 21, 12, 3.9),
     "floor_area_m2": 26.0,
     "storeys": 1,
 }
-NEAR = GOOD | {"faces_xy": [rect(0.5, 7, 6.5, 12)]}  # 0.5 m from the title boundary
+NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the title boundary
 BROKEN = {"error": 'Traceback (most recent call last):\n  File "design.py", line 1\nNameError: x'}
-OFF_TERRAIN = GOOD | {"faces_xy": [rect(38, 7, 44, 12)]}  # past the terrain's east edge
+OFF_TERRAIN = GOOD | {"triangles": box(38, 7, 0.3, 44, 12, 3.9)}  # past the terrain's east edge
 MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN}
 
 
@@ -236,3 +230,12 @@ def test_each_attempt_is_reported_as_it_finishes(site: DesignSite, tmp_path: Pat
     )
     assert seen == [1, 2]
     assert [a.number for a in result.attempts] == seen
+
+
+def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> None:
+    """Reusing a runs directory must not show the model an old run's picture."""
+    (tmp_path / "attempt-1").mkdir()
+    (tmp_path / "attempt-1" / "design.png").write_bytes(b"old")
+    model = SilentModel("good")
+    run(site, model, tmp_path)
+    assert model.seen[1][-1].image is None
