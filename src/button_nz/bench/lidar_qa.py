@@ -29,7 +29,7 @@ from button_nz.agent.conversation import ModelReplyError, Observe
 from button_nz.agent.demo import demo_aerial, demo_site
 from button_nz.agent.observe import ObservationError, observe
 from button_nz.agent.site import DesignSite
-from button_nz.bench.answering import Answerer, ChatAnswerer, QaTurn
+from button_nz.bench.answering import ANSWER_TOOL, Answerer, ChatAnswerer, QaTurn
 from button_nz.bench.questions import Question, generate, score
 from button_nz.bench.views import CONDITIONS, SCALE, condition_images, mark
 
@@ -57,6 +57,9 @@ class Result:
     seconds: float
 
 
+REMINDER = f"Reply by calling {ANSWER_TOOL} with your answer."
+
+
 def ask(
     question: Question,
     condition: str,
@@ -71,16 +74,24 @@ def ask(
     turns = [QaTurn("system", SYSTEM), QaTurn("question", question.text, images)]
     observed: list[str] = []
     answer, error = None, "kept asking for observations instead of answering"
-    try:
-        for _ in range(max_observations + 2):
-            allowed = condition == "agent" and len(observed) < max_observations
+    reminded = False  # the API can't force the answer tool: one reminder, as in design
+    calls = max_observations + 2  # observations, one refused request, then the answer
+    while calls > 0:
+        calls -= 1
+        allowed = condition == "agent" and len(observed) < max_observations
+        try:
             reply = answerer.answer(turns, allowed)
-            if isinstance(reply, str):
-                answer, error = reply, None
+        except ModelReplyError as reply_error:
+            error = str(reply_error)
+            if reminded:
                 break
-            turns += _observe(site, question, reply, allowed, observed)
-    except ModelReplyError as reply_error:
-        error = str(reply_error)
+            reminded, calls = True, calls + 1  # the reminder always gets its own call
+            turns.append(QaTurn("question", REMINDER))
+            continue
+        if isinstance(reply, str):
+            answer, error = reply, None
+            break
+        turns += _observe(site, question, reply, allowed, observed)
     return Result(
         question=question.id,
         kind=question.kind,
@@ -167,8 +178,9 @@ def report(results: Sequence[Result], meta: Mapping[str, object]) -> str:
         "",
         f"Model `{meta['model']}`; {meta['questions']} questions (seed {meta['seed']}), "
         "each asked under every condition and scored against answers computed from the "
-        "LiDAR DEM and nDSM (`button_nz.bench.questions`). Replies without an answer count "
-        "as wrong. The `agent` condition can also make numeric queries (elevation "
+        "LiDAR DEM and nDSM (`button_nz.bench.questions`). A reply that doesn't call the "
+        "answer tool gets one reminder (the API can't require the tool); a second counts "
+        "as no answer, and wrong. The `agent` condition can also make numeric queries (elevation "
         "statistics over an area, cross-sections) that no fixed map gives, so its gain over "
         "`fixed_all` measures active observation with numbers, not view choice alone.",
         "",

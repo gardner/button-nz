@@ -92,11 +92,24 @@ def test_the_agent_must_answer_once_its_budget_is_spent(
     assert result.correct
 
 
-def test_a_reply_without_an_answer_is_a_wrong_answer_with_its_error(
+def test_a_reply_without_an_answer_gets_one_reminder(
     site: DesignSite, aerial: NDArray[np.uint8]
 ) -> None:
-    result = ask(ASPECT, "aerial", site, aerial, Scripted(ModelReplyError("no answer")))
-    assert not result.correct and result.answer is None and result.error == "no answer"
+    """The API can't force the answer tool, so a text reply is reminded once, as
+    the design loop hands its errors back; then the answer counts as usual."""
+    model = Scripted(ModelReplyError("no answer"), "W")
+    result = ask(ASPECT, "aerial", site, aerial, model)
+    assert result.correct and result.error is None
+    reminder = model.seen[1][-1]
+    assert reminder.role == "question" and "submit_answer" in reminder.text
+
+
+def test_a_second_reply_without_an_answer_is_a_wrong_answer_with_its_error(
+    site: DesignSite, aerial: NDArray[np.uint8]
+) -> None:
+    model = Scripted(ModelReplyError("no answer"), ModelReplyError("still no answer"))
+    result = ask(ASPECT, "aerial", site, aerial, model)
+    assert not result.correct and result.answer is None and result.error == "still no answer"
 
 
 def test_runs_are_written_as_they_go(
@@ -154,3 +167,18 @@ def test_the_report_says_the_agent_also_gets_numbers() -> None:
     over fixed_all is active observation with numeric queries, not view choice."""
     text = report([_result("agent", "relief", True)], {"model": "m", "seed": 1, "questions": 1})
     assert "numeric queries" in text and "not view choice alone" in text
+
+
+def test_the_report_states_the_reminder_rule() -> None:
+    text = report([_result("aerial", "aspect", True)], {"model": "m", "seed": 1, "questions": 1})
+    assert "one reminder" in text
+
+
+def test_the_reminder_is_sent_even_after_the_last_observation_request(
+    site: DesignSite, aerial: NDArray[np.uint8]
+) -> None:
+    """Text on the last call the observation budget allows still gets its reminder."""
+    look = Observe("render_height_map", {"mode": "slope"})
+    model = Scripted(look, look, ModelReplyError("no answer"), "1.0")  # the 3rd of 3 calls
+    result = ask(RELIEF, "agent", site, aerial, model, max_observations=1)
+    assert result.correct and result.error is None
