@@ -6,7 +6,8 @@ poll and inspect.
     GET  /designs/{id}                            status, attempts, accepted attempt
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png
 
-Only those artifact names are served, from the job's own run directory.
+Only those artifact names are served, and only as regular files in the job's
+own run directory: never through a symlink.
 """
 
 import re
@@ -81,8 +82,8 @@ def create_app(store: Store, worker: Worker, site: DemoSite) -> FastAPI:
 
     @app.get("/designs/{job_id}/attempts/{number}/{name}")
     def get_artifact(job_id: str, number: int, name: str) -> FileResponse:
-        path = _attempt_dir(worker, _job(store, job_id), number) / name
-        if not ARTIFACT.fullmatch(name) or not path.is_file():
+        path = _artifact(_attempt_dir(worker, _job(store, job_id), number), name)
+        if path is None:
             raise HTTPException(404, f"no {name} for attempt {number}")
         return FileResponse(path)
 
@@ -127,8 +128,17 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
 
 def _files(worker: Worker, job: Job, number: int) -> dict[str, str]:
     directory = _attempt_dir(worker, job, number)
-    names = sorted(p.name for p in directory.glob("*") if ARTIFACT.fullmatch(p.name))
+    names = sorted(p.name for p in directory.glob("*") if _artifact(directory, p.name))
     return {name: f"/designs/{job.id}/attempts/{number}/{name}" for name in names}
+
+
+def _artifact(directory: Path, name: str) -> Path | None:
+    """``directory/name`` if it is an allowed artifact: a regular file really in
+    ``directory``, never a link to somewhere else."""
+    path = directory / name
+    if not ARTIFACT.fullmatch(name) or path.is_symlink() or not path.is_file():
+        return None
+    return path if path.resolve().parent == directory.resolve() else None
 
 
 def _site(site: DemoSite) -> dict[str, Any]:

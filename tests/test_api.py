@@ -183,3 +183,24 @@ def test_the_worker_thread_runs_queued_designs(service: Service) -> None:
     finally:
         service.worker.stop()
     assert not service.worker.run_next()  # nothing left queued
+
+
+def test_a_symlinked_artifact_is_neither_listed_nor_served(
+    service: Service, tmp_path: Path
+) -> None:
+    """Defence in depth: nothing untrusted can write the attempt directory, but
+    if a link appeared there it must not expose the file it points at."""
+    secret = tmp_path / "secret.env"
+    secret.write_text("MODEL_API_KEY=hunter2", encoding="utf-8")
+    job_id = service.queue()
+    service.worker.run_next()
+    attempt = tmp_path / "runs" / job_id / "attempt-1"
+    (attempt / "observation-9.png").symlink_to(secret)
+    (attempt / "design.png").unlink()
+    (attempt / "design.png").symlink_to(secret)
+    files = service.client.get(f"/designs/{job_id}").json()["attempts"][0]["files"]
+    assert "observation-9.png" not in files and "design.png" not in files
+    for name in ("observation-9.png", "design.png"):
+        response = service.client.get(f"/designs/{job_id}/attempts/1/{name}")
+        assert response.status_code == 404
+        assert b"hunter2" not in response.content
