@@ -1,0 +1,23 @@
+{
+  "title": [
+    {"text": "Button NZ", "size": 64, "bold": true},
+    {"text": "Unlock the housing hiding in your backyard", "size": 34, "bold": false},
+    {"text": "", "size": 20, "bold": false},
+    {"text": "35 Victory Street, Reefton · one live run, cut for length", "size": 26, "bold": false},
+    {"text": "Long waits are sped up, and say so on screen", "size": 26, "bold": false}
+  ],
+  "segments": [
+    {"start": 0.0, "end": 8.5, "speed": 1, "caption": "A real property: its title, 1 m LiDAR and a 7.5 cm aerial photo (NZ open data)"},
+    {"start": 8.5, "end": 19.5, "speed": 1, "caption": "SAM 3.1 found these on the photo; the owner says what each one is"},
+    {"start": 19.5, "end": 23.0, "speed": 1, "caption": "The owner's brief, in their own words"},
+    {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views, writes Blender Python; sandboxed Blender builds it"},
+    {"start": 217.0, "end": 265.0, "speed": 4, "caption": "Attempt 1 fails two checks: 60 m² inside a 60 m² footprint, and a tree it must keep clear. Muse fixes both"},
+    {"start": 265.0, "end": 275.0, "speed": 1, "caption": "Accepted: every check measured from the geometry, with the rule behind it"},
+    {"start": 275.0, "end": 298.0, "speed": 4, "caption": "Muse Image illustrates the accepted design…"},
+    {"start": 298.0, "end": 303.4, "speed": 1, "caption": "…shown only because SAM 3.1 found the building kept its shape. The surroundings are imagined"},
+    {"start": 303.4, "end": 312.0, "speed": 1, "caption": "The design in 3D, on the site's LiDAR terrain"},
+    {"start": 312.0, "end": 431.0, "speed": 10, "caption": "\"Move it as close to the street as the rules allow\": Muse revises, the evaluator checks again"},
+    {"start": 431.0, "end": 466.0, "speed": 4, "caption": "Passes at 2.10 m from the boundary (2 m required); Muse Image draws it again"},
+    {"start": 466.0, "end": 476.9, "speed": 1, "caption": "Before and after"}
+  ]
+}
