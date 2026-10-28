@@ -7,23 +7,34 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" next.config.ts eslint.config.mjs",
-    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" next.config.ts eslint.config.mjs"
+    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" next.config.ts eslint.config.mjs vitest.config.mts",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" next.config.ts eslint.config.mjs vitest.config.mts",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "next": "16.4.3",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "jsdom": "^30.1.3",
     "prettier": "^3.9.10",
     "tailwindcss": "^4",
-    "typescript": "^6"
+    "typescript": "^6",
+    "vitest": "^5.0.5"
   }
 }
