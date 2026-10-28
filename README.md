@@ -80,6 +80,7 @@ with `META_API_KEY`.
 
 Two experiments are run on the demo site from real model calls only. Their
 reports are written from the logged results, and nothing is filled in by hand.
+The reports and their logs are in [docs/results](docs/results/README.md).
 
 - **Experiment A: does Muse understand LiDAR?** (`button_nz.bench.lidar_qa`)
   - Objective questions about the terrain: which way a slope faces, the height
