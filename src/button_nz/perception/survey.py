@@ -26,7 +26,14 @@ from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.geometry import BBox
 from button_nz.geo.terrain import TerrainGrid
-from button_nz.perception.features import Feature, Mask, features, unlabelled
+from button_nz.perception.features import (
+    STRUCTURES,
+    Feature,
+    Mask,
+    Status,
+    features,
+    unlabelled,
+)
 
 SURVEY_FILE = "survey.geojson"
 SAME_IOU = 0.8  # two outlines this alike are one thing
@@ -66,10 +73,23 @@ def _distinct(labelled: Sequence[Feature]) -> list[Feature]:
         )
         if same is None:
             kept[n] = feature
-        elif feature.concept != kept[same].concept and feature.concept not in kept[same].note:
-            note = f"{kept[same].note} Also matched as a {feature.concept}."
-            kept[same] = replace(kept[same], note=note)
+        else:
+            kept[same] = _merged(kept[same], feature)
     return [kept[n] for n in sorted(kept)]
+
+
+def _merged(kept: Feature, other: Feature) -> Feature:
+    """``kept``, noting that ``other`` matched it too. If only one of them is a
+    structure, the score mustn't settle whether it's a building: a conflict."""
+    if other.concept == kept.concept or f"as a {other.concept}" in kept.note:
+        return kept
+    if (kept.concept in STRUCTURES) != (other.concept in STRUCTURES):
+        note = (
+            f"Matched as a {kept.concept} and as a {other.concept}, so it may or may not "
+            "be a building: please decide."
+        )
+        return replace(kept, status=Status.CONFLICT, note=note)
+    return replace(kept, note=f"{kept.note} Also matched as a {other.concept}.")
 
 
 def _iou(a: BaseGeometry, b: BaseGeometry) -> float:

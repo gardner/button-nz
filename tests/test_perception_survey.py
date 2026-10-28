@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 from shapely import box
 
 from button_nz.geo.terrain import TerrainGrid
+from button_nz.perception.confirm import Survey, undecided_buildings
 from button_nz.perception.features import Mask, Status
 from button_nz.perception.survey import (
     CONCEPTS,
@@ -114,3 +115,21 @@ def test_one_thing_matched_by_two_concepts_is_one_feature() -> None:
     shed, unlabelled = survey(both, AERIAL, GRID, BBOX, PIXEL_M)
     assert shed.concept == "shed" and "building" in shed.note
     assert unlabelled.status is Status.UNLABELLED
+
+
+def test_a_structure_outscored_by_something_else_is_left_to_the_owner() -> None:
+    """One outline matched as a car (0.85) and a shed (0.6): the score mustn't
+    decide whether it's a building. It's a conflict, so the owner must decide it
+    before saying every building is listed."""
+
+    def car_or_shed(rgb: NDArray[np.uint8], concept: str) -> list[Mask]:
+        pixels = np.zeros(rgb.shape[:2], dtype=bool)
+        pixels[5 * 4 : 9 * 4, 10 * 4 : 16 * 4] = True
+        score = {"car": 0.85, "shed": 0.6}.get(concept)
+        return [] if score is None else [Mask(concept, score, pixels)]
+
+    found = survey(car_or_shed, AERIAL, GRID, BBOX, PIXEL_M)
+    thing = found[0]
+    assert thing.status is Status.CONFLICT and "shed" in thing.note and "car" in thing.note
+    survey_ = Survey("s", to_geojson(found, {}))
+    assert "1" in undecided_buildings(survey_, {})
