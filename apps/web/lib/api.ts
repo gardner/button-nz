@@ -52,6 +52,8 @@ export interface Job {
   finishedAt: string | null;
   error: string | null;
   acceptedAttempt: number | null;
+  parentId: string | null; // the design this one revises, if it is a revision
+  instruction: string | null; // the owner's change to that design
   attempts: Attempt[];
 }
 
@@ -98,12 +100,25 @@ export async function createDesign(
   brief: string,
   allowObservations: boolean,
 ): Promise<Job> {
-  const body = JSON.stringify({ brief, allow_observations: allowObservations });
   return parseJob(
-    await request("/designs", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body,
+    await send("POST", "/designs", {
+      brief,
+      allow_observations: allowObservations,
+    }),
+  );
+}
+
+/** Ask for a change to design `id`, in the owner's words. The new job keeps
+ * its brief and starts from its accepted attempt; refused (409) if it has none. */
+export async function reviseDesign(
+  id: string,
+  instruction: string,
+  allowObservations: boolean,
+): Promise<Job> {
+  return parseJob(
+    await send("POST", `/designs/${encodeURIComponent(id)}/revisions`, {
+      instruction,
+      allow_observations: allowObservations,
     }),
   );
 }
@@ -124,7 +139,7 @@ export async function decideFeature(
   decision: Decision,
 ): Promise<SiteFeature> {
   return parseFeature(
-    await put(`/site/features/${encodeURIComponent(id)}`, {
+    await send("PUT", `/site/features/${encodeURIComponent(id)}`, {
       decision,
       survey_id: surveyId,
     }),
@@ -138,7 +153,7 @@ export async function setBuildingsComplete(
   complete: boolean,
 ): Promise<boolean> {
   const survey = record(
-    await put("/site/survey", {
+    await send("PUT", "/site/survey", {
       buildings_complete: complete,
       survey_id: surveyId,
     }),
@@ -147,9 +162,13 @@ export async function setBuildingsComplete(
   return flag(survey, "buildings_complete");
 }
 
-function put(path: string, body: object): Promise<unknown> {
+function send(
+  method: "POST" | "PUT",
+  path: string,
+  body: object,
+): Promise<unknown> {
   return request(path, {
-    method: "PUT",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -186,6 +205,8 @@ export function parseJob(raw: unknown): Job {
     finishedAt: optional(job, "finished_at", text),
     error: optional(job, "error", text),
     acceptedAttempt: optional(job, "accepted_attempt", number),
+    parentId: optional(job, "parent_id", text),
+    instruction: optional(job, "instruction", text),
     attempts: list(job, "attempts").map(parseAttempt),
   };
 }

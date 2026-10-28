@@ -10,6 +10,8 @@ export const JOB = {
   finished_at: "2026-10-28T09:03:00Z",
   error: null,
   accepted_attempt: 2,
+  parent_id: null, // an original design, not a revision of one
+  instruction: null,
   attempts: [
     {
       number: 1,
