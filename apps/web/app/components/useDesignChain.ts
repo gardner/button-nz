@@ -10,6 +10,10 @@ import {
   reviseDesign,
 } from "@/lib/api";
 
+/** How many more times to look for an accepted design's AI visual while the
+ * API says it is being made (about 30 s; it gives up within ~3 min). */
+const VISUAL_POLLS = 90;
+
 /** The designs made on this page: an original, then each revision in the
  * order it was asked for. The newest is polled until it is done or failed.
  * A transient poll failure is shown and retried; a permanent one (the API no
@@ -23,15 +27,20 @@ export function useDesignChain(pollMs: number) {
   const [submitting, setSubmitting] = useState(false);
   const starting = useRef(false); // guards clicks before the re-render disables the forms
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
+  const [visualPolls, setVisualPolls] = useState(0);
   const newest = chain.at(-1);
   const active =
-    !lost && (newest?.status === "queued" || newest?.status === "running");
+    !lost &&
+    (newest?.status === "queued" ||
+      newest?.status === "running" ||
+      (newest?.illustrating === true && visualPolls < VISUAL_POLLS));
   useEffect(() => {
     if (!active || newest === undefined) return;
     const timer = setTimeout(() => {
       getDesign(newest.id).then(
         (next) => {
           setProblem(null);
+          if (next.status === "done") setVisualPolls((n) => n + 1);
           setChain((jobs) => jobs.map((j) => (j.id === next.id ? next : j)));
         },
         (e: Error) => {

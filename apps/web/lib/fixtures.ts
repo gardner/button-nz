@@ -12,6 +12,7 @@ export const JOB = {
   accepted_attempt: 2,
   parent_id: null, // an original design, not a revision of one
   instruction: null,
+  illustrating: false, // no AI visual still to come
   attempts: [
     {
       number: 1,

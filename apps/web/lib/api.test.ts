@@ -53,6 +53,7 @@ describe("parseJob", () => {
     [{ ...JOB, attempts: [{ number: "1" }] }],
     [{ ...JOB, id: 7 }],
     [{ ...JOB, parent_id: 7 }],
+    [{ ...JOB, illustrating: "yes" }],
     [{ ...JOB, instruction: undefined }],
     [null],
   ])("rejects a malformed job", (raw) => {

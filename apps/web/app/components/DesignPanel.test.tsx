@@ -94,6 +94,33 @@ describe("DesignPanel", () => {
     expect(screen.queryByAltText("AI illustration of attempt 1")).toBeNull();
   });
 
+  it("keeps looking for the AI illustration after the design is done", async () => {
+    const withVisual = {
+      ...ACCEPTED_ATTEMPT,
+      files: {
+        ...ACCEPTED_ATTEMPT.files,
+        "visual.json": "/designs/abc123/attempts/2/visual.json",
+        "visual.png": "/designs/abc123/attempts/2/visual.png",
+      },
+    };
+    const fetch = serve(
+      // done; the API says the visual is still being made
+      {
+        ...JOB,
+        illustrating: true,
+        attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+      },
+      { ...JOB, attempts: [FAILED_ATTEMPT, withVisual] },
+    );
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    expect(
+      await screen.findByAltText("AI illustration of attempt 2"),
+    ).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetch).toHaveBeenCalledTimes(2); // then it stops: visual.json says how it went
+  });
+
   it("says why a job failed, in the API's words", async () => {
     serve(
       { ...JOB, status: "queued", accepted_attempt: null, attempts: [] },

@@ -55,6 +55,7 @@ export interface Job {
   parentId: string | null; // the design this one revises, if it is a revision
   instruction: string | null; // the owner's change to that design
   attempts: Attempt[];
+  illustrating: boolean; // done, and its AI visual is still being made
 }
 
 export type Point = [number, number]; // NZTM (EPSG:2193) metres
@@ -214,6 +215,7 @@ export function parseJob(raw: unknown): Job {
     parentId: optional(job, "parent_id", text),
     instruction: optional(job, "instruction", text),
     attempts: list(job, "attempts").map(parseAttempt),
+    illustrating: flag(job, "illustrating"),
   };
 }
 
