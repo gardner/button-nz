@@ -121,6 +121,81 @@ describe("DesignPanel", () => {
     expect(fetch).toHaveBeenCalledTimes(2); // then it stops: visual.json says how it went
   });
 
+  it("leaves the forms usable while the visual is being made", async () => {
+    serve(
+      {
+        ...JOB,
+        illustrating: true,
+        attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+      },
+      {
+        ...JOB,
+        illustrating: true,
+        attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+      },
+    );
+    render(<DesignPanel pollMs={50} />);
+    await brief();
+    await userEvent.type(
+      await screen.findByLabelText("Change this design"),
+      "Move it back.",
+    );
+    expect(screen.getByRole("button", { name: "Revise" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(screen.getByRole("button", { name: "Design" })).toHaveProperty(
+      "disabled",
+      false,
+    );
+  });
+
+  it("gives each design its own wait for a visual", async () => {
+    const other = { ...JOB, id: "def456" };
+    const withVisual = {
+      ...ACCEPTED_ATTEMPT,
+      files: {
+        ...ACCEPTED_ATTEMPT.files,
+        "visual.json": "/designs/def456/attempts/2/visual.json",
+        "visual.png": "/designs/def456/attempts/2/visual.png",
+      },
+    };
+    let stuckPolls = 0;
+    const stuck = {
+      ...JOB,
+      illustrating: true,
+      attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+    };
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        const first =
+          fetch.mock.calls.filter(([, i]) => i?.method === "POST").length === 1;
+        return respond(
+          first
+            ? stuck
+            : {
+                ...other,
+                illustrating: true,
+                attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+              },
+        );
+      }
+      if (url.includes("abc123")) {
+        stuckPolls += 1; // its visual never comes: the server stopped mid-visual
+        return respond(stuck);
+      }
+      return respond({ ...other, attempts: [FAILED_ATTEMPT, withVisual] });
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={1} />);
+    await brief();
+    await vi.waitFor(() => expect(stuckPolls).toBe(90), { timeout: 5000 });
+    await userEvent.click(screen.getByRole("button", { name: "Design" }));
+    expect(
+      await screen.findByAltText("AI illustration of attempt 2"),
+    ).toBeTruthy();
+  });
+
   it("says why a job failed, in the API's words", async () => {
     serve(
       { ...JOB, status: "queued", accepted_attempt: null, attempts: [] },
