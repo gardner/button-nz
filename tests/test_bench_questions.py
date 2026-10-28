@@ -8,7 +8,7 @@ import pytest
 from numpy.typing import NDArray
 
 from button_nz.agent.site import DesignSite
-from button_nz.bench.questions import Question, generate, score
+from button_nz.bench.questions import Mark, Question, _mean_slope, _Terrain, generate, score  # pyright: ignore[reportPrivateUsage]
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
@@ -107,3 +107,15 @@ def test_numeric_answers_are_rounded_for_asking() -> None:
     for q in generate(plane(0.1, 0.0), per_kind=3, seed=8):
         if isinstance(q.answer, float):
             assert math.isfinite(q.answer)
+
+
+def test_steepness_averages_slope_angles_as_the_views_report_them() -> None:
+    """Mean of per-sample degrees (as inspect_elevation's mean_slope_deg), not atan of
+    the mean grade: they rank a square of mixed flat and steep ground differently."""
+    x, _ = centres()
+    dem = 100.0 + 1.5 * np.clip(x - 40.0, 0.0, 2.0)  # a steep 2 m band
+    terrain = _Terrain(site(dem))
+    square = Mark("1", 5.0, 0.0, 2.5)  # local x 2.5..7.5 covers NZTM 37.5..42.5
+    grades = [math.hypot(*terrain.gradient(x, y)) for x, y in terrain.lattice(square)]
+    expected = sum(math.degrees(math.atan(g)) for g in grades) / len(grades)
+    assert _mean_slope(terrain, square) == pytest.approx(expected)

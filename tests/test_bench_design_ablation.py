@@ -121,8 +121,15 @@ class Always:
 
 def test_an_attempt_the_evaluator_rejected_still_executed(site: DesignSite, tmp_path: Path) -> None:
     """Built and measured, then rejected (off the terrain): it ran, and is labelled so."""
-    (result,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("off"), tmp_path, fake_runner)
+    off, broke = tmp_path / "off", tmp_path / "broken"
+    (result,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("off"), off, fake_runner)
     assert result.executed == 1
     assert result.verdicts == ("rejected",)
-    (broken,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("broken"), tmp_path, fake_runner)
+    (broken,) = run(["A studio."], CONDITIONS[:1], 1, site, Always("broken"), broke, fake_runner)
     assert broken.executed == 0 and broken.verdicts == ("error",)
+
+
+def test_an_output_directory_holds_one_run(site: DesignSite, tmp_path: Path) -> None:
+    run(["A studio."], CONDITIONS[:1], 1, site, Always("good"), tmp_path, fake_runner)
+    with pytest.raises(FileExistsError, match="already"):
+        run(["A studio."], CONDITIONS[:1], 1, site, Always("good"), tmp_path, fake_runner)

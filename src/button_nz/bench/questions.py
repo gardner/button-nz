@@ -199,8 +199,13 @@ def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
 
 
 def _mean_slope(terrain: _Terrain, mark: Mark) -> float:
-    grades = [math.hypot(*terrain.gradient(x, y)) for x, y in terrain.lattice(mark)]
-    return math.degrees(math.atan(sum(grades) / len(grades)))
+    """The mean of the slope angles in the square, the statistic the model's
+    views report (inspect_elevation's mean_slope_deg), not atan of the mean grade."""
+    angles = [
+        math.degrees(math.atan(math.hypot(*terrain.gradient(x, y))))
+        for x, y in terrain.lattice(mark)
+    ]
+    return sum(angles) / len(angles)
 
 
 def _overlap(m: Mark, n: Mark) -> bool:

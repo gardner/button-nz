@@ -74,8 +74,10 @@ def run(
     runner: Runner = run_design,
 ) -> list[RunResult]:
     out_dir.mkdir(parents=True, exist_ok=True)
+    if (out_dir / "results.jsonl").exists():  # one run per directory: no mixed results
+        raise FileExistsError(f"{out_dir} already holds results; use a new directory")
     results: list[RunResult] = []
-    with (out_dir / "results.jsonl").open("a", encoding="utf-8") as log:
+    with (out_dir / "results.jsonl").open("x", encoding="utf-8") as log:
         for b, brief in enumerate(briefs):
             for condition in conditions:
                 for repeat in range(repeats):

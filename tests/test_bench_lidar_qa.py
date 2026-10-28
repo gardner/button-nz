@@ -133,3 +133,11 @@ def test_the_report_states_method_sample_sizes_and_failures() -> None:
     assert "muse-spark-1.3" in text and "seed 7" in text
     assert "| aerial | 2 | 1 | 50% |" in text
     assert "relief-1" in text  # the failure is listed
+
+
+def test_an_output_directory_holds_one_run(
+    site: DesignSite, aerial: NDArray[np.uint8], tmp_path: Path
+) -> None:
+    run([ASPECT], ["aerial"], site, aerial, Scripted("W"), tmp_path)
+    with pytest.raises(FileExistsError, match="already"):
+        run([ASPECT], ["aerial"], site, aerial, Scripted("W"), tmp_path)
