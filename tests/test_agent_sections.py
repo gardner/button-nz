@@ -4,7 +4,7 @@ a triangle mesh."""
 import pytest
 from shapely import Polygon
 
-from button_nz.agent.sections import outline, section
+from button_nz.agent.sections import outline, outline_above, section
 from meshes import box
 
 
@@ -39,3 +39,11 @@ def test_two_boxes_side_by_side_give_two_parts() -> None:
     cut = section(box(0, 0, 0, 2, 2, 2) + box(5, 0, 0, 7, 2, 2), 1.0)
     assert cut.area == pytest.approx(8.0)
     assert len(getattr(cut, "geoms", [cut])) == 2
+
+
+def test_the_outline_above_a_height_clips_triangles_that_cross_it() -> None:
+    """A triangle from z 0 to 2 contributes only its part above z 1."""
+    slope = [[[0.0, 0.0, 0.0], [4.0, 0.0, 0.0], [0.0, 0.0, 2.0]]]  # vertical: no area above
+    tilted = [[[0.0, 0.0, 0.0], [4.0, 0.0, 0.0], [0.0, 4.0, 2.0]]]
+    assert outline_above(slope, 1.0).area == pytest.approx(0.0)
+    assert outline_above(tilted, 1.0).area == pytest.approx(2.0)  # the top quarter of 8 m²

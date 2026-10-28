@@ -23,6 +23,27 @@ def outline(triangles: Sequence[Triangle]) -> BaseGeometry:
     return union_all([s for s in shadows if s.is_valid and s.area > MIN_AREA_M2])
 
 
+def outline_above(triangles: Sequence[Triangle], z: float) -> BaseGeometry:
+    """What the mesh covers above height ``z``, seen from above: each triangle
+    clipped at ``z`` (a roof slope reaching the floor still counts above it)."""
+    shadows = [Polygon(part) for t in triangles if len(part := _clip_above(t, z)) >= 3]
+    return union_all([s for s in shadows if s.is_valid and s.area > MIN_AREA_M2])
+
+
+def _clip_above(triangle: Triangle, z: float) -> list[tuple[float, float]]:
+    """The XY outline of the part of ``triangle`` at or above ``z``
+    (Sutherland-Hodgman against the plane)."""
+    kept: list[tuple[float, float]] = []
+    for i in range(3):
+        a, b = triangle[i], triangle[(i + 1) % 3]
+        if a[2] >= z:
+            kept.append((a[0], a[1]))
+        if (a[2] >= z) != (b[2] >= z):
+            s = (z - a[2]) / (b[2] - a[2])
+            kept.append((a[0] + s * (b[0] - a[0]), a[1] + s * (b[1] - a[1])))
+    return kept
+
+
 def section(triangles: Sequence[Triangle], z: float) -> BaseGeometry:
     """The area the mesh encloses at height ``z`` (empty if it isn't closed there)."""
     segments = [cut for t in triangles if (cut := _cut(t, z)) is not None]

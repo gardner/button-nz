@@ -70,7 +70,7 @@ class Sandbox:
             args += ["--ro-bind-try", path, path]
         for link, target in SYSTEM_LINKS:
             args += ["--symlink", target, link]
-        for node in _gpu_nodes():  # a private /dev, with only these bound back
+        for node in _gpu_nodes() if self.renders else []:  # a private /dev; the GPU to render
             args += ["--dev-bind-try", node, node]
         for path in ("/dev/shm", "/tmp", "/run", str(Path.home())):
             args += ["--size", str(TMPFS_BYTES), "--tmpfs", path]

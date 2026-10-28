@@ -32,6 +32,7 @@ b: Any = bpy  # no type stubs inside Blender
 build_scene: Any = _build_scene
 design_io: Any = _design_io
 MAX_TRIANGLES = 200_000
+DWELLING_RGBA = (0.82, 0.74, 0.6, 1.0)  # rendered opaque, whatever material the script gave
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
     "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
@@ -73,6 +74,10 @@ def _show(dwelling: Any) -> None:
     dwelling.hide_render = False
     dwelling.hide_viewport = False
     dwelling.visible_camera = True
+    dwelling.data.materials.clear()  # a material can't hide it (e.g. Transparent BSDF)
+    dwelling.data.materials.append(build_scene.material("Dwelling", DWELLING_RGBA))
+    for polygon in dwelling.data.polygons:
+        polygon.material_index = 0
     for modifier in dwelling.modifiers:
         modifier.show_viewport = modifier.show_render
         if hasattr(modifier, "render_levels"):  # subdivision and multires

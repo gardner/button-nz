@@ -18,7 +18,7 @@ from typing import Any, cast
 from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.agent.sections import Triangle, outline, section
+from button_nz.agent.sections import Triangle, outline, outline_above, section
 from button_nz.evaluation import Proposal
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -107,8 +107,9 @@ def _check_envelope(triangles: list[Triangle], enclosed: Polygon, z_min: float, 
             "breaks their outline. Model the Dwelling as a solid envelope, with no doors "
             "or windows cut through it."
         )
-    above = [tri for tri in triangles if min(p[2] for p in tri) >= z_min + cut]
-    if outline(above).intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
+    if outline_above(triangles, z_min + cut).intersection(enclosed).area < (
+        MIN_FLOOR_COVER * enclosed.area
+    ):
         raise DesignError("The Dwelling has no roof over its walls: close the envelope at the top.")
 
 

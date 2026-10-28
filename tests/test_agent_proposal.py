@@ -185,3 +185,24 @@ def test_an_opening_too_wide_to_bridge_is_still_caught() -> None:
     wide = _hollow_house(door=True, door_x=4.0, door_width=3.0)
     with pytest.raises(DesignError, match="solid"):
         parse_measurements(measured_with(wide))
+
+
+def _a_frame(width: float, length: float, ridge: float) -> list[list[list[float]]]:
+    """A triangular prism along y: two roof slopes from the floor to the ridge."""
+    a, b, c = [0.0, 0.0, 0.0], [width, 0.0, 0.0], [width / 2, 0.0, ridge]
+    d, e, f = [0.0, length, 0.0], [width, length, 0.0], [width / 2, length, ridge]
+    return [
+        [a, b, c],
+        [d, f, e],  # gable ends
+        [a, d, e],
+        [a, e, b],  # floor
+        [a, c, f],
+        [a, f, d],  # west slope
+        [b, e, f],
+        [b, f, c],  # east slope
+    ]
+
+
+def test_an_a_frame_is_a_closed_envelope() -> None:
+    measured = parse_measurements(measured_with(_a_frame(7.0, 9.0, 3.9)))
+    assert measured.footprint is not None

@@ -408,3 +408,28 @@ def test_geometry_that_differs_in_the_render_is_feedback(tmp_path: Path, scene: 
     )
     out = run_design(scene, BOX + nodes, tmp_path)
     assert "Is Viewport" in str(out.measurements["error"])
+
+
+def test_a_transparent_dwelling_is_still_rendered(tmp_path: Path, scene: SceneInput) -> None:
+    """The render uses a trusted opaque material: what is checked is what is shown."""
+    glass = (
+        "mat = bpy.data.materials.new('invisible')\n"
+        "mat.use_nodes = True\n"
+        "nodes = mat.node_tree.nodes\n"
+        "nodes.remove(nodes['Principled BSDF'])\n"
+        "clear = nodes.new('ShaderNodeBsdfTransparent')\n"
+        "mat.node_tree.links.new(clear.outputs[0], nodes['Material Output'].inputs[0])\n"
+        "dwelling.data.materials.append(mat)\n"
+    )
+    shown = run_design(scene, BOX, tmp_path / "shown")
+    hidden = run_design(scene, BOX + glass, tmp_path / "hidden")
+    assert shown.png is not None and hidden.png is not None
+    assert np.abs(_pixels(shown.png) - _pixels(hidden.png)).mean() < 2.0
+
+
+def test_the_script_gets_no_gpu(tmp_path: Path, scene: SceneInput) -> None:
+    probe = (
+        "import glob\nraise SystemExit(repr(glob.glob('/dev/nvidia*') + glob.glob('/dev/dri')))\n"
+    )
+    out = run_design(scene, probe, tmp_path)
+    assert "[]" in str(out.measurements["error"])
