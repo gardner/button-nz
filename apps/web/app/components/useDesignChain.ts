@@ -10,29 +10,15 @@ import {
   reviseDesign,
 } from "@/lib/api";
 
-/** How many more times to look for an accepted design's AI visual while the
- * API says it is being made (about 30 s; it gives up within ~3 min). */
-const VISUAL_POLLS = 90;
-
-/** Whether `newest` is still being designed (`working`, which holds up the
- * forms), and whether to poll it (`active`): also while its visual is being
- * made, until `spent` polls use up its budget. Looking for a visual doesn't
- * hold up the forms: the design is already usable. */
-function following(newest: Job | undefined, lost: boolean, spent: number) {
-  const working =
-    !lost && (newest?.status === "queued" || newest?.status === "running");
-  const looking =
-    !lost && newest?.illustrating === true && spent < VISUAL_POLLS;
-  return { working, active: working || looking };
-}
+import { useVisuals } from "./useVisuals";
 
 /** The designs made on this page: an original, then each revision in the
  * order it was asked for. The newest is polled until it is done or failed.
  * A transient poll failure is shown and retried; a permanent one (the API no
  * longer has the job) stops polling. One design is started at a time.
- * The design shown is the newest unless an earlier step is selected. A done
- * job is polled a while longer if its AI visual is still being made; the
- * forms stay usable meanwhile. */
+ * The design shown is the newest unless an earlier step is selected. AI
+ * visuals still being made are followed separately (`useVisuals`), and the
+ * forms don't wait for them. */
 export function useDesignChain(pollMs: number) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -41,22 +27,16 @@ export function useDesignChain(pollMs: number) {
   const [submitting, setSubmitting] = useState(false);
   const starting = useRef(false); // guards clicks before the re-render disables the forms
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
-  // Polls spent looking for a done job's visual: each job has its own budget.
-  const [visualPolls, setVisualPolls] = useState({ id: "", n: 0 });
   const newest = chain.at(-1);
-  const spent = visualPolls.id === newest?.id ? visualPolls.n : 0;
-  const { working, active } = following(newest, lost, spent);
+  const working =
+    !lost && (newest?.status === "queued" || newest?.status === "running");
+  useVisuals(chain, setChain, pollMs);
   useEffect(() => {
-    if (!active || newest === undefined) return;
+    if (!working || newest === undefined) return;
     const timer = setTimeout(() => {
       getDesign(newest.id).then(
         (next) => {
           setProblem(null);
-          if (next.status === "done")
-            setVisualPolls((p) => ({
-              id: next.id,
-              n: p.id === next.id ? p.n + 1 : 1,
-            }));
           setChain((jobs) => jobs.map((j) => (j.id === next.id ? next : j)));
         },
         (e: Error) => {
@@ -67,7 +47,7 @@ export function useDesignChain(pollMs: number) {
       );
     }, pollMs);
     return () => clearTimeout(timer);
-  }, [active, newest, pollMs, retries]);
+  }, [working, newest, pollMs, retries]);
 
   /** Send `request` unless one is already on its way; `follow` adds the job
    * it returns to the chain. */

@@ -190,6 +190,49 @@ describe("revising a design", () => {
     expect(screen.getByAltText(/^Before/)).toBeTruthy();
   });
 
+  it("still shows a design's visual when it was revised before the visual came", async () => {
+    const drawn = {
+      ...ORIGINAL,
+      attempts: [
+        JOB.attempts[0],
+        {
+          ...attempt("abc123", 2, "unknown"),
+          files: {
+            ...attempt("abc123", 2, "unknown").files,
+            "visual.json": "/designs/abc123/attempts/2/visual.json",
+            "visual.png": "/designs/abc123/attempts/2/visual.png",
+          },
+        },
+      ],
+    };
+    let revised = false; // the original's visual comes only after it is revised
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        revised = url.endsWith("/revisions");
+        return respond(revised ? MOVED : { ...ORIGINAL, illustrating: true });
+      }
+      if (url.includes("abc123"))
+        return respond(revised ? drawn : { ...ORIGINAL, illustrating: true });
+      return respond(MOVED);
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await design();
+    await revise(MOVE); // straight away, while the original's visual is being made
+    await screen.findByAltText(/^After/);
+    await vi.waitFor(() =>
+      expect(
+        fetch.mock.calls.some(([u, i]) => !i && String(u).includes("abc123")),
+      ).toBe(true),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /A small studio\./ }),
+    );
+    expect(
+      await screen.findByAltText("AI illustration of attempt 2"),
+    ).toBeTruthy();
+  });
+
   it("follows one design at a time", async () => {
     serve(ORIGINAL, { ...MOVED, status: "queued", attempts: [] });
     render(<DesignPanel pollMs={5} />);
