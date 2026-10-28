@@ -17,6 +17,7 @@ from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
+from button_nz.perception.confirm import Decision, Survey, confirmed
 
 log = logging.getLogger(__name__)
 
@@ -30,9 +31,11 @@ class Worker:
         runs_dir: Path,
         runner: Runner = run_design,
         max_attempts: int = 3,
+        survey: Path | None = None,
     ) -> None:
         self.store = store
         self.site = cache(site)  # read the terrain once, on the first job
+        self.survey = survey  # its confirmed features are read afresh for each job
         self.model = model
         self.runs_dir = runs_dir
         self.runner = runner
@@ -104,7 +107,7 @@ class Worker:
 
         result = design(
             job.brief,
-            self.site(),
+            self._confirmed_site(),
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
@@ -114,6 +117,15 @@ class Worker:
             revising=self._revising(job),
         )
         return None if result.accepted is None else result.accepted.number
+
+    def _confirmed_site(self) -> DesignSite:
+        """The site with what a person has confirmed on the survey, if any."""
+        survey = None if self.survey is None else Survey.read(self.survey)
+        if survey is None:
+            return self.site()
+        decisions = {k: Decision(v) for k, v in self.store.decisions(survey.id).items()}
+        complete = self.store.buildings_complete(survey.id)
+        return confirmed(self.site(), survey, decisions, complete)
 
 
 def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:
