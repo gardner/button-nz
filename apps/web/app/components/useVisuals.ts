@@ -1,6 +1,12 @@
 "use client";
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { type Job, getDesign } from "@/lib/api";
 
@@ -18,6 +24,7 @@ export function useVisuals(
   pollMs: number,
 ) {
   const [polls, setPolls] = useState<Record<string, number>>({});
+  const looking = useRef(new Set<string>()); // jobs with a look on its way
   const waiting = chain
     .filter((j) => j.illustrating && (polls[j.id] ?? 0) < VISUAL_POLLS)
     .map((j) => j.id)
@@ -25,20 +32,23 @@ export function useVisuals(
   useEffect(() => {
     if (waiting === "") return;
     const timer = setTimeout(() => {
-      const ids = waiting.split(",");
-      setPolls((spent) => {
-        const next = { ...spent };
-        for (const id of ids) next[id] = (spent[id] ?? 0) + 1;
-        return next;
-      });
-      for (const id of ids) {
-        getDesign(id).then(
-          (fresh) =>
-            setChain((jobs) =>
-              jobs.map((j) => (j.id === fresh.id ? fresh : j)),
-            ),
-          () => undefined, // counted above; the design itself is already shown
-        );
+      // One look per job at a time, counted when it settles: a slow API can't
+      // spend the budget at once, or answer out of order.
+      for (const id of waiting.split(",")) {
+        if (looking.current.has(id)) continue;
+        looking.current.add(id);
+        getDesign(id)
+          .then(
+            (fresh) =>
+              setChain((jobs) =>
+                jobs.map((j) => (j.id === fresh.id ? fresh : j)),
+              ),
+            () => undefined, // counted below; the design itself is already shown
+          )
+          .finally(() => {
+            looking.current.delete(id);
+            setPolls((spent) => ({ ...spent, [id]: (spent[id] ?? 0) + 1 }));
+          });
       }
     }, pollMs);
     return () => clearTimeout(timer);

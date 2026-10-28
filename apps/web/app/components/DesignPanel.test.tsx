@@ -196,6 +196,37 @@ describe("DesignPanel", () => {
     ).toBeTruthy();
   });
 
+  it("waits for one look at a visual to finish before the next", async () => {
+    let release: (r: Response) => void = () => undefined;
+    let looks = 0;
+    const fetch = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === "POST")
+        return Promise.resolve(
+          respond({
+            ...JOB,
+            illustrating: true,
+            attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+          }),
+        );
+      looks += 1; // a slow API: this look hangs until released
+      return new Promise<Response>((resolve) => (release = resolve));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={1} />);
+    await brief();
+    await vi.waitFor(() => expect(looks).toBe(1));
+    await new Promise((r) => setTimeout(r, 50)); // many poll intervals
+    expect(looks).toBe(1);
+    release(
+      respond({
+        ...JOB,
+        illustrating: true,
+        attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT],
+      }),
+    );
+    await vi.waitFor(() => expect(looks).toBe(2));
+  });
+
   it("says why a job failed, in the API's words", async () => {
     serve(
       { ...JOB, status: "queued", accepted_attempt: null, attempts: [] },
