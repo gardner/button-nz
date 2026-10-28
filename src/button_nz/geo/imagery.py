@@ -1,8 +1,9 @@
 """Aerial photographs of a site: an RGB crop of NZTM image tiles, resampled to
 a chosen pixel size so it lines up with the LiDAR views of the same bbox.
 
-A bbox may span several tiles; each pixel comes from the one tile covering
-it. Every pixel must be covered: nothing is padded or invented at the edges.
+A bbox may span several tiles; each pixel comes from the first tile with a
+valid pixel there (nodata, alpha and mask holes don't count). Every pixel must
+be covered: nothing is padded or invented at the edges.
 """
 
 from collections.abc import Sequence
@@ -46,8 +47,15 @@ def read_aerial(assets: Sequence[str], bbox: BBox, pixel_m: float) -> NDArray[np
                     resampling=rio.enums.Resampling.bilinear,
                 ),
             )
-        out[r0:r1, c0:c1] = np.moveaxis(data, 0, -1)
-        covered[r0:r1, c0:c1] = True
+            # Only the tile's valid pixels (not nodata, alpha or mask holes) cover.
+            mask = image.dataset_mask(
+                window=window,
+                out_shape=(r1 - r0, c1 - c0),
+                resampling=rio.enums.Resampling.nearest,
+            )
+        fill = (np.asarray(mask) > 0) & ~covered[r0:r1, c0:c1]
+        out[r0:r1, c0:c1][fill] = np.moveaxis(data, 0, -1)[fill]
+        covered[r0:r1, c0:c1] |= fill
     if not covered.all():
         raise ValueError(f"{bbox} is not covered by {list(assets)}")
     return out

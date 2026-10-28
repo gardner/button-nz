@@ -49,7 +49,7 @@ def pixels(png: bytes) -> NDArray[np.uint8]:
         ("aerial", 1),
         ("aerial_contours", 2),
         ("aerial_ndsm_slope", 3),
-        ("fixed_all", 5),
+        ("fixed_all", 6),
         ("agent", 1),
     ],
 )

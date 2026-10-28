@@ -20,6 +20,7 @@ def _write(
     crs: int = 2193,
     pixel_m: float = 0.5,
     left: float = LEFT,
+    nodata: int | None = None,
 ) -> str:
     profile: dict[str, Any] = {
         "driver": "GTiff",
@@ -30,6 +31,8 @@ def _write(
         "crs": f"EPSG:{crs}",
         "transform": rio.transform.from_origin(left, TOP, pixel_m, pixel_m),
     }
+    if nodata is not None:
+        profile["nodata"] = nodata
     with rio.open(path, "w", **profile) as dst:
         dst.write(rgb)
     return str(path)
@@ -92,3 +95,16 @@ def test_neighbouring_tiles_are_joined(tmp_path: Path) -> None:
 def test_a_bbox_only_partly_covered_by_the_tiles_raises(aerial: str) -> None:
     with pytest.raises(ValueError, match="not covered"):
         read_aerial([aerial], (1090.0, 1950.0, 1110.0, 1960.0), pixel_m=0.5)
+
+
+def test_nodata_pixels_are_not_coverage(tmp_path: Path) -> None:
+    """A hole in a tile is filled from another tile, or the read fails."""
+    holed = np.full((3, 200, 200), 90, dtype=np.uint8)
+    holed[:, :, 150:] = 0  # the east quarter is nodata
+    under = np.full((3, 200, 200), 200, dtype=np.uint8)
+    bbox = (1060.0, 1950.0, 1090.0, 1960.0)
+    holes = _write(tmp_path / "holed.tif", holed, nodata=0)
+    with pytest.raises(ValueError, match="not covered"):
+        read_aerial([holes], bbox, pixel_m=0.5)
+    filled = read_aerial([holes, _write(tmp_path / "under.tif", under)], bbox, pixel_m=0.5)
+    assert filled[:, :30].max() == 90 and filled[:, 30:].min() == 200

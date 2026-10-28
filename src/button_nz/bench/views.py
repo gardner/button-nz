@@ -1,6 +1,6 @@
 """What the model sees under each Experiment A condition (plan §11): the aerial
 photograph alone, with contours, with nDSM and slope maps, or with every fixed
-map (``fixed_all``: hillshade, contours, nDSM, slope); or the aerial plus the
+map (``fixed_all``: hillshade, contours, nDSM, slope, normals); or the aerial plus the
 observation tools it can call itself (``agent``). ``fixed_all`` against
 ``agent`` separates choosing views from merely having them.
 
@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw
 
 from button_nz.agent.site import DesignSite
 from button_nz.bench.questions import Mark, Question
-from button_nz.lidar import View, contours, hillshade, ndsm_map, slope_map
+from button_nz.lidar import View, contours, hillshade, ndsm_map, normal_map, slope_map
 
 CONDITIONS = ("aerial", "aerial_contours", "aerial_ndsm_slope", "fixed_all", "agent")
 SCALE = 8  # pixels per metre, as the agent's observation views
@@ -47,6 +47,7 @@ def condition_images(
             contours(grid, CONTOUR_INTERVAL_M, SCALE),
             ndsm_map(grid, SCALE),
             slope_map(grid, SCALE),
+            normal_map(grid, SCALE),
         ]
     elif condition not in CONDITIONS:
         raise ValueError(f"unknown condition {condition!r}")
