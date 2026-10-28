@@ -1,4 +1,5 @@
-"""Durable design jobs and their attempts, in SQLite.
+"""Durable design jobs and their attempts, and a person's decisions about
+surveyed site features, in SQLite.
 
 A job moves queued -> running -> done | failed, and only along those edges: a
 finished job can't be restarted and a queued one can't be marked done. On
@@ -37,6 +38,18 @@ CREATE TABLE IF NOT EXISTS attempts (
     feedback TEXT NOT NULL,
     observations TEXT NOT NULL,
     PRIMARY KEY (job_id, number)
+);
+CREATE TABLE IF NOT EXISTS decisions (
+    survey_id TEXT NOT NULL,
+    feature_id TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    decided_at TEXT NOT NULL,
+    PRIMARY KEY (survey_id, feature_id)
+);
+CREATE TABLE IF NOT EXISTS surveys (
+    survey_id TEXT PRIMARY KEY,
+    buildings_complete INTEGER NOT NULL,
+    decided_at TEXT NOT NULL
 );
 """
 
@@ -179,6 +192,42 @@ class Store:
             )
             for row in rows
         )
+
+    def decide(self, survey_id: str, feature_id: str, decision: str) -> None:
+        """Record (or change) the decision about a feature of a survey."""
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO decisions (survey_id, feature_id, decision, decided_at) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT (survey_id, feature_id) "
+                "DO UPDATE SET decision = excluded.decision, decided_at = excluded.decided_at",
+                (survey_id, feature_id, decision, _now()),
+            )
+
+    def decisions(self, survey_id: str) -> dict[str, str]:
+        """Every decision made on a survey, by feature id."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT feature_id, decision FROM decisions WHERE survey_id = ?", (survey_id,)
+            ).fetchall()
+        return {row["feature_id"]: row["decision"] for row in rows}
+
+    def set_buildings_complete(self, survey_id: str, complete: bool) -> None:
+        """Record whether the person says a survey's buildings are all listed."""
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO surveys (survey_id, buildings_complete, decided_at) "
+                "VALUES (?, ?, ?) ON CONFLICT (survey_id) DO UPDATE SET "
+                "buildings_complete = excluded.buildings_complete, "
+                "decided_at = excluded.decided_at",
+                (survey_id, int(complete), _now()),
+            )
+
+    def buildings_complete(self, survey_id: str) -> bool:
+        with self._db() as db:
+            row = db.execute(
+                "SELECT buildings_complete FROM surveys WHERE survey_id = ?", (survey_id,)
+            ).fetchone()
+        return row is not None and bool(row["buildings_complete"])
 
     def _move(
         self,

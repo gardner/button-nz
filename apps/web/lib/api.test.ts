@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   createDesign,
+  decideFeature,
   getDesign,
+  getFeatures,
   getSite,
   parseJob,
   parseSite,
+  reviseDesign,
+  setBuildingsComplete,
 } from "./api";
-import { JOB } from "./fixtures";
+import { JOB, SURVEY } from "./fixtures";
 
 function respond(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -30,12 +34,26 @@ describe("parseJob", () => {
     expect(job.attempts[0].files["design.png"]).toBe(
       "/api/designs/abc123/attempts/1/design.png",
     );
+    expect(job.parentId).toBeNull();
+    expect(job.instruction).toBeNull();
+  });
+
+  it("reads which design a revision changes, and how", () => {
+    const job = parseJob({
+      ...JOB,
+      parent_id: "xyz789",
+      instruction: "Move it 3 m further from the street.",
+    });
+    expect(job.parentId).toBe("xyz789");
+    expect(job.instruction).toBe("Move it 3 m further from the street.");
   });
 
   it.each([
     [{ ...JOB, status: "paused" }],
     [{ ...JOB, attempts: [{ number: "1" }] }],
     [{ ...JOB, id: 7 }],
+    [{ ...JOB, parent_id: 7 }],
+    [{ ...JOB, instruction: undefined }],
     [null],
   ])("rejects a malformed job", (raw) => {
     expect(() => parseJob(raw)).toThrow(ApiError);
@@ -57,6 +75,42 @@ describe("the client", () => {
       brief: "A small studio.",
       allow_observations: false,
     });
+  });
+
+  it("asks for a revision of a design", async () => {
+    const revision = {
+      ...JOB,
+      id: "def456",
+      status: "queued",
+      parent_id: "abc123",
+      instruction: "Move it 3 m further from the street.",
+    };
+    const fetch = vi.fn().mockResolvedValue(respond(revision, 202));
+    vi.stubGlobal("fetch", fetch);
+    const job = await reviseDesign(
+      "abc123",
+      "Move it 3 m further from the street.",
+      true,
+    );
+    expect(job.parentId).toBe("abc123");
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/designs/abc123/revisions");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({
+      instruction: "Move it 3 m further from the street.",
+      allow_observations: true,
+    });
+  });
+
+  it("reports why a design can't be revised", async () => {
+    const detail = "design abc123 has no accepted attempt to revise";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond({ detail }, 409)));
+    const error = await reviseDesign("abc123", "Bigger.", true).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe(detail);
+    expect((error as ApiError).status).toBe(409);
   });
 
   it("reports the API's reason and status for an error", async () => {
@@ -126,5 +180,66 @@ describe("the client", () => {
       licence: "CC-BY-4.0",
     });
     expect(parsed.openItems).toEqual(["Confirm the boundary pegs."]);
+  });
+});
+
+describe("the survey client", () => {
+  it("reads the surveyed features", async () => {
+    const fetch = vi.fn().mockResolvedValue(respond(SURVEY));
+    vi.stubGlobal("fetch", fetch);
+    const survey = await getFeatures();
+    expect(fetch.mock.calls[0][0]).toBe("/api/site/features");
+    expect(survey.features.map((f) => f.concept)).toEqual([
+      "shed",
+      "tree",
+      "unlabelled",
+    ]);
+  });
+
+  it("records a decision and reads back the feature", async () => {
+    const tree = SURVEY.features[1];
+    const decided = {
+      ...tree,
+      properties: { ...tree.properties, decision: "keep_clear" },
+    };
+    const fetch = vi.fn().mockResolvedValue(respond(decided));
+    vi.stubGlobal("fetch", fetch);
+    const feature = await decideFeature("s1", "2", "keep_clear");
+    expect(feature.decision).toBe("keep_clear");
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/site/features/2");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      decision: "keep_clear",
+      survey_id: "s1", // the survey it was made on: a newer one is refused
+    });
+  });
+
+  it("says every building is listed", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        respond({ survey_id: "s1", buildings_complete: true }),
+      );
+    vi.stubGlobal("fetch", fetch);
+    expect(await setBuildingsComplete("s1", true)).toBe(true);
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/site/survey");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(String(init.body))).toEqual({
+      buildings_complete: true,
+      survey_id: "s1",
+    });
+  });
+
+  it("reports why the list can't be complete yet", async () => {
+    const detail = "decide what these are first: 2, 3";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond({ detail }, 409)));
+    const error = await setBuildingsComplete("s1", true).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe(detail);
+    expect((error as ApiError).status).toBe(409);
   });
 });

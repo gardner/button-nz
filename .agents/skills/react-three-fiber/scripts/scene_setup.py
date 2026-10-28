@@ -32,7 +32,6 @@ Features:
 
 import argparse
 import sys
-from typing import Dict, List, Optional
 
 
 class R3FSceneSetup:
@@ -94,9 +93,9 @@ class R3FSceneSetup:
         self,
         preset: str = 'standard',
         typescript: bool = False,
-        lighting: Optional[List[str]] = None,
-        controls: Optional[str] = None,
-        environment: Optional[str] = None,
+        lighting: list[str] | None = None,
+        controls: str | None = None,
+        environment: str | None = None,
         shadows: bool = False,
         post_processing: bool = False,
         performance: bool = False,
@@ -448,7 +447,7 @@ def interactive_mode():
         print("  3. none        - No environment")
         env_choice = input("Select environment (1-3): ").strip()
         env_map = {'1': 'drei-preset', '2': 'sky', '3': None}
-        environment = env_map.get(env_choice, None)
+        environment = env_map.get(env_choice)
 
         # Features
         shadows = input("\nEnable shadows? (y/n): ").strip().lower() == 'y'

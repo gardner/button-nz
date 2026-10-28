@@ -11,6 +11,8 @@ export interface PlanView {
   paths: string[]; // one closed path per ring
   scaleBarM: number;
   point: (p: Point) => Point;
+  /** Rings as one path, e.g. a polygon and its holes (fill-rule evenodd). */
+  outline: (rings: Point[][]) => string;
 }
 
 const ROUND_LENGTHS_M = [1, 2, 5, 10, 20, 50, 100, 200, 500];
@@ -27,15 +29,17 @@ export function planView(
     round(x - west + marginM),
     round(north - y + marginM),
   ];
-  const paths = rings.map(
-    (ring) => `M${ring.map((p) => point(p).join(",")).join(" L")} Z`,
-  );
+  const outline = (parts: Point[][]): string =>
+    parts
+      .map((ring) => `M${ring.map((p) => point(p).join(",")).join(" L")} Z`)
+      .join(" ");
   const fitting = ROUND_LENGTHS_M.filter((m) => m <= width / 3);
   return {
     viewBox: `0 0 ${round(width)} ${round(height)}`,
-    paths,
+    paths: rings.map((ring) => outline([ring])),
     scaleBarM: fitting.at(-1) ?? ROUND_LENGTHS_M[0],
     point,
+    outline,
   };
 }
 

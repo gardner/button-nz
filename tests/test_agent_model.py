@@ -1,6 +1,7 @@
 """Tests for button_nz.agent.model.ChatModel against a mocked Meta Model API."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -150,3 +151,12 @@ def test_malformed_tool_arguments_are_a_reply_error(arguments: str) -> None:
     model, _ = _model({"role": "assistant", "content": None, "tool_calls": [call]})
     with pytest.raises(ModelReplyError, match="malformed"):
         model.propose([Turn("system", "c"), Turn("user", "b")], False)
+
+
+def test_a_reasoning_effort_is_sent_only_when_chosen() -> None:
+    model, sent = _model(_tool_call("x = 1"))
+    model.propose([Turn("user", "brief")], False)
+    assert "reasoning_effort" not in sent[0]  # the API's default
+    effortful = replace(model, reasoning_effort="max")
+    effortful.propose([Turn("user", "brief")], False)
+    assert sent[1]["reasoning_effort"] == "max"
