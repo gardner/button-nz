@@ -55,7 +55,7 @@ def test_returns_the_script_from_the_tool_call() -> None:
     request = sent[0]
     assert request["model"] == "muse-spark-1.3"
     assert request["tools"][0]["function"]["name"] == "run_blender_script"
-    assert request["tool_choice"] == "required"
+    assert request["tool_choice"] == "auto"  # the Meta Model API accepts nothing else
 
 
 def test_attempts_become_tool_calls_and_results_with_the_render(tmp_path: Path) -> None:

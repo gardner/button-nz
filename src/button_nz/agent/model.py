@@ -58,7 +58,7 @@ class ChatModel:
             model=self.model,
             messages=cast("Any", _messages(conversation)),
             tools=cast("Any", tools),
-            tool_choice="required",
+            tool_choice="auto",  # the only choice the Meta Model API accepts
         )
         message = response.choices[0].message
         offered = {t["function"]["name"] for t in tools}
