@@ -21,7 +21,7 @@ from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
 from button_nz.evaluation import Check, InvalidProposal, Report, Status, evaluate
 
-__all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Turn", "design"]
+__all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Runner", "Turn", "design"]
 
 type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
 
@@ -63,10 +63,11 @@ def design(
     runner: Runner = run_design,
     allow_observations: bool = True,
     max_observations: int = 4,
+    on_attempt: Callable[[Attempt], None] | None = None,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``. Before each attempt the model may request
     up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
-    they don't count as attempts."""
+    they don't count as attempts. ``on_attempt`` sees each attempt as it ends."""
     conversation = [Turn("system", system_prompt(site.scene)), Turn("user", brief)]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
@@ -80,6 +81,8 @@ def design(
         else:
             attempt = _attempt(number, script, site, runner, directory, ask.observed)
         attempts.append(attempt)
+        if on_attempt is not None:
+            on_attempt(attempt)
         image = directory / "design.png"
         conversation += [
             Turn("design", attempt.script),

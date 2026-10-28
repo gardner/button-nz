@@ -221,3 +221,18 @@ def test_a_proposal_the_evaluator_rejects_is_fed_back(site: DesignSite, tmp_path
     assert result.attempts[0].status == "error"
     assert "terrain" in model.seen[1][-1].text
     assert result.accepted is result.attempts[1]
+
+
+def test_each_attempt_is_reported_as_it_finishes(site: DesignSite, tmp_path: Path) -> None:
+    seen: list[int] = []
+    model = ScriptedModel("near", "good")
+    result = design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        on_attempt=lambda attempt: seen.append(attempt.number),
+    )
+    assert seen == [1, 2]
+    assert [a.number for a in result.attempts] == seen

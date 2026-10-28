@@ -42,6 +42,18 @@ uv run button-nz
 uv run pytest
 ```
 
+The API serves the demo site and runs design jobs one at a time. Jobs and their
+files are kept under `var/`, and a job queued without `MODEL_API_KEY` fails with
+that reason:
+
+```bash
+MODEL_API_KEY=... uv run python -m button_nz.api.serve --port 8000
+curl localhost:8000/site
+curl -X POST localhost:8000/designs -H 'content-type: application/json' \
+  -d '{"brief": "A small one-bedroom studio."}'
+curl localhost:8000/designs/<id>  # status, attempts and artifact URLs
+```
+
 ## Layout
 
 - `src/button_nz/` — Python package (geo, lidar, perception, agent,
