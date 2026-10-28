@@ -46,10 +46,10 @@ class ChatModel:
 
     @classmethod
     def from_env(cls, model: str = "muse-spark-1.3") -> ChatModel:
-        """A client for the Meta Model API using the ``MODEL_API_KEY`` key."""
-        key = os.environ.get("MODEL_API_KEY")
+        """A client for the Meta Model API using the ``META_API_KEY`` key."""
+        key = os.environ.get("META_API_KEY")
         if not key:
-            raise KeyError("MODEL_API_KEY is not set: get a Meta Model API key")
+            raise KeyError("META_API_KEY is not set: get a Meta Model API key")
         return cls(OpenAI(base_url=META_BASE_URL, api_key=key), model)
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:

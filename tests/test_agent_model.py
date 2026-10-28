@@ -88,8 +88,8 @@ def test_a_reply_without_a_script_raises() -> None:
 
 
 def test_from_env_needs_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("MODEL_API_KEY", raising=False)
-    with pytest.raises(KeyError, match="MODEL_API_KEY"):
+    monkeypatch.delenv("META_API_KEY", raising=False)
+    with pytest.raises(KeyError, match="META_API_KEY"):
         ChatModel.from_env()
 
 

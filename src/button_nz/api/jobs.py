@@ -2,7 +2,7 @@
 recording each attempt as it ends.
 
 A job that raises is marked failed with the reason, e.g. a missing
-``MODEL_API_KEY`` or a Blender that couldn't start, so nothing is left looking
+``META_API_KEY`` or a Blender that couldn't start, so nothing is left looking
 in progress. Each job's files are kept under ``runs_dir/<job id>``.
 """
 

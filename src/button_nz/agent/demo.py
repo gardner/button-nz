@@ -1,6 +1,6 @@
 """Run the design loop on the demo site with Muse:
 
-    MODEL_API_KEY=... uv run python -m button_nz.agent.demo RUNS_DIR "brief"
+    uv run --env-file .env python -m button_nz.agent.demo RUNS_DIR "brief"
 
 Reads the DEM/DSM pinned in data/demo-site, builds the site scene, and lets the
 model design, with each attempt built in sandboxed Blender and checked by the
