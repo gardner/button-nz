@@ -21,7 +21,10 @@ reads those replies. Fork and Dependabot PRs skip the review (forks get no
 secrets, and the token must never reach a freshly bumped action); review those
 by hand. Only maintainers' and reviewer bots' comments reach the reviewer, and
 it reads and runs everything through Claude Code's Bash sandbox, with no network
-and no tokens in reach.
+and no tokens in reach. Each run's metrics (turns, cost, findings, denied calls)
+are in its job summary, and its transcript is kept for 90 days as an encrypted
+artifact: `scripts/review-traces.sh [count]` downloads, decrypts and summarises
+the latest ones (needs the "button-nz CI review traces" GPG key).
 
 ## Run
 

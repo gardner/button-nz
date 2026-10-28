@@ -51,7 +51,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
 
+      # The sandboxed reviewer can write to the workspace, so the steps after
+      # it use copies taken now, in runner temp, which it cannot write to, and
+      # the job ends by deleting the workspace.
+      - name: Keep trusted copies of the post-review files
+        run: |
+          mkdir "$RUNNER_TEMP/trusted"
+          cp scripts/review-metrics.sh .github/review-trace-key.asc "$RUNNER_TEMP/trusted/"
+
       - name: Review the pull request
+        id: review
         uses: anthropics/claude-code-action@v1.0.264
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -71,7 +80,10 @@ jobs:
           # Bash is unrestricted so the reviewer can investigate any way it
           # likes, but every command runs in Claude Code's sandbox: no network
           # (nothing to fetch strangers' comments with or send a token to), no
-          # tokens in its environment, its own /proc, and no unsandboxed retry.
+          # tokens in its environment, its own /proc, no writes to runner temp
+          # (which holds GITHUB_ENV, GITHUB_PATH and the trusted copies used
+          # after the review), and no unsandboxed retry. The workspace stays
+          # writable: the sandbox itself needs it.
           # If the sandbox cannot start, the review fails. Read, Grep and Glob
           # run outside the sandbox, in a process holding the tokens, so they
           # are disabled; Bash does the reading. Recheck the action's env:
@@ -83,6 +95,9 @@ jobs:
                 "failIfUnavailable": true,
                 "allowUnsandboxedCommands": false,
                 "network": { "allowedDomains": [], "strictAllowlist": true },
+                "filesystem": {
+                  "denyWrite": ["${{ runner.temp }}"]
+                },
                 "credentials": {
                   "envVars": [
                     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "mode": "deny" },
@@ -131,16 +146,43 @@ jobs:
             problem and the fix. Post nothing else. If you find nothing
             serious, post nothing.
 
-      # The log only counts denied tool calls. List them (tool and command or
-      # path, never output) so the allowlist can be tuned.
-      - name: Show denied tool calls
-        if: always()
+      # Turns, cost, findings, tool calls and denied calls (names, commands and
+      # paths, never output) go in the job summary for tuning the review.
+      # It fails the check if no `git diff` succeeded: no review happened.
+      - name: Summarise the review
+        if: always() && steps.review.outcome != 'skipped'
+        shell: bash # pipefail, so a metrics failure is not hidden by tee
         run: |
           file="$RUNNER_TEMP/claude-execution-output.json"
-          [[ -f "$file" ]] || exit 0
-          jq -r '[.[] | select(.type == "result")] | last
-            | .permission_denials // [] | .[]
-            | "denied: \(.tool_name) \(.tool_input.command // .tool_input.file_path // "")"' "$file"
+          [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
+          "$RUNNER_TEMP/trusted/review-metrics.sh" "$file" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The full transcript is kept for retrospectives (scripts/review-traces.sh),
+      # encrypted: anyone can download artifacts from this public repo, and a
+      # transcript could hold whatever the reviewer managed to read.
+      # The ciphertext goes to a directory created after the review, and is
+      # uploaded only if encryption succeeded, so nothing planted earlier can
+      # be shipped in its place.
+      - name: Encrypt the transcript
+        id: encrypt
+        if: always() && steps.review.outcome != 'skipped'
+        run: |
+          file="$RUNNER_TEMP/claude-execution-output.json"
+          [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
+          out="$(mktemp -d)/claude-review-trace.json.gpg"
+          GNUPGHOME="$(mktemp -d)" gpg --batch \
+            --recipient-file "$RUNNER_TEMP/trusted/review-trace-key.asc" \
+            --output "$out" --encrypt "$file"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the encrypted transcript
+        if: always() && steps.encrypt.outcome == 'success'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: claude-review-trace-${{ github.run_attempt }}
+          path: ${{ steps.encrypt.outputs.path }}
+          retention-days: 90
+          if-no-files-found: error
 
       # The action hides the API error unless show_full_output prints the whole
       # transcript into this public log. Print only the error fields instead.
@@ -157,3 +199,14 @@ jobs:
                error: (if .is_error then .result else null end)}' "$file"
           echo "401: token rejected; mint a new one with 'claude setup-token'." >&2
           echo "429: subscription quota exhausted; CI shares it with local use." >&2
+
+      # Checkout's post step runs git in the workspace outside the sandbox, and
+      # the reviewer could have planted a nested repo whose config runs a
+      # command (core.fsmonitor). Without .git/config that post step does
+      # nothing, so remove the workspace without running git. As root, because
+      # the reviewer can chmod directories read-only to block a normal delete.
+      - name: Remove the workspace
+        if: always()
+        run: |
+          sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+          [[ ! -e "$GITHUB_WORKSPACE/.git/config" ]]
