@@ -51,7 +51,10 @@ def check(report_proposal: Proposal, name: str, context: SiteContext | None = No
 
 
 def test_a_good_placement_passes_every_measured_check() -> None:
-    report = evaluate(proposal(), site(confirmed_buildings=(rect(30, 5, 36, 12),)))
+    report = evaluate(
+        proposal(),
+        site(confirmed_buildings=(rect(30, 5, 36, 12),), buildings_confirmed=True),
+    )
     statuses = {c.name: c.status for c in report.checks}
     assert statuses == {
         "within_site": Status.PASS,
@@ -86,10 +89,20 @@ def test_a_section_line_within_2_m_is_unknown_not_failed() -> None:
     assert result.measured["distance_m"] == pytest.approx(1.0)
 
 
-def test_a_footprint_straddling_sections_is_within_the_title() -> None:
+def test_building_over_a_section_line_fails() -> None:
+    """s 42B: not over a boundary between allotments, even on one record of title."""
     straddle = proposal(footprint=rect(16, 5, 24, 11))
     assert check(straddle, "within_site").status is Status.PASS
-    assert check(straddle, "section_boundary_setback").measured["distance_m"] == 0.0
+    result = check(straddle, "section_boundary_setback")
+    assert result.status is Status.FAIL
+    assert result.measured["distance_m"] == 0.0
+    assert "42B" in result.rule
+
+
+def test_a_footprint_touching_a_section_line_is_not_over_it() -> None:
+    result = check(proposal(footprint=rect(12, 5, 20, 11)), "section_boundary_setback")
+    assert result.status is Status.UNKNOWN
+    assert result.measured["distance_m"] == 0.0
 
 
 def test_building_separation_is_unknown_without_confirmed_buildings() -> None:
@@ -116,11 +129,15 @@ def test_lidar_evidence_near_the_footprint_is_reported() -> None:
     ("footprint", "area", "status"),
     [
         (rect(5, 5, 13, 11), None, Status.PASS),  # 48 m² outside the walls: under 70 inside
+        (rect(5, 5, 13, 11), 37.4, Status.PASS),  # 0.4 m walls: under 70 whatever the walls
         (rect(2, 2, 11, 10.5), None, Status.UNKNOWN),  # 76.5 m² outside: depends on the walls
         (rect(2, 2, 11, 10.5), 66.0, Status.PASS),
+        (rect(2, 2, 11, 10.5), 1.0, Status.FAIL),  # less than even 0.6 m walls could leave
+        (rect(2, 2, 11, 10.5), 63.1, Status.UNKNOWN),  # 0.4 m walls: possible, not typical
         (rect(2, 2, 11, 10.5), 70.5, Status.FAIL),
         (rect(2, 2, 11, 10.5), 80.0, Status.FAIL),  # more than the footprint: impossible
-        (rect(2, 2, 14, 12), 60.0, Status.FAIL),  # 120 m²: no wall makes that 70 inside
+        (rect(2, 2, 11, 11), None, Status.UNKNOWN),  # 81 m²: 0.45 m straw bale leaves 65.6
+        (rect(2, 2, 14, 12), 60.0, Status.FAIL),  # 120 m²: no realistic wall makes that 70
     ],
 )
 def test_floor_area_is_checked_against_the_measured_footprint(
@@ -129,6 +146,13 @@ def test_floor_area_is_checked_against_the_measured_footprint(
     result = check(proposal(footprint=footprint, floor_area_m2=area), "floor_area")
     assert result.status is status
     assert result.measured["footprint_area_m2"] > 0
+
+
+def test_a_stated_area_too_small_for_a_small_footprint_is_flagged_not_failed() -> None:
+    """Under 70 m² outside the walls, the inside is under 70 whatever is stated."""
+    result = check(proposal(footprint=rect(5, 5, 13, 11), floor_area_m2=1.0), "floor_area")
+    assert result.status is Status.PASS
+    assert "Check the stated value" in result.detail
 
 
 @pytest.mark.parametrize(
@@ -169,10 +193,12 @@ def test_floor_level_samples_the_ground_under_the_walls_not_just_cell_centres() 
 
 
 @pytest.mark.parametrize(
-    ("floor", "status"), [(None, Status.UNKNOWN), (101.2, Status.FAIL), (100.2, Status.FAIL)]
+    ("floor", "status"),
+    [(None, Status.UNKNOWN), (101.2, Status.FAIL), (100.2, Status.UNKNOWN), (99.5, Status.UNKNOWN)],
 )
 def test_floor_level_limits(floor: float | None, status: Status) -> None:
-    """More than 1 m above the lowest ground fails; below the highest ground fails."""
+    """More than 1 m above the lowest ground fails. A floor below the existing ground
+    needs a cut, which the exemption doesn't forbid and the LiDAR can't show."""
     assert check(proposal(floor_level_m=floor), "floor_level").status is status
 
 
@@ -223,6 +249,9 @@ def test_measurements_cannot_be_edited() -> None:
     [
         {"floor_level_m": float("nan")},
         {"floor_area_m2": -1.0},
+        {"floor_area_m2": True},
+        {"height_above_floor_m": True},
+        {"floor_level_m": False},
         {"floor_area_m2": float("inf")},
         {"height_above_floor_m": 0.0},
         {"storeys": 0},
@@ -250,3 +279,16 @@ def test_setbacks_use_the_outline_but_floor_area_uses_the_walls() -> None:
 def test_an_outline_must_contain_the_wall_footprint() -> None:
     with pytest.raises(InvalidProposal, match="outline"):
         evaluate(proposal(outline=rect(5, 5, 9, 9)), site())
+
+
+def test_far_listed_buildings_pass_only_if_the_list_is_confirmed_complete() -> None:
+    listed = (rect(30, 5, 36, 12),)
+    unconfirmed = check(proposal(), "building_separation", site(confirmed_buildings=listed))
+    assert unconfirmed.status is Status.UNKNOWN
+    confirmed = site(confirmed_buildings=listed, buildings_confirmed=True)
+    assert check(proposal(), "building_separation", confirmed).status is Status.PASS
+
+
+def test_a_close_listed_building_fails_whether_or_not_the_list_is_complete() -> None:
+    near = site(confirmed_buildings=(rect(14, 5, 18, 11),))
+    assert check(proposal(), "building_separation", near).status is Status.FAIL

@@ -20,11 +20,16 @@ SCHEDULE_1A = (
     "Building Act 2004, Schedule 1A (granny flats exemption); "
     "MBIE Granny Flats Exemption Guidance, Dec 2025, p. 34"
 )
+NOT_OVER_ALLOTMENTS = (
+    "Building Act 2004, s 42B: not built over a boundary between allotments, "
+    "even on one record of title (MBIE guidance p. 53)"
+)
 MAX_FLOOR_AREA_M2 = 70.0
 MAX_HEIGHT_ABOVE_FLOOR_M = 4.0
 MAX_FLOOR_ABOVE_GROUND_M = 1.0
 MIN_SEPARATION_M = 2.0  # from any legal boundary and any other residential building
-MAX_WALL_M = 0.3  # thickest external wall assumed when bounding internal area
+TYPICAL_WALL_M = 0.3  # thickest common external wall (timber or steel frame, cladding)
+MAX_WALL_M = 0.6  # thickest realistic external wall (straw bale, rammed earth, ICF)
 EVIDENCE_HEIGHT_M = 2.0  # nDSM above this is reported as possible structure
 _EPS = 1e-9
 
@@ -63,6 +68,14 @@ def section_boundary_setback(footprint: Polygon, internal_lines: BaseGeometry) -
     if internal_lines.is_empty:
         return Check("section_boundary_setback", Status.PASS, "The title is one parcel.", {}, rule)
     distance = footprint.distance(internal_lines)
+    if footprint.buffer(-1e-6).intersects(internal_lines):  # through it, not just touching
+        return Check(
+            "section_boundary_setback",
+            Status.FAIL,
+            "The footprint is built over a line between two sections of the title.",
+            {"distance_m": distance, "required_m": MIN_SEPARATION_M},
+            NOT_OVER_ALLOTMENTS,
+        )
     if distance >= MIN_SEPARATION_M - _EPS:
         return Check(
             "section_boundary_setback",
@@ -107,22 +120,30 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
         )
     distance = min(footprint.distance(Polygon(b)) for b in site.confirmed_buildings)
     measured["distance_m"] = distance
-    status = Status.PASS if distance >= MIN_SEPARATION_M - _EPS else Status.FAIL
-    return Check(
-        "building_separation",
-        status,
-        f"{distance:.2f} m from the nearest confirmed building; "
-        f"at least {MIN_SEPARATION_M:g} m required.",
-        measured,
-        SCHEDULE_1A,
+    detail = (
+        f"{distance:.2f} m from the nearest listed building; "
+        f"at least {MIN_SEPARATION_M:g} m required."
     )
+    if distance < MIN_SEPARATION_M - _EPS:
+        status = Status.FAIL  # too close to a listed building, complete list or not
+    elif site.buildings_confirmed:
+        status = Status.PASS
+    else:  # an unlisted building could still be closer
+        status = Status.UNKNOWN
+        detail += (
+            f" The owner hasn't confirmed the list is complete; LiDAR shows {evidence} cells "
+            f"over {EVIDENCE_HEIGHT_M:g} m within {MIN_SEPARATION_M:g} m of the footprint."
+        )
+    return Check("building_separation", status, detail, measured, SCHEDULE_1A)
 
 
 def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     """Internal floor area <= 70 m², bounded by the measured footprint: the
-    inside can't exceed the outside of the walls, and walls are at most
-    ``MAX_WALL_M`` thick. The stated area decides only what geometry can't."""
+    inside can't exceed the outside of the walls, and no realistic wall is more
+    than ``MAX_WALL_M`` thick. Geometry decides where it can; a stated area that
+    only unusually thick walls explain is unknown, not failed."""
     outside, perimeter = footprint.area, footprint.exterior.length
+    typical_inside = outside - perimeter * TYPICAL_WALL_M
     least_inside = outside - perimeter * MAX_WALL_M
     stated = proposal.floor_area_m2
     measured: dict[str, float] = {
@@ -132,27 +153,57 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     }
     if stated is not None:
         measured["value"] = stated
-    rule = f"{SCHEDULE_1A}; walls assumed at most {MAX_WALL_M:g} m thick"
+    rule = f"{SCHEDULE_1A}; walls at most {MAX_WALL_M:g} m thick"
     if stated is not None and stated > outside + _EPS:
         detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
         return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if outside <= MAX_FLOOR_AREA_M2 + _EPS:  # geometry decides; a stated area can't fail it
+        detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
+        if stated is not None and stated < typical_inside - _EPS:
+            detail += f" {_thick_walls(stated, outside, typical_inside)} Check the stated value."
+        return Check("floor_area", Status.PASS, detail, measured, rule)
     if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
         detail = (
             f"The footprint is {outside:.1f} m²: even with {MAX_WALL_M:g} m walls the inside "
             f"is at least {least_inside:.1f} m², over {MAX_FLOOR_AREA_M2:g}."
         )
         return Check("floor_area", Status.FAIL, detail, measured, rule)
-    if outside <= MAX_FLOOR_AREA_M2 + _EPS:
-        detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
-        return Check("floor_area", Status.PASS, detail, measured, rule)
     if stated is None:
         detail = (
             f"The footprint is {outside:.1f} m²; the internal area depends on the walls: state it."
         )
         return Check("floor_area", Status.UNKNOWN, detail, measured, rule)
-    status = Status.PASS if stated <= MAX_FLOOR_AREA_M2 + _EPS else Status.FAIL
-    detail = f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+    status, detail = _stated_area(stated, outside, typical_inside, least_inside)
     return Check("floor_area", status, detail, measured, rule)
+
+
+def _stated_area(
+    stated: float, outside: float, typical_inside: float, least_inside: float
+) -> tuple[Status, str]:
+    """The verdict on a stated area, for a footprint that walls could bring under 70."""
+    if stated < least_inside - _EPS:
+        return Status.FAIL, (
+            f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
+            f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
+        )
+    if stated > MAX_FLOOR_AREA_M2 + _EPS:
+        return Status.FAIL, (
+            f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+        )
+    if stated < typical_inside - _EPS:
+        return Status.UNKNOWN, (
+            f"{_thick_walls(stated, outside, typical_inside)} Confirm the wall thickness."
+        )
+    return Status.PASS, (
+        f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
+    )
+
+
+def _thick_walls(stated: float, outside: float, typical_inside: float) -> str:
+    return (
+        f"The stated {stated:g} m² needs walls over {TYPICAL_WALL_M:g} m thick in this "
+        f"{outside:.1f} m² footprint ({typical_inside:.1f} m² inside {TYPICAL_WALL_M:g} m walls)."
+    )
 
 
 def height(proposal: Proposal) -> Check:
@@ -176,10 +227,14 @@ def floor_level(footprint: Polygon, proposal: Proposal, site: SiteContext) -> Ch
         return Check("floor_level", Status.UNKNOWN, "Floor level not given.", measured, SCHEDULE_1A)
     above = proposal.floor_level_m - lowest
     measured |= {"floor_level_m": proposal.floor_level_m, "height_above_lowest_m": above}
-    if proposal.floor_level_m < highest:
-        status, detail = Status.FAIL, f"The floor is below the ground ({highest:.2f} m) in places."
-    elif above > MAX_FLOOR_ABOVE_GROUND_M + _EPS:
+    if above > MAX_FLOOR_ABOVE_GROUND_M + _EPS:
         status, detail = Status.FAIL, f"The floor is {above:.2f} m above the lowest ground."
+    elif proposal.floor_level_m < highest:  # a cut: allowed, but finished ground is unknown
+        status, detail = (
+            Status.UNKNOWN,
+            f"The floor is below the existing ground ({highest:.2f} m) in places, so the site "
+            "would be cut; the LiDAR shows only the ground before earthworks.",
+        )
     else:
         status, detail = Status.PASS, f"The floor is {above:.2f} m above the lowest ground."
     return Check(
