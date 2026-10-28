@@ -4,8 +4,8 @@ One request asks about one concept, a short noun phrase ("tree", "shed"): SAM
 3.1 matches lists ("tree, shed") with nothing. The reply is SAM's own record
 grammar, decoded by Meta's ``meta_sam_parser``; each record is a box and a mask
 of the bounding box, which is placed back on the whole crop for
-``features.features`` to georeference. A reply that doesn't parse is an error,
-never fewer masks; no match at all is an empty reply.
+``features.features`` to georeference. A reply that doesn't parse, or a
+refusal, is an error, never fewer masks; no match at all is an empty reply.
 """
 
 import base64
@@ -69,6 +69,15 @@ class Segmenter:
         )
         if response.status != "completed":
             raise SegmentationError(f"SAM's reply for {concept!r} is {response.status}")
+        refusals = [
+            part.refusal
+            for item in response.output
+            if item.type == "message"
+            for part in item.content
+            if part.type == "refusal"
+        ]
+        if refusals:  # a refusal is "completed" with no text: not zero matches
+            raise SegmentationError(f"SAM refused {concept!r}: {refusals[0]}")
         return parse_masks(response.output_text, concept, (rgb.shape[0], rgb.shape[1]))
 
 
@@ -82,8 +91,10 @@ def parse_masks(text: str, concept: str, shape: tuple[int, int]) -> list[Mask]:
     parser = sam.image_segmentation_format().create_parser()
     parser.push(text)
     result = parser.finish(sam.CompletedOutcome()).result
-    if result.diagnostics:
-        raise SegmentationError(f"SAM's reply didn't parse: {result.diagnostics[0].message}")
+    # Warnings (e.g. a field this parser doesn't know yet) leave the records intact.
+    errors = [d for d in result.diagnostics if d.severity == "error"]
+    if errors:
+        raise SegmentationError(f"SAM's reply didn't parse: {errors[0].message}")
     masks: list[Mask] = []
     for record in result.records:
         if record.kind == "text":

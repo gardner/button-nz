@@ -119,3 +119,18 @@ def test_the_key_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.delenv("META_API_KEY", raising=False)
     with pytest.raises(KeyError, match="META_API_KEY"):
         Segmenter.from_env()
+
+
+def test_a_parser_warning_keeps_the_masks() -> None:
+    """A field this parser doesn't know is a warning (newer SAM syntax), not an error."""
+    newer = REPLY.replace(";h=688;c=", ";h=688;q=1;c=", 1)
+    assert len(parse_masks(newer, "tree", SHAPE)) == 2
+
+
+def test_a_refusal_is_an_error_not_no_match() -> None:
+    """A refused request can still be 'completed', with no text: not zero matches."""
+    refused = _response("")
+    refused["output"][0]["content"] = [{"type": "refusal", "refusal": "I can't help."}]
+    segmenter, _ = _segmenter(refused)
+    with pytest.raises(SegmentationError, match="refused"):
+        segmenter.masks(np.zeros((*SHAPE, 3), dtype=np.uint8), "tree")
