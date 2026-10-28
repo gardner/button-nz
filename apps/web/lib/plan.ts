@@ -46,3 +46,30 @@ export function planView(
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }
+
+/**
+ * A point inside `rings` (a polygon and its holes, even-odd) to label it by:
+ * the middle of the widest stretch inside along the line half-way up. A
+ * bounding box's centre can fall outside a concave outline or in a hole.
+ */
+export function interiorPoint(rings: Point[][]): Point {
+  const ys = rings.flat().map(([, y]) => y);
+  const y = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const xs: number[] = [];
+  for (const ring of rings) {
+    for (let i = 0; i + 1 < ring.length; i++) {
+      const [[x1, y1], [x2, y2]] = [ring[i], ring[i + 1]];
+      if (y1 > y !== y2 > y) xs.push(x1 + ((y - y1) * (x2 - x1)) / (y2 - y1));
+    }
+  }
+  xs.sort((a, b) => a - b);
+  let best: Point = rings[0][0];
+  let widest = -1;
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    if (xs[i + 1] - xs[i] > widest) {
+      widest = xs[i + 1] - xs[i];
+      best = [(xs[i] + xs[i + 1]) / 2, y];
+    }
+  }
+  return best;
+}

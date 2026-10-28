@@ -47,6 +47,7 @@ const SITE: Site = {
     },
   ],
   openItems: ["Confirm the boundary pegs."],
+  aerial: null,
 };
 
 afterEach(cleanup);
@@ -79,6 +80,40 @@ describe("SitePanel", () => {
     expect(tree.getAttribute("d")?.match(/M/g)).toHaveLength(2); // two pieces
     expect(shed.textContent).toBe("#1 shed: existing building");
     expect(screen.getByText("Not decided yet")).toBeTruthy();
+  });
+
+  it("lays the aerial photo under the plan, true to scale", () => {
+    const aerial = {
+      bbox: [990, 1990, 1030, 2030] as [number, number, number, number],
+      url: "/api/site/aerial.png",
+    };
+    const { container } = render(<SitePanel site={{ ...SITE, aerial }} />);
+    const image = container.querySelector("svg image");
+    expect(image?.getAttribute("href")).toBe("/api/site/aerial.png");
+    // The plan's origin is the extent's north-west corner less the margin.
+    const [x, y] = [
+      Number(image?.getAttribute("x")),
+      Number(image?.getAttribute("y")),
+    ];
+    const [, , width] = (
+      container.querySelector("svg")?.getAttribute("viewBox") ?? ""
+    )
+      .split(" ")
+      .map(Number);
+    const margin = (width - 20) / 2;
+    expect([x, y]).toEqual([margin - 10, margin - 10]); // 10 m west and north of the extent
+    expect(image?.getAttribute("width")).toBe("40");
+    expect(image?.getAttribute("height")).toBe("40");
+    expect(container.querySelector("svg")?.firstElementChild?.tagName).toBe(
+      "image",
+    );
+  });
+
+  it("numbers the features on the plan as in the list", () => {
+    const { features } = parseSurvey(SURVEY);
+    const { container } = render(<SitePanel site={SITE} features={features} />);
+    const labels = [...container.querySelectorAll("svg text.feature-label")];
+    expect(labels.map((t) => t.textContent)).toEqual(features.map((f) => f.id));
   });
 
   it("has no features or legend without a survey", () => {
