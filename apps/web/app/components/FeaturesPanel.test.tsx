@@ -84,7 +84,10 @@ describe("FeaturesPanel", () => {
     const [url, init] = fetch.mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/api/site/features/2");
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(String(init.body))).toEqual({ decision: "keep_clear" });
+    expect(JSON.parse(String(init.body))).toEqual({
+      decision: "keep_clear",
+      survey_id: "s1",
+    });
   });
 
   it("says why a decision wasn't saved, and keeps the one that was", async () => {
@@ -122,7 +125,10 @@ describe("FeaturesPanel", () => {
       expect((complete as HTMLInputElement).checked).toBe(true),
     );
     const init = fetch.mock.calls[1][1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({ buildings_complete: true });
+    expect(JSON.parse(String(init.body))).toEqual({
+      buildings_complete: true,
+      survey_id: "s1",
+    });
   });
 
   it("explains, in the API's words, that there is no survey yet", async () => {

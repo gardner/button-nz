@@ -33,12 +33,15 @@ export function useSurvey(): SurveyControl {
     });
   }, []);
 
+  // Each change names the survey it was made on, so one made on a survey
+  // replaced since the page loaded is refused rather than misapplied.
   function save<T>(
-    change: () => Promise<T>,
+    change: (surveyId: string) => Promise<T>,
     apply: (s: Survey, r: T) => Survey,
   ) {
+    if (survey === null) return;
     setSaving(true);
-    change()
+    change(survey.id)
       .then(
         (result) => {
           setRefused(null);
@@ -57,7 +60,7 @@ export function useSurvey(): SurveyControl {
     saving,
     decide: (id, decision) =>
       save(
-        () => decideFeature(id, decision),
+        (surveyId) => decideFeature(surveyId, id, decision),
         (s, decided) => ({
           ...s,
           features: s.features.map((f) => (f.id === decided.id ? decided : f)),
@@ -65,7 +68,7 @@ export function useSurvey(): SurveyControl {
       ),
     setComplete: (complete) =>
       save(
-        () => setBuildingsComplete(complete),
+        (surveyId) => setBuildingsComplete(surveyId, complete),
         (s, buildingsComplete) => ({ ...s, buildingsComplete }),
       ),
   };

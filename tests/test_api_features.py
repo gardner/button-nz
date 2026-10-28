@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx2 import Response  # what TestClient returns
 
 from button_nz.agent.loop import DesignSite
 from button_nz.api.app import create_app
@@ -55,6 +56,18 @@ class Surveyed(Service):
         self.client = TestClient(app)
 
 
+def decide(surveyed: Surveyed, feature: str, body: dict[str, str]) -> Response:
+    """PUT a decision, made on the survey being served."""
+    survey_id = surveyed.client.get("/site/features").json()["survey_id"]
+    return surveyed.client.put(f"/site/features/{feature}", json=body | {"survey_id": survey_id})
+
+
+def list_complete(surveyed: Surveyed) -> Response:
+    survey_id = surveyed.client.get("/site/features").json()["survey_id"]
+    body = {"buildings_complete": True, "survey_id": survey_id}
+    return surveyed.client.put("/site/survey", json=body)
+
+
 @pytest.fixture
 def surveyed(tmp_path: Path) -> Surveyed:
     return Surveyed(tmp_path)
@@ -74,7 +87,7 @@ def test_surveyed_features_are_listed_undecided(surveyed: Surveyed) -> None:
 
 def test_a_decision_is_recorded_and_shown(surveyed: Surveyed) -> None:
     write_survey(surveyed.survey, "shed", "tree")
-    response = surveyed.client.put("/site/features/1", json={"decision": "building"})
+    response = decide(surveyed, "1", {"decision": "building"})
     assert response.status_code == 200
     assert response.json()["properties"]["decision"] == "building"
     shed, tree = surveyed.client.get("/site/features").json()["features"]
@@ -90,13 +103,28 @@ def test_bad_decisions_are_refused(
     surveyed: Surveyed, feature: str, body: dict[str, str], code: int
 ) -> None:
     write_survey(surveyed.survey, "shed")
-    assert surveyed.client.put(f"/site/features/{feature}", json=body).status_code == code
+    assert decide(surveyed, feature, body).status_code == code
+
+
+def test_a_decision_made_on_an_older_survey_is_refused(surveyed: Surveyed) -> None:
+    """The page was loaded before a new survey was written: its feature 1 may be
+    something else now, so the decision must not land on it."""
+    write_survey(surveyed.survey, "shed")
+    stale = surveyed.client.get("/site/features").json()["survey_id"]
+    write_survey(surveyed.survey, "tree")
+    body = {"decision": "building", "survey_id": stale}
+    response = surveyed.client.put("/site/features/1", json=body)
+    assert response.status_code == 409 and "changed" in response.json()["detail"]
+    complete = {"buildings_complete": True, "survey_id": stale}
+    assert surveyed.client.put("/site/survey", json=complete).status_code == 409
+    (tree,) = surveyed.client.get("/site/features").json()["features"]
+    assert tree["properties"]["decision"] is None
 
 
 def test_decisions_belong_to_the_survey_they_were_made_on(surveyed: Surveyed) -> None:
     """A new survey may number different things the same: nothing carries over."""
     write_survey(surveyed.survey, "shed")
-    surveyed.client.put("/site/features/1", json={"decision": "building"})
+    decide(surveyed, "1", {"decision": "building"})
     write_survey(surveyed.survey, "tree")
     (tree,) = surveyed.client.get("/site/features").json()["features"]
     assert tree["properties"]["decision"] is None
@@ -104,10 +132,10 @@ def test_decisions_belong_to_the_survey_they_were_made_on(surveyed: Surveyed) ->
 
 def test_a_design_keeps_clear_of_what_was_confirmed(surveyed: Surveyed) -> None:
     write_survey(surveyed.survey, "shed", "tree", "car")
-    surveyed.client.put("/site/features/1", json={"decision": "building"})
-    surveyed.client.put("/site/features/2", json={"decision": "keep_clear"})
-    surveyed.client.put("/site/features/3", json={"decision": "ignore"})
-    complete = surveyed.client.put("/site/survey", json={"buildings_complete": True})
+    decide(surveyed, "1", {"decision": "building"})
+    decide(surveyed, "2", {"decision": "keep_clear"})
+    decide(surveyed, "3", {"decision": "ignore"})
+    complete = list_complete(surveyed)
     assert complete.status_code == 200
     job = surveyed.queue()
     surveyed.worker.run_next()
@@ -124,7 +152,7 @@ def test_without_the_list_confirmed_complete_separation_stays_unknown(
 ) -> None:
     """A listed building only shows how close that one is: another could be closer."""
     write_survey(surveyed.survey, "shed")
-    surveyed.client.put("/site/features/1", json={"decision": "building"})
+    decide(surveyed, "1", {"decision": "building"})
     job = surveyed.queue()
     surveyed.worker.run_next()
     (attempt,) = surveyed.client.get(f"/designs/{job}").json()["attempts"]
@@ -135,18 +163,18 @@ def test_the_list_cannot_be_complete_while_a_possible_building_is_undecided(
     surveyed: Surveyed,
 ) -> None:
     write_survey(surveyed.survey, "tree", "shed")
-    surveyed.client.put("/site/features/1", json={"decision": "keep_clear"})
-    refused = surveyed.client.put("/site/survey", json={"buildings_complete": True})
+    decide(surveyed, "1", {"decision": "keep_clear"})
+    refused = list_complete(surveyed)
     assert refused.status_code == 409 and "2" in refused.json()["detail"]
-    surveyed.client.put("/site/features/2", json={"decision": "ignore"})
-    accepted = surveyed.client.put("/site/survey", json={"buildings_complete": True})
+    decide(surveyed, "2", {"decision": "ignore"})
+    accepted = list_complete(surveyed)
     assert accepted.status_code == 200
     assert surveyed.client.get("/site/features").json()["buildings_complete"] is True
 
 
 def test_a_new_survey_is_not_confirmed_complete(surveyed: Surveyed) -> None:
     write_survey(surveyed.survey, "tree")
-    surveyed.client.put("/site/survey", json={"buildings_complete": True})
+    list_complete(surveyed)
     write_survey(surveyed.survey, "shed")
     assert surveyed.client.get("/site/features").json()["buildings_complete"] is False
 

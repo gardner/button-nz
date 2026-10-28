@@ -116,22 +116,32 @@ export async function getFeatures(): Promise<Survey> {
   return parseSurvey(await request("/site/features"));
 }
 
+/** Record a decision about feature `id` of survey `surveyId`. Refused (409)
+ * if a newer survey has been written since: its ids may mean other things. */
 export async function decideFeature(
+  surveyId: string,
   id: string,
   decision: Decision,
 ): Promise<SiteFeature> {
   return parseFeature(
-    await put(`/site/features/${encodeURIComponent(id)}`, { decision }),
+    await put(`/site/features/${encodeURIComponent(id)}`, {
+      decision,
+      survey_id: surveyId,
+    }),
   );
 }
 
 /** Say every building on the site is listed (or not). Refused (409) while
- * anything that might be a building is undecided. */
+ * anything that might be a building is undecided, or if the survey changed. */
 export async function setBuildingsComplete(
+  surveyId: string,
   complete: boolean,
 ): Promise<boolean> {
   const survey = record(
-    await put("/site/survey", { buildings_complete: complete }),
+    await put("/site/survey", {
+      buildings_complete: complete,
+      survey_id: surveyId,
+    }),
     "survey",
   );
   return flag(survey, "buildings_complete");

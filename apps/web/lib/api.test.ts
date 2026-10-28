@@ -153,12 +153,15 @@ describe("the survey client", () => {
     };
     const fetch = vi.fn().mockResolvedValue(respond(decided));
     vi.stubGlobal("fetch", fetch);
-    const feature = await decideFeature("2", "keep_clear");
+    const feature = await decideFeature("s1", "2", "keep_clear");
     expect(feature.decision).toBe("keep_clear");
     const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/site/features/2");
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(String(init.body))).toEqual({ decision: "keep_clear" });
+    expect(JSON.parse(String(init.body))).toEqual({
+      decision: "keep_clear",
+      survey_id: "s1", // the survey it was made on: a newer one is refused
+    });
   });
 
   it("says every building is listed", async () => {
@@ -168,17 +171,22 @@ describe("the survey client", () => {
         respond({ survey_id: "s1", buildings_complete: true }),
       );
     vi.stubGlobal("fetch", fetch);
-    expect(await setBuildingsComplete(true)).toBe(true);
+    expect(await setBuildingsComplete("s1", true)).toBe(true);
     const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/site/survey");
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(String(init.body))).toEqual({ buildings_complete: true });
+    expect(JSON.parse(String(init.body))).toEqual({
+      buildings_complete: true,
+      survey_id: "s1",
+    });
   });
 
   it("reports why the list can't be complete yet", async () => {
     const detail = "decide what these are first: 2, 3";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond({ detail }, 409)));
-    const error = await setBuildingsComplete(true).catch((e: unknown) => e);
+    const error = await setBuildingsComplete("s1", true).catch(
+      (e: unknown) => e,
+    );
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).message).toBe(detail);
     expect((error as ApiError).status).toBe(409);
