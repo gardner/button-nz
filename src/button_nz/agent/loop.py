@@ -21,7 +21,7 @@ from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
 from button_nz.evaluation import Check, InvalidProposal, Report, Status, evaluate
 
-__all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Turn", "design"]
+__all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Runner", "Turn", "design"]
 
 type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
 
@@ -66,12 +66,14 @@ def design(
     allow_observations: bool = True,
     max_observations: int = 4,
     evaluator_feedback: bool = True,
+    on_attempt: Callable[[Attempt], None] | None = None,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``. Before each attempt the model may request
     up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
     they don't count as attempts. Without ``evaluator_feedback`` the model hears
     only whether its script ran (Experiment C's ablation); the evaluator still
-    decides acceptance, and every attempt still records its verdict."""
+    decides acceptance, and every attempt still records its verdict.
+    ``on_attempt`` sees each attempt as it ends."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
@@ -89,6 +91,8 @@ def design(
         else:
             attempt = _attempt(number, script, site, runner, directory, ask.observed)
         attempts.append(attempt)
+        if on_attempt is not None:
+            on_attempt(attempt)
         conversation += [Turn("design", attempt.script), _told(attempt, evaluator_feedback)]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
             break

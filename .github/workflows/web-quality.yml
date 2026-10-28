@@ -65,5 +65,8 @@ jobs:
       - name: Lint (includes cyclomatic complexity, max 10)
         run: pnpm lint
 
+      - name: Test
+        run: pnpm test
+
       - name: Build (includes TypeScript checks)
         run: pnpm build
