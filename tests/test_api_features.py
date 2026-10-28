@@ -13,7 +13,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
-from button_nz.perception.confirm import Decision, Survey, confirmed
+from button_nz.perception.confirm import Decision, SiteDecisions, Survey, confirmed
 from test_api import ScriptedModel, Service, fake_runner, synthetic_site
 
 
@@ -190,3 +190,108 @@ def test_confirmed_outlines_become_the_site_context(tmp_path: Path) -> None:
     (building,) = site.context.confirmed_buildings
     (garden,) = site.context.preservation_areas
     assert building[0] == (30.0, 12.0) and garden[0] == (22.0, 12.0)
+
+
+def test_decisions_kept_in_a_file_make_the_same_site(tmp_path: Path) -> None:
+    """The benchmark's surveyed site: a survey and the decisions about it, with who
+    made them, applied exactly as the API applies the owner's."""
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    (tmp_path / "decisions.json").write_text(
+        json.dumps(
+            {
+                "survey": "survey.geojson",
+                "survey_id": survey_id(tmp_path / "survey.geojson"),
+                "decided_by": "the team",
+                "decisions": {"1": "building", "2": "keep_clear"},
+                "buildings_complete": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    kept = SiteDecisions.read(tmp_path / "decisions.json")
+    assert kept.decided_by == "the team"
+    site = kept.apply(synthetic_site())
+    assert site.context.buildings_confirmed
+    (building,) = site.context.confirmed_buildings
+    assert building[0] == (30.0, 12.0)
+
+
+@pytest.mark.parametrize(
+    ("decisions", "complete", "match"),
+    [
+        ({"1": "building", "9": "ignore"}, False, "no feature 9"),
+        ({"2": "keep_clear"}, True, "decide what these are first: 1"),
+        ({"1": "building", "2": "keep_clear"}, "false", "true or false"),
+    ],
+)
+def test_kept_decisions_are_checked_like_the_owners(
+    tmp_path: Path, decisions: dict[str, str], complete: object, match: str
+) -> None:
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": decisions,
+    }
+    (tmp_path / "decisions.json").write_text(
+        json.dumps(body | {"buildings_complete": complete}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match=match):
+        SiteDecisions.read(tmp_path / "decisions.json")
+
+
+def survey_id(path: Path) -> str:
+    survey = Survey.read(path)
+    assert survey is not None
+    return survey.id
+
+
+def test_kept_decisions_belong_to_the_survey_they_were_made_on(tmp_path: Path) -> None:
+    """A new survey may number different things the same: as in the API, old
+    decisions mustn't land on them."""
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": {"1": "building", "2": "keep_clear"},
+        "buildings_complete": True,
+    }
+    (tmp_path / "decisions.json").write_text(json.dumps(body), encoding="utf-8")
+    write_survey(tmp_path / "survey.geojson", "tree", "shed")  # surveyed again
+    with pytest.raises(ValueError, match="decide again"):
+        SiteDecisions.read(tmp_path / "decisions.json")
+
+
+def test_the_demo_sites_kept_decisions_cover_its_survey() -> None:
+    kept = SiteDecisions.read(Path("data/demo-site/decisions.json"))
+    assert "pending the owner's confirmation" in kept.decided_by
+    assert len(kept.decisions) == len(kept.survey.collection["features"]) == 5
+
+
+def test_kept_decisions_about_another_site_are_refused(tmp_path: Path) -> None:
+    """A survey of somewhere else, decided on: its features touch none of this title."""
+    elsewhere = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "1",
+                "properties": {"concept": "shed", "status": "agrees"},
+                "geometry": square(5000.0, 5000.0, 6.0),
+            }
+        ],
+    }
+    (tmp_path / "survey.geojson").write_text(json.dumps(elsewhere), encoding="utf-8")
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": {"1": "building"},
+        "buildings_complete": True,
+    }
+    (tmp_path / "decisions.json").write_text(json.dumps(body), encoding="utf-8")
+    kept = SiteDecisions.read(tmp_path / "decisions.json")
+    with pytest.raises(ValueError, match="not on this site's title"):
+        kept.apply(synthetic_site())

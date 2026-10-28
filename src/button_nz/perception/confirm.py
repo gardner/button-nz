@@ -14,7 +14,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry import shape
 
 from button_nz.agent.site import DesignSite
@@ -87,3 +87,51 @@ def _rings(geometry: dict[str, Any]) -> list[Ring]:
         for part in parts
         if isinstance(part, Polygon)
     ]
+
+
+@dataclass(frozen=True)
+class SiteDecisions:
+    """A survey and decisions about it kept in a file (``decisions.json`` beside
+    it), with who made them: the benchmark's surveyed site. They are checked as
+    the API checks the owner's, and applied the same way."""
+
+    survey: Survey
+    decisions: dict[str, Decision]
+    complete: bool
+    decided_by: str
+
+    @classmethod
+    def read(cls, path: Path) -> SiteDecisions:
+        kept = json.loads(path.read_text(encoding="utf-8"))
+        survey = Survey.read(path.parent / kept["survey"])
+        if survey is None:
+            raise ValueError(f"{path} names a survey that isn't there: {kept['survey']}")
+        if survey.id != kept["survey_id"]:  # a new survey may number other things the same
+            raise ValueError(
+                f"{path} was decided on survey {kept['survey_id']}, not {survey.id}: decide again"
+            )
+        decisions = {k: Decision(v) for k, v in kept["decisions"].items()}
+        unknown = [k for k in decisions if survey.feature(k) is None]
+        if unknown:
+            raise ValueError(f"{path} decides about no feature {', '.join(unknown)}")
+        complete = kept["buildings_complete"]
+        if not isinstance(complete, bool):  # "false" would read as true
+            raise ValueError(f"{path}: buildings_complete must be true or false")
+        undecided = undecided_buildings(survey, decisions)
+        if complete and undecided:
+            raise ValueError(f"{path}: decide what these are first: {', '.join(undecided)}")
+        return cls(survey, decisions, complete, str(kept["decided_by"]))
+
+    def apply(self, site: DesignSite) -> DesignSite:
+        """``site`` with these decisions, which must be about things on its title:
+        a survey of somewhere else would silently constrain nothing."""
+        title = union_all([Polygon(ring) for ring in site.context.parcels])
+        elsewhere = [k for k in self.decisions if not shape(self._geometry(k)).intersects(title)]
+        if elsewhere:
+            raise ValueError(f"features {', '.join(elsewhere)} are not on this site's title")
+        return confirmed(site, self.survey, self.decisions, self.complete)
+
+    def _geometry(self, feature_id: str) -> dict[str, Any]:
+        feature = self.survey.feature(feature_id)
+        assert feature is not None  # read() refuses decisions about unknown features
+        return feature["geometry"]
