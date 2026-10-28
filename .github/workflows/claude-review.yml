@@ -95,7 +95,8 @@ jobs:
                 "allowUnsandboxedCommands": false,
                 "network": { "allowedDomains": [], "strictAllowlist": true },
                 "filesystem": {
-                  "denyWrite": ["${{ runner.temp }}"]
+                  "denyWrite": ["${{ runner.temp }}", "~", "/opt"],
+                  "allowWrite": ["${{ github.workspace }}"]
                 },
                 "credentials": {
                   "envVars": [
@@ -120,7 +121,7 @@ jobs:
             This is a sandbox test, not a review. Run exactly this one Bash
             command, then stop. Post nothing.
 
-            for d in /home/runner/work/_actions /home/runner/work/_PipelineMapping /home/runner/work /home/runner /home/runner/.claude /opt/hostedtoolcache /home/runner/work/_temp "$PWD"; do p="$d/.probe-$$"; if ( : > "$p" ) 2>/dev/null; then echo "WRITABLE $d"; rm -f "$p"; else echo "denied $d"; fi; done; f=$(find /home/runner/work/_actions -name '*.js' -type f 2>/dev/null | head -1); echo "sample $f"; ( : >> "$f" ) 2>/dev/null && echo "WRITABLE file $f" || echo "denied file $f"
+            for d in /home/runner/work/_actions /home/runner/work/_PipelineMapping /home/runner/work /home/runner /home/runner/.local/bin /home/runner/.claude /opt/hostedtoolcache /home/runner/work/_temp "$PWD" "$PWD/.git" "$TMPDIR"; do p="$d/.probe-$$"; if ( : > "$p" ) 2>/dev/null; then echo "WRITABLE $d"; rm -f "$p"; else echo "denied $d"; fi; done; f=$(find /home/runner/work/_actions -name '*.js' -type f 2>/dev/null | head -1); echo "sample $f"; ( : >> "$f" ) 2>/dev/null && echo "WRITABLE file $f" || echo "denied file $f"; git -C "$PWD" log --oneline -1 && echo "git works"
 
             You are the CI code reviewer for this pull request. Review its
             changes: run `git log BASE..HEAD` and `git diff BASE...HEAD`, and
