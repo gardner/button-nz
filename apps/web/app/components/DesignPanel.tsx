@@ -1,42 +1,63 @@
 "use client";
 
-import { Component, type ReactNode, useEffect, useRef, useState } from "react";
+import { Component, type ReactNode, useState } from "react";
 
-import {
-  ApiError,
-  type Attempt,
-  type Job,
-  createDesign,
-  getDesign,
-} from "@/lib/api";
+import type { Attempt, Job } from "@/lib/api";
 
 import { ModelViewer } from "./ModelViewer";
-
-const VERDICT_STYLE: Record<Attempt["status"], string> = {
-  pass: "bg-green-100 text-green-900",
-  unknown: "bg-amber-100 text-amber-900",
-  fail: "bg-red-100 text-red-900",
-  error: "bg-zinc-200 text-zinc-900",
-};
+import { BeforeAfter, DesignHistory, RevisionForm } from "./Revisions";
+import { useDesignChain } from "./useDesignChain";
+import { VERDICT_STYLE } from "./verdicts";
 
 /** Brief the design agent, then follow its attempts as the independent
- * evaluator checks each one, ending with the accepted concept in 3D. */
+ * evaluator checks each one, ending with the accepted concept in 3D. An
+ * accepted design can be changed in plain words, as often as wanted: the
+ * history lists each change and shows any step beside the one it changed. */
 export function DesignPanel({ pollMs = 2000 }: { pollMs?: number }) {
-  const { job, problem, busy, start } = useDesignJob(pollMs);
-  const [viewing, setViewing] = useState<number | null>(null);
-  const model = job && modelUrl(job, viewing ?? job.acceptedAttempt);
+  const { chain, shown, select, problem, busy, design, revise } =
+    useDesignChain(pollMs);
+  const parent = shown && chain.find((j) => j.id === shown.parentId);
   return (
     <section className="flex flex-col gap-4">
-      <BriefForm
-        busy={busy}
-        onSubmit={(brief, observe) => {
-          setViewing(null);
-          start(brief, observe);
-        }}
-      />
+      <BriefForm busy={busy} onSubmit={design} />
       {problem && <p className="text-red-700">{problem}</p>}
-      {job && <JobStatus job={job} />}
-      {job?.attempts.map((attempt) => (
+      {shown && chain.length > 1 && (
+        <DesignHistory chain={chain} shown={shown} onSelect={select} />
+      )}
+      {shown && (
+        <DesignView
+          key={shown.id}
+          job={shown}
+          parent={parent}
+          busy={busy}
+          onRevise={(instruction) => revise(shown, instruction)}
+        />
+      )}
+    </section>
+  );
+}
+
+/** One design of the chain: its status, its attempts, the one on show in 3D
+ * and, once a design is accepted, a way to change it. A revision is shown
+ * beside the accepted design it changed. */
+function DesignView({
+  job,
+  parent,
+  busy,
+  onRevise,
+}: {
+  job: Job;
+  parent: Job | undefined;
+  busy: boolean;
+  onRevise: (instruction: string) => void;
+}) {
+  const [viewing, setViewing] = useState<number | null>(null);
+  const model = modelUrl(job, viewing ?? job.acceptedAttempt);
+  return (
+    <>
+      <JobStatus job={job} />
+      {parent && <BeforeAfter before={parent} after={job} />}
+      {job.attempts.map((attempt) => (
         <AttemptCard
           key={attempt.number}
           attempt={attempt}
@@ -48,60 +69,16 @@ export function DesignPanel({ pollMs = 2000 }: { pollMs?: number }) {
           <ModelViewer url={model} />
         </ViewerBoundary>
       )}
-    </section>
+      {job.status === "done" && job.acceptedAttempt !== null && (
+        <RevisionForm busy={busy} onSubmit={onRevise} />
+      )}
+    </>
   );
 }
 
 /** The 3D model of attempt ``number``, if it has one. */
 function modelUrl(job: Job, number: number | null): string | undefined {
   return job.attempts.find((a) => a.number === number)?.files["design.glb"];
-}
-
-/** A design job: started on request, then polled until it is done or failed.
- * A transient poll failure is shown and retried; a permanent one (the API no
- * longer has the job) stops polling. One design is started at a time. */
-function useDesignJob(pollMs: number) {
-  const [job, setJob] = useState<Job | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [retries, setRetries] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
-  const starting = useRef(false); // guards clicks before the re-render disables Design
-  const [lost, setLost] = useState(false); // the API can't give this job any more
-  const active =
-    !lost && (job?.status === "queued" || job?.status === "running");
-  useEffect(() => {
-    if (!active || job === null) return;
-    const timer = setTimeout(() => {
-      getDesign(job.id).then(
-        (next) => {
-          setProblem(null);
-          setJob(next);
-        },
-        (e: Error) => {
-          setProblem(e.message);
-          if (e instanceof ApiError && !e.transient) setLost(true);
-          else setRetries((n) => n + 1);
-        },
-      );
-    }, pollMs);
-    return () => clearTimeout(timer);
-  }, [active, job, pollMs, retries]);
-
-  function start(brief: string, observe: boolean) {
-    if (starting.current) return;
-    starting.current = true;
-    setSubmitting(true);
-    setProblem(null);
-    setJob(null); // stop following the old job before the new one exists
-    setLost(false);
-    createDesign(brief, observe)
-      .then(setJob, (e: Error) => setProblem(e.message))
-      .finally(() => {
-        starting.current = false;
-        setSubmitting(false);
-      });
-  }
-  return { job, problem, busy: submitting || active, start };
 }
 
 function BriefForm({

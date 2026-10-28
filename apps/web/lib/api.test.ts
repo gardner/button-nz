@@ -9,6 +9,7 @@ import {
   getSite,
   parseJob,
   parseSite,
+  reviseDesign,
   setBuildingsComplete,
 } from "./api";
 import { JOB, SURVEY } from "./fixtures";
@@ -33,12 +34,26 @@ describe("parseJob", () => {
     expect(job.attempts[0].files["design.png"]).toBe(
       "/api/designs/abc123/attempts/1/design.png",
     );
+    expect(job.parentId).toBeNull();
+    expect(job.instruction).toBeNull();
+  });
+
+  it("reads which design a revision changes, and how", () => {
+    const job = parseJob({
+      ...JOB,
+      parent_id: "xyz789",
+      instruction: "Move it 3 m further from the street.",
+    });
+    expect(job.parentId).toBe("xyz789");
+    expect(job.instruction).toBe("Move it 3 m further from the street.");
   });
 
   it.each([
     [{ ...JOB, status: "paused" }],
     [{ ...JOB, attempts: [{ number: "1" }] }],
     [{ ...JOB, id: 7 }],
+    [{ ...JOB, parent_id: 7 }],
+    [{ ...JOB, instruction: undefined }],
     [null],
   ])("rejects a malformed job", (raw) => {
     expect(() => parseJob(raw)).toThrow(ApiError);
@@ -60,6 +75,42 @@ describe("the client", () => {
       brief: "A small studio.",
       allow_observations: false,
     });
+  });
+
+  it("asks for a revision of a design", async () => {
+    const revision = {
+      ...JOB,
+      id: "def456",
+      status: "queued",
+      parent_id: "abc123",
+      instruction: "Move it 3 m further from the street.",
+    };
+    const fetch = vi.fn().mockResolvedValue(respond(revision, 202));
+    vi.stubGlobal("fetch", fetch);
+    const job = await reviseDesign(
+      "abc123",
+      "Move it 3 m further from the street.",
+      true,
+    );
+    expect(job.parentId).toBe("abc123");
+    const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/designs/abc123/revisions");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({
+      instruction: "Move it 3 m further from the street.",
+      allow_observations: true,
+    });
+  });
+
+  it("reports why a design can't be revised", async () => {
+    const detail = "design abc123 has no accepted attempt to revise";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond({ detail }, 409)));
+    const error = await reviseDesign("abc123", "Bigger.", true).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe(detail);
+    expect((error as ApiError).status).toBe(409);
   });
 
   it("reports the API's reason and status for an error", async () => {
