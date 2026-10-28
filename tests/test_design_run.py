@@ -203,3 +203,28 @@ def test_the_script_cannot_reach_host_sockets(tmp_path: Path, scene: SceneInput)
     )
     out = run_design(scene, script, tmp_path)
     assert "FileNotFoundError" in str(out.measurements["error"])
+
+
+def test_the_script_can_write_only_its_scratch_directory(tmp_path: Path, scene: SceneInput) -> None:
+    """The host writes the attempt's trace next to it: no planted symlinks there."""
+    plant = "import os, sys\nos.symlink('/etc/hostname', sys.argv[-1] + '/../attempt.json')\n"
+    run_design(scene, BOX + plant, tmp_path)
+    # The attempt directory isn't mounted: the link lands in the sandbox's tmpfs.
+    trace = tmp_path / "attempt.json"
+    assert not trace.is_symlink() and not trace.exists()
+
+
+def test_a_result_the_script_swaps_for_a_symlink_is_refused(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    """An atexit hook runs after pass 1's last write; the host must not follow it."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("hunter2", encoding="utf-8")
+    swap = (
+        "import atexit, os, sys\n"
+        "status = sys.argv[-1] + '/script.json'\n"
+        f"atexit.register(lambda: (os.remove(status), os.symlink({str(secret)!r}, status)))\n"
+    )
+    with pytest.raises(BlenderError, match="regular file") as error:
+        run_design(scene, BOX + swap, tmp_path / "run")
+    assert "hunter2" not in str(error.value)

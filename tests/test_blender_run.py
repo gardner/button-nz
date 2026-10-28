@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from button_nz.blender_worker.run import BUILD_SCRIPT, BlenderError, build_scene
+from button_nz.blender_worker.design_io import DID_NOT_FINISH
+from button_nz.blender_worker.run import BUILD_SCRIPT, BlenderError, build_scene, run_design
 from button_nz.blender_worker.scene_input import SceneInput
 
 # Records its arguments; writes the GLB and PNG it was given unless told not to.
@@ -119,3 +120,31 @@ def test_without_nvidia_smi_gpu_choice_is_left_to_blender(
     monkeypatch.setattr("button_nz.blender_worker.run.shutil.which", no_command)
     build_scene(SCENE, tmp_path / "out", blender=str(blender))
     assert (blender.parent / "gpus").read_text(encoding="utf-8") == "unset"
+
+
+# Passes a design through pass 1, then crashes in pass 2 after noting that the
+# model's geometry was being measured, as a segfault in runaway geometry would.
+CRASHING_MEASURE = """#!/usr/bin/env bash
+out="${@: -1}"
+here="$(dirname "$0")"
+case "$*" in
+  *design_script.py*)
+    printf '{"error": null}' > "$out/script.json"
+    printf 'blend' > "$out/design.blend" ;;
+  *design_measure.py*) cp "$here/unfinished.json" "$out/measurements.json"; kill -SEGV $$ ;;
+esac
+"""
+
+
+@pytest.mark.blender  # needs bubblewrap, as every design run does
+def test_a_crash_while_measuring_in_the_sandbox_is_the_models_feedback(
+    tmp_path: Path, blender: Path
+) -> None:
+    """bwrap reports a child killed by signal n as exit 128 + n, not -n."""
+    blender.write_text(CRASHING_MEASURE, encoding="utf-8")
+    (blender.parent / "unfinished.json").write_text(
+        json.dumps({"error": DID_NOT_FINISH}), encoding="utf-8"
+    )
+    out = run_design(SCENE, "x = 1\n", tmp_path / "run", blender=str(blender))
+    assert out.measurements["error"] == DID_NOT_FINISH
+    assert out.glb is None and out.png is None
