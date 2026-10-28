@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Summarise a Claude Code execution file (the CI reviewer's transcript) as
-# Markdown: model, turns, duration, cost, findings posted, tool calls, and
-# denied calls. Prints tool names, commands and paths only, never output, so
-# the summary is safe for the public job log.
+# Markdown: model, turns, duration, cost, findings posted (inline comments
+# whose call succeeded), tool calls (attempts), and denied calls. Prints tool
+# names, commands and paths only, never output, so the summary is safe for the
+# public job log.
 set -euo pipefail
 
 trace="${1:?usage: $0 <execution-file>}"
@@ -11,8 +12,13 @@ jq -j '
   (map(select(.type == "result")) | last) as $result
   | if $result == null then error("no result message in \(input_filename)") else . end
   | (map(select(.type == "system" and .subtype == "init")) | first | .model // "unknown") as $model
-  | [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use") | .name]
-    as $tools
+  | [.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use")]
+    as $uses
+  | ($uses | map(.name)) as $tools
+  | [.[] | select(.type == "user") | .message.content[]?
+     | select(.type == "tool_result" and (.is_error | not)) | .tool_use_id] as $succeeded
+  | [$uses[] | select(.name == "mcp__github_inline_comment__create_inline_comment")
+     | select(.id | IN($succeeded[]))] as $posted
   | ($result.permission_denials // []) as $denied
   | ($result.total_cost_usd * 100 | round) as $cents
   | "## Claude review\n\n"
@@ -20,7 +26,7 @@ jq -j '
     + "| --- | --- | --- | --- | --- | --- |\n"
     + "| \($model) | \($result.num_turns) | \($result.duration_ms / 1000 | floor)s"
     + " | $\($cents / 100 | floor).\($cents % 100 | tostring | if length < 2 then "0" + . else . end)"
-    + " | \($tools | map(select(. == "mcp__github_inline_comment__create_inline_comment")) | length)"
+    + " | \($posted | length)"
     + " | \($denied | length) |\n\n"
     + "**Tool calls:** "
     + (if $tools == [] then "none"

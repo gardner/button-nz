@@ -8,9 +8,14 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "review-metrics.sh"
 COMMENT_TOOL = "mcp__github_inline_comment__create_inline_comment"
 
 
-def _tool_use(name: str, **tool_input: str) -> object:
-    content = [{"type": "tool_use", "name": name, "input": tool_input}]
+def _tool_use(name: str, tool_id: str = "toolu_x", **tool_input: str) -> object:
+    content = [{"type": "tool_use", "id": tool_id, "name": name, "input": tool_input}]
     return {"type": "assistant", "message": {"content": content}}
+
+
+def _tool_result(tool_id: str, is_error: bool = False) -> object:
+    content = [{"type": "tool_result", "tool_use_id": tool_id, "is_error": is_error}]
+    return {"type": "user", "message": {"content": content}}
 
 
 def _result(*denials: object, is_error: bool = False, result: str = "done") -> object:
@@ -57,8 +62,12 @@ def test_counts_findings_and_lists_denied_calls(tmp_path: Path) -> None:
     result = _run(
         tmp_path,
         INIT,
-        _tool_use(COMMENT_TOOL, path="a.py", body="P1: bug."),
-        _tool_use(COMMENT_TOOL, path="b.py", body="P2: risk."),
+        _tool_use(COMMENT_TOOL, "toolu_1", path="a.py", body="P1: bug."),
+        _tool_result("toolu_1"),
+        _tool_use(COMMENT_TOOL, "toolu_2", path="b.py", body="P2: risk."),
+        _tool_result("toolu_2"),
+        _tool_use(COMMENT_TOOL, "toolu_3", path="c.py", body="P2: off the diff."),
+        _tool_result("toolu_3", is_error=True),
         _tool_use("Bash", command="git log"),
         _result(
             {"tool_name": "Bash", "tool_input": {"command": "curl example.com"}},
@@ -67,7 +76,7 @@ def test_counts_findings_and_lists_denied_calls(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert "| claude-opus-5-5 | 7 | 125s | $1.23 | 2 | 2 |" in result.stdout
-    assert f"**Tool calls:** Bash 1, {COMMENT_TOOL} 2\n" in result.stdout
+    assert f"**Tool calls:** Bash 1, {COMMENT_TOOL} 3\n" in result.stdout
     assert result.stdout.endswith(
         "\n### Denied calls\n\n- Bash `curl example.com`\n- Read `/proc/self/environ`\n"
     )
