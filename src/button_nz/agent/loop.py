@@ -21,9 +21,39 @@ from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
 from button_nz.evaluation import Check, InvalidProposal, Report, Status, evaluate
 
-__all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Runner", "Turn", "design"]
+__all__ = [
+    "Attempt",
+    "DesignResult",
+    "DesignSite",
+    "Model",
+    "Revision",
+    "Runner",
+    "Turn",
+    "design",
+]
 
 type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
+
+
+@dataclass(frozen=True)
+class Revision:
+    """A design to change: the script that built it, the evaluator's verdict on
+    it, and every change the owner has asked for, in their own words, oldest
+    first. The script already includes all but the latest change, so only that
+    one is asked for; the earlier ones are named so they are kept."""
+
+    script: str
+    feedback: str
+    instructions: tuple[str, ...]
+
+    @property
+    def request(self) -> str:
+        *earlier, latest = self.instructions
+        if not earlier:
+            return latest
+        kept = "\n".join(f"- {text}" for text in earlier)
+        already = f"This design already includes these earlier changes; keep them:\n{kept}"
+        return f"{already}\n\nNow: {latest}"
 
 
 @dataclass(frozen=True)
@@ -65,15 +95,23 @@ def design(
     allow_observations: bool = True,
     max_observations: int = 4,
     on_attempt: Callable[[Attempt], None] | None = None,
+    revising: Revision | None = None,
 ) -> DesignResult:
-    """Design for ``brief`` on ``site``. Before each attempt the model may request
-    up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
-    they don't count as attempts. ``on_attempt`` sees each attempt as it ends."""
+    """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
+    change it as the owner asks. Before each attempt the model may request up to
+    ``max_observations`` LiDAR views (none if not ``allow_observations``); they
+    don't count as attempts. ``on_attempt`` sees each attempt as it ends."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     prompt = system_prompt(site.scene, keep_clear, buildings)
     conversation = [Turn("system", prompt), Turn("user", brief)]
+    if revising is not None:
+        conversation += [
+            Turn("design", revising.script),
+            Turn("feedback", revising.feedback),
+            Turn("user", revising.request),
+        ]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
         directory = runs_dir / f"attempt-{number}"
