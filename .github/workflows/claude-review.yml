@@ -52,6 +52,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends bubblewrap socat
 
       - name: Review the pull request
+        id: review
         uses: anthropics/claude-code-action@v1.0.264
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -71,7 +72,9 @@ jobs:
           # Bash is unrestricted so the reviewer can investigate any way it
           # likes, but every command runs in Claude Code's sandbox: no network
           # (nothing to fetch strangers' comments with or send a token to), no
-          # tokens in its environment, its own /proc, and no unsandboxed retry.
+          # tokens in its environment, its own /proc, no writes to the workspace
+          # or runner temp (which later, unsandboxed steps trust, and which holds
+          # GITHUB_ENV and GITHUB_PATH), and no unsandboxed retry.
           # If the sandbox cannot start, the review fails. Read, Grep and Glob
           # run outside the sandbox, in a process holding the tokens, so they
           # are disabled; Bash does the reading. Recheck the action's env:
@@ -83,6 +86,9 @@ jobs:
                 "failIfUnavailable": true,
                 "allowUnsandboxedCommands": false,
                 "network": { "allowedDomains": [], "strictAllowlist": true },
+                "filesystem": {
+                  "denyWrite": ["${{ github.workspace }}", "${{ runner.temp }}"]
+                },
                 "credentials": {
                   "envVars": [
                     { "name": "CLAUDE_CODE_OAUTH_TOKEN", "mode": "deny" },
@@ -133,34 +139,41 @@ jobs:
 
       # Turns, cost, findings, tool calls and denied calls (names, commands and
       # paths, never output) go in the job summary for tuning the review.
+      # These steps run outside the sandbox, so they only trust the workspace
+      # and runner temp because the sandbox could not write to either.
       - name: Summarise the review
-        if: always()
+        if: always() && steps.review.outcome != 'skipped'
         shell: bash # pipefail, so a metrics failure is not hidden by tee
         run: |
           file="$RUNNER_TEMP/claude-execution-output.json"
-          [[ -f "$file" ]] || exit 0
+          [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
           scripts/review-metrics.sh "$file" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The full transcript is kept for retrospectives (scripts/review-traces.sh),
       # encrypted: anyone can download artifacts from this public repo, and a
       # transcript could hold whatever the reviewer managed to read.
+      # The ciphertext goes to a directory created after the review, and is
+      # uploaded only if encryption succeeded, so nothing planted earlier can
+      # be shipped in its place.
       - name: Encrypt the transcript
-        if: always()
+        id: encrypt
+        if: always() && steps.review.outcome != 'skipped'
         run: |
           file="$RUNNER_TEMP/claude-execution-output.json"
-          [[ -f "$file" ]] || exit 0
+          [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
+          out="$(mktemp -d)/claude-review-trace.json.gpg"
           GNUPGHOME="$(mktemp -d)" gpg --batch \
-            --recipient-file .github/review-trace-key.asc \
-            --output "$RUNNER_TEMP/claude-review-trace.json.gpg" --encrypt "$file"
+            --recipient-file .github/review-trace-key.asc --output "$out" --encrypt "$file"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
 
       - name: Upload the encrypted transcript
-        if: always()
+        if: always() && steps.encrypt.outcome == 'success'
         uses: actions/upload-artifact@v7.0.2
         with:
           name: claude-review-trace-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/claude-review-trace.json.gpg
+          path: ${{ steps.encrypt.outputs.path }}
           retention-days: 90
-          if-no-files-found: ignore
+          if-no-files-found: error
 
       # The action hides the API error unless show_full_output prints the whole
       # transcript into this public log. Print only the error fields instead.
