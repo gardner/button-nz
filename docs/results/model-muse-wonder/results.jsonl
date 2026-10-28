@@ -1,0 +1,6 @@
+{"brief": 0, "condition": "evaluator_lidar", "repeat": 0, "attempts": 2, "executed": 2, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["fail", "unknown"], "seconds": 242.9025719119236, "error": null}
+{"brief": 0, "condition": "evaluator_lidar", "repeat": 1, "attempts": 1, "executed": 1, "accepted": true, "repaired": false, "observations": 4, "verdicts": ["unknown"], "seconds": 197.32609625626355, "error": null}
+{"brief": 1, "condition": "evaluator_lidar", "repeat": 0, "attempts": 2, "executed": 2, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["fail", "unknown"], "seconds": 198.92629188019782, "error": null}
+{"brief": 1, "condition": "evaluator_lidar", "repeat": 1, "attempts": 2, "executed": 2, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["fail", "unknown"], "seconds": 365.5515663167462, "error": null}
+{"brief": 2, "condition": "evaluator_lidar", "repeat": 0, "attempts": 2, "executed": 2, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["fail", "unknown"], "seconds": 467.54389808978885, "error": null}
+{"brief": 2, "condition": "evaluator_lidar", "repeat": 1, "attempts": 2, "executed": 2, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["fail", "unknown"], "seconds": 367.79636183101684, "error": null}
