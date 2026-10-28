@@ -24,6 +24,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from button_nz.api.aerial import SiteAerial, aerial_router, aerial_view
 from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Job, Store
@@ -65,7 +66,13 @@ class JobView(BaseModel):
     attempts: list[AttemptView]
 
 
-def create_app(store: Store, worker: Worker, site: DemoSite, survey: Path | None = None) -> FastAPI:
+def create_app(
+    store: Store,
+    worker: Worker,
+    site: DemoSite,
+    survey: Path | None = None,
+    aerial: SiteAerial | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
         store.recover()
@@ -74,8 +81,9 @@ def create_app(store: Store, worker: Worker, site: DemoSite, survey: Path | None
         worker.stop()
 
     app = FastAPI(title="button-nz", lifespan=lifespan)
-    site_view = _site(site)
+    site_view = _site(site) | {"aerial": aerial_view(aerial)}
     app.include_router(features_router(store, survey))
+    app.include_router(aerial_router(aerial))
 
     @app.get("/site")
     def get_site() -> dict[str, Any]:

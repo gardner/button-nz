@@ -15,6 +15,7 @@ import uvicorn
 
 from button_nz.agent.demo import demo_site
 from button_nz.agent.model import ChatModel
+from button_nz.api.aerial import demo_aerial
 from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
@@ -37,7 +38,8 @@ def main(argv: list[str] | None = None) -> None:
         runs_dir=args.data / "runs",
         survey=survey,
     )
-    app = create_app(store, worker, load_demo_site(), survey=survey)
+    site = load_demo_site()
+    app = create_app(store, worker, site, survey=survey, aerial=demo_aerial(site))
     uvicorn.run(app, host=args.host, port=args.port)
 
 
