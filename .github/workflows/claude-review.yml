@@ -81,6 +81,17 @@ jobs:
             problem and the fix. Post nothing else. If you find nothing
             serious, post nothing.
 
+      # The log only counts denied tool calls. List them (tool and command or
+      # path, never output) so the allowlist can be tuned.
+      - name: Show denied tool calls
+        if: always()
+        run: |
+          file="$RUNNER_TEMP/claude-execution-output.json"
+          [[ -f "$file" ]] || exit 0
+          jq -r '[.[] | select(.type == "result")] | last
+            | .permission_denials // [] | .[]
+            | "denied: \(.tool_name) \(.tool_input.command // .tool_input.file_path // "")"' "$file"
+
       # The action hides the API error unless show_full_output prints the whole
       # transcript into this public log. Print only the error fields instead.
       - name: Show why the review failed
