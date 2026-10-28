@@ -30,7 +30,7 @@ build-backend = "uv_build"
 [tool.ruff]
 target-version = "py314"
 line-length = 100
-src = ["src", "tests", "scripts"]
+src = ["src", "tests", "scripts", "scripts/demo"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C90"]
@@ -40,7 +40,8 @@ max-complexity = 10
 
 [tool.pyright]
 include = ["src", "tests", "scripts"]
-extraPaths = ["src", "scripts", "tests"]
+# scripts/demo: its scripts import each other when run as files.
+extraPaths = ["src", "scripts", "scripts/demo", "tests"]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
 
@@ -55,7 +56,9 @@ addopts = "-m 'not live and not blender'"
 
 [dependency-groups]
 dev = [
+    "av>=19.0.2",
     "httpx>=0.28.1",
+    "playwright>=1.64.1",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
