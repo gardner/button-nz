@@ -15,12 +15,27 @@ from shapely.geometry.base import BaseGeometry
 type Triangle = Sequence[Sequence[float]]
 
 MIN_AREA_M2 = 1e-6
+HAIRLINE_M = 0.005  # half the width a vertical face is given in plan
 
 
 def outline(triangles: Sequence[Triangle]) -> BaseGeometry:
-    """Everything the mesh covers, seen from above."""
-    shadows = [Polygon([(p[0], p[1]) for p in t]) for t in triangles]
-    return union_all([s for s in shadows if s.is_valid and s.area > MIN_AREA_M2])
+    """Everything the mesh covers, seen from above. A vertical face (a screen, a
+    fin) projects to a line: where it reaches beyond the rest, it is kept as a
+    hairline strip, so a setback still sees how far it goes and a detached one
+    shows as a separate piece."""
+    areas: list[BaseGeometry] = []
+    lines: list[BaseGeometry] = []
+    for t in triangles:
+        shadow = Polygon([(p[0], p[1]) for p in t])
+        if shadow.is_valid and shadow.area > MIN_AREA_M2:
+            areas.append(shadow)
+        else:
+            lines.append(LineString([(p[0], p[1]) for p in t]))
+    covered = union_all(areas)
+    beyond = union_all(lines).difference(covered.buffer(MIN_AREA_M2))
+    if beyond.is_empty:
+        return covered
+    return union_all([covered, beyond.buffer(HAIRLINE_M)])  # round ends join the rest
 
 
 def outline_above(triangles: Sequence[Triangle], z: float) -> BaseGeometry:

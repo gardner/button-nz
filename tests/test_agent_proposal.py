@@ -298,3 +298,16 @@ def test_an_a_frame_with_a_deck_on_its_long_side_is_measured_near_its_floor() ->
     measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + deck))
     assert measured.footprint is not None
     assert 75.0 < Polygon(measured.footprint).area < 85.0  # the A-frame, not the deck
+
+
+def test_a_screen_wall_joined_to_the_house_widens_its_outline() -> None:
+    screen = [[[8.0, 3.0, 0.0], [14.0, 3.0, 0.0], [14.0, 3.0, 2.0]]]
+    measured = parse_measurements(measured_with(box(0, 0, 0, 8, 6, 3) + screen))
+    assert measured.parts == 1 and measured.outline is not None
+    assert max(x for x, _ in measured.outline) == pytest.approx(14.0, abs=0.01)
+
+
+def test_a_detached_screen_wall_is_a_separate_piece() -> None:
+    screen = [[[10.0, 3.0, 0.0], [14.0, 3.0, 0.0], [14.0, 3.0, 2.0]]]
+    with pytest.raises(DesignError, match="pieces"):
+        to_proposal(parse_measurements(measured_with(box(0, 0, 0, 8, 6, 3) + screen)), FRAME, DATUM)
