@@ -242,11 +242,13 @@ def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> N
     assert model.seen[1][-1].image is None
 
 
-def test_without_evaluator_feedback_the_model_hears_only_that_its_script_ran(
+def test_without_evaluator_feedback_only_execution_errors_earn_another_attempt(
     site: DesignSite, tmp_path: Path
 ) -> None:
-    """Experiment C's execution-errors-only condition: acceptance is unchanged."""
-    model = ScriptedModel("near", "broken", "good")
+    """Experiment C's execution-errors-only condition: an error comes back, but a
+    script that ran ends the run. Retrying it would let the hidden verdict choose
+    which runs get another draw; the evaluator still decides acceptance."""
+    model = ScriptedModel("broken", "near", "good")
     result = design(
         "Add a small dwelling.",
         site,
@@ -256,20 +258,19 @@ def test_without_evaluator_feedback_the_model_hears_only_that_its_script_ran(
         allow_observations=False,
         evaluator_feedback=False,
     )
-    ran, broke = model.seen[1][-1], model.seen[2][-1]
-    assert "ran" in ran.text and "setback" not in ran.text and ran.image is None
-    assert "NameError" in broke.text  # execution errors still come back
-    assert "title_boundary_setback" in result.attempts[0].feedback  # but are recorded
-    assert result.accepted is result.attempts[2]
+    assert "NameError" in model.seen[1][-1].text  # the execution error came back
+    assert len(model.seen) == 2 and len(result.attempts) == 2  # "near" ran: the end
+    assert "title_boundary_setback" in result.attempts[1].feedback  # recorded, not told
+    assert result.accepted is None
 
 
-def test_without_evaluator_feedback_no_render_or_evaluator_judgement_leaks(
+def test_without_evaluator_feedback_a_rejected_design_also_ends_the_run(
     site: DesignSite, tmp_path: Path
 ) -> None:
-    """A dwelling off the terrain is measured and rendered, then the evaluator
-    rejects it: in the errors-only condition the model hears only that it ran."""
+    """Off the terrain: built and measured, then rejected by the evaluator. It ran,
+    so the model is not asked again (which would itself tell it the design failed)."""
     model = ScriptedModel("off", "good")
-    design(
+    result = design(
         "Add a small dwelling.",
         site,
         model,
@@ -278,9 +279,8 @@ def test_without_evaluator_feedback_no_render_or_evaluator_judgement_leaks(
         allow_observations=False,
         evaluator_feedback=False,
     )
-    told = model.seen[1][-1]
-    assert told.image is None
-    assert "terrain" not in told.text and "ran" in told.text
+    assert len(model.seen) == 1 and len(result.attempts) == 1
+    assert result.accepted is None
 
 
 def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path) -> None:

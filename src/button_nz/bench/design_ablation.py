@@ -16,13 +16,13 @@ import json
 import sys
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.demo import demo_site
-from button_nz.agent.loop import Attempt, DesignResult, Runner, design
+from button_nz.agent.loop import Attempt, Runner, design
 from button_nz.agent.model import ChatModel
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import run_design
@@ -38,7 +38,7 @@ class Condition:
 
 CONDITIONS = (
     Condition("one_shot", 1, True, False),  # one attempt, nothing back
-    Condition("errors", 3, False, False),  # only whether the script ran
+    Condition("errors", 3, False, False),  # execution errors; a script that runs ends it
     Condition("evaluator", 3, True, False),  # the checks and the render
     Condition("evaluator_lidar", 3, True, True),  # and the LiDAR tools
 )
@@ -100,6 +100,7 @@ def _run_one(
     runner: Runner,
 ) -> RunResult:
     started = time.monotonic()
+    finished: list[Attempt] = []  # kept if a later attempt can't complete
     try:
         outcome = design(
             brief,
@@ -110,24 +111,31 @@ def _run_one(
             runner=runner,
             allow_observations=condition.allow_observations,
             evaluator_feedback=condition.evaluator_feedback,
+            on_attempt=finished.append,
         )
     except Exception as error:  # recorded, not dropped: the report counts it
-        seconds = time.monotonic() - started
-        return RunResult(b, condition.name, repeat, 0, 0, False, False, 0, (), seconds, repr(error))
-    return _measured(b, condition.name, repeat, outcome, time.monotonic() - started)
+        run = _measured(b, condition.name, repeat, finished, None, time.monotonic() - started)
+        return replace(run, error=repr(error))
+    seconds = time.monotonic() - started
+    return _measured(b, condition.name, repeat, outcome.attempts, outcome.accepted, seconds)
 
 
-def _measured(b: int, name: str, repeat: int, outcome: DesignResult, seconds: float) -> RunResult:
-    attempts = outcome.attempts
-    accepted = outcome.accepted is not None
+def _measured(
+    b: int,
+    name: str,
+    repeat: int,
+    attempts: Sequence[Attempt],
+    accepted: Attempt | None,
+    seconds: float,
+) -> RunResult:
     return RunResult(
         brief=b,
         condition=name,
         repeat=repeat,
         attempts=len(attempts),
         executed=sum(a.judged for a in attempts),
-        accepted=accepted,
-        repaired=accepted and outcome.accepted is not attempts[0],
+        accepted=accepted is not None,
+        repaired=accepted is not None and accepted is not attempts[0],
         observations=sum(len(a.observations) for a in attempts),
         verdicts=tuple(_verdict(a) for a in attempts),
         seconds=seconds,
@@ -175,7 +183,8 @@ def report(results: Sequence[RunResult], meta: Mapping[str, object]) -> str:
         "condition. Each run is the design loop on the demo site: sandboxed Blender builds "
         "each attempt and the independent evaluator checks it. Accepted means no check "
         "failed on the final attempt; repair rate is over runs whose first attempt failed "
-        "or errored.",
+        "or errored. Under `errors` the model hears only execution errors, so a script "
+        "that runs ends the run; an incomplete run keeps the attempts that finished.",
         "",
         "| Condition | Runs | Accepted | Execution rate | Repair rate | Mean attempts "
         "| Mean observations | Mean s | Incomplete |",

@@ -89,7 +89,8 @@ def test_a_square_mark_is_outlined(site: DesignSite, aerial: NDArray[np.uint8]) 
     image = pixels(png)
     assert tuple(image[15 * SCALE, 15 * SCALE]) == MARK_COLOUR  # west edge, x = 15 NZTM
     assert tuple(image[15 * SCALE, 25 * SCALE]) == MARK_COLOUR  # east edge
-    assert tuple(image[12 * SCALE, 20 * SCALE]) == (128, 128, 128)  # inside: untouched
+    inside = image[10 * SCALE + 2 : 20 * SCALE - 1, 15 * SCALE + 2 : 25 * SCALE - 1]
+    assert (inside == 128).all()  # every measured cell visible: the label is outside
 
 
 def test_an_aerial_of_the_wrong_size_raises(site: DesignSite) -> None:

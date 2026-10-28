@@ -60,7 +60,7 @@ def test_each_condition_is_run_and_logged(site: DesignSite, tmp_path: Path) -> N
     by_name = {r.condition: r for r in results}
     assert set(by_name) == {"one_shot", "errors", "evaluator", "evaluator_lidar"}
     assert by_name["one_shot"].attempts == 1 and not by_name["one_shot"].accepted
-    assert by_name["errors"].attempts == 3 and not by_name["errors"].accepted  # never told why
+    assert by_name["errors"].attempts == 1 and not by_name["errors"].accepted  # it ran: done
     assert by_name["evaluator"].repaired and by_name["evaluator"].attempts == 2
     assert by_name["evaluator_lidar"].observations >= 1 and by_name["evaluator_lidar"].accepted
     assert by_name["evaluator"].verdicts == ("fail", "unknown")
@@ -77,6 +77,21 @@ def test_a_run_that_cannot_complete_is_recorded_not_dropped(
     (result,) = run(["A studio."], CONDITIONS[:1], 1, site, Scripted(), tmp_path, no_gpu)
     assert result.error is not None and "no GPU" in result.error
     assert result.seconds > 0.0  # the time it took to fail is still measured
+    assert not result.accepted
+
+
+def test_attempts_that_finished_before_a_failure_are_kept(site: DesignSite, tmp_path: Path) -> None:
+    """Blender fails on attempt 2: attempt 1 ran and was judged, and says so."""
+
+    def fails_second(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+        if out_dir.name == "attempt-2":
+            raise BlenderError("no GPU available to Cycles")
+        return fake_runner(scene, script, out_dir)
+
+    evaluator = [c for c in CONDITIONS if c.name == "evaluator"]
+    (result,) = run(["A studio."], evaluator, 1, site, Scripted(), tmp_path, fails_second)
+    assert result.error is not None and "no GPU" in result.error
+    assert result.attempts == 1 and result.executed == 1 and result.verdicts == ("fail",)
     assert not result.accepted
 
 
@@ -110,6 +125,7 @@ def test_the_report_states_method_and_sample_sizes() -> None:
     assert "muse-spark-1.3" in text
     assert "| one_shot | 1 | 0 (0%) |" in text
     assert "| evaluator | 1 | 1 (100%) |" in text
+    assert "a script that runs ends the run" in text  # what `errors` measures
 
 
 class Always:

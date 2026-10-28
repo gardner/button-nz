@@ -71,7 +71,8 @@ def design(
     """Design for ``brief`` on ``site``. Before each attempt the model may request
     up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
     they don't count as attempts. Without ``evaluator_feedback`` the model hears
-    only whether its script ran (Experiment C's ablation); the evaluator still
+    only execution errors (Experiment C's ablation): a script that ran ends the
+    run, since asking again would tell the model it failed. The evaluator still
     decides acceptance, and every attempt still records its verdict.
     ``on_attempt`` sees each attempt as it ends."""
     local = site.frame.to_local
@@ -93,21 +94,17 @@ def design(
         attempts.append(attempt)
         if on_attempt is not None:
             on_attempt(attempt)
-        conversation += [Turn("design", attempt.script), _told(attempt, evaluator_feedback)]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
             break
+        if attempt.judged and not evaluator_feedback:  # only errors earn another go
+            break
+        conversation += [
+            Turn("design", attempt.script),
+            Turn("feedback", attempt.feedback, attempt.render),
+        ]
     result = DesignResult(brief, tuple(attempts))
     _write_summary(result, runs_dir)
     return result
-
-
-def _told(attempt: Attempt, evaluator_feedback: bool) -> Turn:
-    """What the model hears about ``attempt``."""
-    if evaluator_feedback:
-        return Turn("feedback", attempt.feedback, attempt.render)
-    if attempt.judged:  # only that it ran: no verdict, no render
-        return Turn("feedback", "Your script ran and built a Dwelling.")
-    return Turn("feedback", attempt.feedback)  # the execution error itself
 
 
 @dataclass

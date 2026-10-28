@@ -22,6 +22,7 @@ from button_nz.lidar import View, contours, hillshade, ndsm_map, normal_map, slo
 CONDITIONS = ("aerial", "aerial_contours", "aerial_ndsm_slope", "fixed_all", "agent")
 SCALE = 8  # pixels per metre, as the agent's observation views
 MARK_COLOUR = (255, 0, 255)
+LABEL_PX = 12  # the label's height, with a gap
 POINT_RADIUS_PX = 7  # a ring clear of the 1 m (8 px) cell it marks
 CONTOUR_INTERVAL_M = 0.25
 
@@ -67,7 +68,9 @@ def mark(png: bytes, marks: tuple[Mark, ...], site: DesignSite) -> bytes:
         if target.half_m:
             h = target.half_m * SCALE
             draw.rectangle((px - h, py - h, px + h, py + h), outline=MARK_COLOUR, width=2)
-            label_at = (px - h + 3, py - h + 2)
+            # Outside the square, so every cell it asks about stays visible.
+            above = py - h - LABEL_PX
+            label_at = (px - h, above if above >= 0 else py + h + 3)
         else:
             r = POINT_RADIUS_PX
             draw.ellipse((px - r, py - r, px + r, py + r), outline=MARK_COLOUR, width=2)
