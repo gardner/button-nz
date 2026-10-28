@@ -170,6 +170,10 @@ def show_visual(run: Run) -> None:
 
 def view_3d(run: Run) -> None:
     run.page.get_by_role("button", name="View in 3D").last.click()
+    # The viewer is drawn below the attempt cards: bring it, not the button, on screen.
+    viewer = run.page.locator("canvas").last
+    viewer.wait_for(state="visible", timeout=30_000)
+    viewer.scroll_into_view_if_needed()
     run.cast.mark("the 3D model")
     run.page.wait_for_timeout(6000)
 
@@ -190,7 +194,8 @@ def revise(run: Run, change: str) -> None:
 
 def before_and_after(run: Run) -> None:
     run.cast.mark("before and after")
-    run.page.get_by_text("Before", exact=False).first.scroll_into_view_if_needed()
+    # The renders themselves, not the first text that says "Before".
+    run.page.get_by_alt_text(re.compile(r"^Before")).first.scroll_into_view_if_needed()
     run.page.wait_for_timeout(6000)
 
 
