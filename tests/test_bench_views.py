@@ -79,3 +79,10 @@ def test_a_square_mark_is_outlined(site: DesignSite, aerial: NDArray[np.uint8]) 
 def test_an_aerial_of_the_wrong_size_raises(site: DesignSite) -> None:
     with pytest.raises(ValueError, match="aerial"):
         condition_images("aerial", QUESTION, site, np.zeros((10, 10, 3), dtype=np.uint8))
+
+
+def test_each_lidar_view_says_how_to_read_it(site: DesignSite, aerial: NDArray[np.uint8]) -> None:
+    captions = [c for c, _ in condition_images("aerial_ndsm_slope", QUESTION, site, aerial)]
+    assert "Slope in degrees" in captions[2]
+    contours = [c for c, _ in condition_images("aerial_contours", QUESTION, site, aerial)]
+    assert "Contours every 0.25 m" in contours[1]

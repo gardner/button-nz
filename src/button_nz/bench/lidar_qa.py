@@ -30,12 +30,13 @@ from button_nz.agent.observe import ObservationError, observe
 from button_nz.agent.site import DesignSite
 from button_nz.bench.answering import Answerer, ChatAnswerer, QaTurn
 from button_nz.bench.questions import Question, generate, score
-from button_nz.bench.views import CONDITIONS, SCALE, condition_images
+from button_nz.bench.views import CONDITIONS, SCALE, condition_images, mark
 from button_nz.demo_site import load_demo_site
 from button_nz.geo.imagery import read_aerial
 from button_nz.geo.tiles import tiles_covering
 
 MAX_OBSERVATIONS = 3
+MAP_TOOLS = frozenset({"render_hillshade", "render_contours", "render_height_map"})
 SYSTEM = (
     "You answer questions about the ground on a real New Zealand property. "
     "Coordinates are local metres: x east, y north. Points and squares the "
@@ -79,7 +80,7 @@ def ask(
             if isinstance(reply, str):
                 answer, error = reply, None
                 break
-            turns += _observe(site, reply, allowed, observed)
+            turns += _observe(site, question, reply, allowed, observed)
     except ModelReplyError as reply_error:
         error = str(reply_error)
     return Result(
@@ -95,7 +96,7 @@ def ask(
 
 
 def _observe(
-    site: DesignSite, request: Observe, allowed: bool, observed: list[str]
+    site: DesignSite, question: Question, request: Observe, allowed: bool, observed: list[str]
 ) -> list[QaTurn]:
     turns = [
         QaTurn("request", json.dumps({"tool": request.tool, "arguments": dict(request.arguments)}))
@@ -107,7 +108,10 @@ def _observe(
         view = observe(site, request)
     except ObservationError as error:
         return [*turns, QaTurn("observation", str(error))]
-    images = (("The view", view.png),) if view.png else ()
+    png = view.png
+    if png is not None and request.tool in MAP_TOOLS:  # a map of the grid: show the marks
+        png = mark(png, question.marks, site)
+    images = (("The view (marks in magenta)", png),) if png else ()
     return [*turns, QaTurn("observation", view.text, images)]
 
 

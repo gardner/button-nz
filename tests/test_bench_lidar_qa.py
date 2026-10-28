@@ -1,5 +1,6 @@
 """Tests for button_nz.bench.lidar_qa: asking, scoring and reporting Experiment A."""
 
+import io
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -7,13 +8,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+from PIL import Image
 
 from button_nz.agent.conversation import ModelReplyError, Observe
 from button_nz.agent.site import DesignSite
 from button_nz.bench.answering import QaTurn
 from button_nz.bench.lidar_qa import Result, ask, report, run, summarise
 from button_nz.bench.questions import Mark, Question
-from button_nz.bench.views import SCALE
+from button_nz.bench.views import MARK_COLOUR, SCALE
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
@@ -74,6 +76,9 @@ def test_the_agent_may_look_before_answering(site: DesignSite, aerial: NDArray[n
     assert result.correct  # 0.9 is within 0.2 of 1.0
     observation = model.seen[1][-1]
     assert observation.role == "observation" and observation.images
+    (_, png), *_ = observation.images
+    image = np.asarray(Image.open(io.BytesIO(png)).convert("RGB"))
+    assert (image == MARK_COLOUR).all(axis=2).any()  # the question's marks are on it
     assert model.allowed == [True, True]
 
 

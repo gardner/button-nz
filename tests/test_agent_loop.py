@@ -245,3 +245,23 @@ def test_without_evaluator_feedback_the_model_hears_only_that_its_script_ran(
     assert "NameError" in broke.text  # execution errors still come back
     assert "title_boundary_setback" in result.attempts[0].feedback  # but are recorded
     assert result.accepted is result.attempts[2]
+
+
+def test_without_evaluator_feedback_no_render_or_evaluator_judgement_leaks(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """A dwelling off the terrain is measured and rendered, then the evaluator
+    rejects it: in the errors-only condition the model hears only that it ran."""
+    model = ScriptedModel("off", "good")
+    design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        allow_observations=False,
+        evaluator_feedback=False,
+    )
+    told = model.seen[1][-1]
+    assert told.image is None
+    assert "terrain" not in told.text and "ran" in told.text

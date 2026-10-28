@@ -35,6 +35,7 @@ class Attempt:
     directory: Path
     observations: tuple[str, ...] = ()  # the observation tools used before this attempt
     render: Path | None = None  # this attempt's render, if the runner made one
+    judged: bool = False  # the evaluator reached a verdict on it (or rejected it)
 
     @property
     def status(self) -> str:
@@ -94,9 +95,11 @@ def design(
 
 def _told(attempt: Attempt, evaluator_feedback: bool) -> Turn:
     """What the model hears about ``attempt``."""
-    if evaluator_feedback or attempt.report is None:
+    if evaluator_feedback:
         return Turn("feedback", attempt.feedback, attempt.render)
-    return Turn("feedback", "Your script ran and built a Dwelling.")
+    if attempt.judged:  # only that it ran: no verdict, no render
+        return Turn("feedback", "Your script ran and built a Dwelling.")
+    return Turn("feedback", attempt.feedback)  # the execution error itself
 
 
 @dataclass
@@ -175,14 +178,19 @@ def _attempt(
 ) -> Attempt:
     outputs = runner(site.scene, script, directory)
     report: Report | None = None
+    judged = False
     try:
         measurements = parse_measurements(outputs.measurements)
         datum = site.scene["frame"]["datum_m"]
-        report = evaluate(to_proposal(measurements, site.frame, datum), site.context)
+        proposal = to_proposal(measurements, site.frame, datum)
+        judged = True  # from here on, it is the evaluator speaking
+        report = evaluate(proposal, site.context)
         feedback = describe(report)
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
-    attempt = Attempt(number, script, feedback, report, directory, observations, outputs.png)
+    attempt = Attempt(
+        number, script, feedback, report, directory, observations, outputs.png, judged
+    )
     _write_attempt(attempt)
     return attempt
 
