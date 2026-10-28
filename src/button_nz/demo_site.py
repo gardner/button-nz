@@ -32,7 +32,7 @@ class RasterSource:
     collection: str
     tile: str
     asset: str
-    tile_bbox_wgs84: BBox
+    tile_bbox_nztm: BBox
     resolution_m: float
     capture: Capture
     licence: str
@@ -64,7 +64,6 @@ class DemoSite:
     address_nztm: Point
     parcels: tuple[Parcel, ...]
     extent_nztm: BBox
-    extent_wgs84: BBox
     rasters: Mapping[str, RasterSource]
     vectors: Mapping[str, VectorSource]
     open_items: tuple[str, ...]
@@ -91,7 +90,6 @@ def load_demo_site(directory: Path = DEMO_SITE_DIR) -> DemoSite:
         address_nztm=_point(manifest["address"]["nztm"]),
         parcels=parcels,
         extent_nztm=_bbox(manifest["extent"]["nztm"]),
-        extent_wgs84=_bbox(manifest["extent"]["wgs84"]),
         rasters={k: _raster(v) for k, v in manifest["rasters"].items()},
         vectors={k: _vector(v) for k, v in manifest["vectors"].items()},
         open_items=tuple(str(item) for item in manifest["open_items"]),
@@ -113,7 +111,9 @@ def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
         if capture.start > capture.end:
             raise ValueError(f"{key}: capture ends before it starts")
     for key, raster in site.rasters.items():
-        if not _covers(raster.tile_bbox_wgs84, site.extent_wgs84):
+        if raster.asset != f"{raster.collection.rsplit('/', 1)[0]}/{raster.tile}.tiff":
+            raise ValueError(f"{key}: asset is not tile {raster.tile} in its collection")
+        if not _covers(raster.tile_bbox_nztm, site.extent_nztm):
             raise ValueError(f"{key}: tile {raster.tile} does not cover the site")
 
 
@@ -139,7 +139,7 @@ def _raster(raw: Mapping[str, Any]) -> RasterSource:
         collection=str(raw["collection"]),
         tile=str(raw["tile"]),
         asset=str(raw["asset"]),
-        tile_bbox_wgs84=_bbox(raw["tile_bbox_wgs84"]),
+        tile_bbox_nztm=_bbox(raw["tile_bbox_nztm"]),
         resolution_m=float(raw["resolution_m"]),
         capture=_capture(raw["capture"]),
         licence=str(raw["licence"]),

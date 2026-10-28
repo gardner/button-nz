@@ -8,8 +8,7 @@
   "parcels_file": "parcels.geojson",
   "parcel_ids": [3652040, 3621992, 3615590, 3625049],
   "extent": {
-    "nztm": [1505926.13, 5336777.48, 1505969.74, 5336822.22],
-    "wgs84": [171.8620358, -42.1154645, 171.8625629, -42.1150621]
+    "nztm": [1505926.13, 5336777.48, 1505969.74, 5336822.22]
   },
   "rasters": {
     "dem": {
@@ -17,7 +16,7 @@
       "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/collection.json",
       "tile": "BS21_10000_0503",
       "asset": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0503.tiff",
-      "tile_bbox_wgs84": [171.8092432, -42.1405291, 171.8684714, -42.0751082],
+      "tile_bbox_nztm": [1501600.0, 5334000.0, 1506400.0, 5341200.0],
       "resolution_m": 1.0,
       "capture": { "start": "2020-05-15T12:00:00Z", "end": "2024-07-10T12:00:00Z" },
       "licence": "CC-BY-4.0",
@@ -28,7 +27,7 @@
       "collection": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/collection.json",
       "tile": "BS21_10000_0503",
       "asset": "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/BS21_10000_0503.tiff",
-      "tile_bbox_wgs84": [171.8092432, -42.1405291, 171.8684714, -42.0751082],
+      "tile_bbox_nztm": [1501600.0, 5334000.0, 1506400.0, 5341200.0],
       "resolution_m": 1.0,
       "capture": { "start": "2020-05-15T12:00:00Z", "end": "2024-07-10T12:00:00Z" },
       "licence": "CC-BY-4.0",
@@ -39,7 +38,7 @@
       "collection": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193/collection.json",
       "tile": "BS21_1000_4730",
       "asset": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193/BS21_1000_4730.tiff",
-      "tile_bbox_wgs84": [171.8618584, -42.1210789, 171.8677796, -42.1145381],
+      "tile_bbox_nztm": [1505920.0, 5336160.0, 1506400.0, 5336880.0],
       "resolution_m": 0.075,
       "capture": { "start": "2024-12-15T11:00:00Z", "end": "2025-09-18T12:00:00Z" },
       "licence": "CC-BY-4.0",
@@ -50,7 +49,7 @@
       "collection": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2024-2026_0.2m/rgb/2193/collection.json",
       "tile": "BS21_5000_1006",
       "asset": "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2024-2026_0.2m/rgb/2193/BS21_5000_1006.tiff",
-      "tile_bbox_wgs84": [171.8382802, -42.1405291, 171.867895, -42.1078221],
+      "tile_bbox_nztm": [1504000.0, 5334000.0, 1506400.0, 5337600.0],
       "resolution_m": 0.2,
       "capture": { "start": "2024-12-16T11:00:00Z", "end": "2026-03-02T11:00:00Z" },
       "licence": "CC-BY-4.0",
