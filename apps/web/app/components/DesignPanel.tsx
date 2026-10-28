@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { type Attempt, type Job, createDesign, getDesign } from "@/lib/api";
+import {
+  ApiError,
+  type Attempt,
+  type Job,
+  createDesign,
+  getDesign,
+} from "@/lib/api";
 
 import { ModelViewer } from "./ModelViewer";
 
@@ -48,14 +54,17 @@ function modelUrl(job: Job, number: number | null): string | undefined {
 }
 
 /** A design job: started on request, then polled until it is done or failed.
- * A failed poll is shown and retried; one design is started at a time. */
+ * A transient poll failure is shown and retried; a permanent one (the API no
+ * longer has the job) stops polling. One design is started at a time. */
 function useDesignJob(pollMs: number) {
   const [job, setJob] = useState<Job | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const starting = useRef(false); // guards clicks before the re-render disables Design
-  const active = job?.status === "queued" || job?.status === "running";
+  const [lost, setLost] = useState(false); // the API can't give this job any more
+  const active =
+    !lost && (job?.status === "queued" || job?.status === "running");
   useEffect(() => {
     if (!active || job === null) return;
     const timer = setTimeout(() => {
@@ -66,7 +75,8 @@ function useDesignJob(pollMs: number) {
         },
         (e: Error) => {
           setProblem(e.message);
-          setRetries((n) => n + 1);
+          if (e instanceof ApiError && !e.transient) setLost(true);
+          else setRetries((n) => n + 1);
         },
       );
     }, pollMs);
@@ -78,6 +88,7 @@ function useDesignJob(pollMs: number) {
     starting.current = true;
     setSubmitting(true);
     setProblem(null);
+    setLost(false);
     createDesign(brief, observe)
       .then(setJob, (e: Error) => setProblem(e.message))
       .finally(() => {

@@ -57,7 +57,21 @@ export interface Site {
   openItems: string[];
 }
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  /** The HTTP status, when the API answered with an error. */
+  readonly status: number | undefined;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+
+  /** Whether asking again could succeed: not a client error such as 404. */
+  get transient(): boolean {
+    const s = this.status;
+    return s === undefined || s >= 500 || s === 408 || s === 429;
+  }
+}
 
 const JOB_STATUSES: readonly string[] = ["queued", "running", "done", "failed"];
 const VERDICTS: readonly string[] = ["pass", "fail", "unknown", "error"];
@@ -90,6 +104,7 @@ async function request(path: string, init?: RequestInit): Promise<unknown> {
   if (!response.ok) {
     throw new ApiError(
       reason(body) ?? `${response.status} ${response.statusText}`,
+      response.status,
     );
   }
   return body;

@@ -52,12 +52,16 @@ describe("the client", () => {
     });
   });
 
-  it("reports the API's reason for an error", async () => {
+  it("reports the API's reason and status for an error", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(respond({ detail: "no design nope" }, 404)),
     );
-    await expect(getDesign("nope")).rejects.toThrow("no design nope");
+    const error = await getDesign("nope").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).message).toBe("no design nope");
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).transient).toBe(false);
   });
 
   it("reads the site", async () => {

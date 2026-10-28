@@ -118,6 +118,29 @@ describe("DesignPanel", () => {
     expect(screen.queryByText("Bad Gateway")).toBeNull();
   });
 
+  it("stops following a design the API no longer has", async () => {
+    const fetch = vi.fn();
+    fetch.mockResolvedValueOnce(
+      respond({
+        ...JOB,
+        status: "queued",
+        accepted_attempt: null,
+        attempts: [],
+      }),
+    );
+    fetch.mockResolvedValue(respond({ detail: "no design abc123" }, 404));
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    expect(await screen.findByText(/no design abc123/)).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetch).toHaveBeenCalledTimes(2); // the POST and one poll: no retries
+    const design = screen.getByRole("button", {
+      name: "Design",
+    }) as HTMLButtonElement;
+    expect(design.disabled).toBe(false);
+  });
+
   it("sends one design however often Design is clicked", async () => {
     let finish: (r: Response) => void = () => {};
     const fetch = vi.fn(
