@@ -74,7 +74,11 @@ def cross_section(grid: TerrainGrid, start: Point, end: Point, step_m: float = 0
 
 
 def inspect_elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
-    """Ground and slope statistics for the cells whose centres are inside ``polygon``."""
+    """Ground and slope statistics for the cells whose centres are inside
+    ``polygon``, which must lie within the grid's cell centres."""
+    for point in polygon:
+        if not _on_grid(grid, point):
+            raise ValueError(f"({point[0]:.1f}, {point[1]:.1f}) is outside the terrain grid")
     rows, cols = grid.dem.shape
     xs = grid.bbox[0] + (np.arange(cols, dtype=np.float64) + 0.5) * grid.cell_m
     ys = grid.bbox[3] - (np.arange(rows, dtype=np.float64) + 0.5) * grid.cell_m

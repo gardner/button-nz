@@ -48,6 +48,35 @@ def test_coordinates_are_in_the_local_frame(site: DesignSite) -> None:
     assert "1010" not in result.text  # NZTM never leaks into the model's frame
 
 
+def test_heights_are_given_in_the_scripts_z(site: DesignSite) -> None:
+    """z = NZVD2016 - datum; the datum is the lowest ground, 100.05 m."""
+    polygon = [[-5, -5], [5, -5], [5, 5], [-5, 5], [-5, -5]]
+    result = observe(site, Observe("inspect_elevation", {"polygon": polygon}))
+    assert "min_m: 1.50" in result.text  # NZVD2016 101.55
+    assert "above the scene datum" in result.text
+    contours = observe(site, Observe("render_contours", {"interval_m": 0.5}))
+    assert "min_m: 0.00" in contours.text
+    assert "NZVD2016" not in contours.text
+
+
+@pytest.mark.parametrize(
+    "request_",
+    [
+        Observe("render_cross_section", {"start": [0, 0], "end": [200, 0]}),
+        Observe("inspect_elevation", {"polygon": [[10, 0], [30, 0], [30, 5], [10, 0]]}),
+    ],
+)
+def test_requests_off_the_terrain_say_where_it_is_locally(
+    site: DesignSite, request_: Observe
+) -> None:
+    with pytest.raises(ObservationError) as error:
+        observe(site, request_)
+    message = str(error.value)
+    assert "outside the terrain" in message
+    assert "x -19.5..19.5, y -9.5..9.5" in message
+    assert "1020" not in message and "2010" not in message  # no NZTM
+
+
 def test_inspect_elevation_takes_a_local_polygon(site: DesignSite) -> None:
     polygon = [[-5, -5], [5, -5], [5, 5], [-5, 5], [-5, -5]]
     result = observe(site, Observe("inspect_elevation", {"polygon": polygon}))

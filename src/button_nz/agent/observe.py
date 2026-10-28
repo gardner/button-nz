@@ -25,7 +25,9 @@ from button_nz.lidar import (
     slope_map,
 )
 
+_EPS = 1e-9
 SCALE = 8  # pixels per metre cell
+HEIGHTS = ("min_m", "max_m", "mean_m")  # NZVD2016 in the views' facts; shown as script z
 
 
 class ObservationError(ValueError):
@@ -102,22 +104,23 @@ def _observe(site: DesignSite, tool: str, args: Mapping[str, Any]) -> Observatio
             grid, float(args.get("azimuth_deg", 315)), float(args.get("altitude_deg", 45)), SCALE
         )
     elif tool == "render_contours":
-        view = contours(grid, float(args.get("interval_m", 0.25)), SCALE)
+        interval = float(args.get("interval_m", 0.25))
+        view = replace(contours(grid, interval, SCALE), notes=f"Contours every {interval:g} m.")
     elif tool == "render_height_map":
         modes = {"slope": slope_map, "above_ground": ndsm_map, "normals": normal_map}
         if args["mode"] not in modes:
             raise ObservationError(f"render_height_map: mode must be one of {sorted(modes)}")
         view = modes[args["mode"]](grid, SCALE)
     elif tool == "render_cross_section":
-        return _described(_cross_section(site, args["start"], args["end"]), outlined=False)
+        return _described(site, _cross_section(site, args["start"], args["end"]), outlined=False)
     elif tool == "inspect_elevation":
         polygon = tuple(_local(site, point) for point in args["polygon"])
         stats = inspect_elevation(grid, polygon)
-        return Observation(_facts("Inside the polygon:", stats), None)
+        return Observation(_facts(site, "Inside the polygon:", stats), None)
     else:
         raise ObservationError(f"unknown observation tool {tool!r}")
     outlined = overlay(view, grid, site.context.parcels, SCALE)
-    return _described(outlined, outlined=True)
+    return _described(site, outlined, outlined=True)
 
 
 def _cross_section(site: DesignSite, start: Sequence[float], end: Sequence[float]) -> View:
@@ -132,20 +135,46 @@ def _label(point: Sequence[float]) -> str:
 
 
 def _local(site: DesignSite, point: Sequence[float]) -> Point:
+    """A local point on the measured terrain, in NZTM; off it is feedback in local terms."""
     if len(point) != 2:
         raise ObservationError(f"a point must be [x, y], not {list(point)}")
-    return site.frame.to_nztm((float(point[0]), float(point[1])))
+    x, y = float(point[0]), float(point[1])
+    west, south, east, north = _extent(site)
+    if not (west - _EPS <= x <= east + _EPS and south - _EPS <= y <= north + _EPS):
+        raise ObservationError(
+            f"{_label(point)} is outside the terrain, which spans "
+            f"x {west:g}..{east:g}, y {south:g}..{north:g} (local metres)"
+        )
+    return site.frame.to_nztm((x, y))
 
 
-def _described(view: View, outlined: bool) -> Observation:
+def _extent(site: DesignSite) -> tuple[float, float, float, float]:
+    """The terrain's cell centres, local: the ground is measured only there."""
+    grid, half = site.context.terrain, site.context.terrain.cell_m / 2
+    west, south = site.frame.to_local((grid.bbox[0] + half, grid.bbox[1] + half))
+    east, north = site.frame.to_local((grid.bbox[2] - half, grid.bbox[3] - half))
+    return round(west, 6), round(south, 6), round(east, 6), round(north, 6)
+
+
+def _described(site: DesignSite, view: View, outlined: bool) -> Observation:
     notes = view.notes
     if outlined:
         notes += " Red outlines: the title's parcels. North is up; 1 cell = 1 m."
-    return Observation(_facts(notes, view.facts), view.png)
+    return Observation(_facts(site, notes, view.facts), view.png)
 
 
-def _facts(heading: str, facts: Mapping[str, float]) -> str:
-    lines = [heading, *(f"- {name}: {value:.2f}" for name, value in facts.items())]
+def _facts(site: DesignSite, heading: str, facts: Mapping[str, float]) -> str:
+    """The view's numbers, with ground heights as the z the model's script uses."""
+    datum = site.scene["frame"]["datum_m"]
+    if any(name in HEIGHTS for name in facts):
+        heading += " Heights are metres above the scene datum: the z your script uses."
+    lines = [
+        heading,
+        *(
+            f"- {name}: {value - datum if name in HEIGHTS else value:.2f}"
+            for name, value in facts.items()
+        ),
+    ]
     return "\n".join(lines)
 
 

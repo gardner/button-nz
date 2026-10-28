@@ -119,6 +119,12 @@ def test_cross_sections_must_stay_on_the_measured_grid(
         cross_section(plane(east=0.2), start, end)
 
 
+def test_inspect_elevation_rejects_a_polygon_leaving_the_grid() -> None:
+    partly_off = ((30.0, 10.0), (60.0, 10.0), (60.0, 20.0), (30.0, 20.0), (30.0, 10.0))
+    with pytest.raises(ValueError, match="outside the terrain"):
+        inspect_elevation(plane(east=0.1), partly_off)
+
+
 def test_inspect_elevation_inside_a_polygon() -> None:
     square = ((10.0, 10.0), (20.0, 10.0), (20.0, 20.0), (10.0, 20.0), (10.0, 10.0))
     stats = inspect_elevation(plane(east=0.1), square)
@@ -132,8 +138,14 @@ def test_inspect_elevation_inside_a_polygon() -> None:
 
 def test_a_polygon_outside_the_grid_raises() -> None:
     far = ((100.0, 100.0), (110.0, 100.0), (110.0, 110.0), (100.0, 100.0))
-    with pytest.raises(ValueError, match="no cell"):
+    with pytest.raises(ValueError, match="outside the terrain"):
         inspect_elevation(plane(), far)
+
+
+def test_a_polygon_between_cell_centres_raises() -> None:
+    sliver = ((10.6, 10.6), (11.4, 10.6), (11.4, 11.4), (10.6, 10.6))
+    with pytest.raises(ValueError, match="no cell"):
+        inspect_elevation(plane(), sliver)
 
 
 def test_overlay_draws_outlines_in_the_views_pixel_space() -> None:
