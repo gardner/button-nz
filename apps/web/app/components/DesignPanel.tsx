@@ -153,6 +153,7 @@ function AttemptCard({
   onView: (n: number) => void;
 }) {
   const image = attempt.files["design.png"];
+  const visual = attempt.files["visual.png"]; // only if it kept the design's shape
   return (
     <article className="flex flex-col gap-2 rounded border border-zinc-200 p-3 dark:border-zinc-800">
       <header className="flex items-center gap-2">
@@ -190,7 +191,29 @@ function AttemptCard({
           className="max-w-md rounded"
         />
       )}
+      {visual && <Illustration src={visual} number={attempt.number} />}
     </article>
+  );
+}
+
+/** Muse Image's picture of the design, shown only when the building in it
+ * still matched the checked design's silhouette. Everything else in it is
+ * imagined, and the caption says so. */
+function Illustration({ src, number }: { src: string; number: number }) {
+  return (
+    <figure className="flex max-w-md flex-col gap-1">
+      {/* eslint-disable-next-line @next/next/no-img-element -- an image served by the API */}
+      <img
+        src={src}
+        alt={`AI illustration of attempt ${number}`}
+        className="rounded"
+      />
+      <figcaption className="text-xs text-zinc-600 dark:text-zinc-400">
+        AI-illustrated by Muse Image from the checked design. Only the new
+        dwelling&apos;s position and shape were checked against it; the
+        surroundings are imagined, not the real site.
+      </figcaption>
+    </figure>
   );
 }
 

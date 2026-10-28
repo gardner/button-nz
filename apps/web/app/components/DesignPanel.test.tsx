@@ -73,6 +73,27 @@ describe("DesignPanel", () => {
     expect(screen.getByText("render_contours")).toBeTruthy();
   });
 
+  it("shows an AI illustration, labelled for what it is, beside the render", async () => {
+    const illustrated = {
+      ...ACCEPTED_ATTEMPT,
+      files: {
+        ...ACCEPTED_ATTEMPT.files,
+        "visual.png": "/designs/abc123/attempts/2/visual.png",
+      },
+    };
+    serve({ ...JOB, attempts: [FAILED_ATTEMPT, illustrated] });
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    const visual = (await screen.findByAltText(
+      "AI illustration of attempt 2",
+    )) as HTMLImageElement;
+    expect(visual.src).toContain("/api/designs/abc123/attempts/2/visual.png");
+    const caption = visual.closest("figure")?.textContent ?? "";
+    expect(caption).toMatch(/AI-illustrated/);
+    expect(caption).toMatch(/only the new dwelling's position and shape/i);
+    expect(screen.queryByAltText("AI illustration of attempt 1")).toBeNull();
+  });
+
   it("says why a job failed, in the API's words", async () => {
     serve(
       { ...JOB, status: "queued", accepted_attempt: null, attempts: [] },
