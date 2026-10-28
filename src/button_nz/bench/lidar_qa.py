@@ -15,7 +15,7 @@ import argparse
 import json
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -154,6 +154,7 @@ def summarise(results: Sequence[Result]) -> dict[str, dict[str, Any]]:
             "errors": sum(r.error is not None for r in mine),
             "accuracy": correct / len(mine),
             "mean_seconds": sum(r.seconds for r in mine) / len(mine),
+            "tools": dict(Counter(tool for r in mine for tool in r.observations)),
             "by_kind": dict(by_kind),
         }
     return summary
@@ -178,6 +179,12 @@ def report(results: Sequence[Result], meta: Mapping[str, object]) -> str:
             f"| {condition} | {s['n']} | {s['correct']} | {s['accuracy']:.0%} | "
             f"{s['errors']} | {s['mean_seconds']:.1f} |"
         )
+    lines += ["", "## Observations the model chose", ""]
+    lines += [
+        f"- {condition}: " + ", ".join(f"{tool} x{n}" for tool, n in sorted(s["tools"].items()))
+        for condition, s in summary.items()
+        if s["tools"]
+    ] or ["None."]
     lines += ["", "## By kind (correct / n)", "", f"| Condition | {' | '.join(kinds)} |"]
     lines.append("|---|" + "---|" * len(kinds))
     for condition, s in summary.items():

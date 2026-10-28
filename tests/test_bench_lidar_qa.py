@@ -141,3 +141,9 @@ def test_an_output_directory_holds_one_run(
     run([ASPECT], ["aerial"], site, aerial, Scripted("W"), tmp_path)
     with pytest.raises(FileExistsError, match="already"):
         run([ASPECT], ["aerial"], site, aerial, Scripted("W"), tmp_path)
+
+
+def test_the_report_counts_the_observations_the_agent_chose() -> None:
+    chose = Result("relief-1", "relief", "agent", "1.0", True, ("inspect_elevation",), None, 1.0)
+    text = report([chose], {"model": "m", "seed": 1, "questions": 1})
+    assert "agent: inspect_elevation x1" in text
