@@ -221,10 +221,11 @@ def test_decisions_kept_in_a_file_make_the_same_site(tmp_path: Path) -> None:
     [
         ({"1": "building", "9": "ignore"}, False, "no feature 9"),
         ({"2": "keep_clear"}, True, "decide what these are first: 1"),
+        ({"1": "building", "2": "keep_clear"}, "false", "true or false"),
     ],
 )
 def test_kept_decisions_are_checked_like_the_owners(
-    tmp_path: Path, decisions: dict[str, str], complete: bool, match: str
+    tmp_path: Path, decisions: dict[str, str], complete: object, match: str
 ) -> None:
     write_survey(tmp_path / "survey.geojson", "shed", "tree")
     body = {

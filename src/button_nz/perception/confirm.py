@@ -114,10 +114,13 @@ class SiteDecisions:
         unknown = [k for k in decisions if survey.feature(k) is None]
         if unknown:
             raise ValueError(f"{path} decides about no feature {', '.join(unknown)}")
+        complete = kept["buildings_complete"]
+        if not isinstance(complete, bool):  # "false" would read as true
+            raise ValueError(f"{path}: buildings_complete must be true or false")
         undecided = undecided_buildings(survey, decisions)
-        if kept["buildings_complete"] and undecided:
+        if complete and undecided:
             raise ValueError(f"{path}: decide what these are first: {', '.join(undecided)}")
-        return cls(survey, decisions, bool(kept["buildings_complete"]), str(kept["decided_by"]))
+        return cls(survey, decisions, complete, str(kept["decided_by"]))
 
     def apply(self, site: DesignSite) -> DesignSite:
         return confirmed(site, self.survey, self.decisions, self.complete)
