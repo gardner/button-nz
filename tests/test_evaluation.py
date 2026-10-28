@@ -89,10 +89,20 @@ def test_a_section_line_within_2_m_is_unknown_not_failed() -> None:
     assert result.measured["distance_m"] == pytest.approx(1.0)
 
 
-def test_a_footprint_straddling_sections_is_within_the_title() -> None:
+def test_building_over_a_section_line_fails() -> None:
+    """s 42B: not over a boundary between allotments, even on one record of title."""
     straddle = proposal(footprint=rect(16, 5, 24, 11))
     assert check(straddle, "within_site").status is Status.PASS
-    assert check(straddle, "section_boundary_setback").measured["distance_m"] == 0.0
+    result = check(straddle, "section_boundary_setback")
+    assert result.status is Status.FAIL
+    assert result.measured["distance_m"] == 0.0
+    assert "42B" in result.rule
+
+
+def test_a_footprint_touching_a_section_line_is_not_over_it() -> None:
+    result = check(proposal(footprint=rect(12, 5, 20, 11)), "section_boundary_setback")
+    assert result.status is Status.UNKNOWN
+    assert result.measured["distance_m"] == 0.0
 
 
 def test_building_separation_is_unknown_without_confirmed_buildings() -> None:
@@ -119,6 +129,7 @@ def test_lidar_evidence_near_the_footprint_is_reported() -> None:
     ("footprint", "area", "status"),
     [
         (rect(5, 5, 13, 11), None, Status.PASS),  # 48 m² outside the walls: under 70 inside
+        (rect(5, 5, 13, 11), 37.4, Status.PASS),  # 0.4 m walls: under 70 whatever the walls
         (rect(2, 2, 11, 10.5), None, Status.UNKNOWN),  # 76.5 m² outside: depends on the walls
         (rect(2, 2, 11, 10.5), 66.0, Status.PASS),
         (rect(2, 2, 11, 10.5), 1.0, Status.FAIL),  # less than 0.3 m walls could leave
@@ -173,10 +184,12 @@ def test_floor_level_samples_the_ground_under_the_walls_not_just_cell_centres() 
 
 
 @pytest.mark.parametrize(
-    ("floor", "status"), [(None, Status.UNKNOWN), (101.2, Status.FAIL), (100.2, Status.FAIL)]
+    ("floor", "status"),
+    [(None, Status.UNKNOWN), (101.2, Status.FAIL), (100.2, Status.UNKNOWN), (99.5, Status.UNKNOWN)],
 )
 def test_floor_level_limits(floor: float | None, status: Status) -> None:
-    """More than 1 m above the lowest ground fails; below the highest ground fails."""
+    """More than 1 m above the lowest ground fails. A floor below the existing ground
+    needs a cut, which the exemption doesn't forbid and the LiDAR can't show."""
     assert check(proposal(floor_level_m=floor), "floor_level").status is status
 
 

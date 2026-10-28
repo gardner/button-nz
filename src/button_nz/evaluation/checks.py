@@ -20,6 +20,10 @@ SCHEDULE_1A = (
     "Building Act 2004, Schedule 1A (granny flats exemption); "
     "MBIE Granny Flats Exemption Guidance, Dec 2025, p. 34"
 )
+NOT_OVER_ALLOTMENTS = (
+    "Building Act 2004, s 42B: not built over a boundary between allotments, "
+    "even on one record of title (MBIE guidance p. 53)"
+)
 MAX_FLOOR_AREA_M2 = 70.0
 MAX_HEIGHT_ABOVE_FLOOR_M = 4.0
 MAX_FLOOR_ABOVE_GROUND_M = 1.0
@@ -63,6 +67,14 @@ def section_boundary_setback(footprint: Polygon, internal_lines: BaseGeometry) -
     if internal_lines.is_empty:
         return Check("section_boundary_setback", Status.PASS, "The title is one parcel.", {}, rule)
     distance = footprint.distance(internal_lines)
+    if footprint.buffer(-1e-6).intersects(internal_lines):  # through it, not just touching
+        return Check(
+            "section_boundary_setback",
+            Status.FAIL,
+            "The footprint is built over a line between two sections of the title.",
+            {"distance_m": distance, "required_m": MIN_SEPARATION_M},
+            NOT_OVER_ALLOTMENTS,
+        )
     if distance >= MIN_SEPARATION_M - _EPS:
         return Check(
             "section_boundary_setback",
@@ -142,6 +154,9 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     if stated is not None and stated > outside + _EPS:
         detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
         return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if outside <= MAX_FLOOR_AREA_M2 + _EPS:
+        detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
+        return Check("floor_area", Status.PASS, detail, measured, rule)
     if stated is not None and stated < least_inside - _EPS:
         detail = (
             f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
@@ -154,9 +169,6 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
             f"is at least {least_inside:.1f} m², over {MAX_FLOOR_AREA_M2:g}."
         )
         return Check("floor_area", Status.FAIL, detail, measured, rule)
-    if outside <= MAX_FLOOR_AREA_M2 + _EPS:
-        detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
-        return Check("floor_area", Status.PASS, detail, measured, rule)
     if stated is None:
         detail = (
             f"The footprint is {outside:.1f} m²; the internal area depends on the walls: state it."
@@ -188,10 +200,14 @@ def floor_level(footprint: Polygon, proposal: Proposal, site: SiteContext) -> Ch
         return Check("floor_level", Status.UNKNOWN, "Floor level not given.", measured, SCHEDULE_1A)
     above = proposal.floor_level_m - lowest
     measured |= {"floor_level_m": proposal.floor_level_m, "height_above_lowest_m": above}
-    if proposal.floor_level_m < highest:
-        status, detail = Status.FAIL, f"The floor is below the ground ({highest:.2f} m) in places."
-    elif above > MAX_FLOOR_ABOVE_GROUND_M + _EPS:
+    if above > MAX_FLOOR_ABOVE_GROUND_M + _EPS:
         status, detail = Status.FAIL, f"The floor is {above:.2f} m above the lowest ground."
+    elif proposal.floor_level_m < highest:  # a cut: allowed, but finished ground is unknown
+        status, detail = (
+            Status.UNKNOWN,
+            f"The floor is below the existing ground ({highest:.2f} m) in places, so the site "
+            "would be cut; the LiDAR shows only the ground before earthworks.",
+        )
     else:
         status, detail = Status.PASS, f"The floor is {above:.2f} m above the lowest ground."
     return Check(
