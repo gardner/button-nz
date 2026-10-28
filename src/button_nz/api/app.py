@@ -5,7 +5,8 @@ poll and inspect.
     POST /designs {brief, allow_observations}     queue a design; 202 with the job
     POST /designs/{id}/revisions {instruction}    revise its accepted design; 202
     GET  /designs/{id}                            status, attempts, accepted attempt
-    GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png
+    GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
+                                                  visual.png, visual.json
 
 Only those artifact names are served, and only as regular files in the job's
 own run directory: never through a symlink.
@@ -27,7 +28,9 @@ from button_nz.api.jobs import Worker
 from button_nz.api.store import Job, Store
 from button_nz.demo_site import DemoSite
 
-ARTIFACT = re.compile(r"design\.glb|design\.png|observation-[1-9][0-9]*\.png")
+ARTIFACT = re.compile(
+    r"design\.glb|design\.png|observation-[1-9][0-9]*\.png|visual\.png|visual\.json"
+)
 
 
 class DesignRequest(BaseModel):

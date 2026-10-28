@@ -4,7 +4,9 @@
 
 Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``. The
 model key is read per job, so the server starts without one and a job queued
-without it fails with that reason.
+without it fails with that reason. Each accepted design also gets an AI visual
+(``perception.visual``), made here in the server with the same key, never in
+the Blender sandbox.
 """
 
 import argparse
@@ -18,6 +20,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.perception.visual import illustrate_from_env
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -27,7 +30,13 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
-    worker = Worker(store, site=demo_site, model=ChatModel.from_env, runs_dir=args.data / "runs")
+    worker = Worker(
+        store,
+        site=demo_site,
+        model=ChatModel.from_env,
+        runs_dir=args.data / "runs",
+        illustrator=illustrate_from_env,
+    )
     uvicorn.run(create_app(store, worker, load_demo_site()), host=args.host, port=args.port)
 
 
