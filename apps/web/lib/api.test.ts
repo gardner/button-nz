@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createDesign, getDesign, getSite, parseJob } from "./api";
+import {
+  ApiError,
+  createDesign,
+  getDesign,
+  getSite,
+  parseJob,
+  parseSite,
+} from "./api";
 import { JOB } from "./fixtures";
 
 function respond(body: unknown, status = 200): Response {
@@ -62,6 +69,10 @@ describe("the client", () => {
     expect((error as ApiError).message).toBe("no design nope");
     expect((error as ApiError).status).toBe(404);
     expect((error as ApiError).transient).toBe(false);
+  });
+
+  it("refuses a site that isn't in NZTM", () => {
+    expect(() => parseSite({ crs: "EPSG:4326" })).toThrow("EPSG:2193");
   });
 
   it("reads the site", async () => {

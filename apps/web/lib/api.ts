@@ -153,6 +153,12 @@ function parseAttempt(raw: unknown): Attempt {
 
 export function parseSite(raw: unknown): Site {
   const site = record(raw, "site");
+  if (site.crs !== "EPSG:2193") {
+    // The plan draws coordinates as NZTM metres: anything else would be distorted.
+    throw new ApiError(
+      `expected the site in EPSG:2193, not ${JSON.stringify(site.crs)}`,
+    );
+  }
   const parcels = record(site.parcels, "parcels");
   const sources = record(site.sources, "sources");
   return {
