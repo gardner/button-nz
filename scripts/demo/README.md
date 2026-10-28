@@ -26,9 +26,9 @@ and the video says so on screen.
    ```
 
 2. **Playwright's headless shell and ffmpeg.** `record.py` finds the newest
-   `chromium_headless_shell-*` under `~/.cache/ms-playwright/`. It uses
-   `ffmpeg-1013/ffmpeg-linux` from the same cache. `--chromium` and `--ffmpeg`
-   override them.
+   `chromium_headless_shell-*` and the newest `ffmpeg-*/ffmpeg-linux` under
+   `~/.cache/ms-playwright/`, before anything is recorded, so a missing one
+   can't cost a paid run. `--chromium` and `--ffmpeg` override them.
 
    ```bash
    uv run playwright install chromium-headless-shell ffmpeg

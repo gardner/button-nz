@@ -19,7 +19,6 @@ from typing import TypedDict, cast
 from playwright.sync_api import BrowserContext, Page
 
 PLAYWRIGHT_CACHE = Path.home() / ".cache" / "ms-playwright"
-FFMPEG = PLAYWRIGHT_CACHE / "ffmpeg-1013" / "ffmpeg-linux"
 
 type Mark = tuple[float, str]
 
@@ -39,6 +38,18 @@ def find_chromium(cache: Path = PLAYWRIGHT_CACHE) -> Path:
         raise FileNotFoundError(
             f"no chrome-headless-shell under {cache}; "
             "run `uv run playwright install chromium-headless-shell`"
+        )
+    return newest[-1]
+
+
+def find_ffmpeg(cache: Path = PLAYWRIGHT_CACHE) -> Path:
+    """The newest ffmpeg build Playwright has installed under ``cache``: found
+    before a take, so a missing encoder can't lose a paid run's footage."""
+    builds = [p for p in cache.glob("ffmpeg-*/ffmpeg-linux") if p.is_file()]
+    newest = sorted(builds, key=lambda p: int(p.parent.name.rsplit("-", 1)[1]))
+    if not newest:
+        raise FileNotFoundError(
+            f"no ffmpeg-linux under {cache}; run `uv run playwright install ffmpeg`"
         )
     return newest[-1]
 
@@ -89,7 +100,7 @@ def marks_document(seconds: float, marks: list[Mark]) -> MarksDocument:
 class Screencast:
     """Records ``page`` from construction until ``encode``."""
 
-    def __init__(self, context: BrowserContext, page: Page, ffmpeg: Path = FFMPEG) -> None:
+    def __init__(self, context: BrowserContext, page: Page, ffmpeg: Path) -> None:
         self.frames: list[tuple[float, bytes]] = []
         self.marks: list[Mark] = []
         self.ffmpeg = ffmpeg

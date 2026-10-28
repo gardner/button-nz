@@ -129,20 +129,30 @@ function BriefForm({
   );
 }
 
+/** The shown job's status line (role "status", so it is announced as it
+ * changes, and can be told apart from attempt feedback). */
 function JobStatus({ job }: { job: Job }) {
   if (job.status === "failed") {
-    return <p className="text-red-700">The design run failed: {job.error}</p>;
+    return (
+      <p role="status" className="text-red-700">
+        The design run failed: {job.error}
+      </p>
+    );
   }
   if (job.status === "done") {
     return (
-      <p className="font-medium">
+      <p role="status" className="font-medium">
         {job.acceptedAttempt === null
           ? "No attempt passed every check."
           : `Accepted: attempt ${job.acceptedAttempt}`}
       </p>
     );
   }
-  return <p className="text-zinc-600">Design {job.status}…</p>;
+  return (
+    <p role="status" className="text-zinc-600">
+      Design {job.status}…
+    </p>
+  );
 }
 
 function AttemptCard({

@@ -14,9 +14,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, expect, sync_playwright
 
-from screencast import FFMPEG, Screencast, find_chromium
+from screencast import Screencast, find_chromium, find_ffmpeg
 
 BRIEF = (
     "A two-bedroom dwelling of about 60 square metres that gets the afternoon sun"
@@ -53,17 +54,33 @@ class Run:
     cast: Screencast
 
 
-def wait_for(page: Page, done: Callable[[str], bool], limit_s: float) -> int:
-    """Poll the page's text until ``done``; the seconds it took."""
+def body_text(page: Page) -> str:
+    return page.inner_text("body")
+
+
+def status_text(page: Page) -> str:
+    """The shown job's status line only (``role="status"``), never attempt feedback."""
+    status = page.get_by_role("status")
+    return status.first.inner_text() if status.count() else ""
+
+
+def wait_for(
+    page: Page, done: Callable[[str], bool], limit_s: float, read: Callable[[Page], str] = body_text
+) -> int:
+    """Poll ``read(page)`` until ``done``; the seconds it took."""
     start = time.time()
     while time.time() - start < limit_s:
-        if done(page.inner_text("body")):
+        if done(read(page)):
             return round(time.time() - start)
         page.wait_for_timeout(3000)
     raise TimeoutError(f"the page didn't finish within {limit_s} s")
 
 
 IN_PROGRESS = ("Design queued…", "Design running…")
+VISUAL_LOADED = """() => {
+  const shown = [...document.querySelectorAll('img[alt^="AI illustration"]')].at(-1);
+  return shown !== undefined && shown.complete && shown.naturalWidth > 0;
+}"""
 
 
 def outcome(text: str) -> str | None:
@@ -87,8 +104,8 @@ def partial_path(out: Path) -> Path:
 
 def until_accepted(page: Page) -> int:
     """Wait for the shown design to end; anything but accepted fails the take."""
-    took = wait_for(page, lambda t: outcome(t) is not None, DESIGN_LIMIT_S)
-    ended = outcome(page.inner_text("body"))
+    took = wait_for(page, lambda t: outcome(t) is not None, DESIGN_LIMIT_S, status_text)
+    ended = outcome(status_text(page))
     if ended != "accepted":
         raise RuntimeError(f"no design was accepted: {ended}")
     return took
@@ -142,6 +159,10 @@ def show_visual(run: Run) -> None:
         took = wait_for(run.page, lambda t: "AI-illustrated" in t, VISUAL_LIMIT_S)
     except TimeoutError as error:
         raise RuntimeError("no checked AI visual was shown") from error
+    try:  # the caption shows at once; the take needs the image itself, decoded
+        run.page.wait_for_function(VISUAL_LOADED, timeout=30_000)
+    except PlaywrightError as error:
+        raise RuntimeError("the AI visual didn't load") from error
     run.cast.mark(f"the AI visual (Muse Image, silhouette checked by SAM 3.1; {took} s later)")
     run.page.get_by_text("AI-illustrated", exact=False).last.scroll_into_view_if_needed()
     run.page.wait_for_timeout(5000)
@@ -162,7 +183,7 @@ def revise(run: Run, change: str) -> None:
     page.get_by_role("button", name="Revise").click()
     run.cast.mark("revising in plain words (live)")
     # The revision is shown once it starts; until then the last design's status shows.
-    wait_for(page, lambda t: any(status in t for status in IN_PROGRESS), 60)
+    wait_for(page, lambda t: any(status in t for status in IN_PROGRESS), 60, status_text)
     print("revision took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(3000)
 
@@ -215,11 +236,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--brief", default=BRIEF)
     parser.add_argument("--change", default=CHANGE, help="the revision, in plain words")
     parser.add_argument("--chromium", type=Path, help="default: Playwright's headless shell")
-    parser.add_argument("--ffmpeg", type=Path, default=FFMPEG)
+    parser.add_argument("--ffmpeg", type=Path, help="default: Playwright's newest build")
     parser.add_argument("--fps", type=int, default=15)
     parser.add_argument("--screenshot", type=Path, help="a full-page shot after the revision")
     args = parser.parse_args(argv)
     chromium: Path = args.chromium or find_chromium()
+    ffmpeg: Path = args.ffmpeg or find_ffmpeg()  # both found before any paid call
+    if not ffmpeg.is_file():
+        raise FileNotFoundError(f"no ffmpeg at {ffmpeg}")
     record(
         Options(
             out=args.out,
@@ -227,7 +251,7 @@ def main(argv: list[str] | None = None) -> None:
             brief=args.brief,
             change=args.change,
             chromium=chromium,
-            ffmpeg=args.ffmpeg,
+            ffmpeg=ffmpeg,
             fps=args.fps,
             screenshot=args.screenshot,
         )

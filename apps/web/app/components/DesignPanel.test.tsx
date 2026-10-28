@@ -65,6 +65,8 @@ describe("DesignPanel", () => {
     await brief();
     expect(await screen.findByText(/0\.50 m from the boundary/)).toBeTruthy();
     expect(await screen.findByText("Accepted: attempt 2")).toBeTruthy();
+    // the job's status line, apart from whatever the attempts' feedback says
+    expect(screen.getByRole("status").textContent).toBe("Accepted: attempt 2");
     expect(screen.getByTestId("viewer").textContent).toBe(
       "/api/designs/abc123/attempts/2/design.glb",
     );

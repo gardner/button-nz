@@ -9,6 +9,7 @@ import pytest
 from demo.screencast import (
     encode_command,
     find_chromium,
+    find_ffmpeg,
     frame_event,
     marks_document,
     tick_frames,
@@ -86,3 +87,17 @@ def test_find_chromium_takes_the_newest_headless_shell(tmp_path: Path) -> None:
 def test_find_chromium_says_when_playwright_has_not_installed_it(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="playwright install"):
         find_chromium(tmp_path)
+
+
+def test_find_ffmpeg_takes_the_newest_build(tmp_path: Path) -> None:
+    for version in ("1011", "1013"):
+        binary = tmp_path / f"ffmpeg-{version}" / "ffmpeg-linux"
+        binary.parent.mkdir(parents=True)
+        binary.touch()
+    assert find_ffmpeg(tmp_path).parent.name == "ffmpeg-1013"
+
+
+def test_find_ffmpeg_says_when_there_is_none_before_any_paid_call(tmp_path: Path) -> None:
+    (tmp_path / "ffmpeg-1013").mkdir()  # the directory without the binary
+    with pytest.raises(FileNotFoundError, match="playwright install ffmpeg"):
+        find_ffmpeg(tmp_path)
