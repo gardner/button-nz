@@ -372,3 +372,39 @@ def test_modifiers_are_measured_as_they_render(tmp_path: Path, scene: SceneInput
     assert measured.outline is not None
     xs = [x for x, _ in measured.outline]
     assert max(xs) - min(xs) == pytest.approx(18.0)  # three 6 m boxes side by side
+
+
+def test_the_script_sees_only_system_directories(tmp_path: Path, scene: SceneInput) -> None:
+    probe = "import os\nraise SystemExit(repr(sorted(os.listdir('/'))))\n"
+    out = run_design(scene, probe, tmp_path)
+    listing = str(out.measurements["error"])
+    for hidden in ("'srv'", "'var'", "'root'", "'mnt'", "'media'"):
+        assert hidden not in listing
+
+
+def test_a_fork_bomb_hits_the_task_limit(tmp_path: Path, scene: SceneInput) -> None:
+    bomb = (
+        "import os, time\n"
+        "children = 0\n"
+        "try:\n"
+        "    for _ in range(5000):\n"
+        "        if os.fork() == 0:\n"
+        "            time.sleep(30)\n"
+        "            os._exit(0)\n"
+        "        children += 1\n"
+        "except OSError as error:\n"
+        "    raise SystemExit(f'stopped after {children}: {error}')\n"
+    )
+    out = run_design(scene, BOX + bomb, tmp_path, timeout_s=120)
+    assert "stopped after" in str(out.measurements["error"])
+
+
+def test_geometry_that_differs_in_the_render_is_feedback(tmp_path: Path, scene: SceneInput) -> None:
+    """A node tree asking Is Viewport can build one thing to measure and another to render."""
+    nodes = (
+        "tree = bpy.data.node_groups.new('switch', 'GeometryNodeTree')\n"
+        "tree.nodes.new('GeometryNodeIsViewport')\n"
+        "dwelling.modifiers.new('nodes', 'NODES').node_group = tree\n"
+    )
+    out = run_design(scene, BOX + nodes, tmp_path)
+    assert "Is Viewport" in str(out.measurements["error"])

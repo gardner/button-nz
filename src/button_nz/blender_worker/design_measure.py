@@ -93,6 +93,11 @@ def _broken_contract(objects: dict[str, Any]) -> str | None:
             "Your script left no mesh object named Dwelling in the scene. Create it and "
             "link it: bpy.context.collection.objects.link(obj)."
         )
+    if any(_asks_is_viewport(m.node_group) for m in dwelling.modifiers if m.type == "NODES"):
+        return (
+            "The Dwelling's Geometry Nodes use Is Viewport, so what is measured could "
+            "differ from what renders. Build the geometry without it."
+        )
     if dwelling.parent is not None or dwelling.constraints or dwelling.animation_data:
         return (
             "Give the Dwelling its own transform: no parent, constraints or drivers. "
@@ -106,6 +111,19 @@ def _broken_contract(objects: dict[str, Any]) -> str | None:
             "that one mesh."
         )
     return None
+
+
+def _asks_is_viewport(tree: Any, seen: frozenset[str] = frozenset()) -> bool:
+    """Whether a node tree, or any group inside it, has an Is Viewport node."""
+    if tree is None or tree.name in seen:
+        return False
+    for node in tree.nodes:
+        if node.bl_idname == "GeometryNodeIsViewport":
+            return True
+        group = getattr(node, "node_tree", None)
+        if group is not None and _asks_is_viewport(group, seen | {tree.name}):
+            return True
+    return False
 
 
 def _solid(obj: Any) -> bool:

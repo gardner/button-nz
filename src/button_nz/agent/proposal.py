@@ -28,6 +28,7 @@ FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
 OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
 OPENING_SHARE = 0.05  # of the walls' area: closing over openings may add no more
+MIN_SOLIDITY = 0.5  # of the walls' convex hull: L, T and U plans pass, open strips don't
 MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 
 
@@ -81,7 +82,13 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
     walls, _ = _one_ring(rooms[0])
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
-    enclosed = Polygon(walls)
+    _check_envelope(triangles, Polygon(walls), z_min, cut)
+    return walls
+
+
+def _check_envelope(triangles: list[Triangle], enclosed: Polygon, z_min: float, cut: float) -> None:
+    """That ``enclosed`` (the walls' outline at ``cut``) is a solid envelope: a
+    floor under it, no opening through it, and a roof over it."""
     floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
     if floor.intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
         raise DesignError(
@@ -90,13 +97,19 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
             "the walls, the Dwelling's lowest point."
         )
     missing = _closed(enclosed).area - enclosed.area
-    if missing > max(MIN_ROOM_M2, OPENING_SHARE * enclosed.area):
+    hull = enclosed.convex_hull.area
+    if missing > max(MIN_ROOM_M2, OPENING_SHARE * enclosed.area) or (
+        enclosed.area < MIN_SOLIDITY * hull  # an opening too wide to bridge
+    ):
         raise DesignError(
-            f"{cut:g} m above the floor the Dwelling's walls leave about {missing:.0f} m² "
-            "open to the outside: a doorway or opening breaks their outline. Model the "
-            "Dwelling as a solid envelope, with no doors or windows cut through it."
+            f"{cut:g} m above the floor the Dwelling's walls enclose only "
+            f"{enclosed.area:.0f} m² of the {hull:.0f} m² they span: a doorway or opening "
+            "breaks their outline. Model the Dwelling as a solid envelope, with no doors "
+            "or windows cut through it."
         )
-    return walls
+    above = [tri for tri in triangles if min(p[2] for p in tri) >= z_min + cut]
+    if outline(above).intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
+        raise DesignError("The Dwelling has no roof over its walls: close the envelope at the top.")
 
 
 def _dwelling_number(value: object, name: str) -> float | None:

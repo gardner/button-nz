@@ -114,9 +114,11 @@ def test_two_substantial_wall_outlines_are_feedback_with_their_sizes() -> None:
         parse_measurements(measured_with(joined))
 
 
-def _hollow_house(door: bool, slab: bool = True, door_x: float = 5.5) -> list[list[list[float]]]:
+def _hollow_house(
+    door: bool, slab: bool = True, door_x: float = 5.5, door_width: float = 1.0
+) -> list[list[list[float]]]:
     """A 12 m x 10 m house the usual bpy way: slab, four 0.2 m walls, roof; the
-    door is a 1 m gap in the south wall from ``door_x``."""
+    door is a ``door_width`` gap in the south wall from ``door_x``."""
     floor = box(0, 0, 0, 12, 10, 0.2) if slab else []
     north, east, west = (
         box(0, 9.8, 0.2, 12, 10, 3),
@@ -124,11 +126,11 @@ def _hollow_house(door: bool, slab: bool = True, door_x: float = 5.5) -> list[li
         box(0, 0, 0.2, 0.2, 10, 3),
     )
     south = (
-        box(0.2, 0, 0.2, door_x, 0.2, 3) + box(door_x + 1, 0, 0.2, 11.8, 0.2, 3)
+        box(0.2, 0, 0.2, door_x, 0.2, 3) + box(door_x + door_width, 0, 0.2, 11.8, 0.2, 3)
         if door
         else box(0.2, 0, 0.2, 11.8, 0.2, 3)
     )
-    lintel = box(door_x, 0, 2.1, door_x + 1, 0.2, 3) if door else []
+    lintel = box(door_x, 0, 2.1, door_x + door_width, 0.2, 3) if door else []
     roof = box(0, 0, 3, 12, 10, 3.2)
     return floor + north + east + west + south + lintel + roof
 
@@ -170,3 +172,16 @@ def test_a_u_shaped_house_with_a_wide_courtyard_is_fine() -> None:
     measured = parse_measurements(measured_with(u_shape))
     assert measured.footprint is not None
     assert Polygon(measured.footprint).area == pytest.approx(60.0)
+
+
+def test_a_house_without_a_roof_is_feedback() -> None:
+    roofless = [t for t in _hollow_house(door=False) if min(p[2] for p in t) < 3.0]
+    with pytest.raises(DesignError, match="roof"):
+        parse_measurements(measured_with(roofless))
+
+
+def test_an_opening_too_wide_to_bridge_is_still_caught() -> None:
+    """A 3 m opening (garage door, slider) leaves the walls a thin strip of their hull."""
+    wide = _hollow_house(door=True, door_x=4.0, door_width=3.0)
+    with pytest.raises(DesignError, match="solid"):
+        parse_measurements(measured_with(wide))
