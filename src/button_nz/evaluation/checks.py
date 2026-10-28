@@ -233,7 +233,7 @@ def single_storey(proposal: Proposal) -> Check:
 
 
 def floor_level(footprint: Polygon, proposal: Proposal, site: SiteContext) -> Check:
-    lowest, highest = _ground_range(footprint, site)
+    lowest, highest = ground_range(footprint, site.terrain)
     measured = {"lowest_ground_m": lowest, "highest_ground_m": highest}
     if proposal.floor_level_m is None:
         return Check("floor_level", Status.UNKNOWN, "Floor level not given.", measured, SCHEDULE_1A)
@@ -286,9 +286,8 @@ def _limit(name: str, value: float | None, maximum: float, unit: str) -> Check:
     return Check(name, status, detail, {"value": value, "maximum": maximum}, SCHEDULE_1A)
 
 
-def _cell_centres(site: SiteContext) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+def _cell_centres(grid: TerrainGrid) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """NZTM x and y of every cell centre, shaped like the grid."""
-    grid = site.terrain
     rows, cols = grid.dem.shape
     xs = grid.bbox[0] + (np.arange(cols, dtype=np.float64) + 0.5) * grid.cell_m
     ys = grid.bbox[3] - (np.arange(rows, dtype=np.float64) + 0.5) * grid.cell_m
@@ -296,18 +295,18 @@ def _cell_centres(site: SiteContext) -> tuple[NDArray[np.float64], NDArray[np.fl
     return x, y
 
 
-def _ground_range(footprint: Polygon, site: SiteContext) -> tuple[float, float]:
+def ground_range(footprint: Polygon, grid: TerrainGrid) -> tuple[float, float]:
     """Lowest and highest ground under the footprint: every cell centre inside it,
     plus every point where its outline crosses a terrain-mesh triangle edge,
-    interpolated on the same triangles as the rendered terrain."""
-    grid = site.terrain
+    interpolated on the same triangles as the rendered terrain. The design
+    model's elevation observations report the same range."""
     heights = _height_grid(grid)
     ring = [[float(x), float(y)] for x, y in footprint.exterior.coords]
     outline = mesh_crossings(ring, heights)
     if not all(_on_grid(grid, x, y) for x, y in outline):
         raise InvalidProposal("the terrain grid does not cover the whole footprint")
     samples = [height_at(heights, x, y) for x, y in outline]
-    x, y = _cell_centres(site)
+    x, y = _cell_centres(grid)
     inside = shapely.contains_xy(footprint, x, y)
     samples += [float(h) for h in grid.dem[inside]]
     return min(samples), max(samples)
@@ -336,6 +335,6 @@ def _on_grid(grid: TerrainGrid, x: float, y: float) -> bool:
 
 
 def _lidar_cells_near(footprint: Polygon, site: SiteContext) -> int:
-    x, y = _cell_centres(site)
+    x, y = _cell_centres(site.terrain)
     near = shapely.contains_xy(footprint.buffer(MIN_SEPARATION_M), x, y)
     return int((near & (site.terrain.ndsm > EVIDENCE_HEIGHT_M)).sum())

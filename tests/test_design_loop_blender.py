@@ -37,7 +37,7 @@ class RevisingModel:
     def __init__(self) -> None:
         self.feedback: list[str] = []
 
-    def propose(self, conversation: Sequence[Turn]) -> str:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
         if conversation[-1].role != "feedback":
             return TOO_CLOSE
         self.feedback.append(conversation[-1].text)
