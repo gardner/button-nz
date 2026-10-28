@@ -146,6 +146,13 @@ def test_floor_area_is_checked_against_the_measured_footprint(
     assert result.measured["footprint_area_m2"] > 0
 
 
+def test_a_stated_area_too_small_for_a_small_footprint_is_flagged_not_failed() -> None:
+    """Under 70 m² outside the walls, the inside is under 70 whatever is stated."""
+    result = check(proposal(footprint=rect(5, 5, 13, 11), floor_area_m2=1.0), "floor_area")
+    assert result.status is Status.PASS
+    assert "Check the stated value" in result.detail
+
+
 @pytest.mark.parametrize(
     ("storeys", "status"), [(None, Status.UNKNOWN), (1, Status.PASS), (2, Status.FAIL)]
 )
@@ -240,6 +247,9 @@ def test_measurements_cannot_be_edited() -> None:
     [
         {"floor_level_m": float("nan")},
         {"floor_area_m2": -1.0},
+        {"floor_area_m2": True},
+        {"height_above_floor_m": True},
+        {"floor_level_m": False},
         {"floor_area_m2": float("inf")},
         {"height_above_floor_m": 0.0},
         {"storeys": 0},

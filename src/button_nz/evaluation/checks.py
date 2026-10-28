@@ -154,15 +154,14 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     if stated is not None and stated > outside + _EPS:
         detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
         return Check("floor_area", Status.FAIL, detail, measured, rule)
-    if outside <= MAX_FLOOR_AREA_M2 + _EPS:
+    implausible = _implausibly_small(stated, outside, least_inside)
+    if outside <= MAX_FLOOR_AREA_M2 + _EPS:  # geometry decides; a stated area can't fail it
         detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
+        if implausible is not None:
+            detail += f" {implausible} Check the stated value."
         return Check("floor_area", Status.PASS, detail, measured, rule)
-    if stated is not None and stated < least_inside - _EPS:
-        detail = (
-            f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
-            f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
-        )
-        return Check("floor_area", Status.FAIL, detail, measured, rule)
+    if implausible is not None:
+        return Check("floor_area", Status.FAIL, implausible, measured, rule)
     if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
         detail = (
             f"The footprint is {outside:.1f} m²: even with {MAX_WALL_M:g} m walls the inside "
@@ -177,6 +176,15 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     status = Status.PASS if stated <= MAX_FLOOR_AREA_M2 + _EPS else Status.FAIL
     detail = f"{stated:g} m² internal floor area; at most {MAX_FLOOR_AREA_M2:g} allowed."
     return Check("floor_area", status, detail, measured, rule)
+
+
+def _implausibly_small(stated: float | None, outside: float, least_inside: float) -> str | None:
+    if stated is None or stated >= least_inside - _EPS:
+        return None
+    return (
+        f"The stated {stated:g} m² is less than any wall up to {MAX_WALL_M:g} m thick "
+        f"could leave inside this {outside:.1f} m² footprint ({least_inside:.1f} m²)."
+    )
 
 
 def height(proposal: Proposal) -> Check:
