@@ -14,7 +14,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry import shape
 
 from button_nz.agent.site import DesignSite
@@ -123,4 +123,15 @@ class SiteDecisions:
         return cls(survey, decisions, complete, str(kept["decided_by"]))
 
     def apply(self, site: DesignSite) -> DesignSite:
+        """``site`` with these decisions, which must be about things on its title:
+        a survey of somewhere else would silently constrain nothing."""
+        title = union_all([Polygon(ring) for ring in site.context.parcels])
+        elsewhere = [k for k in self.decisions if not shape(self._geometry(k)).intersects(title)]
+        if elsewhere:
+            raise ValueError(f"features {', '.join(elsewhere)} are not on this site's title")
         return confirmed(site, self.survey, self.decisions, self.complete)
+
+    def _geometry(self, feature_id: str) -> dict[str, Any]:
+        feature = self.survey.feature(feature_id)
+        assert feature is not None  # read() refuses decisions about unknown features
+        return feature["geometry"]

@@ -268,3 +268,30 @@ def test_the_demo_sites_kept_decisions_cover_its_survey() -> None:
     kept = SiteDecisions.read(Path("data/demo-site/decisions.json"))
     assert "pending the owner's confirmation" in kept.decided_by
     assert len(kept.decisions) == len(kept.survey.collection["features"]) == 5
+
+
+def test_kept_decisions_about_another_site_are_refused(tmp_path: Path) -> None:
+    """A survey of somewhere else, decided on: its features touch none of this title."""
+    elsewhere = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "1",
+                "properties": {"concept": "shed", "status": "agrees"},
+                "geometry": square(5000.0, 5000.0, 6.0),
+            }
+        ],
+    }
+    (tmp_path / "survey.geojson").write_text(json.dumps(elsewhere), encoding="utf-8")
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": {"1": "building"},
+        "buildings_complete": True,
+    }
+    (tmp_path / "decisions.json").write_text(json.dumps(body), encoding="utf-8")
+    kept = SiteDecisions.read(tmp_path / "decisions.json")
+    with pytest.raises(ValueError, match="not on this site's title"):
+        kept.apply(synthetic_site())
