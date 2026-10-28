@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from button_nz.geo.tiles import tile_bounds
+
 DEMO_SITE_DIR = Path(__file__).resolve().parents[2] / "data" / "demo-site"
 
 type Point = tuple[float, float]
@@ -32,7 +34,6 @@ class RasterSource:
     collection: str
     tile: str
     asset: str
-    tile_bbox_nztm: BBox
     resolution_m: float
     capture: Capture
     licence: str
@@ -113,7 +114,7 @@ def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
     for key, raster in site.rasters.items():
         if raster.asset != f"{raster.collection.rsplit('/', 1)[0]}/{raster.tile}.tiff":
             raise ValueError(f"{key}: asset is not tile {raster.tile} in its collection")
-        if not _covers(raster.tile_bbox_nztm, site.extent_nztm):
+        if not _covers(tile_bounds(raster.tile), site.extent_nztm):
             raise ValueError(f"{key}: tile {raster.tile} does not cover the site")
 
 
@@ -139,7 +140,6 @@ def _raster(raw: Mapping[str, Any]) -> RasterSource:
         collection=str(raw["collection"]),
         tile=str(raw["tile"]),
         asset=str(raw["asset"]),
-        tile_bbox_nztm=_bbox(raw["tile_bbox_nztm"]),
         resolution_m=float(raw["resolution_m"]),
         capture=_capture(raw["capture"]),
         licence=str(raw["licence"]),

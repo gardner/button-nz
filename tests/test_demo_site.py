@@ -71,8 +71,12 @@ def test_address_must_fall_in_a_parcel(site_dir: Path) -> None:
 
 
 def test_every_raster_tile_must_cover_the_site(site_dir: Path) -> None:
-    _edit(site_dir, ("rasters", "aerial", "tile_bbox_nztm", 0), 1505930.0)
-    with pytest.raises(ValueError, match="aerial"):
+    """Swapping tile and asset together for the tile to the south is caught."""
+    south = "BS21_1000_4830"
+    collection = "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193"
+    _edit(site_dir, ("rasters", "aerial", "tile"), south)
+    _edit(site_dir, ("rasters", "aerial", "asset"), f"{collection}/{south}.tiff")
+    with pytest.raises(ValueError, match="aerial: tile BS21_1000_4830 does not cover"):
         load_demo_site(site_dir)
 
 
