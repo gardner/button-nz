@@ -73,7 +73,7 @@ def _check_grids(dem: Raster, dsm: Raster) -> _Grid:
     same_size = (dem.width, dem.height) == (dsm.width, dsm.height)
     if tuple(dem.transform)[:6] != tuple(dsm.transform)[:6] or not same_size:
         raise ValueError("DEM and DSM are not on the same grid")
-    if a != -e or b or d:
+    if a <= 0 or a != -e or b or d:
         raise ValueError("DEM grid cells must be square and north-up")
     return _Grid(left=c, top=f, cell=a, width=int(dem.width), height=int(dem.height))
 

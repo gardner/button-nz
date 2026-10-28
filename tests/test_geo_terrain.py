@@ -133,3 +133,21 @@ def test_rasters_of_different_sizes_raise(
     smaller = _write(tmp_path / "small.tif", ground[:60, :60])
     with pytest.raises(ValueError, match="grid"):
         read_terrain(rasters[0], smaller, EXTENT, margin_m=0.0)
+
+
+def test_a_raster_with_reversed_axes_raises(tmp_path: Path, ground: NDArray[np.float32]) -> None:
+    profile: dict[str, Any] = {
+        "driver": "GTiff",
+        "height": SIZE,
+        "width": SIZE,
+        "count": 1,
+        "dtype": "float32",
+        "crs": "EPSG:2193",
+        "transform": rio.Affine(-1.0, 0.0, LEFT + SIZE, 0.0, 1.0, TOP - SIZE),
+        "nodata": -9999.0,
+    }
+    path = tmp_path / "flipped.tif"
+    with rio.open(path, "w", **profile) as dst:
+        dst.write(ground, 1)
+    with pytest.raises(ValueError, match="north-up"):
+        read_terrain(str(path), str(path), EXTENT, margin_m=0.0)
