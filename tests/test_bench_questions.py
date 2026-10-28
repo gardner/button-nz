@@ -166,3 +166,11 @@ def test_the_tallest_question_is_answered_from_the_ndsm() -> None:
 def test_no_tallest_question_where_nothing_stands() -> None:
     asked = {q.kind for q in generate(site(np.full((50, 70), 100.0)), per_kind=5, seed=5)}
     assert "tallest" not in asked
+
+
+def test_no_tallest_question_the_ndsm_map_cant_show() -> None:
+    """The map's colours stop at 15 m: 18 m and 16 m look the same."""
+    ndsm = np.full((50, 70), 16.0)
+    ndsm[15:30, 40:45] = 18.0
+    asked = {q.kind for q in generate(site(np.full((50, 70), 100.0), ndsm), per_kind=5, seed=4)}
+    assert "tallest" not in asked

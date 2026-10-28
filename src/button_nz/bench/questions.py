@@ -22,6 +22,7 @@ from button_nz.evaluation import ground_range
 from button_nz.geo.geometry import Ring
 from button_nz.lidar import inspect_elevation
 from button_nz.lidar.analysis import gradients
+from button_nz.lidar.views import NDSM_SCALE_M
 
 DIRECTIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 MIN_GRADE = 0.05  # 1 in 20: gentler ground has no clear downhill direction
@@ -217,7 +218,9 @@ def _tallest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
         ),
         reverse=True,
     )
-    if heights[0][0] < MIN_STANDING_M or heights[0][0] - heights[1][0] < MIN_HEIGHT_LEAD_M:
+    # As the nDSM map can show them: its colour scale stops at NDSM_SCALE_M.
+    shown = [min(h, NDSM_SCALE_M[1]) for h, _ in heights]
+    if shown[0] < MIN_STANDING_M or shown[0] - shown[1] < MIN_HEIGHT_LEAD_M:
         return None
     centres = ", ".join(f"{m.label} at ({m.x:.1f}, {m.y:.1f})" for m in marks)
     text = (
