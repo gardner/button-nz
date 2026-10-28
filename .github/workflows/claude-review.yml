@@ -203,7 +203,10 @@ jobs:
       # Checkout's post step runs git in the workspace outside the sandbox, and
       # the reviewer could have planted a nested repo whose config runs a
       # command (core.fsmonitor). Without .git/config that post step does
-      # nothing, so remove the workspace without running git.
+      # nothing, so remove the workspace without running git. As root, because
+      # the reviewer can chmod directories read-only to block a normal delete.
       - name: Remove the workspace
         if: always()
-        run: find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+        run: |
+          sudo find "$GITHUB_WORKSPACE" -mindepth 1 -delete
+          [[ ! -e "$GITHUB_WORKSPACE/.git/config" ]]
