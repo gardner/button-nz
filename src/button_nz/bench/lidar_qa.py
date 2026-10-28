@@ -26,15 +26,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from button_nz.agent.conversation import ModelReplyError, Observe
-from button_nz.agent.demo import demo_site
+from button_nz.agent.demo import demo_aerial, demo_site
 from button_nz.agent.observe import ObservationError, observe
 from button_nz.agent.site import DesignSite
 from button_nz.bench.answering import Answerer, ChatAnswerer, QaTurn
 from button_nz.bench.questions import Question, generate, score
 from button_nz.bench.views import CONDITIONS, SCALE, condition_images, mark
-from button_nz.demo_site import load_demo_site
-from button_nz.geo.imagery import read_aerial
-from button_nz.geo.tiles import tiles_covering
 
 MAX_OBSERVATIONS = 3
 MAP_TOOLS = frozenset({"render_hillshade", "render_contours", "render_height_map"})
@@ -208,15 +205,6 @@ def _cell(counts: Mapping[str, int] | None) -> str:
     return "–" if counts is None else f"{counts['correct']}/{counts['n']}"
 
 
-def demo_aerial(site: DesignSite) -> NDArray[np.uint8]:
-    """The demo site's urban aerial over its LiDAR grid, at the views' scale."""
-    source = load_demo_site().rasters["aerial"]
-    base, scale = source.asset.rsplit("/", 1)[0], int(source.tile.split("_")[1])
-    bbox = site.context.terrain.bbox
-    assets = [f"{base}/{name}.tiff" for name in tiles_covering(bbox, scale)]
-    return read_aerial(assets, bbox, pixel_m=1 / SCALE)
-
-
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Experiment A: understanding LiDAR.")
     parser.add_argument("out_dir", type=Path)
@@ -229,7 +217,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         sys.exit(str(error.args[0]))
     site = demo_site()
     questions = generate(site, args.per_kind, args.seed)
-    results = run(questions, CONDITIONS, site, demo_aerial(site), answerer, args.out_dir)
+    results = run(questions, CONDITIONS, site, demo_aerial(site, 1 / SCALE), answerer, args.out_dir)
     meta = {"model": answerer.model, "seed": args.seed, "questions": len(questions)}
     (args.out_dir / "report.md").write_text(report(results, meta), encoding="utf-8")
     print(json.dumps(summarise(results), indent=2))
