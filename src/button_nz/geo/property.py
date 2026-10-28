@@ -131,6 +131,8 @@ def _geometry(feature: Feature, kind: str) -> Mapping[str, Any]:
 
 def _outer_ring(feature: Feature) -> Ring:
     rings = cast("list[list[list[float]]]", _geometry(feature, "Polygon")["coordinates"])
+    if len(rings) != 1:
+        raise ValueError(f"expected a polygon without holes, got {len(rings)} rings")
     return tuple((float(x), float(y)) for x, y, *_ in rings[0])
 
 
