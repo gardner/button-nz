@@ -99,8 +99,9 @@ def test_the_unlabelled_part_of_a_raised_area_is_reported() -> None:
     other[5:9, 16:21] = 2.5  # a 5 m x 4 m lean-to joined to the shed's east wall
     labelled = features([mask("shed", slice(5, 9), slice(10, 16))], grid(other), BBOX, PIXEL_M)
     (found,) = unlabelled(labelled, grid(other), BBOX)
-    assert found.polygon.bounds == pytest.approx((1016.0, 2021.0, 1021.0, 2025.0), abs=0.3)
-    assert found.area_m2 == pytest.approx(20.0, abs=2.0)
+    # Its first metre is within the cell-wide tolerance around the labelled shed.
+    assert found.polygon.bounds == pytest.approx((1017.0, 2021.0, 1021.0, 2025.0))
+    assert found.area_m2 == pytest.approx(16.0)
 
 
 def test_a_crop_the_lidar_doesnt_cover_raises() -> None:
@@ -108,3 +109,25 @@ def test_a_crop_the_lidar_doesnt_cover_raises() -> None:
     pixels = np.zeros((120, 160), dtype=bool)
     with pytest.raises(ValueError, match="LiDAR"):
         features([Mask("shed", 0.9, pixels)], grid(), beyond, PIXEL_M)
+
+
+def test_a_mask_a_little_short_of_the_lidar_cells_leaves_no_strip() -> None:
+    """Cells overshoot a roof edge by up to half a cell, and the photo may be shifted."""
+    house = np.zeros((30, 40))
+    house[5:15, 10:20] = 5.0  # cells x 1010-1020
+    roof = np.zeros((120, 160), dtype=bool)
+    roof[5 * 4 : 15 * 4, 10 * 4 : 77] = True  # mask ends at x 1019.25
+    labelled = features([Mask("house", 0.9, roof)], grid(house), BBOX, PIXEL_M)
+    assert unlabelled(labelled, grid(house), BBOX) == []
+
+
+def test_a_block_at_the_minimum_area_is_reported() -> None:
+    block = np.zeros((30, 40))
+    block[20:22, 30:32] = 3.0  # 2 m x 2 m: exactly 4 m²
+    (found,) = unlabelled([], grid(block), BBOX)
+    assert found.area_m2 == pytest.approx(4.0)
+
+
+def test_unlabelled_needs_the_lidar_to_cover_the_crop() -> None:
+    with pytest.raises(ValueError, match="LiDAR"):
+        unlabelled([], grid(), (990.0, 2000.0, 1030.0, 2030.0))

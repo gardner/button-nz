@@ -40,7 +40,6 @@ GROUND_HEIGHT_M = 0.5  # nDSM below this counts as open ground
 MIN_STRUCTURE_SHARE = 0.5
 MIN_GROUND_SHARE = 0.8
 MIN_UNLABELLED_M2 = 4.0
-SLIVER_M = 0.3
 
 
 class Status(StrEnum):
@@ -92,19 +91,22 @@ def features(masks: Sequence[Mask], grid: TerrainGrid, bbox: BBox, pixel_m: floa
 def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid, bbox: BBox) -> list[Feature]:
     """What the LiDAR shows standing up inside the crop ``bbox`` that no labelled
     feature covers: each uncovered piece of at least ``MIN_UNLABELLED_M2``, so a
-    lean-to joined to a labelled shed is still reported, without the shed."""
+    lean-to joined to a labelled shed is still reported, without the shed.
+    Labelled areas are grown by a LiDAR cell first: cells overshoot a roof edge
+    by up to half a cell, and the photo and the LiDAR may be a little apart."""
+    if not covers(grid.bbox, bbox):
+        raise ValueError(f"the LiDAR grid {grid.bbox} doesn't cover the crop {bbox}")
     raised = grid.ndsm >= STRUCTURE_HEIGHT_M
     left, _, _, top = grid.bbox
     transform = rio_transform.from_origin(left, top, grid.cell_m, grid.cell_m)
     shapes = rio_features.shapes(raised.astype(np.uint8), mask=raised, transform=transform)
     standing = union_all([shape(geometry) for geometry, _ in shapes]).intersection(box(*bbox))
-    covered = union_all([f.polygon for f in labelled])
-    # Opening drops the slivers where 0.25 m mask edges meet 1 m LiDAR cells.
-    left_over = _area(standing.difference(covered).buffer(-SLIVER_M).buffer(SLIVER_M))
+    covered = union_all([f.polygon for f in labelled]).buffer(grid.cell_m)
+    left_over = _area(standing.difference(covered))
     pieces = list(left_over.geoms) if isinstance(left_over, MultiPolygon) else [left_over]
     found: list[Feature] = []
     for piece in pieces:
-        if piece.is_empty or piece.area < MIN_UNLABELLED_M2:
+        if piece.is_empty or piece.area < MIN_UNLABELLED_M2 - 1e-6:
             continue
         heights = _heights(piece, grid)
         tallest = float(heights.max()) if heights.size else None
