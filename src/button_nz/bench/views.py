@@ -1,6 +1,8 @@
 """What the model sees under each Experiment A condition (plan §11): the aerial
-photograph alone, with contours, or with nDSM and slope maps; or the aerial
-plus the observation tools it can call itself (``agent``).
+photograph alone, with contours, with nDSM and slope maps, or with every fixed
+map (``fixed_all``: hillshade, contours, nDSM, slope); or the aerial plus the
+observation tools it can call itself (``agent``). ``fixed_all`` against
+``agent`` separates choosing views from merely having them.
 
 Every image covers the LiDAR grid's bbox at ``SCALE`` pixels per metre, north
 up, with the question's marks drawn on it, so an image's pixels line up with
@@ -15,9 +17,9 @@ from PIL import Image, ImageDraw
 
 from button_nz.agent.site import DesignSite
 from button_nz.bench.questions import Mark, Question
-from button_nz.lidar import View, contours, ndsm_map, slope_map
+from button_nz.lidar import View, contours, hillshade, ndsm_map, slope_map
 
-CONDITIONS = ("aerial", "aerial_contours", "aerial_ndsm_slope", "agent")
+CONDITIONS = ("aerial", "aerial_contours", "aerial_ndsm_slope", "fixed_all", "agent")
 SCALE = 8  # pixels per metre, as the agent's observation views
 MARK_COLOUR = (255, 0, 255)
 POINT_RADIUS_PX = 5
@@ -39,6 +41,13 @@ def condition_images(
         views = [contours(grid, CONTOUR_INTERVAL_M, SCALE)]
     elif condition == "aerial_ndsm_slope":
         views = [ndsm_map(grid, SCALE), slope_map(grid, SCALE)]
+    elif condition == "fixed_all":  # every map the agent could choose, given up front
+        views = [
+            hillshade(grid, scale=SCALE),
+            contours(grid, CONTOUR_INTERVAL_M, SCALE),
+            ndsm_map(grid, SCALE),
+            slope_map(grid, SCALE),
+        ]
     elif condition not in CONDITIONS:
         raise ValueError(f"unknown condition {condition!r}")
     images += [(view.notes, view.png) for view in views]  # each says how to read it

@@ -45,7 +45,13 @@ def pixels(png: bytes) -> NDArray[np.uint8]:
 
 @pytest.mark.parametrize(
     ("condition", "count"),
-    [("aerial", 1), ("aerial_contours", 2), ("aerial_ndsm_slope", 3), ("agent", 1)],
+    [
+        ("aerial", 1),
+        ("aerial_contours", 2),
+        ("aerial_ndsm_slope", 3),
+        ("fixed_all", 5),
+        ("agent", 1),
+    ],
 )
 def test_each_condition_shows_its_views(
     site: DesignSite, aerial: NDArray[np.uint8], condition: str, count: int
@@ -54,7 +60,7 @@ def test_each_condition_shows_its_views(
     assert len(images) == count
     assert images[0][0].startswith("Aerial photograph")
     assert all(png.startswith(b"\x89PNG") for _, png in images)
-    assert set(CONDITIONS) == {"aerial", "aerial_contours", "aerial_ndsm_slope", "agent"}
+    assert CONDITIONS == ("aerial", "aerial_contours", "aerial_ndsm_slope", "fixed_all", "agent")
 
 
 def test_marks_are_drawn_where_their_local_coordinates_are(
