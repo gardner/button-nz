@@ -40,7 +40,8 @@ closing card's numbers come from the reports. See
 
 The takes so far show:
 
-- the owner confirming the SAM 3.1 survey;
+- the SAM 3.1 survey, with the team entering answers in the owner's place
+  (the team's decisions, pending the owner's confirmation, and captioned so);
 - Muse designing;
 - a failed attempt and its repair;
 - every check with its measurement;
