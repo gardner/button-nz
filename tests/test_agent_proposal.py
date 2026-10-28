@@ -238,3 +238,11 @@ def test_a_step_below_the_wall_cut_is_not_mistaken_for_the_walls() -> None:
     step = box(4.5, -3, 0, 7.5, 0.2, 0.6)
     with pytest.raises(DesignError, match="lowest|solid"):  # the step is below the floor too
         parse_measurements(measured_with(raised + step))
+
+
+def test_a_deck_at_floor_level_is_not_part_of_the_walls() -> None:
+    house = box(0, 0, 0, 8, 6, 3)
+    deck = box(8, 0, 0, 12, 6, 0.6)  # underside level with the floor
+    measured = parse_measurements(measured_with(house + deck))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(48.0)

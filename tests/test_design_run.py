@@ -463,3 +463,9 @@ def test_geometry_nodes_instances_are_measured(tmp_path: Path, scene: SceneInput
     triangles = out.measurements["triangles"]
     xs = [p[0] for tri in triangles for p in tri]
     assert max(xs) > 20.0  # the third cube, 24 m along x
+
+
+def test_non_finite_geometry_is_feedback_not_a_crash(tmp_path: Path, scene: SceneInput) -> None:
+    out = run_design(scene, BOX + "dwelling.data.vertices[0].co.x = float('nan')\n", tmp_path)
+    assert "finite" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None

@@ -18,6 +18,7 @@ Writes ``OUT_DIR/measurements.json``, then ``design.glb`` and ``design.png``.
 A broken contract is recorded in the measurements for the model to fix.
 """
 
+import math
 import os
 import sys
 from typing import Any
@@ -32,6 +33,7 @@ b: Any = bpy  # no type stubs inside Blender
 build_scene: Any = _build_scene
 design_io: Any = _design_io
 MAX_TRIANGLES = 200_000
+NOT_FINITE = "Some of the Dwelling's vertices aren't finite numbers (NaN or inf)."
 DWELLING_RGBA = (0.82, 0.74, 0.6, 1.0)  # rendered opaque, whatever material the script gave
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
@@ -166,6 +168,8 @@ def _add_triangles(obj: Any, world: Any, triangles: list[list[list[float]]]) -> 
         if total > MAX_TRIANGLES:
             return TOO_DETAILED.format(n=total)
         points = [list(world @ v.co) for v in mesh.vertices]
+        if not all(math.isfinite(c) for point in points for c in point):
+            return NOT_FINITE
         triangles += [[points[i] for i in tri.vertices] for tri in mesh.loop_triangles]
     finally:
         obj.to_mesh_clear()
