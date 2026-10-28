@@ -1,10 +1,10 @@
-import type { Site } from "@/lib/api";
+import type { Aerial, Point, Site } from "@/lib/api";
 import type { SiteFeature } from "@/lib/features";
-import { type PlanView, planView } from "@/lib/plan";
+import { interiorPoint, type PlanView, planView } from "@/lib/plan";
 
 import { LOOKS, SHOWN } from "./decisions";
 
-const MARGIN_M = 4;
+const MARGIN_M = 8; // enough to see what stands on the site's edges
 
 /** The property: its title, a true-scale plan of its parcels and any
  * surveyed features, where every piece of data came from, and what still
@@ -37,6 +37,7 @@ export function SitePanel({
         role="img"
         aria-label="Site plan, north up"
       >
+        {site.aerial && <AerialPhoto aerial={site.aerial} plan={plan} />}
         {plan.paths.map((d, i) => (
           <path
             key={site.parcels[i].id}
@@ -49,6 +50,9 @@ export function SitePanel({
         ))}
         {features.map((f) => (
           <FeatureShape key={f.id} feature={f} plan={plan} />
+        ))}
+        {features.map((f) => (
+          <FeatureLabel key={f.id} feature={f} plan={plan} />
         ))}
         <circle cx={ax} cy={ay} r={0.8} fill="rgb(37 99 235)" />
         <line
@@ -92,6 +96,53 @@ export function SitePanel({
         </div>
       )}
     </section>
+  );
+}
+
+/** The aerial photo, placed by its NZTM corners: the plan is in metres. */
+function AerialPhoto({ aerial, plan }: { aerial: Aerial; plan: PlanView }) {
+  const [west, south, east, north] = aerial.bbox;
+  const [x, y] = plan.point([west, north]);
+  return (
+    <image
+      href={aerial.url}
+      x={x}
+      y={y}
+      width={east - west}
+      height={north - south}
+      preserveAspectRatio="none"
+    />
+  );
+}
+
+/** The feature's number, as in the list below, inside its largest piece. */
+function FeatureLabel({
+  feature,
+  plan,
+}: {
+  feature: SiteFeature;
+  plan: PlanView;
+}) {
+  const [largest] = [...feature.polygons].sort((a, b) => area(b) - area(a));
+  if (!largest || largest.length === 0) return null;
+  const middle = interiorPoint(largest);
+  const [x, y] = plan.point(middle);
+  return (
+    <text
+      x={x}
+      y={y}
+      className="feature-label"
+      fontSize={2}
+      fontWeight="bold"
+      textAnchor="middle"
+      dominantBaseline="middle"
+      fill="white"
+      stroke="black"
+      strokeWidth={0.3}
+      paintOrder="stroke"
+    >
+      {feature.id}
+    </text>
   );
 }
 
@@ -143,4 +194,21 @@ function PlanKey() {
       ))}
     </ul>
   );
+}
+
+/** A polygon's area (its outer ring less its holes), to pick the largest piece. */
+function area(rings: Point[][]): number {
+  const shoelace = (ring: Point[]) =>
+    Math.abs(
+      ring.reduce(
+        (sum, [x, y], i) =>
+          sum +
+          (i + 1 < ring.length ? x * ring[i + 1][1] - ring[i + 1][0] * y : 0),
+        0,
+      ),
+    ) / 2;
+  const [outer, ...holes] = rings;
+  return outer
+    ? shoelace(outer) - holes.reduce((sum, h) => sum + shoelace(h), 0)
+    : 0;
 }

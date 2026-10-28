@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { planView } from "./plan";
+import type { Point } from "./api";
+import { interiorPoint, planView } from "./plan";
 
 const SQUARE: [number, number][] = [
   [1000, 2000],
@@ -40,5 +41,53 @@ describe("planView", () => {
     expect(view.outline([SQUARE, hole])).toBe(
       "M2,22 L12,22 L12,2 L2,2 L2,22 Z M6,18 L8,18 L8,16 L6,18 Z",
     );
+  });
+});
+
+describe("interiorPoint", () => {
+  const inside = (rings: Point[][], [x, y]: Point): boolean => {
+    let crossings = 0; // even-odd: holes are outside
+    for (const ring of rings) {
+      for (let i = 0; i + 1 < ring.length; i++) {
+        const [[x1, y1], [x2, y2]] = [ring[i], ring[i + 1]];
+        if (y1 > y !== y2 > y && x < x1 + ((y - y1) * (x2 - x1)) / (y2 - y1))
+          crossings++;
+      }
+    }
+    return crossings % 2 === 1;
+  };
+
+  it("lands inside a U shape whose middle is outside", () => {
+    const u: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [7, 10],
+      [7, 3],
+      [3, 3],
+      [3, 10],
+      [0, 10],
+      [0, 0],
+    ];
+    expect(inside([u], [5, 5])).toBe(false); // the bounding box's centre
+    expect(inside([u], interiorPoint([u]))).toBe(true);
+  });
+
+  it("lands outside a hole in the middle", () => {
+    const outer: Point[] = [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+      [0, 0],
+    ];
+    const hole: Point[] = [
+      [2, 2],
+      [8, 2],
+      [8, 8],
+      [2, 8],
+      [2, 2],
+    ];
+    expect(inside([outer, hole], interiorPoint([outer, hole]))).toBe(true);
   });
 });

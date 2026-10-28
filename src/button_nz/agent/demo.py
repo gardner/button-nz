@@ -20,6 +20,7 @@ from button_nz.blender_worker.scene_input import scene_input
 from button_nz.demo_site import load_demo_site
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
+from button_nz.geo.geometry import BBox
 from button_nz.geo.imagery import read_aerial
 from button_nz.geo.terrain import read_terrain
 from button_nz.geo.tiles import tiles_covering
@@ -44,9 +45,13 @@ def demo_site(margin_m: float = 20.0) -> DesignSite:
 
 def demo_aerial(site: DesignSite, pixel_m: float) -> NDArray[np.uint8]:
     """The demo site's urban aerial over its LiDAR grid, ``pixel_m`` per pixel."""
+    return aerial_of(site.context.terrain.bbox, pixel_m)
+
+
+def aerial_of(bbox: BBox, pixel_m: float) -> NDArray[np.uint8]:
+    """The demo site's urban aerial over ``bbox``, ``pixel_m`` per pixel."""
     source = load_demo_site().rasters["aerial"]
     base, scale = source.asset.rsplit("/", 1)[0], int(source.tile.split("_")[1])
-    bbox = site.context.terrain.bbox
     assets = [f"{base}/{name}.tiff" for name in tiles_covering(bbox, scale)]
     return read_aerial(assets, bbox, pixel_m)
 
