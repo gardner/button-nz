@@ -60,12 +60,27 @@ class ChatModel:
         message = response.choices[0].message
         for call in message.tool_calls or []:
             if call.type == "function" and call.function.name == TOOL:
-                code = json.loads(call.function.arguments).get("code")
+                code = _arguments(call.function.arguments).get("code")
                 if isinstance(code, str) and code.strip():
                     return code
         raise ModelReplyError(
             f"The reply did not call {TOOL} with a script. Call it with your script."
         )
+
+
+def _arguments(raw: str | None) -> dict[str, Any]:
+    """A tool call's arguments as a JSON object, or a ModelReplyError the model can
+    act on (e.g. a script cut off by the output limit)."""
+    try:
+        arguments = json.loads(raw or "{}")
+    except json.JSONDecodeError as error:
+        raise ModelReplyError(
+            f"Your tool call's arguments were malformed or truncated JSON ({error.msg}). "
+            "Send the complete call again; keep the script short enough to fit."
+        ) from error
+    if not isinstance(arguments, dict):
+        raise ModelReplyError("Your tool call's arguments were malformed: expected a JSON object.")
+    return cast("dict[str, Any]", arguments)
 
 
 def _messages(conversation: Sequence[Turn]) -> list[dict[str, Any]]:

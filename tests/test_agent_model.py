@@ -90,3 +90,15 @@ def test_from_env_needs_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MODEL_API_KEY", raising=False)
     with pytest.raises(KeyError, match="MODEL_API_KEY"):
         ChatModel.from_env()
+
+
+@pytest.mark.parametrize("arguments", ['{"code": "x', "[1, 2]", '"just a string"'])
+def test_malformed_tool_arguments_are_a_reply_error(arguments: str) -> None:
+    call = {
+        "id": "t1",
+        "type": "function",
+        "function": {"name": "run_blender_script", "arguments": arguments},
+    }
+    model, _ = _model({"role": "assistant", "content": None, "tool_calls": [call]})
+    with pytest.raises(ModelReplyError, match="malformed"):
+        model.propose([Turn("system", "c"), Turn("user", "b")])

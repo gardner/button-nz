@@ -24,6 +24,9 @@ from button_nz.blender_worker.scene_input import SceneInput
 BUILD_SCRIPT = Path(__file__).with_name("build_scene.py")
 DESIGN_SCRIPT = Path(__file__).with_name("run_design.py")
 CYCLES_CACHE = Path.home() / ".cache" / "cycles"  # compiled GPU kernels, kept across runs
+# A user-level Blender install (see README): the launcher and the build it runs.
+BLENDER_INSTALL_PATHS = (Path.home() / ".local" / "bin", Path.home() / ".local" / "opt")
+SANDBOX_ENV = ("PATH", "HOME", "LANG", "CUDA_VISIBLE_DEVICES")  # all the sandbox gets
 MIN_FREE_GPU_MIB = 4096
 
 
@@ -107,12 +110,12 @@ def _run_blender(
         "--",
         *(str(a) for a in args),
     ]
-    if writable is not None:
-        command = _sandboxed(command, writable)
     env = dict(os.environ)
     gpus = _visible_gpus()
     if gpus is not None:
         env["CUDA_VISIBLE_DEVICES"] = gpus
+    if writable is not None:
+        command = _sandboxed(command, writable, env)
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout_s, env=env)
     except (OSError, subprocess.TimeoutExpired) as error:
@@ -122,26 +125,35 @@ def _run_blender(
         raise BlenderError(f"Blender exited {result.returncode}:\n{tail}")
 
 
-def _sandboxed(command: list[str], writable: Path) -> list[str]:
-    """``command`` under bubblewrap: read-only filesystem except ``writable`` and
-    the Cycles kernel cache, a fresh /tmp, GPU devices, and no network."""
+def _sandboxed(command: list[str], writable: Path, env: Mapping[str, str]) -> list[str]:
+    """``command`` under bubblewrap, for untrusted model-written scripts:
+    read-only system files; a fresh, empty home and /tmp, with only Blender, the
+    worker scripts, the Cycles kernel cache and ``writable`` mounted back; a
+    cleared environment (no API keys or other secrets); GPU devices; no network."""
     CYCLES_CACHE.mkdir(parents=True, exist_ok=True)
-    out, cache = str(writable.resolve()), str(CYCLES_CACHE)
-    return [
-        "bwrap",
-        "--ro-bind", "/", "/",
-        "--dev-bind", "/dev", "/dev",
-        "--proc", "/proc",
-        "--tmpfs", "/tmp",
-        "--bind", out, out,
-        "--bind", cache, cache,
-        "--unshare-net",
-        "--unshare-pid",
-        "--die-with-parent",
-        "--new-session",
-        "--",
-        *command,
-    ]  # fmt: skip
+    home = str(Path.home())
+    args = ["bwrap", "--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "--proc", "/proc"]
+    args += ["--tmpfs", "/tmp", "--tmpfs", home]
+    for path in _sandbox_read_paths(command[0]):
+        args += ["--ro-bind", str(path), str(path)]
+    for path in (CYCLES_CACHE, writable.resolve()):
+        args += ["--bind", str(path), str(path)]
+    args += ["--unshare-net", "--unshare-pid", "--die-with-parent", "--new-session", "--clearenv"]
+    for name in SANDBOX_ENV:
+        if name in env:
+            args += ["--setenv", name, env[name]]
+    return [*args, "--setenv", "PYTHONDONTWRITEBYTECODE", "1", "--", *command]
+
+
+def _sandbox_read_paths(blender: str) -> list[Path]:
+    """The worker scripts, Blender's directory, and the user-level install
+    (``~/.local/bin`` launcher and ``~/.local/opt`` build) if they exist."""
+    paths = [BUILD_SCRIPT.parent.resolve()]
+    found = shutil.which(blender)
+    if found:
+        paths.append(Path(found).resolve().parent)
+    paths += [p for p in BLENDER_INSTALL_PATHS if p.is_dir()]
+    return list(dict.fromkeys(paths))
 
 
 def _require(*paths: Path) -> None:

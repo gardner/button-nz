@@ -32,7 +32,8 @@ GOOD = {
 }
 NEAR = GOOD | {"faces_xy": [rect(0.5, 7, 6.5, 12)]}  # 0.5 m from the title boundary
 BROKEN = {"error": 'Traceback (most recent call last):\n  File "design.py", line 1\nNameError: x'}
-MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN}
+OFF_TERRAIN = GOOD | {"faces_xy": [rect(38, 7, 44, 12)]}  # past the terrain's east edge
+MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN}
 
 
 @pytest.fixture
@@ -142,4 +143,12 @@ def test_a_reply_without_a_script_is_an_attempt_with_feedback(
     result = run(site, model, tmp_path)
     assert result.attempts[0].status == "error"
     assert "run_blender_script" in model.seen[1][-1].text
+    assert result.accepted is result.attempts[1]
+
+
+def test_a_proposal_the_evaluator_rejects_is_fed_back(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("off", "good")
+    result = run(site, model, tmp_path)
+    assert result.attempts[0].status == "error"
+    assert "terrain" in model.seen[1][-1].text
     assert result.accepted is result.attempts[1]

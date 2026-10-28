@@ -17,7 +17,7 @@ from button_nz.agent.prompt import describe, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
-from button_nz.evaluation import Check, Report, SiteContext, Status, evaluate
+from button_nz.evaluation import Check, InvalidProposal, Report, SiteContext, Status, evaluate
 from button_nz.geo.crs import LocalFrame
 
 __all__ = ["Attempt", "DesignResult", "DesignSite", "Model", "Turn", "design"]
@@ -103,7 +103,7 @@ def _attempt(
         datum = site.scene["frame"]["datum_m"]
         report = evaluate(to_proposal(measurements, site.frame, datum), site.context)
         feedback = describe(report)
-    except DesignError as error:
+    except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
     attempt = Attempt(number, script, feedback, report, directory)
     _write_attempt(attempt)
