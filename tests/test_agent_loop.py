@@ -218,6 +218,21 @@ def test_a_proposal_the_evaluator_rejects_is_fed_back(site: DesignSite, tmp_path
     assert result.accepted is result.attempts[1]
 
 
+def test_each_attempt_is_reported_as_it_finishes(site: DesignSite, tmp_path: Path) -> None:
+    seen: list[int] = []
+    model = ScriptedModel("near", "good")
+    result = design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        on_attempt=lambda attempt: seen.append(attempt.number),
+    )
+    assert seen == [1, 2]
+    assert [a.number for a in result.attempts] == seen
+
+
 def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> None:
     """Reusing a runs directory must not show the model an old run's picture."""
     (tmp_path / "attempt-1").mkdir()
