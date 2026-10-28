@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
+// The Python API (button_nz.api.serve), proxied so the browser stays same-origin.
+const API_URL = process.env.BUTTON_API_URL ?? "http://127.0.0.1:8000";
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
