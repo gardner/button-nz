@@ -7,12 +7,12 @@ property owner or the team lead. Nothing that needs their word is assumed.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, run locally (README, "Run it") | Runs end to end live; **not deployed** (see below) |
+| 1 | Working application | `apps/web` + `button_nz.api`, run locally (README, "Run it") | Runs end to end live; **not deployed: a required gap** (see below) |
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | Two takes recorded; final take after Experiment A's re-run |
 | 3 | Source repository | this repository, GNU GPL (`LICENSE`) | Public |
 | 4 | Technical README | [README.md](../README.md) | Done |
 | 5 | Evaluation report | [docs/results](results/README.md) | Experiment C done; Experiment A re-running |
-| 6 | Sample project artifacts | each design run's attempt folder (below) | Produced by every run; to be packaged |
+| 6 | Sample project artifacts | each design run's attempt folder (below) | Produced by every attempt whose script ran; to be packaged |
 | 7 | Product story | [docs/product.md](product.md) | Done |
 
 ## 1. Working application
@@ -25,8 +25,10 @@ run. A public deployment needs:
 - `META_API_KEY` kept on the server;
 - a choice of how judges may use it, since each design costs model calls.
 
-That is the owner's decision. Until then, the video and the README's run
-instructions stand in for it.
+Plan §15 requires a deployed demonstration, so this is an **open required
+gap**, not something the video or the run instructions replace. Unless the
+portal's requirements say otherwise, it needs the owner's decision on where
+and how to deploy.
 
 ## 2. Demo video
 
@@ -57,7 +59,10 @@ The takes so far show:
 
 ## 6. Sample project artifacts
 
-Every design attempt keeps, under `DATA/runs/<job>/attempt-<n>/`:
+An attempt whose script ran and was measured keeps all of these, under
+`DATA/runs/<job>/attempt-<n>/`. An attempt whose script failed keeps only
+`design.py`, `attempt.json` (with the error) and any observations, so check
+the chosen sample's folders before packaging them.
 
 | File | What it is |
 |---|---|
