@@ -152,3 +152,12 @@ def test_a_proposal_the_evaluator_rejects_is_fed_back(site: DesignSite, tmp_path
     assert result.attempts[0].status == "error"
     assert "terrain" in model.seen[1][-1].text
     assert result.accepted is result.attempts[1]
+
+
+def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> None:
+    """Reusing a runs directory must not show the model an old run's picture."""
+    (tmp_path / "attempt-1").mkdir()
+    (tmp_path / "attempt-1" / "design.png").write_bytes(b"old")
+    model = SilentModel("good")
+    run(site, model, tmp_path)
+    assert model.seen[1][-1].image is None

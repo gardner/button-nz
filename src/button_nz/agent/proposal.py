@@ -23,7 +23,7 @@ class DesignError(ValueError):
 
 @dataclass(frozen=True)
 class Measurements:
-    """What ``run_design.py`` measured, in the scene's local frame."""
+    """What ``design_measure.py`` measured, in the scene's local frame."""
 
     error: str | None
     footprint: Ring | None  # outer ring of the Dwelling's faces projected onto XY

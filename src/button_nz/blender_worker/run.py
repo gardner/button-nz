@@ -19,10 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from button_nz.blender_worker.design_io import DID_NOT_FINISH
 from button_nz.blender_worker.scene_input import SceneInput
 
 BUILD_SCRIPT = Path(__file__).with_name("build_scene.py")
-DESIGN_SCRIPT = Path(__file__).with_name("run_design.py")
+SCRIPT_PASS = Path(__file__).with_name("design_script.py")  # the model's script, untrusted
+MEASURE_PASS = Path(__file__).with_name("design_measure.py")  # trusted measurement
 CYCLES_CACHE = Path.home() / ".cache" / "cycles"  # compiled GPU kernels, kept across runs
 # A user-level Blender install (see README): the launcher and the build it runs.
 BLENDER_INSTALL_PATHS = (Path.home() / ".local" / "bin", Path.home() / ".local" / "opt")
@@ -31,7 +33,12 @@ MIN_FREE_GPU_MIB = 4096
 
 
 class BlenderError(RuntimeError):
-    """A Blender run failed."""
+    """A Blender run failed. ``killed`` if it timed out or a signal ended it (a
+    crash), rather than exiting with an error."""
+
+    def __init__(self, message: str, killed: bool = False) -> None:
+        super().__init__(message)
+        self.killed = killed
 
 
 @dataclass(frozen=True)
@@ -75,24 +82,37 @@ def run_design(
     blender: str = "blender",
     timeout_s: float = 900.0,
 ) -> DesignOutputs:
-    """Run a model-written ``script`` in the site ``scene``, sandboxed: no network,
-    and no writes outside ``out_dir`` (and Cycles' kernel cache)."""
+    """Run a model-written ``script`` in the site ``scene`` (pass 1, untrusted),
+    then measure, export and render what it built (pass 2, trusted). Both run
+    sandboxed: no network, and no writes outside ``out_dir`` (pass 2 also keeps
+    Cycles' kernel cache). A failure caused by the model's work is returned as
+    feedback in the measurements; any other failure raises ``BlenderError``."""
     out_dir.mkdir(parents=True, exist_ok=True)
     scene_path, script_path = out_dir / "scene.json", out_dir / "design.py"
+    status, blend = out_dir / "script.json", out_dir / "design.blend"
     measurements_path = out_dir / "measurements.json"
     glb, png = out_dir / "design.glb", out_dir / "design.png"
     scene_path.write_text(json.dumps(scene), encoding="utf-8")
     script_path.write_text(script, encoding="utf-8")
-    for stale in (measurements_path, glb, png):
+    for stale in (status, blend, measurements_path, glb, png):
         stale.unlink(missing_ok=True)
     try:
-        _run_blender(
-            blender, DESIGN_SCRIPT, [scene_path, script_path, out_dir], timeout_s, writable=out_dir
-        )
+        _run_blender(blender, SCRIPT_PASS, [scene_path, script_path, out_dir], timeout_s, out_dir)
     except BlenderError:
-        # Died inside the model's work, where run_design.py notes it did not finish:
-        # the model's to fix. Anywhere else, Blender itself failed.
-        if not measurements_path.is_file() or not _measurements(measurements_path).get("error"):
+        # Only the model's script runs while script.json says it did not finish.
+        if not _unfinished(status):
+            raise
+        return DesignOutputs(_measurements(status), script_path, None, None)
+    _require(status)
+    if _measurements(status).get("error"):
+        return DesignOutputs(_measurements(status), script_path, None, None)
+    _require(blend)
+    try:
+        _run_blender(blender, MEASURE_PASS, [scene_path, blend, out_dir], timeout_s, out_dir, True)
+    except BlenderError as error:
+        # A timeout or crash while the model's geometry is measured or rendered is
+        # its to fix; a Python error is this runner's, and Blender's otherwise.
+        if not (error.killed and _unfinished(measurements_path)):
             raise
         for partial in (glb, png):
             partial.unlink(missing_ok=True)
@@ -105,13 +125,25 @@ def run_design(
     return DesignOutputs(measurements, script_path, glb, png)
 
 
+def _unfinished(path: Path) -> bool:
+    """Whether a pass's output file says it was stopped inside the model's work."""
+    return path.is_file() and _measurements(path).get("error") == DID_NOT_FINISH
+
+
 def _measurements(path: Path) -> Mapping[str, Any]:
     return cast("Mapping[str, Any]", json.loads(path.read_text("utf-8")))
 
 
 def _run_blender(
-    blender: str, script: Path, args: list[Path], timeout_s: float, writable: Path | None = None
+    blender: str,
+    script: Path,
+    args: list[Path],
+    timeout_s: float,
+    writable: Path | None = None,
+    renders: bool = False,
 ) -> None:
+    """Run ``script`` in Blender; sandboxed if it may write only to ``writable``,
+    with Cycles' kernel cache mounted only for a pass that ``renders``."""
     command = [
         blender,
         "-b",
@@ -128,17 +160,21 @@ def _run_blender(
     if gpus is not None:
         env["CUDA_VISIBLE_DEVICES"] = gpus
     if writable is not None:
-        command = _sandboxed(command, writable, env)
+        command = _sandboxed(command, writable, env, renders)
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=timeout_s, env=env)
-    except (OSError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired as error:
+        raise BlenderError(f"Blender ran past {timeout_s:g} s: {error}", killed=True) from error
+    except OSError as error:
         raise BlenderError(f"could not run Blender: {error}") from error
     if result.returncode != 0:
         tail = "\n".join((result.stdout + result.stderr).splitlines()[-30:])
-        raise BlenderError(f"Blender exited {result.returncode}:\n{tail}")
+        raise BlenderError(f"Blender exited {result.returncode}:\n{tail}", result.returncode < 0)
 
 
-def _sandboxed(command: list[str], writable: Path, env: Mapping[str, str]) -> list[str]:
+def _sandboxed(
+    command: list[str], writable: Path, env: Mapping[str, str], renders: bool
+) -> list[str]:
     """``command`` under bubblewrap, for untrusted model-written scripts:
     read-only system files; a fresh, empty home, /tmp and /run (no host Unix
     sockets such as the user's D-Bus or Docker), with only Blender, the
@@ -150,7 +186,8 @@ def _sandboxed(command: list[str], writable: Path, env: Mapping[str, str]) -> li
     args += ["--tmpfs", "/tmp", "--tmpfs", "/run", "--tmpfs", home]
     for path in _sandbox_read_paths(command[0]):
         args += ["--ro-bind", str(path), str(path)]
-    for path in (CYCLES_CACHE, writable.resolve()):
+    # The kernel cache only for rendering: model code never gets to write to it.
+    for path in (CYCLES_CACHE, writable.resolve()) if renders else (writable.resolve(),):
         args += ["--bind", str(path), str(path)]
     args += ["--unshare-net", "--unshare-pid", "--die-with-parent", "--new-session", "--clearenv"]
     for name in SANDBOX_ENV:

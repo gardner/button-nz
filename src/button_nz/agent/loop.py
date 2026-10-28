@@ -39,6 +39,7 @@ class Attempt:
     feedback: str
     report: Report | None  # None if the script didn't produce a measurable dwelling
     directory: Path
+    render: Path | None = None  # this attempt's render, if the runner made one
 
     @property
     def status(self) -> str:
@@ -81,11 +82,7 @@ def design(
         else:
             attempt = _attempt(number, script, site, runner, directory)
         attempts.append(attempt)
-        image = attempt.directory / "design.png"
-        conversation += [
-            Turn("design", script),
-            Turn("feedback", attempt.feedback, image if image.is_file() else None),
-        ]
+        conversation += [Turn("design", script), Turn("feedback", attempt.feedback, attempt.render)]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
             break
     result = DesignResult(brief, tuple(attempts))
@@ -105,7 +102,7 @@ def _attempt(
         feedback = describe(report)
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
-    attempt = Attempt(number, script, feedback, report, directory)
+    attempt = Attempt(number, script, feedback, report, directory, outputs.png)
     _write_attempt(attempt)
     return attempt
 

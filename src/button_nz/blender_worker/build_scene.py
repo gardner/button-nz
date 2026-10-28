@@ -156,11 +156,11 @@ def _render(png_path: str) -> None:
     scene.cycles.samples = 64
     scene.render.resolution_x, scene.render.resolution_y = 1280, 960
     scene.render.filepath = png_path
-    _use_gpu(scene)
+    use_gpu(scene)
     b.ops.render.render(write_still=True)
 
 
-def _use_gpu(scene: Any) -> None:
+def use_gpu(scene: Any) -> None:
     """Render on the GPU. No usable GPU is an error, not a slow CPU render."""
     prefs = b.context.preferences.addons["cycles"].preferences
     for backend in ("OPTIX", "CUDA", "HIP", "ONEAPI", "METAL"):

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from button_nz.agent.proposal import parse_measurements
-from button_nz.blender_worker.run import run_design
+from button_nz.blender_worker.run import BlenderError, run_design
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.terrain import TerrainGrid
@@ -90,13 +90,55 @@ def test_the_script_cannot_read_the_home_directory_or_secrets(
     assert "hunter2" not in error
 
 
-def test_a_script_that_clears_the_scene_gets_feedback(tmp_path: Path, scene: SceneInput) -> None:
+def test_changes_to_the_site_are_discarded(tmp_path: Path, scene: SceneInput) -> None:
+    """The site is rebuilt for measuring: a script can't hide or move it."""
     clear = "for obj in list(bpy.data.objects):\n    if obj.name != 'Dwelling':\n"
     script = BOX + "\n" + clear + "        bpy.data.objects.remove(obj)\n"
     out = run_design(scene, script, tmp_path)
-    assert "site" in str(out.measurements["error"])
-    assert out.measurements["faces_xy"]  # measured before export failed
+    assert out.measurements["error"] is None
+    assert out.glb is not None and b"Terrain" in out.glb.read_bytes()
+
+
+def test_the_script_cannot_fake_its_measurements(tmp_path: Path, scene: SceneInput) -> None:
+    fake = (
+        "import json, sys, __main__\n"
+        "out = sys.argv[-1]\n"
+        "tiny = {'error': None, 'faces_xy': [[[0, 0], [1, 0], [1, 1]]], 'z_min': 0, 'z_max': 1}\n"
+        "open(out + '/measurements.json', 'w').write(json.dumps(tiny))\n"
+        "__main__.__dict__['_measure'] = lambda *a: tiny\n"
+    )
+    out = run_design(scene, BOX + fake, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.footprint is not None
+    xs = [x for x, _ in measured.footprint]
+    assert (min(xs), max(xs)) == pytest.approx((-1.0, 5.0))  # the box, not the fake
+
+
+def test_a_dwelling_without_its_own_transform_gets_feedback(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    constrained = "dwelling.constraints.new('COPY_LOCATION')\n"
+    out = run_design(scene, BOX + constrained, tmp_path)
+    assert "constraints" in str(out.measurements["error"])
     assert out.glb is None and out.png is None
+
+
+def test_an_unlinked_dwelling_gets_feedback(tmp_path: Path, scene: SceneInput) -> None:
+    unlinked = (
+        "mesh = bpy.data.meshes.new('D')\n"
+        "mesh.from_pydata([(0, 0, 0), (4, 0, 0), (4, 4, 0), (0, 4, 3)], [], [(0, 1, 2, 3)])\n"
+        "bpy.data.objects.new('Dwelling', mesh).location = (2.0, 1.0, 0.0)\n"
+    )
+    out = run_design(scene, unlinked, tmp_path)
+    assert "link" in str(out.measurements["error"])
+
+
+def test_no_gpu_is_blenders_failure_not_the_models(
+    tmp_path: Path, scene: SceneInput, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    with pytest.raises(BlenderError, match="no GPU"):
+        run_design(scene, BOX, tmp_path)
 
 
 def test_a_main_guarded_script_runs(tmp_path: Path, scene: SceneInput) -> None:
@@ -125,13 +167,13 @@ def test_lights_and_cameras_may_be_added(tmp_path: Path, scene: SceneInput) -> N
     assert out.measurements["error"] is None
 
 
-def test_removing_a_parcel_boundary_gets_feedback(tmp_path: Path, scene: SceneInput) -> None:
+def test_a_removed_parcel_boundary_is_restored(tmp_path: Path, scene: SceneInput) -> None:
     parcel = ((10.0, 10.0), (40.0, 10.0), (40.0, 30.0), (10.0, 30.0), (10.0, 10.0))
     framed = scene_input(_GRID, LocalFrame.centred_on(_GRID.bbox), [parcel])
     script = BOX + "bpy.data.objects.remove(bpy.data.objects['Parcel.0'])\n"
     out = run_design(framed, script, tmp_path)
-    assert "Parcel.0" in str(out.measurements["error"])
-    assert out.glb is None and out.png is None
+    assert out.measurements["error"] is None
+    assert out.glb is not None and b"Parcel.0" in out.glb.read_bytes()
 
 
 @pytest.mark.parametrize("ending", ["import sys\nsys.exit(0)\n", "raise SystemExit(3)\n"])
