@@ -159,9 +159,11 @@ OptiX). Unpack it under `~/.local/opt/`, and put a `blender` launcher in
 `~/.local/bin/`. `uv run pytest -m blender` runs the Blender tests.
 
 **API:** this serves the demo site and runs design jobs one at a time, keeping
-jobs and their files under `var/`.
+jobs and their files under `var/`. Survey the site first, so the owner has
+something to confirm. This writes `var/survey.geojson`:
 
 ```bash
+uv run --env-file .env python -m button_nz.perception.survey var
 uv run --env-file .env python -m button_nz.api.serve --port 8000
 curl localhost:8000/site
 curl -X POST localhost:8000/designs -H 'content-type: application/json' \
