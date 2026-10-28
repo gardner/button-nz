@@ -1,0 +1,135 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:2193"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 49306,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505965.72872007,
+              5336822.74565847
+            ],
+            [
+              1505980.61731409,
+              5336836.00090462
+            ],
+            [
+              1505988.2595184,
+              5336827.41700688
+            ],
+            [
+              1505982.70938054,
+              5336822.47574491
+            ],
+            [
+              1505981.13070429,
+              5336824.24894991
+            ],
+            [
+              1505971.79224814,
+              5336815.93496581
+            ],
+            [
+              1505965.72872007,
+              5336822.74565847
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 49306,
+        "building_id": 2517444,
+        "name": null,
+        "use_": "Unknown",
+        "suburb_locality": "Reefton",
+        "town_city": "Reefton",
+        "territorial_authority": "Buller District",
+        "capture_method": "Feature Extraction",
+        "capture_source_group": "NZ Aerial Imagery",
+        "capture_source_id": 1006,
+        "capture_source_name": "West Coast 0.3m Rural Aerial Photos (2015-2016)",
+        "capture_source_from": 1451088000000,
+        "capture_source_to": 1464739200000,
+        "last_modified": 1546992000000,
+        "GlobalID": "fa3cc7c9-3de0-4cb4-8842-10143c6b2392",
+        "Shape__Area": 199.41748046875,
+        "Shape__Length": 62.854158233265252
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 49304,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505936.0143534,
+              5336822.03892142
+            ],
+            [
+              1505927.6277403,
+              5336809.22342276
+            ],
+            [
+              1505922.41606209,
+              5336812.6340063
+            ],
+            [
+              1505923.7900735,
+              5336814.73361933
+            ],
+            [
+              1505920.46940552,
+              5336816.90670358
+            ],
+            [
+              1505926.33784416,
+              5336825.87420532
+            ],
+            [
+              1505929.65851219,
+              5336823.70112115
+            ],
+            [
+              1505930.80267518,
+              5336825.44950496
+            ],
+            [
+              1505936.0143534,
+              5336822.03892142
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 49304,
+        "building_id": 2517442,
+        "name": null,
+        "use_": "Unknown",
+        "suburb_locality": "Reefton",
+        "town_city": "Reefton",
+        "territorial_authority": "Buller District",
+        "capture_method": "Feature Extraction",
+        "capture_source_group": "NZ Aerial Imagery",
+        "capture_source_id": 1006,
+        "capture_source_name": "West Coast 0.3m Rural Aerial Photos (2015-2016)",
+        "capture_source_from": 1451088000000,
+        "capture_source_to": 1464739200000,
+        "last_modified": 1546992000000,
+        "GlobalID": "fefb5afc-f188-44b4-b349-1ef84e8318df",
+        "Shape__Area": 137.9248046875,
+        "Shape__Length": 51.0254534823817
+      }
+    }
+  ]
+}

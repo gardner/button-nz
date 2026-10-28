@@ -1,0 +1,179 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:2193"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 9254,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505956.05834431,
+              5336813.39866667
+            ],
+            [
+              1505932.84485317,
+              5336793.10550331
+            ],
+            [
+              1505926.1313984,
+              5336800.6213205
+            ],
+            [
+              1505949.38932928,
+              5336820.8873341
+            ],
+            [
+              1505956.05834431,
+              5336813.39866667
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 9254,
+        "Appellation": "Section 702 TN OF Reefton",
+        "AffectedSurveys": "SO 9594",
+        "ParcelIntent": "DCDB",
+        "Titles": "354613",
+        "SurveyArea": 309,
+        "ValNum": "1905027200",
+        "ParcelID": 3615590
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 14884,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505962.98086184,
+              5336806.01509347
+            ],
+            [
+              1505939.72903165,
+              5336785.39761118
+            ],
+            [
+              1505932.84485317,
+              5336793.10550331
+            ],
+            [
+              1505956.05834431,
+              5336813.39866667
+            ],
+            [
+              1505962.98086184,
+              5336806.01509347
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 14884,
+        "Appellation": "Section 701 TN OF Reefton",
+        "AffectedSurveys": "SO 9594",
+        "ParcelIntent": "DCDB",
+        "Titles": "354613",
+        "SurveyArea": 309,
+        "ValNum": "1905027200",
+        "ParcelID": 3621992
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 16599,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505969.73648673,
+              5336798.44061258
+            ],
+            [
+              1505946.79644859,
+              5336777.48292921
+            ],
+            [
+              1505939.72903165,
+              5336785.39761118
+            ],
+            [
+              1505962.98086184,
+              5336806.01509347
+            ],
+            [
+              1505969.73648673,
+              5336798.44061258
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 16599,
+        "Appellation": "Section 700 TN OF Reefton",
+        "AffectedSurveys": "SO 9594",
+        "ParcelIntent": "DCDB",
+        "Titles": "354613",
+        "SurveyArea": 309,
+        "ValNum": "1905027200",
+        "ParcelID": 3652040
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 17020,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              1505950.91510358,
+              5336822.21630272
+            ],
+            [
+              1505964.10849531,
+              5336807.02225657
+            ],
+            [
+              1505962.98086184,
+              5336806.01509347
+            ],
+            [
+              1505956.05834431,
+              5336813.39866667
+            ],
+            [
+              1505949.38932928,
+              5336820.8873341
+            ],
+            [
+              1505950.91510358,
+              5336822.21630272
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "OBJECTID": 17020,
+        "Appellation": "Section 1336 TN OF Reefton",
+        "AffectedSurveys": "SO 6083",
+        "ParcelIntent": "DCDB",
+        "Titles": "354613",
+        "SurveyArea": 30,
+        "ValNum": "1905027200",
+        "ParcelID": 3625049
+      }
+    }
+  ]
+}
