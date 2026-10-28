@@ -16,11 +16,15 @@ jobs:
   # Passing means the review ran. Findings are posted as review threads, and
   # the branch ruleset requires every thread to be resolved before merge.
   #
-  # Dependabot PRs are skipped whoever triggers the run, and a skipped job
-  # still satisfies the required check. So a Dependabot action bump never runs
-  # new upstream code with the token. Dependency bumps are reviewed by hand.
+  # Fork and Dependabot PRs are skipped and reviewed by hand; a skipped job
+  # still satisfies the required check. Fork runs get no secrets. Dependabot
+  # PRs are matched by author, whoever triggers the run, so a Dependabot
+  # action bump never runs new upstream code with the token.
   claude-review:
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.user.login != 'dependabot[bot]' }}
+    if: >-
+      ${{ !github.event.pull_request.draft
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
