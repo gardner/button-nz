@@ -70,7 +70,7 @@ def test_counts_findings_and_lists_denied_calls(tmp_path: Path) -> None:
         _tool_result("toolu_2"),
         _tool_use(COMMENT_TOOL, "toolu_3", path="c.py", body="P2: off the diff."),
         _tool_result("toolu_3", is_error=True),
-        _tool_use("Bash", "toolu_4", command="git log"),
+        _tool_use("Bash", "toolu_4", command="git diff a...b"),
         _tool_result("toolu_4"),
         _result(
             {"tool_name": "Bash", "tool_input": {"command": "curl example.com"}},
@@ -107,7 +107,21 @@ def test_a_review_that_ran_no_command_fails(tmp_path: Path) -> None:
     )
     assert result.returncode == 3
     assert "| claude-opus-5-5 | 7 | 125s | $1.23 | 0 | 0 |" in result.stdout
-    assert "could not run a single shell command" in result.stderr
+    assert "never inspected the diff" in result.stderr
+
+
+def test_a_review_whose_diff_failed_fails_even_if_other_commands_ran(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        INIT,
+        _tool_use("Bash", "toolu_1", command="pwd"),
+        _tool_result("toolu_1"),
+        _tool_use("Bash", "toolu_2", command="git --no-pager diff a...b -- src"),
+        _tool_result("toolu_2", is_error=True),
+        _result(),
+    )
+    assert result.returncode == 3
+    assert "never inspected the diff" in result.stderr
 
 
 def test_run_without_a_result_fails(tmp_path: Path) -> None:

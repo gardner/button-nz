@@ -32,7 +32,16 @@ TRACE: list[object] = [
     {"type": "system", "subtype": "init", "model": "claude-opus-5-5"},
     {
         "type": "assistant",
-        "message": {"content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {}}]},
+        "message": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "Bash",
+                    "input": {"command": "git diff a...b"},
+                }
+            ]
+        },
     },
     {
         "type": "user",
@@ -130,7 +139,7 @@ def test_a_review_that_ran_nothing_is_reported_not_fatal(fake_dir: Path, tmp_pat
     )
     result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
     assert result.returncode == 0, result.stderr
-    assert result.stdout.count("**No review happened:** no shell command succeeded.") == 2
+    assert result.stdout.count("**No review happened:** the diff was never inspected.") == 2
 
 
 def test_a_broken_trace_fails_with_its_real_error(fake_dir: Path, tmp_path: Path) -> None:

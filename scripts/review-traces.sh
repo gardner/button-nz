@@ -27,12 +27,12 @@ while read -r run name; do
   gh run download "$run" --name "$name" --dir "$dir"
   gpg --batch --quiet --decrypt "$dir/claude-review-trace.json.gpg" > "$dir/trace.json"
   printf '# Run %s (%s)\n\n' "$run" "$name"
-  # A review that ran no command (exit 3) fails the CI check; here it is just
-  # reported. Any other failure is a real error and stops the script.
+  # A review that never inspected the diff (exit 3) fails the CI check; here it is
+  # just reported. Any other failure is a real error and stops the script.
   status=0
   "$scripts_dir/review-metrics.sh" "$dir/trace.json" 2> "$dir/metrics.err" || status=$?
   if [[ $status -eq 3 ]]; then
-    printf '\n**No review happened:** no shell command succeeded.\n'
+    printf '\n**No review happened:** the diff was never inspected.\n'
   elif [[ $status -ne 0 ]]; then
     cat "$dir/metrics.err" >&2
     exit "$status"

@@ -3,7 +3,7 @@
 # Markdown: model, turns, duration, cost, findings posted (inline comments
 # whose call succeeded), tool calls (attempts), and denied calls. Prints tool
 # names, commands and paths only, never output, so the summary is safe for the
-# public job log. Exits 3 if no shell command succeeded (no review happened).
+# public job log. Exits 3 if no `git diff` succeeded: no review happened.
 set -euo pipefail
 
 trace="${1:?usage: $0 <execution-file>}"
@@ -41,15 +41,17 @@ jq -j '
     + (if $result.is_error then "\n**Error:** \($result.result)\n" else "" end)
 ' "$trace"
 
-# A real review runs at least `git diff`. If no shell command succeeded (for
-# example, the sandbox could not start them), fail rather than pass a review
-# that never looked at the code.
+# The prompt has the reviewer run `git diff BASE...HEAD`. If no `git diff`
+# succeeded (for example, the sandbox could not start commands), fail rather
+# than pass a review that never looked at the changes.
 if ! jq -e '
   [.[] | select(.type == "user") | .message.content[]?
    | select(.type == "tool_result" and (.is_error | not)) | .tool_use_id] as $succeeded
   | any(.[] | select(.type == "assistant") | .message.content[]?
-        | select(.type == "tool_use" and .name == "Bash"); .id | IN($succeeded[]))
+        | select(.type == "tool_use" and .name == "Bash")
+        | select(.input.command // "" | test("\\bgit\\b.*\\bdiff\\b"));
+        .id | IN($succeeded[]))
 ' "$trace" > /dev/null; then
-  echo "The reviewer could not run a single shell command, so no review happened." >&2
+  echo "The reviewer never inspected the diff (no git diff succeeded), so no review happened." >&2
   exit 3
 fi
