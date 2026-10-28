@@ -9,8 +9,15 @@ LINZ geospatial data, and Blender. See [docs/plan.md](docs/plan.md).
 ```bash
 uv sync
 cp .env.example .env   # then fill in LINZ_BASEMAP_API_KEY; never commit .env
-uv run pre-commit install
+uv run pre-commit install   # installs pre-commit and pre-push hooks
 ```
+
+Pushing runs `scripts/pre-push-review.sh`: headless Claude Code (`claude -p`)
+reviews the outgoing commits and writes any P0-P2 findings to `ISSUES.md`, which
+blocks the push. Fix them, delete `ISSUES.md`, commit, and push again. To
+decline a finding, explain why in `BACKGROUND.md` (local, gitignored), which is
+added to the reviewer's prompt. The code is sent to Anthropic, so `claude` must
+be installed and logged in.
 
 ## Run
 

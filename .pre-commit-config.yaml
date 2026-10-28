@@ -1,3 +1,5 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
@@ -36,3 +38,17 @@ repos:
         # First-party source only; generated declarations are exempt.
         files: ^apps/web/.*\.(ts|tsx)$
         exclude: (^apps/web/(node_modules|\.next)/|\.d\.ts$|\.(test|spec)\.(ts|tsx)$)
+      - id: shellcheck
+        name: ShellCheck
+        entry: uv run --locked shellcheck
+        language: system
+        types: [shell]
+      - id: claude-review
+        name: Claude Code review of the outgoing diff
+        # Writes ISSUES.md and blocks the push on P0-P2 findings.
+        entry: scripts/pre-push-review.sh
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        # pre-commit drops deleted paths, so a push whose commits only delete files would skip review.
+        always_run: true

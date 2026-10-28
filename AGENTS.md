@@ -15,14 +15,14 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - Rely on the pre-commit hooks to run the checks, don't manually run the pre-commit checks. Ensure the pre-commit hooks are installed and working.
 - Before picking up a GitHub Issue to work on: Review the issue, then review the existing code, then conduct any research to validate the contents of the issue or update the issue with a plan. Make sure to include a plain language explanation of "The Problem" that we're solving, the proposed plan to solve it, and any other options considered.
 - When working on a GitHub Issue, create a new branch so we can submit a PR when it is ready.
-- After submitting a PR, monitor the PR for any review comments. Use a subagent that with the muse-spark-1.3 model:
+- After submitting a PR, monitor the PR for any review comments. Use a subagent that:
     - If there are review comments then please evaluate if any of them are actually real or relevant, and then resolve the important issues with a new commit and resolve the GitHub PR conversation with information about the resolution, or with a comment saying why it is not relevant. After pushing a new commit, monitor the PR for new review comments and continue the process.
     - You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
 - Keep the GitHub Project board up to date: https://github.com/users/gardner/projects/4
 
 ## Pre-push review
 
-- Before pushing, review the outgoing diff with headless Muse: `git diff origin/master...HEAD | claude -p --permission-mode plan "Review this outgoing diff; report only serious findings with severity, file:line, and issue."` Fix every real P0/P1/P2 finding; state why anything else is not relevant. Push once clean. If the review writes `ISSUES.md`, fix the relevant findings, delete `ISSUES.md`, then push again. Automated hook tracked in #20; until it lands, run this loop manually on non-trivial changes. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
+- `git push` runs the pre-push hook `scripts/pre-push-review.sh`, where headless Muse (`claude -p`) reviews the outgoing commits and writes any P0/P1/P2 findings to `ISSUES.md`, which blocks the push. Fix every real finding, delete `ISSUES.md`, commit, then push again for a fresh review. For any finding you won't fix, say why in `BACKGROUND.md` at the repo root; the reviewer reads it on the next push. `BACKGROUND.md` is local and gitignored: clear it when starting a new branch so stale notes don't hide new findings. Install the hook with `uv run pre-commit install`. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
 
 # IMPORTANT
 
