@@ -93,3 +93,15 @@ def test_the_camera_looks_at_the_terrain_whatever_the_datum(tmp_path: Path) -> N
 
     camera = next(n for n in gltf["nodes"] if n["name"] == "Camera")
     assert camera["translation"][1] > 190.0  # glTF y is up
+
+
+def test_a_one_cell_ridge_under_an_edge_is_not_skipped(tmp_path: Path) -> None:
+    dem = np.full((40, 50), 10.0)
+    dem[:, 21] = 12.0  # one cell wide: x 21-22, centre 21.5
+    grid = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    ring = ((10.0, 10.0), (30.0, 10.0), (30.0, 30.0), (10.0, 30.0), (10.0, 10.0))
+    scene = scene_input(grid, LocalFrame.centred_on(grid.bbox), [ring])
+
+    _, top = _bounds(_gltf(build_scene(scene, tmp_path).glb), "Parcel.0")
+
+    assert top[1] > 2.0

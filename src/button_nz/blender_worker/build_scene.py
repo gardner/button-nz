@@ -15,17 +15,23 @@ Objects:
   marking measured above-ground evidence (structures or vegetation), not
   modelled buildings.
 - ``Parcel.<n>``: each parcel boundary as a polyline just above the ground,
-  sampled every cell along each edge so it follows the terrain between corners.
+  sampled every half cell along each edge and placed on the interpolated
+  surface, so it follows the terrain between corners on slopes too.
 """
 
 import json
 import math
+import os
 import sys
 from typing import Any
 
 import bpy  # pyright: ignore[reportMissingImports]
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import terrain_math as _terrain_math  # noqa: E402  # pyright: ignore[reportMissingImports]
+
 b: Any = bpy  # no type stubs inside Blender
+terrain_math: Any = _terrain_math  # imported by path inside Blender
 
 COLUMN_MIN_M = 2.0
 BOUNDARY_LIFT_M = 0.15
@@ -60,13 +66,6 @@ def export(glb_path: str, png_path: str) -> None:
         filepath=glb_path, export_format="GLB", export_apply=True, export_cameras=True
     )
     _render(png_path)
-
-
-def _height_at(grid: dict[str, Any], x: float, y: float) -> float:
-    """Ground height at the sample nearest (x, y)."""
-    col = min(max(round((x - grid["x0"]) / grid["cell_m"]), 0), grid["cols"] - 1)
-    row = min(max(round((grid["y0"] - y) / grid["cell_m"]), 0), grid["rows"] - 1)
-    return float(grid["heights"][row * grid["cols"] + col])
 
 
 def _material(name: str, rgba: tuple[float, float, float, float]) -> Any:
@@ -125,24 +124,16 @@ def _columns(terrain: dict[str, Any], ndsm: dict[str, Any]) -> None:
     _object("AboveGround", mesh, _material("Evidence", (0.85, 0.45, 0.12, 1.0)))
 
 
-def _densify(ring: list[list[float]], step: float) -> list[tuple[float, float]]:
-    """The ring's corners plus points at most ``step`` apart along each edge."""
-    points: list[tuple[float, float]] = []
-    for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
-        n = max(1, math.ceil(math.hypot(x2 - x1, y2 - y1) / step))
-        points += [(x1 + (x2 - x1) * i / n, y1 + (y2 - y1) * i / n) for i in range(n)]
-    return [*points, (ring[-1][0], ring[-1][1])]
-
-
 def _boundary(name: str, ring: list[list[float]], terrain: dict[str, Any]) -> None:
     curve = b.data.curves.new(name, type="CURVE")
     curve.dimensions = "3D"
     curve.bevel_depth = 0.08
     spline = curve.splines.new("POLY")
-    points = _densify(ring, terrain["cell_m"])
+    # Every half cell, so no cell centre (a terrain vertex) is ever skipped.
+    points: list[tuple[float, float]] = terrain_math.densify(ring, terrain["cell_m"] / 2)
     spline.points.add(len(points) - 1)
     for point, (x, y) in zip(spline.points, points, strict=True):
-        point.co = (x, y, _height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
+        point.co = (x, y, terrain_math.height_at(terrain, x, y) + BOUNDARY_LIFT_M, 1.0)
     _object(name, curve, _material("Boundary", (0.9, 0.1, 0.1, 1.0)))
 
 
