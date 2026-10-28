@@ -106,16 +106,19 @@ def _lower_walls(
     low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
     high_cut = min(cut + (cut - low_cut), (z_max - z_min) * 3 / 4)
     high = _rooms(triangles, z_min + high_cut)
-    low = _rooms(triangles, z_min + low_cut)
-    if len(high) != 1 or len(low) != 1 or high_cut <= cut:
+    if len(high) != 1 or high_cut <= cut:
         return None
     lean = walls.hausdorff_distance(high[0]) * (cut - low_cut) / (high_cut - cut)
     if lean < CONTAINS_TOLERANCE_M:
         return None  # upright walls: the outline at ``cut`` is the footprint
-    kept = low[0].intersection(walls.buffer(lean, join_style="mitre"))
-    if not isinstance(kept, Polygon) or kept.area <= walls.area:
+    # Everything at the low cut within the walls' lean of them: a deck or step
+    # further out is left behind, whether or not it touches the walls.
+    low = union_all(_rooms(triangles, z_min + low_cut))
+    kept = low.intersection(walls.buffer(lean, join_style="mitre"))
+    around = [p for p in _pieces(kept) if p.buffer(CONTAINS_TOLERANCE_M).contains(walls)]
+    if not around or around[0].area <= walls.area:
         return None
-    ring, _ = _one_ring(kept)
+    ring, _ = _one_ring(around[0])
     return ring
 
 

@@ -291,3 +291,10 @@ def test_a_banded_a_frame_is_still_measured_near_its_floor() -> None:
     measured = parse_measurements(measured_with(banded))
     assert measured.footprint is not None
     assert Polygon(measured.footprint).area > 75.0
+
+
+def test_an_a_frame_with_a_deck_on_its_long_side_is_measured_near_its_floor() -> None:
+    deck = box(10, 0, 0, 13, 9, 0.6)
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + deck))
+    assert measured.footprint is not None
+    assert 75.0 < Polygon(measured.footprint).area < 85.0  # the A-frame, not the deck
