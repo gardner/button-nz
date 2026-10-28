@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "fastapi>=0.162.0",
     "httpx>=0.28.1",
     "numpy>=2.5.4",
     "openai>=3.40.0",
@@ -15,6 +16,7 @@ dependencies = [
     "pyproj>=3.8.0",
     "rasterio>=1.5.2",
     "shapely>=2.2.0",
+    "uvicorn>=0.54.0",
 ]
 
 [project.scripts]
@@ -52,6 +54,7 @@ addopts = "-m 'not live and not blender'"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
