@@ -200,6 +200,7 @@ def test_decisions_kept_in_a_file_make_the_same_site(tmp_path: Path) -> None:
         json.dumps(
             {
                 "survey": "survey.geojson",
+                "survey_id": survey_id(tmp_path / "survey.geojson"),
                 "decided_by": "the team",
                 "decisions": {"1": "building", "2": "keep_clear"},
                 "buildings_complete": True,
@@ -226,11 +227,39 @@ def test_kept_decisions_are_checked_like_the_owners(
     tmp_path: Path, decisions: dict[str, str], complete: bool, match: str
 ) -> None:
     write_survey(tmp_path / "survey.geojson", "shed", "tree")
-    body = {"survey": "survey.geojson", "decided_by": "t", "decisions": decisions}
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": decisions,
+    }
     (tmp_path / "decisions.json").write_text(
         json.dumps(body | {"buildings_complete": complete}), encoding="utf-8"
     )
     with pytest.raises(ValueError, match=match):
+        SiteDecisions.read(tmp_path / "decisions.json")
+
+
+def survey_id(path: Path) -> str:
+    survey = Survey.read(path)
+    assert survey is not None
+    return survey.id
+
+
+def test_kept_decisions_belong_to_the_survey_they_were_made_on(tmp_path: Path) -> None:
+    """A new survey may number different things the same: as in the API, old
+    decisions mustn't land on them."""
+    write_survey(tmp_path / "survey.geojson", "shed", "tree")
+    body = {
+        "survey": "survey.geojson",
+        "survey_id": survey_id(tmp_path / "survey.geojson"),
+        "decided_by": "t",
+        "decisions": {"1": "building", "2": "keep_clear"},
+        "buildings_complete": True,
+    }
+    (tmp_path / "decisions.json").write_text(json.dumps(body), encoding="utf-8")
+    write_survey(tmp_path / "survey.geojson", "tree", "shed")  # surveyed again
+    with pytest.raises(ValueError, match="decide again"):
         SiteDecisions.read(tmp_path / "decisions.json")
 
 

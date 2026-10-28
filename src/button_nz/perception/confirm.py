@@ -106,6 +106,10 @@ class SiteDecisions:
         survey = Survey.read(path.parent / kept["survey"])
         if survey is None:
             raise ValueError(f"{path} names a survey that isn't there: {kept['survey']}")
+        if survey.id != kept["survey_id"]:  # a new survey may number other things the same
+            raise ValueError(
+                f"{path} was decided on survey {kept['survey_id']}, not {survey.id}: decide again"
+            )
         decisions = {k: Decision(v) for k, v in kept["decisions"].items()}
         unknown = [k for k in decisions if survey.feature(k) is None]
         if unknown:
