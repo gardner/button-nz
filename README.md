@@ -20,7 +20,8 @@ before merge: fix it, or reply with why not and resolve it; the next review
 reads those replies. Fork and Dependabot PRs skip the review (forks get no
 secrets, and the token must never reach a freshly bumped action); review those
 by hand. Only maintainers' and reviewer bots' comments reach the reviewer, and
-its shell commands run in Claude Code's sandbox with no network and no tokens.
+it reads and runs everything through Claude Code's Bash sandbox, with no network
+and no tokens in reach.
 
 ## Run
 
