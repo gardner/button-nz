@@ -246,6 +246,8 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
     unknown = [name for name in chosen if name not in by_name]
     if unknown:
         parser.error(f"unknown condition(s) {', '.join(unknown)}; choose from {names}")
+    if len(set(chosen)) != len(chosen):  # each would overwrite the other's runs
+        parser.error(f"condition(s) repeated in {args.conditions}")
     conditions = tuple(by_name[name] for name in chosen)
     return Options(args.out_dir, args.repeats, args.model, args.effort, conditions)
 

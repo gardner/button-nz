@@ -179,3 +179,9 @@ def test_the_report_names_the_reasoning_effort() -> None:
     meta = {"model": "muse-spark-1.3", "effort": "max", "briefs": 1, "repeats": 1}
     text = report([_result("evaluator", True, False, ("pass",))], meta)
     assert "`muse-spark-1.3` (reasoning effort max)" in text
+
+
+def test_a_repeated_condition_is_refused() -> None:
+    """It would run into the same directories, overwriting the first pass's runs."""
+    with pytest.raises(SystemExit):
+        parse_options(["out", "--conditions", "evaluator,evaluator"])
