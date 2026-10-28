@@ -31,6 +31,11 @@ import design_io as _design_io  # noqa: E402  # pyright: ignore[reportMissingImp
 b: Any = bpy  # no type stubs inside Blender
 build_scene: Any = _build_scene
 design_io: Any = _design_io
+MAX_TRIANGLES = 200_000
+TOO_DETAILED = (
+    "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
+    "not its fine detail."
+)
 
 
 def main(argv: list[str]) -> None:
@@ -47,7 +52,7 @@ def main(argv: list[str]) -> None:
         return
     dwelling = objects["Dwelling"]
     b.context.scene.collection.objects.link(dwelling)
-    measurements = {"error": None, **_measure(dwelling)}
+    measurements = {"error": None} | _measure(dwelling)
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)
@@ -90,20 +95,21 @@ def _solid(obj: Any) -> bool:
 
 
 def _measure(dwelling: Any) -> dict[str, Any]:
+    """The Dwelling's triangles in the local frame (the host derives its outline,
+    walls and floor from them) and its stated properties."""
     evaluated = dwelling.evaluated_get(b.context.evaluated_depsgraph_get())
     mesh = evaluated.to_mesh()
     try:
+        mesh.calc_loop_triangles()
+        if len(mesh.loop_triangles) > MAX_TRIANGLES:
+            return {"error": TOO_DETAILED.format(n=len(mesh.loop_triangles))}
         world = evaluated.matrix_world
-        points = [world @ v.co for v in mesh.vertices]
-        faces = [[[points[i].x, points[i].y] for i in poly.vertices] for poly in mesh.polygons]
+        points = [list(world @ v.co) for v in mesh.vertices]
+        triangles = [[points[i] for i in tri.vertices] for tri in mesh.loop_triangles]
     finally:
         evaluated.to_mesh_clear()
-    if not points:
-        return {}
     return {
-        "faces_xy": faces,
-        "z_min": min(p.z for p in points),
-        "z_max": max(p.z for p in points),
+        "triangles": triangles,
         "floor_area_m2": _plain(dwelling.get("floor_area_m2")),
         "storeys": _plain(dwelling.get("storeys")),
     }

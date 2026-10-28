@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from shapely import Polygon
 
 from button_nz.agent.proposal import parse_measurements
 from button_nz.blender_worker.run import BlenderError, run_design
@@ -104,7 +105,7 @@ def test_the_script_cannot_fake_its_measurements(tmp_path: Path, scene: SceneInp
     fake = (
         "import json, os, sys, __main__\n"
         "here = os.path.dirname(sys.argv[sys.argv.index('--') + 1])\n"
-        "tiny = {'error': None, 'faces_xy': [[[0, 0], [1, 0], [1, 1]]], 'z_min': 0, 'z_max': 1}\n"
+        "tiny = {'error': None, 'triangles': [[[0, 0, 0], [1, 0, 0], [1, 1, 1]]]}\n"
         "try:\n"
         "    open(here + '/measurements.json', 'w').write(json.dumps(tiny))\n"
         "except OSError:\n"
@@ -150,7 +151,7 @@ def test_a_main_guarded_script_runs(tmp_path: Path, scene: SceneInput) -> None:
     script = f"def main():\n{body}\n\nif __name__ == '__main__':\n    main()\n"
     out = run_design(scene, script, tmp_path)
     assert out.measurements["error"] is None
-    assert out.measurements["faces_xy"]
+    assert out.measurements["triangles"]
 
 
 def test_building_parts_besides_the_dwelling_are_rejected(
@@ -258,3 +259,26 @@ def test_a_flood_of_output_is_harmless(tmp_path: Path, scene: SceneInput) -> Non
     flood = "import sys\nfor _ in range(300):\n    sys.stdout.write('x' * (1 << 20))\n"
     out = run_design(scene, BOX + flood, tmp_path)
     assert out.measurements["error"] is None
+
+
+EAVES = """
+bpy.ops.mesh.primitive_cube_add(size=1, location=(2.0, 1.0, 3.75))
+roof = bpy.context.active_object
+roof.scale = (8.0, 7.0, 0.3)
+bpy.ops.object.select_all(action='DESELECT')
+roof.select_set(True)
+dwelling.select_set(True)
+bpy.context.view_layer.objects.active = dwelling
+bpy.ops.object.join()
+"""
+
+
+def test_eaves_are_in_the_outline_but_not_the_wall_footprint(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    out = run_design(scene, BOX + EAVES, tmp_path)
+    measured = parse_measurements(out.measurements)
+    assert measured.footprint is not None and measured.outline is not None
+    assert Polygon(measured.footprint).area == pytest.approx(30.0)  # the 6 m x 5 m walls
+    assert Polygon(measured.outline).area == pytest.approx(56.0)  # the 8 m x 7 m roof
+    assert (measured.z_min, measured.z_max) == pytest.approx((0.0, 3.9))
