@@ -4,6 +4,31 @@
  * they arrive: a shape this app doesn't expect is an ApiError, not a guess.
  */
 
+import {
+  ApiError,
+  asList,
+  asPoint,
+  asText,
+  flag,
+  isRecord,
+  list,
+  number,
+  numbers,
+  oneOf,
+  optional,
+  record,
+  text,
+} from "./fields";
+import {
+  type Decision,
+  type SiteFeature,
+  type Survey,
+  parseFeature,
+  parseSurvey,
+} from "./features";
+
+export { ApiError };
+
 export const API = "/api";
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
@@ -57,26 +82,13 @@ export interface Site {
   openItems: string[];
 }
 
-export class ApiError extends Error {
-  /** The HTTP status, when the API answered with an error. */
-  readonly status: number | undefined;
-
-  constructor(message: string, status?: number) {
-    super(message);
-    this.status = status;
-  }
-
-  /** Whether asking again could succeed: a server error, timeout or rate
-   * limit. A client error (e.g. 404) or a response this app can't read (no
-   * status: it would fail the same way again) is permanent. */
-  get transient(): boolean {
-    const s = this.status;
-    return s !== undefined && (s >= 500 || s === 408 || s === 429);
-  }
-}
-
-const JOB_STATUSES: readonly string[] = ["queued", "running", "done", "failed"];
-const VERDICTS: readonly string[] = ["pass", "fail", "unknown", "error"];
+const JOB_STATUSES: readonly JobStatus[] = [
+  "queued",
+  "running",
+  "done",
+  "failed",
+];
+const VERDICTS: readonly Verdict[] = ["pass", "fail", "unknown", "error"];
 
 export async function getSite(): Promise<Site> {
   return parseSite(await request("/site"));
@@ -98,6 +110,49 @@ export async function createDesign(
 
 export async function getDesign(id: string): Promise<Job> {
   return parseJob(await request(`/designs/${encodeURIComponent(id)}`));
+}
+
+export async function getFeatures(): Promise<Survey> {
+  return parseSurvey(await request("/site/features"));
+}
+
+/** Record a decision about feature `id` of survey `surveyId`. Refused (409)
+ * if a newer survey has been written since: its ids may mean other things. */
+export async function decideFeature(
+  surveyId: string,
+  id: string,
+  decision: Decision,
+): Promise<SiteFeature> {
+  return parseFeature(
+    await put(`/site/features/${encodeURIComponent(id)}`, {
+      decision,
+      survey_id: surveyId,
+    }),
+  );
+}
+
+/** Say every building on the site is listed (or not). Refused (409) while
+ * anything that might be a building is undecided, or if the survey changed. */
+export async function setBuildingsComplete(
+  surveyId: string,
+  complete: boolean,
+): Promise<boolean> {
+  const survey = record(
+    await put("/site/survey", {
+      buildings_complete: complete,
+      survey_id: surveyId,
+    }),
+    "survey",
+  );
+  return flag(survey, "buildings_complete");
+}
+
+function put(path: string, body: object): Promise<unknown> {
+  return request(path, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 async function request(path: string, init?: RequestInit): Promise<unknown> {
@@ -125,7 +180,7 @@ export function parseJob(raw: unknown): Job {
     id: text(job, "id"),
     brief: text(job, "brief"),
     allowObservations: flag(job, "allow_observations"),
-    status: oneOf(job, "status", JOB_STATUSES) as JobStatus,
+    status: oneOf(job, "status", JOB_STATUSES),
     createdAt: text(job, "created_at"),
     startedAt: optional(job, "started_at", text),
     finishedAt: optional(job, "finished_at", text),
@@ -140,7 +195,7 @@ function parseAttempt(raw: unknown): Attempt {
   const files = record(attempt.files, "files");
   return {
     number: number(attempt, "number"),
-    status: oneOf(attempt, "status", VERDICTS) as Verdict,
+    status: oneOf(attempt, "status", VERDICTS),
     feedback: text(attempt, "feedback"),
     observations: list(attempt, "observations").map((o) =>
       asText(o, "observation"),
@@ -200,82 +255,4 @@ function parseSource(key: string, raw: unknown): Source {
       end: text(capture, "end"),
     },
   };
-}
-
-// Field readers: each returns the typed value or throws an ApiError naming it.
-
-type Fields = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Fields {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function record(value: unknown, what: string): Fields {
-  if (!isRecord(value)) throw new ApiError(`expected ${what} to be an object`);
-  return value;
-}
-
-function asText(value: unknown, what: string): string {
-  if (typeof value !== "string")
-    throw new ApiError(`expected ${what} to be text`);
-  return value;
-}
-
-function text(fields: Fields, key: string): string {
-  return asText(fields[key], key);
-}
-
-function number(fields: Fields, key: string): number {
-  const value = fields[key];
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new ApiError(`expected ${key} to be a number`);
-  }
-  return value;
-}
-
-function flag(fields: Fields, key: string): boolean {
-  if (typeof fields[key] !== "boolean")
-    throw new ApiError(`expected ${key} to be true or false`);
-  return fields[key];
-}
-
-function oneOf(
-  fields: Fields,
-  key: string,
-  allowed: readonly string[],
-): string {
-  const value = text(fields, key);
-  if (!allowed.includes(value))
-    throw new ApiError(`unexpected ${key} ${JSON.stringify(value)}`);
-  return value;
-}
-
-function optional<T>(
-  fields: Fields,
-  key: string,
-  read: (f: Fields, k: string) => T,
-): T | null {
-  return fields[key] === null ? null : read(fields, key);
-}
-
-function asList(value: unknown, what: string): unknown[] {
-  if (!Array.isArray(value))
-    throw new ApiError(`expected ${what} to be a list`);
-  return value;
-}
-
-function list(fields: Fields, key: string): unknown[] {
-  return asList(fields[key], key);
-}
-
-function numbers(value: unknown, count: number): number[] {
-  const values = asList(value, "coordinates");
-  if (values.length !== count || !values.every((v) => typeof v === "number")) {
-    throw new ApiError(`expected ${count} numbers`);
-  }
-  return values as number[];
-}
-
-function asPoint(value: unknown): Point {
-  return numbers(value, 2) as Point;
 }

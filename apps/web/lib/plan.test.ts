@@ -28,4 +28,17 @@ describe("planView", () => {
     const view = planView([SQUARE], [1000, 2000, 1010, 2020], 2);
     expect(view.point([1005, 2010])).toEqual([7, 12]);
   });
+
+  it("outlines a polygon with a hole as one path", () => {
+    const view = planView([SQUARE], [1000, 2000, 1010, 2020], 2);
+    const hole: [number, number][] = [
+      [1004, 2004],
+      [1006, 2004],
+      [1006, 2006],
+      [1004, 2004],
+    ];
+    expect(view.outline([SQUARE, hole])).toBe(
+      "M2,22 L12,22 L12,2 L2,2 L2,22 Z M6,18 L8,18 L8,16 L6,18 Z",
+    );
+  });
 });

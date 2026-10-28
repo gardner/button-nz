@@ -2,9 +2,10 @@
 
     uv run --env-file .env python -m button_nz.api.serve [--data var] [--port 8000]
 
-Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``. The
-model key is read per job, so the server starts without one and a job queued
-without it fails with that reason.
+Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``; the
+site survey is read from ``DATA/survey.geojson``. The model key is read per
+job, so the server starts without one and a job queued without it fails with
+that reason.
 """
 
 import argparse
@@ -18,6 +19,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.perception.survey import SURVEY_FILE
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -27,8 +29,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
-    worker = Worker(store, site=demo_site, model=ChatModel.from_env, runs_dir=args.data / "runs")
-    uvicorn.run(create_app(store, worker, load_demo_site()), host=args.host, port=args.port)
+    survey = args.data / SURVEY_FILE
+    worker = Worker(
+        store,
+        site=demo_site,
+        model=ChatModel.from_env,
+        runs_dir=args.data / "runs",
+        survey=survey,
+    )
+    app = create_app(store, worker, load_demo_site(), survey=survey)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
