@@ -1,8 +1,9 @@
 """The bubblewrap sandbox for Blender runs that touch model-written code or data.
 
-Inside it: read-only system files; fresh, size-limited tmpfs for the home
-directory, /tmp, /run (so no host Unix sockets such as the user's D-Bus or
-Docker) and /dev/shm (no host shared memory); its own IPC, PID and network
+Inside it: read-only system files; a private /dev with only the GPU's nodes
+(no host terminals, webcam or microphone); fresh, size-limited tmpfs for the
+home directory, /tmp, /run (so no host Unix sockets such as the user's D-Bus
+or Docker) and /dev/shm (no host shared memory); its own IPC, PID and network
 namespaces; a cleared environment (no API keys or other secrets); the GPU
 device nodes. Only Blender, the worker scripts and a pass's input files are
 mounted back, read-only. A host directory is writable only for a trusted pass;
@@ -10,6 +11,7 @@ the untrusted pass instead gets a size-limited tmpfs at ``SCRATCH`` and an
 address-space limit, so it can't fill the host's disk or memory.
 """
 
+import glob
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -36,7 +38,9 @@ class Sandbox:
     def wrap(self, command: list[str], env: Mapping[str, str]) -> list[str]:
         """``command`` under bubblewrap (and, if ``untrusted``, prlimit)."""
         home = str(Path.home())
-        args = ["bwrap", "--ro-bind", "/", "/", "--dev-bind", "/dev", "/dev", "--proc", "/proc"]
+        args = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc"]
+        for node in _gpu_nodes():  # a private /dev, with only these bound back
+            args += ["--dev-bind-try", node, node]
         for path in ("/dev/shm", "/tmp", "/run", home):
             args += ["--size", str(TMPFS_BYTES), "--tmpfs", path]
         for path in [*_read_paths(command[0]), *(p.resolve() for p in self.inputs)]:
@@ -57,6 +61,10 @@ class Sandbox:
         if self.untrusted:
             args = ["prlimit", f"--as={UNTRUSTED_MEMORY_BYTES}", "--", *args]
         return args
+
+
+def _gpu_nodes() -> list[str]:
+    return [*sorted(glob.glob("/dev/nvidia*")), "/dev/dri"]
 
 
 def _read_paths(blender: str) -> list[Path]:

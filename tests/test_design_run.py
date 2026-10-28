@@ -3,9 +3,12 @@ Excluded by default; run with `pytest -m blender`."""
 
 import os
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
+import rasterio  # pyright: ignore[reportMissingTypeStubs]
+from numpy.typing import NDArray
 from shapely import Polygon
 
 from button_nz.agent.proposal import parse_measurements
@@ -282,3 +285,38 @@ def test_eaves_are_in_the_outline_but_not_the_wall_footprint(
     assert Polygon(measured.footprint).area == pytest.approx(30.0)  # the 6 m x 5 m walls
     assert Polygon(measured.outline).area == pytest.approx(56.0)  # the 8 m x 7 m roof
     assert (measured.z_min, measured.z_max) == pytest.approx((0.0, 3.9))
+
+
+def test_a_hidden_dwelling_is_still_rendered(tmp_path: Path, scene: SceneInput) -> None:
+    """What is checked is what is shown: hiding the Dwelling from the render doesn't work."""
+    shown = run_design(scene, BOX, tmp_path / "shown")
+    hidden = run_design(scene, BOX + "dwelling.hide_render = True\n", tmp_path / "hidden")
+    assert shown.png is not None and hidden.png is not None
+    a, b = _pixels(shown.png), _pixels(hidden.png)
+    assert np.abs(a - b).mean() < 2.0
+
+
+def test_too_detailed_a_dwelling_is_feedback_without_a_render(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    dense = (
+        "bpy.ops.mesh.primitive_grid_add(x_subdivisions=400, y_subdivisions=400, size=6)\n"
+        "bpy.context.active_object.name = 'Dwelling'\n"
+    )
+    out = run_design(scene, dense, tmp_path)
+    assert "triangles" in str(out.measurements["error"])
+    assert out.glb is None and out.png is None
+    assert not (tmp_path / "design.glb").exists()
+
+
+def test_the_script_sees_no_host_terminals(tmp_path: Path, scene: SceneInput) -> None:
+    probe = "import os\nraise SystemExit(repr(sorted(os.listdir('/dev/pts'))))\n"
+    out = run_design(scene, probe, tmp_path)
+    assert "['ptmx']" in str(out.measurements["error"])
+
+
+def _pixels(png: Path) -> NDArray[np.float64]:
+    """A rendered PNG's pixels (GDAL reads PNG too)."""
+    rio: Any = rasterio
+    with rio.open(png) as image:
+        return np.asarray(image.read(), dtype=np.float64)

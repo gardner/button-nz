@@ -52,10 +52,21 @@ def main(argv: list[str]) -> None:
         return
     dwelling = objects["Dwelling"]
     b.context.scene.collection.objects.link(dwelling)
+    _show(dwelling)
     measurements = {"error": None} | _measure(dwelling)
+    if measurements["error"] is not None:  # e.g. too detailed: don't render it either
+        design_io.write_json(path, measurements)
+        return
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)
+
+
+def _show(dwelling: Any) -> None:
+    """Make the Dwelling visible to the camera: what is checked is what is shown."""
+    dwelling.hide_render = False
+    dwelling.hide_viewport = False
+    dwelling.visible_camera = True
 
 
 def _load(blend_path: str, site: set[str]) -> dict[str, Any]:

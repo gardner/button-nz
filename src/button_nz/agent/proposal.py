@@ -26,6 +26,7 @@ from button_nz.geo.geometry import Ring
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
+MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 
 
 class DesignError(ValueError):
@@ -66,12 +67,18 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
 def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
     """The outside of the external walls, checked to stand on a floor at ``z_min``."""
     cut = min(WALL_SECTION_M, (z_max - z_min) / 2)
-    walls, parts = _one_ring(section(triangles, z_min + cut))
-    if walls is None or parts != 1:
+    pieces = _pieces(section(triangles, z_min + cut))
+    rooms = [p for p in pieces if p.area >= MIN_ROOM_M2]  # not posts or balusters
+    if len(rooms) != 1:
+        sizes = ", ".join(f"{p.area:.0f} m²" for p in sorted(rooms, key=lambda p: -p.area))
         raise DesignError(
-            f"A horizontal cut through the Dwelling {cut:g} m above its floor isn't one "
-            "closed outline. Make the Dwelling one closed mesh standing on its floor."
+            f"A horizontal cut through the Dwelling {cut:g} m above its floor should cross "
+            f"one closed outline of walls, but finds {len(rooms)} ({sizes or 'none'}). "
+            "Make the Dwelling one closed mesh standing on its floor, its rooms joined."
         )
+    walls, _ = _one_ring(rooms[0])
+    if walls is None:
+        raise DesignError("The Dwelling's walls don't form a closed outline.")
     floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
     if floor.area < MIN_FLOOR_COVER * Polygon(walls).area:
         raise DesignError(
@@ -119,6 +126,14 @@ def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -
         floor_area_m2=measurements.floor_area_m2,
         storeys=measurements.storeys,
     )
+
+
+def _pieces(shape: BaseGeometry) -> list[Polygon]:
+    if isinstance(shape, Polygon):
+        return [] if shape.is_empty else [shape]
+    if isinstance(shape, MultiPolygon):
+        return list(shape.geoms)
+    return []
 
 
 def _one_ring(shape: BaseGeometry) -> tuple[Ring | None, int]:

@@ -21,6 +21,10 @@ def measured(**overrides: object) -> dict[str, object]:
     return raw | overrides
 
 
+def measured_with(triangles: object) -> dict[str, object]:
+    return measured(triangles=triangles)
+
+
 def test_measurements_become_an_nztm_proposal() -> None:
     proposal = to_proposal(parse_measurements(measured()), FRAME, DATUM)
     xs = [x for x, _ in proposal.footprint]
@@ -93,3 +97,18 @@ def test_an_open_mesh_is_feedback() -> None:
     sheet = [[[0.0, 0.0, 0.0], [4.0, 0.0, 2.0], [4.0, 4.0, 2.0]]]
     with pytest.raises(DesignError, match="closed"):
         parse_measurements(measured(triangles=sheet))
+
+
+def test_posts_and_balustrades_do_not_split_the_walls() -> None:
+    house = box(0, 0, 0, 8, 6, 3)
+    veranda = box(0, 6, 2.7, 8, 8.5, 2.9)
+    posts = box(0.1, 8.2, 0, 0.3, 8.4, 2.7) + box(7.7, 8.2, 0, 7.9, 8.4, 2.7)
+    measured = parse_measurements(measured_with(house + veranda + posts))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area == pytest.approx(48.0)
+
+
+def test_two_substantial_wall_outlines_are_feedback_with_their_sizes() -> None:
+    joined = box(0, 0, 0, 4, 4, 3) + box(6, 0, 0, 10, 4, 3) + box(0, 0, 3, 10, 4, 3.2)
+    with pytest.raises(DesignError, match=r"16 m², 16 m²"):
+        parse_measurements(measured_with(joined))
