@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.agent.sections import Triangle, outline, section
@@ -26,7 +26,8 @@ from button_nz.geo.geometry import Ring
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
-MIN_SOLIDITY = 0.5  # of the walls' convex hull: L, T and U plans pass, open strips don't
+OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
+OPENING_SHARE = 0.05  # of the walls' area: closing over openings may add no more
 MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 
 
@@ -88,13 +89,12 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
             "deck or terrace) is below it. Make the underside of the floor, spanning "
             "the walls, the Dwelling's lowest point."
         )
-    hull = enclosed.convex_hull.area  # an opening in the walls leaves a thin, open shape
-    if enclosed.area < MIN_SOLIDITY * hull:
+    missing = _closed(enclosed).area - enclosed.area
+    if missing > max(MIN_ROOM_M2, OPENING_SHARE * enclosed.area):
         raise DesignError(
-            f"{cut:g} m above the floor the Dwelling's walls enclose only "
-            f"{enclosed.area:.0f} m² of the {hull:.0f} m² they span: a doorway or "
-            "opening breaks their outline. Model the Dwelling as a solid envelope, "
-            "with no doors or windows cut through it."
+            f"{cut:g} m above the floor the Dwelling's walls leave about {missing:.0f} m² "
+            "open to the outside: a doorway or opening breaks their outline. Model the "
+            "Dwelling as a solid envelope, with no doors or windows cut through it."
         )
     return walls
 
@@ -136,6 +136,13 @@ def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -
         floor_area_m2=measurements.floor_area_m2,
         storeys=measurements.storeys,
     )
+
+
+def _closed(walls: Polygon) -> BaseGeometry:
+    """``walls`` with gaps up to ``2 * OPENING_M`` bridged and the rooms behind
+    them filled: the outline a solid envelope would have had."""
+    bridged = walls.buffer(OPENING_M, join_style="mitre").buffer(-OPENING_M, join_style="mitre")
+    return Polygon(walls.exterior).union(union_all([Polygon(p.exterior) for p in _pieces(bridged)]))
 
 
 def _pieces(shape: BaseGeometry) -> list[Polygon]:
