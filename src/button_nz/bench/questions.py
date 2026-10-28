@@ -1,8 +1,9 @@
 """Experiment A's ground truth (plan §11): objective questions about the site's
-terrain, answered from the DEM alone, independently of any model.
+site, answered from the LiDAR DEM and nDSM, independently of any model.
 
-Heights come from ``terrain_math.height_at`` on the scene's terrain, the same
-triangulated surface the model's views and the evaluator use. Points are in
+Ground heights come from ``terrain_math.height_at`` on the scene's terrain, the
+same triangulated surface the model's views and the evaluator use; the
+tallest-feature answer comes from the nDSM (heights above that ground). Points are in
 the model's local frame (metres, x east, y north). A question whose answer
 would be ambiguous (gentle ground for an aspect, a near tie for the steepest
 area) is not asked, so every answer is checkable.

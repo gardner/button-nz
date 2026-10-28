@@ -9,7 +9,13 @@ from PIL import Image
 
 from button_nz.agent.site import DesignSite
 from button_nz.bench.questions import Mark, Question
-from button_nz.bench.views import CONDITIONS, MARK_COLOUR, SCALE, condition_images
+from button_nz.bench.views import (
+    CONDITIONS,
+    MARK_COLOUR,
+    POINT_RADIUS_PX,
+    SCALE,
+    condition_images,
+)
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
@@ -66,11 +72,15 @@ def test_each_condition_shows_its_views(
 def test_marks_are_drawn_where_their_local_coordinates_are(
     site: DesignSite, aerial: NDArray[np.uint8]
 ) -> None:
-    """Local (0, 0) is NZTM (20, 15): the middle of the 40 m x 30 m image."""
+    """Local (0, 0) is NZTM (20, 15): the middle of the 40 m x 30 m image. A point
+    is ringed, leaving the metre around it visible."""
     for _, png in condition_images("aerial_ndsm_slope", QUESTION, site, aerial):
         image = pixels(png)
         assert image.shape[:2] == (30 * SCALE, 40 * SCALE)
-        assert tuple(image[15 * SCALE, 20 * SCALE]) == MARK_COLOUR
+        assert tuple(image[15 * SCALE, 20 * SCALE + POINT_RADIUS_PX]) == MARK_COLOUR
+        rows, cols = np.ogrid[: image.shape[0], : image.shape[1]]
+        within_half_a_metre = np.hypot(rows - 15 * SCALE, cols - 20 * SCALE) <= SCALE / 2
+        assert not (image[within_half_a_metre] == MARK_COLOUR).all(axis=1).any()
 
 
 def test_a_square_mark_is_outlined(site: DesignSite, aerial: NDArray[np.uint8]) -> None:
