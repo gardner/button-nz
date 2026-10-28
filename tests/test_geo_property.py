@@ -1,5 +1,6 @@
 """Tests for button_nz.geo.property, replaying recorded ArcGIS responses."""
 
+import json
 from pathlib import Path
 
 import httpx
@@ -77,3 +78,27 @@ def test_buildings_in() -> None:
         "West Coast 0.3m Rural Aerial Photos (2015-2016)"
     }
     assert found.provenance.query["geometry"] == ",".join(str(v) for v in SITE)
+
+
+def test_a_polygon_with_holes_is_rejected_not_flattened() -> None:
+    holed = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"building_id": 1, "capture_source_name": "x"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+                        [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]],
+                    ],
+                },
+            }
+        ],
+    }
+    body = json.dumps(holed)
+    client = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, text=body)))
+    layers = PropertyLayers.from_endpoints(ServiceEndpoints(), client)
+    with pytest.raises(ValueError, match="holes"):
+        buildings_in(layers.buildings, SITE)
