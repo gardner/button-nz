@@ -75,7 +75,9 @@ def ask(
     observed: list[str] = []
     answer, error = None, "kept asking for observations instead of answering"
     reminded = False  # the API can't force the answer tool: one reminder, as in design
-    for _ in range(max_observations + 3):
+    calls = max_observations + 2  # observations, one refused request, then the answer
+    while calls > 0:
+        calls -= 1
         allowed = condition == "agent" and len(observed) < max_observations
         try:
             reply = answerer.answer(turns, allowed)
@@ -83,7 +85,7 @@ def ask(
             error = str(reply_error)
             if reminded:
                 break
-            reminded = True
+            reminded, calls = True, calls + 1  # the reminder always gets its own call
             turns.append(QaTurn("question", REMINDER))
             continue
         if isinstance(reply, str):
