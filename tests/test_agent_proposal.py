@@ -246,3 +246,10 @@ def test_a_deck_at_floor_level_is_not_part_of_the_walls() -> None:
     measured = parse_measurements(measured_with(house + deck))
     assert measured.footprint is not None
     assert Polygon(measured.footprint).area == pytest.approx(48.0)
+
+
+def test_an_a_frame_with_an_entry_platform_is_still_measured_near_its_floor() -> None:
+    platform = box(0, -3, 0, 10, 0, 0.6)
+    measured = parse_measurements(measured_with(_a_frame(10.0, 9.0, 3.9) + platform))
+    assert measured.footprint is not None
+    assert Polygon(measured.footprint).area > 75.0

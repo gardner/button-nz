@@ -1,7 +1,7 @@
 """The bubblewrap sandbox for Blender runs that touch model-written code or data.
 
-Inside it: only the system's files, read-only (/usr, /etc, /opt, /sys; no
-/home, /var or /srv); a private /dev with only the GPU's nodes
+Inside it: only the system's files, read-only (/usr, /sys and the few /etc
+files the libraries read; no /home, /var, /srv or /opt); a private /dev with only the GPU's nodes
 (no host terminals, webcam or microphone); fresh, size-limited tmpfs for the
 home directory, /tmp, /run (so no host Unix sockets such as the user's D-Bus
 or Docker) and /dev/shm (no host shared memory); its own IPC, PID and network
@@ -31,7 +31,19 @@ UNTRUSTED_MEMORY_BYTES = 16 << 30
 RENDER_MEMORY_BYTES = 16 << 30
 TOTAL_MEMORY_BYTES = 24 << 30  # all of a sandbox's processes together
 MAX_TASKS = 512
-SYSTEM_DIRS = ("/usr", "/etc", "/opt", "/sys")
+SYSTEM_DIRS = ("/usr", "/sys")
+# The few files under /etc that Blender's libraries read; nothing else of it.
+ETC_FILES = (
+    "/etc/ld.so.cache",
+    "/etc/ld.so.conf",
+    "/etc/ld.so.conf.d",
+    "/etc/fonts",
+    "/etc/alternatives",
+    "/etc/localtime",
+    "/etc/passwd",
+    "/etc/group",
+    "/etc/nsswitch.conf",
+)
 SYSTEM_LINKS = (
     ("/bin", "usr/bin"),
     ("/sbin", "usr/sbin"),
@@ -66,7 +78,7 @@ class Sandbox:
 
     def _mounts(self, blender: str) -> list[str]:
         args = ["--dev", "/dev", "--proc", "/proc"]
-        for path in SYSTEM_DIRS:  # the system, not the host's data: no /home, /var or /srv
+        for path in (*SYSTEM_DIRS, *ETC_FILES):  # the system, not the host's data or config
             args += ["--ro-bind-try", path, path]
         for link, target in SYSTEM_LINKS:
             args += ["--symlink", target, link]

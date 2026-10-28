@@ -226,7 +226,12 @@ def _run_blender(
     output = _Reader(read_fd, OUTPUT_TAIL_BYTES, keep="tail")
     try:
         process = subprocess.Popen(
-            command, stdout=write_fd, stderr=write_fd, env=env, pass_fds=pass_fds
+            command,
+            stdin=subprocess.DEVNULL,  # no host input for the model's code to read
+            stdout=write_fd,
+            stderr=write_fd,
+            env=env,
+            pass_fds=pass_fds,
         )
     except OSError as error:
         raise BlenderError(f"could not run Blender: {error}") from error

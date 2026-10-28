@@ -93,7 +93,9 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
     # Lower down, the same walls may be wider (an A-frame, a dome): measure there
     # only if that outline contains the walls, not if it is something else (a step).
     low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
-    low = _rooms(triangles, z_min + low_cut)
+    # Only faces that also reach the 1 m cut are walls: a deck or platform isn't.
+    rising = [tri for tri in triangles if max(p[2] for p in tri) >= z_min + cut]
+    low = _rooms(rising, z_min + low_cut)
     if (
         len(low) == 1
         and low[0].buffer(CONTAINS_TOLERANCE_M).contains(Polygon(walls))

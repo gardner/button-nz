@@ -469,3 +469,17 @@ def test_non_finite_geometry_is_feedback_not_a_crash(tmp_path: Path, scene: Scen
     out = run_design(scene, BOX + "dwelling.data.vertices[0].co.x = float('nan')\n", tmp_path)
     assert "finite" in str(out.measurements["error"])
     assert out.glb is None and out.png is None
+
+
+def test_the_script_cannot_read_the_hosts_stdin_or_config(
+    tmp_path: Path, scene: SceneInput
+) -> None:
+    probe = (
+        "import os, sys\n"
+        "seen = (sys.stdin.read(), sorted(os.listdir('/etc')), os.path.exists('/opt'))\n"
+        "raise SystemExit(repr(seen))\n"
+    )
+    seen = str(run_design(scene, probe, tmp_path).measurements["error"])
+    assert "SystemExit: ('', [" in seen  # nothing on stdin
+    assert "'ssh'" not in seen and "'shadow'" not in seen  # only the few /etc files bound
+    assert seen.endswith(", False)")  # no /opt
