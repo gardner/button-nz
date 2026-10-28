@@ -8,7 +8,7 @@
   ],
   "segments": [
     {"start": 0.0, "end": 8.5, "speed": 1, "caption": "A real property: its title, 1 m LiDAR and a 7.5 cm aerial photo (NZ open data)"},
-    {"start": 8.5, "end": 19.5, "speed": 1, "caption": "SAM 3.1 found these on the photo; the owner says what each one is"},
+    {"start": 8.5, "end": 19.5, "speed": 1, "caption": "SAM 3.1 found these on the photo; here the team answers for the owner (pending their confirmation)"},
     {"start": 19.5, "end": 23.0, "speed": 1, "caption": "The owner's brief, in their own words"},
     {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views, writes Blender Python; sandboxed Blender builds it"},
     {"start": 217.0, "end": 265.0, "speed": 4, "caption": "Attempt 1 fails two checks: 60 m² inside a 60 m² footprint, and a tree it must keep clear. Muse fixes both"},
