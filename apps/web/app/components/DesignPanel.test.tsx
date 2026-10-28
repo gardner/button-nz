@@ -81,12 +81,12 @@ describe("DesignPanel", () => {
         status: "failed",
         accepted_attempt: null,
         attempts: [],
-        error: "KeyError: MODEL_API_KEY is not set: get a Meta Model API key",
+        error: "KeyError: META_API_KEY is not set: get a Meta Model API key",
       },
     );
     render(<DesignPanel pollMs={5} />);
     await brief();
-    expect(await screen.findByText(/MODEL_API_KEY is not set/)).toBeTruthy();
+    expect(await screen.findByText(/META_API_KEY is not set/)).toBeTruthy();
     expect(screen.queryByTestId("viewer")).toBeNull();
   });
 

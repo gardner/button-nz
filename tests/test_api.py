@@ -66,7 +66,7 @@ def synthetic_site() -> DesignSite:
 
 
 def no_key() -> Model:
-    raise KeyError("MODEL_API_KEY is not set: get a Meta Model API key")
+    raise KeyError("META_API_KEY is not set: get a Meta Model API key")
 
 
 def scripted() -> Model:
@@ -162,7 +162,7 @@ def test_a_missing_api_key_fails_the_job_with_the_reason(tmp_path: Path) -> None
     service.worker.run_next()
     job = service.client.get(f"/designs/{job_id}").json()
     assert job["status"] == "failed"
-    assert "MODEL_API_KEY is not set" in job["error"]
+    assert "META_API_KEY is not set" in job["error"]
 
 
 def test_a_blender_failure_fails_the_job(tmp_path: Path) -> None:
@@ -193,7 +193,7 @@ def test_a_symlinked_artifact_is_neither_listed_nor_served(
     """Defence in depth: nothing untrusted can write the attempt directory, but
     if a link appeared there it must not expose the file it points at."""
     secret = tmp_path / "secret.env"
-    secret.write_text("MODEL_API_KEY=hunter2", encoding="utf-8")
+    secret.write_text("META_API_KEY=hunter2", encoding="utf-8")
     job_id = service.queue()
     service.worker.run_next()
     attempt = tmp_path / "runs" / job_id / "attempt-1"

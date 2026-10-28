@@ -36,10 +36,10 @@ def test_jobs_run_in_order_and_finish(store: Store) -> None:
 def test_a_failed_job_keeps_its_error(store: Store) -> None:
     job = store.create_job("one", allow_observations=True)
     store.mark_running(job.id)
-    store.mark_failed(job.id, "MODEL_API_KEY is not set")
+    store.mark_failed(job.id, "META_API_KEY is not set")
     failed = store.get_job(job.id)
     assert failed.status is JobStatus.FAILED
-    assert failed.error == "MODEL_API_KEY is not set"
+    assert failed.error == "META_API_KEY is not set"
 
 
 @pytest.mark.parametrize("transition", ["done", "failed"])
