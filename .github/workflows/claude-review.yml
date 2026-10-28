@@ -51,6 +51,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
 
+      # claude-code-action writes its GitHub token into origin's URL, where
+      # sandboxed Bash could read it. The reviewer never fetches or pushes, so
+      # without origin that write fails (the action logs it and carries on)
+      # and .git/config stays token-free.
+      - name: Remove the origin remote
+        run: git remote remove origin
+
       - name: Review the pull request
         uses: anthropics/claude-code-action@v1.0.264
         with:
