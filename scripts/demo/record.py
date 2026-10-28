@@ -131,7 +131,7 @@ def open_site(run: Run, base_url: str) -> None:
 
 def confirm_survey(run: Run) -> None:
     page = run.page
-    run.cast.mark("SAM 3.1 survey: the owner confirms what is there")
+    run.cast.mark("SAM 3.1 survey: the team answers for the owner (pending their confirmation)")
     for name, choice in CHOICES.items():
         item = page.locator("li, article, section > div").filter(has_text=name).last
         item.scroll_into_view_if_needed()
