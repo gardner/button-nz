@@ -1,6 +1,7 @@
 """Real sandboxed Blender runs of model-written design scripts.
 Excluded by default; run with `pytest -m blender`."""
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -101,10 +102,13 @@ def test_changes_to_the_site_are_discarded(tmp_path: Path, scene: SceneInput) ->
 
 def test_the_script_cannot_fake_its_measurements(tmp_path: Path, scene: SceneInput) -> None:
     fake = (
-        "import json, sys, __main__\n"
-        "out = sys.argv[-1]\n"
+        "import json, os, sys, __main__\n"
+        "here = os.path.dirname(sys.argv[sys.argv.index('--') + 1])\n"
         "tiny = {'error': None, 'faces_xy': [[[0, 0], [1, 0], [1, 1]]], 'z_min': 0, 'z_max': 1}\n"
-        "open(out + '/measurements.json', 'w').write(json.dumps(tiny))\n"
+        "try:\n"
+        "    open(here + '/measurements.json', 'w').write(json.dumps(tiny))\n"
+        "except OSError:\n"
+        "    pass\n"
         "__main__.__dict__['_measure'] = lambda *a: tiny\n"
     )
     out = run_design(scene, BOX + fake, tmp_path)
@@ -205,26 +209,52 @@ def test_the_script_cannot_reach_host_sockets(tmp_path: Path, scene: SceneInput)
     assert "FileNotFoundError" in str(out.measurements["error"])
 
 
-def test_the_script_can_write_only_its_scratch_directory(tmp_path: Path, scene: SceneInput) -> None:
-    """The host writes the attempt's trace next to it: no planted symlinks there."""
-    plant = "import os, sys\nos.symlink('/etc/hostname', sys.argv[-1] + '/../attempt.json')\n"
-    run_design(scene, BOX + plant, tmp_path)
-    # The attempt directory isn't mounted: the link lands in the sandbox's tmpfs.
-    trace = tmp_path / "attempt.json"
-    assert not trace.is_symlink() and not trace.exists()
-
-
-def test_a_result_the_script_swaps_for_a_symlink_is_refused(
-    tmp_path: Path, scene: SceneInput
-) -> None:
-    """An atexit hook runs after pass 1's last write; the host must not follow it."""
-    secret = tmp_path / "secret.txt"
-    secret.write_text("hunter2", encoding="utf-8")
-    swap = (
+def test_the_script_cannot_write_the_hosts_disk(tmp_path: Path, scene: SceneInput) -> None:
+    """Its inputs are mounted read-only and its scratch space is a tmpfs: links,
+    FIFOs and files it leaves behind never reach the host."""
+    plant = (
         "import atexit, os, sys\n"
-        "status = sys.argv[-1] + '/script.json'\n"
-        f"atexit.register(lambda: (os.remove(status), os.symlink({str(secret)!r}, status)))\n"
+        "here = os.path.dirname(sys.argv[sys.argv.index('--') + 1])\n"
+        "for name in ('attempt.json', 'design.blend'):\n"
+        "    try:\n"
+        "        os.symlink('/etc/hostname', os.path.join(here, name))\n"
+        "    except OSError:\n"
+        "        pass\n"
+        "scratch = sys.argv[-2]\n"
+        "atexit.register(lambda: (os.remove(scratch + '/design.blend'),"
+        " os.mkfifo(scratch + '/design.blend')))\n"
     )
-    with pytest.raises(BlenderError, match="regular file") as error:
-        run_design(scene, BOX + swap, tmp_path / "run")
-    assert "hunter2" not in str(error.value)
+    out = run_design(scene, BOX + plant, tmp_path)
+    assert out.measurements["error"] is None
+    assert not os.path.lexists(tmp_path / "attempt.json")
+    blend = tmp_path / "script" / "design.blend"
+    assert not blend.is_symlink() and blend.is_file()
+
+
+def test_the_script_cannot_reach_host_shared_memory(tmp_path: Path, scene: SceneInput) -> None:
+    name = f"button-nz-sandbox-{os.getpid()}"
+    out = run_design(scene, BOX + f"open('/dev/shm/{name}', 'w').write('x')\n", tmp_path)
+    assert out.measurements["error"] is None
+    assert not Path("/dev/shm", name).exists()
+
+
+def test_the_scratch_space_is_size_limited(tmp_path: Path, scene: SceneInput) -> None:
+    fill = (
+        "import sys\n"
+        "with open(sys.argv[-2] + '/fill', 'wb') as f:\n"
+        "    for _ in range(1200):\n"
+        "        f.write(bytes(1 << 20))\n"
+    )
+    out = run_design(scene, BOX + fill, tmp_path)
+    assert "No space left on device" in str(out.measurements["error"])
+
+
+def test_the_script_has_a_memory_limit(tmp_path: Path, scene: SceneInput) -> None:
+    out = run_design(scene, BOX + "hog = bytearray(20 << 30)\n", tmp_path)
+    assert "MemoryError" in str(out.measurements["error"])
+
+
+def test_a_flood_of_output_is_harmless(tmp_path: Path, scene: SceneInput) -> None:
+    flood = "import sys\nfor _ in range(300):\n    sys.stdout.write('x' * (1 << 20))\n"
+    out = run_design(scene, BOX + flood, tmp_path)
+    assert out.measurements["error"] is None

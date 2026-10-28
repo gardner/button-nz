@@ -2,17 +2,18 @@
 ``button_nz.blender_worker.run.run_design``:
 
     blender -b --factory-startup --python-exit-code 1 --python design_script.py \\
-        -- scene.json design.py SCRATCH_DIR
+        -- scene.json design.py SCRATCH_DIR RESULTS_FD
 
 Builds the site so the script can see it, runs the script as ``__main__``
 with ``bpy``, ``math`` and ``scene`` (the scene JSON, including the terrain
-heights), and saves the result as ``SCRATCH_DIR/design.blend``, the only
-directory it may write. Nothing here is trusted afterwards: pass 2
+heights), and saves the result in ``SCRATCH_DIR``, a size-limited tmpfs that
+vanishes with the sandbox. Nothing here is trusted afterwards: pass 2
 (``design_measure.py``) rebuilds the site and takes only the model's objects
 from that file.
 
-Writes ``SCRATCH_DIR/script.json``: ``{"error": null}``, or the script's traceback
-(an exception or ``exit()``) for the model to fix.
+Reports on pipe ``RESULTS_FD`` (see ``design_io``): ``STARTED``, then the
+script's traceback (an exception or ``exit()``) for the model to fix, or the
+saved design file.
 """
 
 import math
@@ -35,21 +36,23 @@ SCRIPT_ENDINGS = (Exception, SystemExit)  # a tuple: Blender's Python predates P
 
 
 def main(argv: list[str]) -> None:
-    scene_path, script_path, scratch = argv[argv.index("--") + 1 :]
+    scene_path, script_path, scratch, results_fd = argv[argv.index("--") + 1 :]
+    results = os.fdopen(int(results_fd), "wb", buffering=0)
     scene: dict[str, Any] = build_scene.load(scene_path)
     build_scene.build(scene)
     with open(script_path, encoding="utf-8") as f:
         source = f.read()
-    status = os.path.join(scratch, "script.json")
-    design_io.write_json(status, {"error": design_io.DID_NOT_FINISH})
+    design_io.send(results, design_io.STARTED)
     try:
         code = compile(source, SCRIPT_NAME, "exec")
         exec(code, {"__name__": "__main__", "bpy": bpy, "math": math, "scene": scene})  # noqa: S102
     except SCRIPT_ENDINGS:  # the model's error is feedback, not a crash
-        design_io.write_json(status, {"error": _script_traceback()})
+        design_io.send(results, design_io.FAILED, _script_traceback().encode())
         return
-    b.ops.wm.save_as_mainfile(filepath=os.path.join(scratch, "design.blend"))
-    design_io.write_json(status, {"error": None})
+    blend = os.path.join(scratch, "design.blend")
+    b.ops.wm.save_as_mainfile(filepath=blend)
+    with open(blend, "rb") as f:
+        design_io.send(results, design_io.SAVED, f.read())
 
 
 def _script_traceback() -> str:
