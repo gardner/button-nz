@@ -10,6 +10,9 @@ independent evaluator. Every attempt is kept under RUNS_DIR.
 import sys
 from pathlib import Path
 
+import numpy as np
+from numpy.typing import NDArray
+
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import DesignResult, DesignSite, design
 from button_nz.agent.model import ChatModel
@@ -17,7 +20,9 @@ from button_nz.blender_worker.scene_input import scene_input
 from button_nz.demo_site import load_demo_site
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
+from button_nz.geo.imagery import read_aerial
 from button_nz.geo.terrain import read_terrain
+from button_nz.geo.tiles import tiles_covering
 
 BRIEF = (
     "I want to add a small one-bedroom prefab dwelling. Keep as much of the existing "
@@ -35,6 +40,15 @@ def demo_site(margin_m: float = 20.0) -> DesignSite:
     return DesignSite(
         scene_input(grid, frame, parcels), frame, SiteContext(parcels=parcels, terrain=grid)
     )
+
+
+def demo_aerial(site: DesignSite, pixel_m: float) -> NDArray[np.uint8]:
+    """The demo site's urban aerial over its LiDAR grid, ``pixel_m`` per pixel."""
+    source = load_demo_site().rasters["aerial"]
+    base, scale = source.asset.rsplit("/", 1)[0], int(source.tile.split("_")[1])
+    bbox = site.context.terrain.bbox
+    assets = [f"{base}/{name}.tiff" for name in tiles_covering(bbox, scale)]
+    return read_aerial(assets, bbox, pixel_m)
 
 
 def run(runs_dir: Path, brief: str = BRIEF, model: Model | None = None) -> DesignResult:
