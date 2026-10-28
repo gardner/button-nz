@@ -66,10 +66,12 @@ export class ApiError extends Error {
     this.status = status;
   }
 
-  /** Whether asking again could succeed: not a client error such as 404. */
+  /** Whether asking again could succeed: a server error, timeout or rate
+   * limit. A client error (e.g. 404) or a response this app can't read (no
+   * status: it would fail the same way again) is permanent. */
   get transient(): boolean {
     const s = this.status;
-    return s === undefined || s >= 500 || s === 408 || s === 429;
+    return s !== undefined && (s >= 500 || s === 408 || s === 429);
   }
 }
 

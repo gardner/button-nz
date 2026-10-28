@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Component, type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   ApiError,
@@ -43,7 +43,11 @@ export function DesignPanel({ pollMs = 2000 }: { pollMs?: number }) {
           onView={setViewing}
         />
       ))}
-      {model && <ModelViewer url={model} />}
+      {model && (
+        <ViewerBoundary key={model}>
+          <ModelViewer url={model} />
+        </ViewerBoundary>
+      )}
     </section>
   );
 }
@@ -88,6 +92,7 @@ function useDesignJob(pollMs: number) {
     starting.current = true;
     setSubmitting(true);
     setProblem(null);
+    setJob(null); // stop following the old job before the new one exists
     setLost(false);
     createDesign(brief, observe)
       .then(setJob, (e: Error) => setProblem(e.message))
@@ -210,4 +215,28 @@ function AttemptCard({
       )}
     </article>
   );
+}
+
+/** A model that can't load (a failed request, no WebGL) replaces only the
+ * viewer with its reason: the run's results stay on the page. */
+class ViewerBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <p className="text-red-700">
+          Could not show the 3D model: {this.state.error.message}
+        </p>
+      );
+    }
+    return this.props.children;
+  }
 }

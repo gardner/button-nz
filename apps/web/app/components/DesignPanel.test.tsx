@@ -6,10 +6,13 @@ import { JOB } from "@/lib/fixtures";
 
 import { DesignPanel } from "./DesignPanel";
 
+const viewer = vi.hoisted(() => ({ fails: false }));
+
 vi.mock("./ModelViewer", () => ({
-  ModelViewer: ({ url }: { url: string }) => (
-    <div data-testid="viewer">{url}</div>
-  ),
+  ModelViewer: ({ url }: { url: string }) => {
+    if (viewer.fails) throw new Error("no WebGL");
+    return <div data-testid="viewer">{url}</div>;
+  },
 }));
 
 const FAILED_ATTEMPT = JOB.attempts[0];
@@ -36,6 +39,7 @@ function serve(...bodies: unknown[]): ReturnType<typeof vi.fn> {
 }
 
 afterEach(() => {
+  viewer.fails = false;
   cleanup();
   vi.unstubAllGlobals();
 });
@@ -139,6 +143,36 @@ describe("DesignPanel", () => {
       name: "Design",
     }) as HTMLButtonElement;
     expect(design.disabled).toBe(false);
+  });
+
+  it("stops following a design the API answers with a shape it can't read", async () => {
+    const fetch = vi.fn();
+    fetch.mockResolvedValueOnce(
+      respond({
+        ...JOB,
+        status: "queued",
+        accepted_attempt: null,
+        attempts: [],
+      }),
+    );
+    fetch.mockResolvedValue(respond({ ...JOB, status: "cancelled" }));
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    expect(await screen.findByText(/unexpected status/)).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the run on the page when the 3D model can't load", async () => {
+    serve({ ...JOB, attempts: [FAILED_ATTEMPT, ACCEPTED_ATTEMPT] });
+    viewer.fails = true;
+    render(<DesignPanel pollMs={5} />);
+    await brief();
+    expect(
+      await screen.findByText(/Could not show the 3D model: no WebGL/),
+    ).toBeTruthy();
+    expect(screen.getByText("Attempt 1")).toBeTruthy();
   });
 
   it("sends one design however often Design is clicked", async () => {
