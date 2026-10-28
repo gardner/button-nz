@@ -19,7 +19,7 @@ import shapely
 from numpy.typing import NDArray
 from rasterio import features as _features  # pyright: ignore[reportMissingTypeStubs]
 from rasterio import transform as _transform  # pyright: ignore[reportMissingTypeStubs]
-from shapely import MultiPolygon, Polygon, box, union_all
+from shapely import GeometryCollection, MultiPolygon, Polygon, box, union_all
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
@@ -100,7 +100,8 @@ def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid, bbox: BBox) -> li
     left, _, _, top = grid.bbox
     transform = rio_transform.from_origin(left, top, grid.cell_m, grid.cell_m)
     shapes = rio_features.shapes(raised.astype(np.uint8), mask=raised, transform=transform)
-    standing = union_all([shape(geometry) for geometry, _ in shapes]).intersection(box(*bbox))
+    raised_areas = union_all([shape(geometry) for geometry, _ in shapes])
+    standing = _area(raised_areas.intersection(box(*bbox)))
     covered = union_all([f.polygon for f in labelled]).buffer(grid.cell_m)
     left_over = _area(standing.difference(covered))
     pieces = list(left_over.geoms) if isinstance(left_over, MultiPolygon) else [left_over]
@@ -128,7 +129,16 @@ def _polygons(pixels: NDArray[np.bool_], transform: Any) -> Polygon | MultiPolyg
 
 
 def _area(geometry: BaseGeometry) -> Polygon | MultiPolygon:
-    return geometry if isinstance(geometry, Polygon | MultiPolygon) else Polygon()
+    """The polygonal part of ``geometry``: an overlay of shapes that only touch
+    (e.g. a raised area ending on the crop edge) can bring lines and points too."""
+    if isinstance(geometry, Polygon | MultiPolygon):
+        return geometry
+    if isinstance(geometry, GeometryCollection):
+        parts: list[BaseGeometry] = list(geometry.geoms)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        merged = union_all([g for g in parts if isinstance(g, Polygon | MultiPolygon)])
+        if isinstance(merged, Polygon | MultiPolygon):
+            return merged
+    return Polygon()
 
 
 def _heights(polygon: Polygon | MultiPolygon, grid: TerrainGrid) -> NDArray[np.float64]:

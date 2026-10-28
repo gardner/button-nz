@@ -131,3 +131,12 @@ def test_a_block_at_the_minimum_area_is_reported() -> None:
 def test_unlabelled_needs_the_lidar_to_cover_the_crop() -> None:
     with pytest.raises(ValueError, match="LiDAR"):
         unlabelled([], grid(), (990.0, 2000.0, 1030.0, 2030.0))
+
+
+def test_raised_ground_touching_the_crop_edge_doesnt_hide_the_rest() -> None:
+    """A block just outside the crop touches its edge in a line: the shed inside
+    must still be reported."""
+    other = SHED_HEIGHT.copy()
+    other[20:25, 30:35] = 4.0  # x 1030-1035, touching a crop that ends at x 1030
+    (shed,) = unlabelled([], grid(other), (1000.0, 2000.0, 1030.0, 2030.0))
+    assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))
