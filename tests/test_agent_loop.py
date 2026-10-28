@@ -224,3 +224,24 @@ def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> N
     model = SilentModel("good")
     run(site, model, tmp_path)
     assert model.seen[1][-1].image is None
+
+
+def test_without_evaluator_feedback_the_model_hears_only_that_its_script_ran(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """Experiment C's execution-errors-only condition: acceptance is unchanged."""
+    model = ScriptedModel("near", "broken", "good")
+    result = design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        allow_observations=False,
+        evaluator_feedback=False,
+    )
+    ran, broke = model.seen[1][-1], model.seen[2][-1]
+    assert "ran" in ran.text and "setback" not in ran.text and ran.image is None
+    assert "NameError" in broke.text  # execution errors still come back
+    assert "title_boundary_setback" in result.attempts[0].feedback  # but are recorded
+    assert result.accepted is result.attempts[2]

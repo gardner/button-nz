@@ -64,10 +64,13 @@ def design(
     runner: Runner = run_design,
     allow_observations: bool = True,
     max_observations: int = 4,
+    evaluator_feedback: bool = True,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``. Before each attempt the model may request
     up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
-    they don't count as attempts."""
+    they don't count as attempts. Without ``evaluator_feedback`` the model hears
+    only whether its script ran (Experiment C's ablation); the evaluator still
+    decides acceptance, and every attempt still records its verdict."""
     conversation = [Turn("system", system_prompt(site.scene)), Turn("user", brief)]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
@@ -81,15 +84,19 @@ def design(
         else:
             attempt = _attempt(number, script, site, runner, directory, ask.observed)
         attempts.append(attempt)
-        conversation += [
-            Turn("design", attempt.script),
-            Turn("feedback", attempt.feedback, attempt.render),
-        ]
+        conversation += [Turn("design", attempt.script), _told(attempt, evaluator_feedback)]
         if attempt.report is not None and attempt.report.status is not Status.FAIL:
             break
     result = DesignResult(brief, tuple(attempts))
     _write_summary(result, runs_dir)
     return result
+
+
+def _told(attempt: Attempt, evaluator_feedback: bool) -> Turn:
+    """What the model hears about ``attempt``."""
+    if evaluator_feedback or attempt.report is None:
+        return Turn("feedback", attempt.feedback, attempt.render)
+    return Turn("feedback", "Your script ran and built a Dwelling.")
 
 
 @dataclass
