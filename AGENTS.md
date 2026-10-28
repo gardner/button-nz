@@ -20,9 +20,9 @@ To ensure code quality stays high and readable: Use strong types, code formattin
     - You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
 - Keep the GitHub Project board up to date: https://github.com/users/gardner/projects/4
 
-## Pre-push review
+## CI review
 
-- `git push` runs the pre-push hook `scripts/pre-push-review.sh`, where headless Muse (`claude -p`) reviews the outgoing commits and writes any P0/P1/P2 findings to `ISSUES.md`, which blocks the push. Fix every real finding, delete `ISSUES.md`, commit, then push again for a fresh review. For any finding you won't fix, say why in `BACKGROUND.md` at the repo root; the reviewer reads it on the next push. `BACKGROUND.md` is local and gitignored: clear it when starting a new branch so stale notes don't hide new findings. Install the hook with `uv run pre-commit install`. Never bypass with `--no-verify`. If the review cannot run or findings cannot be fixed, stop and ask. NO FALLBACKS.
+- Every PR is reviewed by the required `claude-review` check (`.github/workflows/claude-review.yml`), which posts P0/P1/P2 findings as review threads. The ruleset requires every thread to be resolved before merge, including threads from the Codex app, which also reviews but is not a gate. Fix every real finding with a new commit; for any finding you won't fix, reply with why. Resolve each thread either way; the next review reads those replies. If the review cannot run, stop and ask. NO FALLBACKS.
 
 # IMPORTANT
 
