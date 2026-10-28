@@ -61,7 +61,7 @@ class ServiceEndpoints:
     def aerial_xyz_url(self, z: int, x: int, y: int, api_key: str) -> str:
         """Aerial XYZ tile URL in WebMercatorQuad (key appended, never stored)."""
         return (
-            f"{self.basemaps_tiles_base_url}/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api={api_key}"
+            f"{self.basemaps_tiles_base_url}/aerial/WebMercatorQuad/{z}/{y}/{x}.webp?api={api_key}"
         )
 
 
