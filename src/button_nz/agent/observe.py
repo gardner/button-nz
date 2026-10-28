@@ -10,9 +10,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
+from shapely import Polygon
+
 from button_nz.agent.conversation import Observe
 from button_nz.agent.site import DesignSite
-from button_nz.geo.geometry import Point
+from button_nz.evaluation import ground_range
+from button_nz.geo.geometry import Point, Ring
+from button_nz.geo.terrain import TerrainGrid
 from button_nz.lidar import (
     View,
     contours,
@@ -116,12 +120,22 @@ def _observe(site: DesignSite, tool: str, args: Mapping[str, Any]) -> Observatio
         return _described(site, _cross_section(site, args["start"], args["end"]), outlined=False)
     elif tool == "inspect_elevation":
         polygon = tuple(_local(site, point) for point in args["polygon"])
-        stats = inspect_elevation(grid, polygon)
-        return Observation(_facts(site, "Inside the polygon:", stats), None)
+        return Observation(_facts(site, "Inside the polygon:", _elevation(grid, polygon)), None)
     else:
         raise ObservationError(f"unknown observation tool {tool!r}")
     outlined = overlay(view, grid, site.context.parcels, SCALE)
     return _described(site, outlined, outlined=True)
+
+
+def _elevation(grid: TerrainGrid, polygon: Ring) -> dict[str, float]:
+    """The ground range exactly as the floor_level check measures it, plus the
+    slope statistics of the cells inside, if any cell centre is."""
+    low, high = ground_range(Polygon(polygon), grid)
+    try:
+        stats = inspect_elevation(grid, polygon)
+    except ValueError:  # narrower than a cell: no centre inside to average
+        stats = {}
+    return stats | {"min_m": low, "max_m": high, "relief_m": high - low}
 
 
 def _cross_section(site: DesignSite, start: Sequence[float], end: Sequence[float]) -> View:

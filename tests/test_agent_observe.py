@@ -2,12 +2,13 @@
 
 import numpy as np
 import pytest
+from shapely import Polygon
 
 from button_nz.agent.conversation import Observe
 from button_nz.agent.loop import DesignSite
 from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe
 from button_nz.blender_worker.scene_input import scene_input
-from button_nz.evaluation import SiteContext
+from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
@@ -54,7 +55,7 @@ def test_heights_are_given_in_the_scripts_z(site: DesignSite) -> None:
     """z = NZVD2016 - datum; the datum is the lowest ground, 100.05 m."""
     polygon = [[-5, -5], [5, -5], [5, 5], [-5, 5], [-5, -5]]
     result = observe(site, Observe("inspect_elevation", {"polygon": polygon}))
-    assert "min_m: 1.50" in result.text  # NZVD2016 101.55
+    assert "min_m: 1.45" in result.text  # NZVD2016 101.50, at the polygon's west edge
     assert "above the scene datum" in result.text
     contours = observe(site, Observe("render_contours", {"interval_m": 0.5}))
     assert "min_m: 0.00" in contours.text
@@ -79,11 +80,29 @@ def test_requests_off_the_terrain_say_where_it_is_locally(
     assert "1020" not in message and "2010" not in message  # no NZTM
 
 
+def test_inspected_ground_is_what_the_floor_level_check_measures(site: DesignSite) -> None:
+    """A floor set at the reported max_m must not be below the ground the evaluator finds."""
+    polygon = [[-5, -5], [5, -5], [5, 5], [-5, 5], [-5, -5]]
+    result = observe(site, Observe("inspect_elevation", {"polygon": polygon}))
+    footprint = Polygon([site.frame.to_nztm((x, y)) for x, y in polygon])
+    low, high = ground_range(footprint, site.context.terrain)
+    datum = site.scene["frame"]["datum_m"]
+    assert f"min_m: {low - datum:.2f}" in result.text
+    assert f"max_m: {high - datum:.2f}" in result.text
+    assert f"relief_m: {high - low:.2f}" in result.text
+
+
+def test_a_polygon_narrower_than_a_cell_still_gets_its_ground_range(site: DesignSite) -> None:
+    sliver = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.4], [0.1, 0.1]]
+    result = observe(site, Observe("inspect_elevation", {"polygon": sliver}))
+    assert "min_m" in result.text and "max_m" in result.text
+
+
 def test_inspect_elevation_takes_a_local_polygon(site: DesignSite) -> None:
     polygon = [[-5, -5], [5, -5], [5, 5], [-5, 5], [-5, -5]]
     result = observe(site, Observe("inspect_elevation", {"polygon": polygon}))
     assert result.png is None
-    assert "relief_m: 0.90" in result.text  # cell centres 1015.5..1024.5 east
+    assert "relief_m: 1.00" in result.text  # its edges, 1015..1025 east, as floor_level samples
 
 
 def test_every_offered_tool_runs(site: DesignSite) -> None:
