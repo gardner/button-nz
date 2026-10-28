@@ -71,8 +71,40 @@ def test_address_must_fall_in_a_parcel(site_dir: Path) -> None:
 
 
 def test_every_raster_tile_must_cover_the_site(site_dir: Path) -> None:
-    _edit(site_dir, ("rasters", "aerial", "tile_bbox_wgs84", 0), 171.9)
-    with pytest.raises(ValueError, match="aerial"):
+    """Swapping tile and asset together for the tile to the south is caught."""
+    south = "BS21_1000_4830"
+    collection = "https://nz-imagery.s3.ap-southeast-2.amazonaws.com/west-coast/buller_2024-2025_0.075m/rgb/2193"
+    _edit(site_dir, ("rasters", "aerial", "tile"), south)
+    _edit(site_dir, ("rasters", "aerial", "asset"), f"{collection}/{south}.tiff")
+    with pytest.raises(ValueError, match="aerial: tile BS21_1000_4830 does not cover"):
+        load_demo_site(site_dir)
+
+
+def test_a_site_moved_off_its_tiles_is_rejected(site_dir: Path) -> None:
+    """Moving the parcels, extent and address together must not slip past the tiles."""
+    parcels_path = site_dir / "parcels.geojson"
+    parcels: Any = json.loads(parcels_path.read_text(encoding="utf-8"))
+    for feature in parcels["features"]:
+        ring = feature["geometry"]["coordinates"][0]
+        feature["geometry"]["coordinates"][0] = [[x + 1000.0, y] for x, y in ring]
+    parcels_path.write_text(json.dumps(parcels), encoding="utf-8")
+    _edit(site_dir, ("extent", "nztm"), [1506926.13, 5336777.48, 1506969.74, 5336822.22])
+    _edit(site_dir, ("address", "nztm"), [1506941.6, 5336793.7])
+    with pytest.raises(ValueError, match="does not cover"):
+        load_demo_site(site_dir)
+
+
+def test_a_raster_asset_must_be_its_tile(site_dir: Path) -> None:
+    asset = "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0504.tiff"
+    _edit(site_dir, ("rasters", "dem", "asset"), asset)
+    with pytest.raises(ValueError, match="dem"):
+        load_demo_site(site_dir)
+
+
+def test_a_raster_asset_must_be_in_its_collection(site_dir: Path) -> None:
+    asset = "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/BS21_10000_0503.tiff"
+    _edit(site_dir, ("rasters", "dem", "asset"), asset)
+    with pytest.raises(ValueError, match="dem"):
         load_demo_site(site_dir)
 
 
