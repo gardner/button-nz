@@ -11,21 +11,28 @@ pieces, an open mesh, something below the floor) are ``DesignError``s:
 feedback for the model's next attempt, not crashes.
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from shapely import MultiPolygon, Polygon
+from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.agent.sections import Triangle, outline, section
+from button_nz.agent.sections import Triangle, outline, outline_above, section
 from button_nz.evaluation import Proposal
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 
 WALL_SECTION_M = 1.0  # where the walls are cut: above the floor, below the eaves
+LOW_SECTION_M = 0.5  # and again nearer the floor, for walls that lean in
+CONTAINS_TOLERANCE_M = 0.01
 FLOOR_SECTION_M = 0.05  # just above the lowest point: the floor, if that's what it is
 MIN_FLOOR_COVER = 0.9  # of the wall footprint
+OPENING_M = 1.25  # gaps in the walls up to twice this wide (doors, garage doors) are found
+OPENING_SHARE = 0.05  # of the walls' area: closing over openings may add no more
+MIN_SOLIDITY = 0.5  # of the walls' convex hull: L, T and U plans pass, open strips don't
+MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 
 
 class DesignError(ValueError):
@@ -56,6 +63,8 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
     storeys = _dwelling_storeys(raw.get("storeys"))
     if not triangles:
         return Measurements(error, None, None, 0, None, None, area, storeys)
+    if not all(math.isfinite(c) for tri in triangles for point in tri for c in point):
+        raise DesignError("Some of the Dwelling's vertices aren't finite numbers (NaN or inf).")
     heights = [float(p[2]) for t in triangles for p in t]
     z_min, z_max = min(heights), max(heights)
     plan, parts = _one_ring(outline(triangles))
@@ -64,22 +73,86 @@ def parse_measurements(raw: Mapping[str, Any]) -> Measurements:
 
 
 def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> Ring:
-    """The outside of the external walls, checked to stand on a floor at ``z_min``."""
+    """The outside of the external walls, checked to stand on a floor at ``z_min``:
+    the larger of cuts ``WALL_SECTION_M`` and ``LOW_SECTION_M`` above the floor, so
+    walls that lean in (an A-frame, a dome) are measured near the floor."""
     cut = min(WALL_SECTION_M, (z_max - z_min) / 2)
-    walls, parts = _one_ring(section(triangles, z_min + cut))
-    if walls is None or parts != 1:
+    rooms = _rooms(triangles, z_min + cut)
+    if len(rooms) != 1:
+        sizes = ", ".join(f"{p.area:.0f} m²" for p in sorted(rooms, key=lambda p: -p.area))
         raise DesignError(
-            f"A horizontal cut through the Dwelling {cut:g} m above its floor isn't one "
-            "closed outline. Make the Dwelling one closed mesh standing on its floor."
+            f"A horizontal cut through the Dwelling {cut:g} m above its floor should cross "
+            f"one closed outline of walls, but finds {len(rooms)} ({sizes or 'none'}). "
+            "Make the Dwelling one closed mesh standing on its floor, its rooms joined."
         )
-    floor = section(triangles, z_min + min(FLOOR_SECTION_M, cut / 2))
-    if floor.area < MIN_FLOOR_COVER * Polygon(walls).area:
+    walls, _ = _one_ring(rooms[0])
+    if walls is None:
+        raise DesignError("The Dwelling's walls don't form a closed outline.")
+    _check_envelope(triangles, Polygon(walls), z_min, cut)
+    # Walls that lean in (an A-frame, a dome) are wider near the floor: measure them
+    # there too, as far as they lean, so a deck or step beside them isn't counted.
+    lower = _lower_walls(triangles, Polygon(walls), z_min, z_max, cut)
+    if lower is not None:
+        return lower
+    return walls
+
+
+def _lower_walls(
+    triangles: list[Triangle], walls: Polygon, z_min: float, z_max: float, cut: float
+) -> Ring | None:
+    """The walls' outline ``LOW_SECTION_M`` above the floor if they lean out below
+    ``cut``: the low section, kept to within the walls' own lean of their outline
+    at ``cut``. The lean is estimated from how much they narrow above ``cut``."""
+    low_cut = min(LOW_SECTION_M, (z_max - z_min) / 4)
+    high_cut = min(cut + (cut - low_cut), (z_max - z_min) * 3 / 4)
+    high = _rooms(triangles, z_min + high_cut)
+    if len(high) != 1 or high_cut <= cut:
+        return None
+    lean = walls.hausdorff_distance(high[0]) * (cut - low_cut) / (high_cut - cut)
+    if lean < CONTAINS_TOLERANCE_M:
+        return None  # upright walls: the outline at ``cut`` is the footprint
+    # Everything at the low cut within the walls' lean of them: a deck or step
+    # further out is left behind, whether or not it touches the walls.
+    low = union_all(_rooms(triangles, z_min + low_cut))
+    kept = low.intersection(walls.buffer(lean, join_style="mitre"))
+    around = [p for p in _pieces(kept) if p.buffer(CONTAINS_TOLERANCE_M).contains(walls)]
+    if not around or around[0].area <= walls.area:
+        return None
+    ring, _ = _one_ring(around[0])
+    return ring
+
+
+def _rooms(triangles: list[Triangle], z: float) -> list[Polygon]:
+    """The pieces of the section at ``z`` big enough to be rooms (not posts or balusters)."""
+    return [p for p in _pieces(section(triangles, z)) if p.area >= MIN_ROOM_M2]
+
+
+def _check_envelope(triangles: list[Triangle], enclosed: Polygon, z_min: float, cut: float) -> None:
+    """That ``enclosed`` (the walls' outline at ``cut``) is a solid envelope: a
+    floor under it, no opening through it, and a roof over it."""
+    band = z_min + min(FLOOR_SECTION_M, cut / 2)  # faces this low are the floor's underside
+    floor = outline([tri for tri in triangles if max(p[2] for p in tri) <= band])
+    if floor.intersection(enclosed).area < MIN_FLOOR_COVER * enclosed.area:
         raise DesignError(
             "The Dwelling's lowest point isn't its floor: something (piles, steps, a "
-            "deck) is below it. Make the underside of the floor, spanning the walls, "
-            "the Dwelling's lowest point."
+            "deck or terrace) is below it. Make the underside of the floor, spanning "
+            "the walls, the Dwelling's lowest point."
         )
-    return walls
+    missing = _closed(enclosed).area - enclosed.area
+    hull = enclosed.convex_hull.area
+    if missing > max(MIN_ROOM_M2, OPENING_SHARE * enclosed.area) or (
+        enclosed.area < MIN_SOLIDITY * hull  # an opening too wide to bridge
+    ):
+        raise DesignError(
+            f"{cut:g} m above the floor the Dwelling's walls enclose only "
+            f"{enclosed.area:.0f} m² of the {hull:.0f} m² they span: a doorway or opening "
+            "breaks their outline. Model the Dwelling as a solid envelope, with no doors "
+            "or windows cut through it."
+        )
+    if outline_above(triangles, z_min + cut).intersection(enclosed).area < (
+        MIN_FLOOR_COVER * enclosed.area
+    ):
+        raise DesignError("The Dwelling has no roof over its walls: close the envelope at the top.")
 
 
 def _dwelling_number(value: object, name: str) -> float | None:
@@ -119,6 +192,21 @@ def to_proposal(measurements: Measurements, frame: LocalFrame, datum_m: float) -
         floor_area_m2=measurements.floor_area_m2,
         storeys=measurements.storeys,
     )
+
+
+def _closed(walls: Polygon) -> BaseGeometry:
+    """``walls`` with gaps up to ``2 * OPENING_M`` bridged and the rooms behind
+    them filled: the outline a solid envelope would have had."""
+    bridged = walls.buffer(OPENING_M, join_style="mitre").buffer(-OPENING_M, join_style="mitre")
+    return Polygon(walls.exterior).union(union_all([Polygon(p.exterior) for p in _pieces(bridged)]))
+
+
+def _pieces(shape: BaseGeometry) -> list[Polygon]:
+    if isinstance(shape, Polygon):
+        return [] if shape.is_empty else [shape]
+    if isinstance(shape, MultiPolygon):
+        return list(shape.geoms)
+    return []
 
 
 def _one_ring(shape: BaseGeometry) -> tuple[Ring | None, int]:

@@ -68,7 +68,11 @@ def design(
     """Design for ``brief`` on ``site``. Before each attempt the model may request
     up to ``max_observations`` LiDAR views (none if not ``allow_observations``);
     they don't count as attempts."""
-    conversation = [Turn("system", system_prompt(site.scene)), Turn("user", brief)]
+    local = site.frame.to_local
+    keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
+    buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
+    prompt = system_prompt(site.scene, keep_clear, buildings)
+    conversation = [Turn("system", prompt), Turn("user", brief)]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
         directory = runs_dir / f"attempt-{number}"
