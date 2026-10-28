@@ -8,9 +8,10 @@ from numpy.typing import NDArray
 from PIL import Image
 
 from button_nz.agent.site import DesignSite
-from button_nz.bench.questions import Mark, Question
+from button_nz.bench.questions import SQUARE_GAP_M, Mark, Question
 from button_nz.bench.views import (
     CONDITIONS,
+    LABEL_PX,
     MARK_COLOUR,
     POINT_RADIUS_PX,
     SCALE,
@@ -103,3 +104,9 @@ def test_each_lidar_view_says_how_to_read_it(site: DesignSite, aerial: NDArray[n
     assert "Slope in degrees" in captions[2]
     contours = [c for c, _ in condition_images("aerial_contours", QUESTION, site, aerial)]
     assert "Contours every 0.25 m" in contours[1]
+
+
+def test_a_label_fits_in_the_gap_between_squares() -> None:
+    """A square's label sits just outside it: in the gap the questions leave
+    between candidate squares, never over a neighbour's measured cells."""
+    assert LABEL_PX / SCALE < SQUARE_GAP_M

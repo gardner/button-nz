@@ -138,7 +138,8 @@ def design(
             break
         conversation += [
             Turn("design", attempt.script),
-            Turn("feedback", attempt.feedback, attempt.render),
+            # The render is evaluator feedback: a contract error can come with one.
+            Turn("feedback", attempt.feedback, attempt.render if evaluator_feedback else None),
         ]
     result = DesignResult(brief, tuple(attempts))
     _write_summary(result, runs_dir)

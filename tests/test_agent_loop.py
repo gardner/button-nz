@@ -28,7 +28,10 @@ GOOD = {
 NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the title boundary
 BROKEN = {"error": 'Traceback (most recent call last):\n  File "design.py", line 1\nNameError: x'}
 OFF_TERRAIN = GOOD | {"triangles": box(38, 7, 0.3, 44, 12, 3.9)}  # past the terrain's east edge
-MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN}
+SPLIT = GOOD | {  # two separate boxes: rendered, then refused by the contract
+    "triangles": box(15, 7, 0.3, 18, 12, 3.9) + box(20, 7, 0.3, 23, 12, 3.9)
+}
+MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN, "split": SPLIT}
 
 
 @pytest.fixture
@@ -262,6 +265,27 @@ def test_without_evaluator_feedback_only_execution_errors_earn_another_attempt(
     assert len(model.seen) == 2 and len(result.attempts) == 2  # "near" ran: the end
     assert "title_boundary_setback" in result.attempts[1].feedback  # recorded, not told
     assert result.accepted is None
+
+
+def test_without_evaluator_feedback_a_contract_error_comes_back_without_the_render(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """A dwelling in two pieces was rendered before the contract refused it: the
+    error is an execution error and comes back, but the render is the evaluator
+    condition's feedback, not this one's."""
+    model = ScriptedModel("split", "good")
+    design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        allow_observations=False,
+        evaluator_feedback=False,
+    )
+    told = model.seen[1][-1]
+    assert told.role == "feedback" and "2 pieces" in told.text
+    assert told.image is None
 
 
 def test_without_evaluator_feedback_a_rejected_design_also_ends_the_run(

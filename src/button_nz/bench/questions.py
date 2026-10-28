@@ -37,6 +37,7 @@ MIN_HEIGHT_LEAD_M = 1.5  # and lead the next square's tallest by this much
 HEIGHT_TOLERANCE_M = 0.2
 RELIEF_TOLERANCE_M = 0.25
 AREA_HALF_M = 2.5  # the squares compared for steepness
+SQUARE_GAP_M = 2.0  # between candidate squares: room for each one's label
 RELIEF_HALF_M = 5.0
 MARGIN_M = 0.5  # keep marks this far inside the title and the measured grid
 TRIES_PER_QUESTION = 200
@@ -275,5 +276,5 @@ def _mean_slope(terrain: _Terrain, mark: Mark) -> float:
 
 
 def _overlap(m: Mark, n: Mark) -> bool:
-    gap = 1.0  # at least a metre between squares
-    return abs(m.x - n.x) < m.half_m + n.half_m + gap and abs(m.y - n.y) < m.half_m + n.half_m + gap
+    reach = m.half_m + n.half_m + SQUARE_GAP_M
+    return abs(m.x - n.x) < reach and abs(m.y - n.y) < reach
