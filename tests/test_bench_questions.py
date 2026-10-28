@@ -6,14 +6,16 @@ import math
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+from shapely import Polygon
 
 from button_nz.agent.site import DesignSite
 from button_nz.bench.questions import Mark, Question, _mean_slope, _Terrain, generate, score  # pyright: ignore[reportPrivateUsage]
 from button_nz.blender_worker.scene_input import scene_input
-from button_nz.evaluation import SiteContext
+from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
+from button_nz.lidar import inspect_elevation
 
 # One 60 m x 40 m parcel over a 70 m x 50 m grid of 1 m cells; local origin at its centre.
 PARCEL: Ring = ((5.0, 5.0), (65.0, 5.0), (65.0, 45.0), (5.0, 45.0), (5.0, 5.0))
@@ -109,13 +111,16 @@ def test_numeric_answers_are_rounded_for_asking() -> None:
             assert math.isfinite(q.answer)
 
 
-def test_steepness_averages_slope_angles_as_the_views_report_them() -> None:
-    """Mean of per-sample degrees (as inspect_elevation's mean_slope_deg), not atan of
-    the mean grade: they rank a square of mixed flat and steep ground differently."""
+def test_ground_truth_is_what_the_models_tools_report() -> None:
+    """Relief from ground_range and slope from inspect_elevation, the same functions
+    the inspect_elevation observation uses, so a tool-derived answer is right."""
     x, _ = centres()
     dem = 100.0 + 1.5 * np.clip(x - 40.0, 0.0, 2.0)  # a steep 2 m band
     terrain = _Terrain(site(dem))
     square = Mark("1", 5.0, 0.0, 2.5)  # local x 2.5..7.5 covers NZTM 37.5..42.5
-    grades = [math.hypot(*terrain.gradient(x, y)) for x, y in terrain.lattice(square)]
-    expected = sum(math.degrees(math.atan(g)) for g in grades) / len(grades)
-    assert _mean_slope(terrain, square) == pytest.approx(expected)
+    ring = terrain.square(square)
+    assert _mean_slope(terrain, square) == pytest.approx(
+        inspect_elevation(terrain.grid, ring)["mean_slope_deg"]
+    )
+    low, high = ground_range(Polygon(ring), terrain.grid)
+    assert high - low == pytest.approx(3.0)  # the whole band lies inside

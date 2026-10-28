@@ -9,7 +9,7 @@ area) is not asked, so every answer is checkable.
 """
 
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -18,6 +18,9 @@ from shapely import Point, Polygon, box, union_all
 
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.terrain_math import height_at
+from button_nz.evaluation import ground_range
+from button_nz.geo.geometry import Ring
+from button_nz.lidar import inspect_elevation
 
 DIRECTIONS = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
 MIN_GRADE = 0.05  # 1 in 20: gentler ground has no clear downhill direction
@@ -28,7 +31,6 @@ HEIGHT_TOLERANCE_M = 0.2
 RELIEF_TOLERANCE_M = 0.25
 AREA_HALF_M = 2.5  # the squares compared for steepness
 RELIEF_HALF_M = 5.0
-LATTICE_M = 0.5  # sampling step inside an area
 STEP_M = 0.5  # half the span of a central difference
 TRIES_PER_QUESTION = 200
 
@@ -91,6 +93,7 @@ class _Terrain:
 
     def __init__(self, site: DesignSite) -> None:
         self.surface = cast("dict[str, Any]", site.scene["terrain"])  # height_at's shape
+        self.grid, self.frame = site.context.terrain, site.frame
         frame = site.frame
         title = union_all([Polygon([frame.to_local(p) for p in r]) for r in site.context.parcels])
         s = self.surface
@@ -116,11 +119,11 @@ class _Terrain:
         shape = box(x - half_m, y - half_m, x + half_m, y + half_m) if half_m else Point(x, y)
         return Mark(label, x, y, half_m) if self.region.contains(shape) else None
 
-    def lattice(self, mark: Mark) -> Iterator[tuple[float, float]]:
-        steps = np.arange(-mark.half_m, mark.half_m + 1e-9, LATTICE_M)
-        for dx in steps:
-            for dy in steps:
-                yield mark.x + float(dx), mark.y + float(dy)
+    def square(self, mark: Mark) -> Ring:
+        """``mark``'s square in NZTM, as the tools take it."""
+        x, y, h = mark.x, mark.y, mark.half_m
+        corners = ((x - h, y - h), (x + h, y - h), (x + h, y + h), (x - h, y + h), (x - h, y - h))
+        return tuple(self.frame.to_nztm(c) for c in corners)
 
 
 def _take(make: Callable[[], Question | None], count: int) -> list[Question]:
@@ -171,13 +174,13 @@ def _relief(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
     a = terrain.place(rng, RELIEF_HALF_M, "A")
     if a is None:
         return None
-    heights = [terrain.height(x, y) for x, y in terrain.lattice(a)]
+    low, high = ground_range(Polygon(terrain.square(a)), terrain.grid)
     text = (
         f"What is the difference between the highest and lowest ground in the "
         f"{2 * RELIEF_HALF_M:g} m square centred on A ({a.x:.1f}, {a.y:.1f}), in metres? "
         "Answer with a number only."
     )
-    return Question("", "relief", text, (a,), max(heights) - min(heights), (), RELIEF_TOLERANCE_M)
+    return Question("", "relief", text, (a,), high - low, (), RELIEF_TOLERANCE_M)
 
 
 def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
@@ -199,13 +202,9 @@ def _steepest(terrain: _Terrain, rng: np.random.Generator) -> Question | None:
 
 
 def _mean_slope(terrain: _Terrain, mark: Mark) -> float:
-    """The mean of the slope angles in the square, the statistic the model's
-    views report (inspect_elevation's mean_slope_deg), not atan of the mean grade."""
-    angles = [
-        math.degrees(math.atan(math.hypot(*terrain.gradient(x, y))))
-        for x, y in terrain.lattice(mark)
-    ]
-    return sum(angles) / len(angles)
+    """The square's mean slope exactly as the model's tools report it
+    (inspect_elevation's mean_slope_deg over the cell centres inside)."""
+    return inspect_elevation(terrain.grid, terrain.square(mark))["mean_slope_deg"]
 
 
 def _overlap(m: Mark, n: Mark) -> bool:
