@@ -136,3 +136,32 @@ def test_the_contour_schema_asks_for_a_positive_interval() -> None:
 def test_bad_requests_are_feedback(site: DesignSite, request_: Observe) -> None:
     with pytest.raises(ObservationError):
         observe(site, request_)
+
+
+@pytest.fixture
+def awkward() -> DesignSite:
+    """A frame whose origin isn't exact in binary: the west edge the model is told,
+    converted back to NZTM, lands a hair outside the grid."""
+    xs = np.arange(50, dtype=np.float64) + 0.5
+    dem = np.tile(100.0 + 0.1 * xs, (20, 1))
+    grid = TerrainGrid(
+        (1542024.0, 2000.0, 1542074.0, 2020.0), 1.0, dem, np.zeros_like(dem), ("synthetic",)
+    )
+    frame = LocalFrame(origin=(1542050.3599999999, 2010.0))
+    ring: Ring = (
+        (1542024.0, 2000.0),
+        (1542074.0, 2000.0),
+        (1542074.0, 2020.0),
+        (1542024.0, 2020.0),
+        (1542024.0, 2000.0),
+    )
+    return DesignSite(scene_input(grid, frame, [ring]), frame, SiteContext((ring,), grid))
+
+
+def test_points_on_the_edge_the_model_is_told_are_on_the_terrain(awkward: DesignSite) -> None:
+    west = -25.86  # what the extent says, rounded
+    profile = observe(awkward, Observe("render_cross_section", {"start": [west, 0], "end": [0, 0]}))
+    assert "Terrain profile" in profile.text
+    square = [[west, -2], [west + 4, -2], [west + 4, 2], [west, 2], [west, -2]]
+    inspected = observe(awkward, Observe("inspect_elevation", {"polygon": square}))
+    assert "cells" in inspected.text and "mean_slope_deg" in inspected.text

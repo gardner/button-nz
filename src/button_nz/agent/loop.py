@@ -72,7 +72,11 @@ def design(
     they don't count as attempts. Without ``evaluator_feedback`` the model hears
     only whether its script ran (Experiment C's ablation); the evaluator still
     decides acceptance, and every attempt still records its verdict."""
-    conversation = [Turn("system", system_prompt(site.scene)), Turn("user", brief)]
+    local = site.frame.to_local
+    keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
+    buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
+    prompt = system_prompt(site.scene, keep_clear, buildings)
+    conversation = [Turn("system", prompt), Turn("user", brief)]
     attempts: list[Attempt] = []
     for number in range(1, max_attempts + 1):
         directory = runs_dir / f"attempt-{number}"

@@ -73,7 +73,7 @@ class InvalidProposal(ValueError):
 def validate(proposal: Proposal) -> None:
     for name in ("floor_level_m", "height_above_floor_m", "floor_area_m2"):
         value = getattr(proposal, name)
-        if value is not None and not math.isfinite(value):
+        if value is not None and (isinstance(value, bool) or not math.isfinite(value)):
             raise InvalidProposal(f"{name} must be a finite number, not {value}")
     for name in ("height_above_floor_m", "floor_area_m2"):
         value = getattr(proposal, name)
