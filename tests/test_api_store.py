@@ -82,3 +82,13 @@ def test_jobs_interrupted_by_a_restart_are_failed_not_resumed(tmp_path: Path) ->
 def test_an_unknown_job_raises(store: Store) -> None:
     with pytest.raises(KeyError):
         store.get_job("nope")
+
+
+def test_a_revision_records_what_it_revises(store: Store) -> None:
+    parent = store.create_job("A studio.", allow_observations=True)
+    child = store.create_job(
+        "A studio.", allow_observations=False, parent_id=parent.id, instruction="Face north."
+    )
+    assert store.get_job(child.id).parent_id == parent.id
+    assert store.get_job(child.id).instruction == "Face north."
+    assert store.get_job(parent.id).parent_id is None

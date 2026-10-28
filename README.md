@@ -52,6 +52,8 @@ curl localhost:8000/site
 curl -X POST localhost:8000/designs -H 'content-type: application/json' \
   -d '{"brief": "A small one-bedroom studio."}'
 curl localhost:8000/designs/<id>  # status, attempts and artifact URLs
+curl -X POST localhost:8000/designs/<id>/revisions -H 'content-type: application/json' \
+  -d '{"instruction": "Move it further from the street."}'  # revise the accepted design
 ```
 
 ## Layout

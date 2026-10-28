@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at TEXT,
     finished_at TEXT,
     error TEXT,
-    accepted_attempt INTEGER
+    accepted_attempt INTEGER,
+    parent_id TEXT REFERENCES jobs (id),
+    instruction TEXT
 );
 CREATE TABLE IF NOT EXISTS attempts (
     job_id TEXT NOT NULL REFERENCES jobs (id),
@@ -57,6 +59,8 @@ class Job:
     finished_at: datetime | None
     error: str | None
     accepted_attempt: int | None
+    parent_id: str | None = None  # the design this one revises
+    instruction: str | None = None  # the owner's change, in their own words
 
 
 @dataclass(frozen=True)
@@ -76,13 +80,27 @@ class Store:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript(SCHEMA)
 
-    def create_job(self, brief: str, allow_observations: bool) -> Job:
+    def create_job(
+        self,
+        brief: str,
+        allow_observations: bool,
+        parent_id: str | None = None,
+        instruction: str | None = None,
+    ) -> Job:
         job_id = uuid.uuid4().hex
         with self._db() as db:
             db.execute(
-                "INSERT INTO jobs (id, brief, allow_observations, status, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (job_id, brief, int(allow_observations), JobStatus.QUEUED, _now()),
+                "INSERT INTO jobs (id, brief, allow_observations, status, created_at, "
+                "parent_id, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    job_id,
+                    brief,
+                    int(allow_observations),
+                    JobStatus.QUEUED,
+                    _now(),
+                    parent_id,
+                    instruction,
+                ),
             )
         return self.get_job(job_id)
 
@@ -209,4 +227,6 @@ def _job(row: sqlite3.Row) -> Job:
         finished_at=_time(row["finished_at"]),
         error=row["error"],
         accepted_attempt=row["accepted_attempt"],
+        parent_id=row["parent_id"],
+        instruction=row["instruction"],
     )

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from button_nz.agent.conversation import ModelReplyError, Observe
-from button_nz.agent.loop import DesignResult, DesignSite, Turn, design
+from button_nz.agent.loop import DesignResult, DesignSite, Revision, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.evaluation import SiteContext, Status
@@ -239,3 +239,17 @@ def test_a_stale_render_is_never_fed_back(site: DesignSite, tmp_path: Path) -> N
     model = SilentModel("good")
     run(site, model, tmp_path)
     assert model.seen[1][-1].image is None
+
+
+def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    before = Revision(
+        script="near", feedback="Evaluator verdict: fail.", instruction="Move it east."
+    )
+    result = design(
+        "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before
+    )
+    roles = [t.role for t in model.seen[0]]
+    assert roles == ["system", "user", "design", "feedback", "user"]
+    assert model.seen[0][2].text == "near" and model.seen[0][4].text == "Move it east."
+    assert result.accepted is result.attempts[0]
