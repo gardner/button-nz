@@ -50,6 +50,8 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap socat
+          touch ~/.bash_login ~/.bash_profile ~/.bash_logout ~/.bashrc ~/.profile \
+            ~/.zshrc ~/.zshenv ~/.zprofile ~/.zlogin ~/.gitconfig
 
       # The sandboxed reviewer can write to the workspace, so the steps after
       # it use copies taken now, in runner temp, which it cannot write to.
