@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -253,3 +254,15 @@ def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_p
     assert roles == ["system", "user", "design", "feedback", "user"]
     assert model.seen[0][2].text == "near" and model.seen[0][4].text == "Move it east."
     assert result.accepted is result.attempts[0]
+
+
+def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path) -> None:
+    """Preservation areas and listed buildings are in the prompt, in local coordinates."""
+    garden: Ring = ((10.0, 2.0), (14.0, 2.0), (14.0, 6.0), (10.0, 6.0), (10.0, 2.0))
+    house: Ring = ((30.0, 12.0), (36.0, 12.0), (36.0, 18.0), (30.0, 18.0), (30.0, 12.0))
+    context = replace(site.context, preservation_areas=(garden,), confirmed_buildings=(house,))
+    model = ScriptedModel("good")
+    run(replace(site, context=context), model, tmp_path)
+    prompt = model.seen[0][0].text
+    assert "kept clear" in prompt and "(10.00, 2.00)" in prompt
+    assert "existing buildings" in prompt and "(30.00, 12.00)" in prompt
