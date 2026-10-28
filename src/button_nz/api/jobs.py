@@ -4,6 +4,13 @@ recording each attempt as it ends.
 A job that raises is marked failed with the reason, e.g. a missing
 ``META_API_KEY`` or a Blender that couldn't start, so nothing is left looking
 in progress. Each job's files are kept under ``runs_dir/<job id>``.
+
+Given an ``illustrator``, a job with an accepted attempt then gets an AI visual
+of it (``perception.visual``) once it is marked done: ``visual.json`` says how
+that went (until it exists, the visual is still being made), and ``visual.png``
+is there only if the visual was accepted. The visual is extra: its failure is
+recorded in ``visual.json`` and changes nothing about the job, its verdict or
+its acceptance.
 """
 
 import json
@@ -18,8 +25,13 @@ from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.perception.confirm import Decision, Survey, confirmed
+from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
+INTERRUPTED = "interrupted by a restart"
 log = logging.getLogger(__name__)
+NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
+
+type Illustrator = Callable[[Path, Path], Visual]  # (design.png, dwelling-mask.png)
 
 
 class Worker:
@@ -32,6 +44,7 @@ class Worker:
         runner: Runner = run_design,
         max_attempts: int = 3,
         survey: Path | None = None,
+        illustrator: Illustrator | None = None,
     ) -> None:
         self.store = store
         self.site = cache(site)  # read the terrain once, on the first job
@@ -40,6 +53,7 @@ class Worker:
         self.runs_dir = runs_dir
         self.runner = runner
         self.max_attempts = max_attempts
+        self.illustrator = illustrator
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -56,10 +70,13 @@ class Worker:
             log.exception("design job %s failed", job.id)
             self.store.mark_failed(job.id, _reason(error))
         else:
-            self.store.mark_done(job.id, accepted)
+            self.store.mark_done(job.id, None if accepted is None else accepted.number)
+            if accepted is not None:  # after: a restart mid-visual mustn't cost the design
+                self._illustrate(accepted)
         return True
 
     def start(self) -> None:
+        self.recover_visuals()
         self._thread = threading.Thread(target=self._loop, name="design-worker", daemon=True)
         self._thread.start()
 
@@ -97,7 +114,34 @@ class Worker:
         trace = self.runs_dir / parent.id / f"attempt-{parent.accepted_attempt}" / "attempt.json"
         return _revision(trace, tuple(instructions))
 
-    def _design(self, job: Job) -> int | None:
+    def recover_visuals(self) -> None:
+        """Record every visual a restart cut off, so no job says its visual is
+        still coming for ever (``visual.json`` ends the wait, however it went)."""
+        if self.illustrator is None:
+            return
+        for job in self.store.accepted_jobs():
+            directory = self.runs_dir / job.id / f"attempt-{job.accepted_attempt}"
+            if directory.is_dir() and not (directory / VISUAL_JSON).exists():
+                save(Visual.failed(INTERRUPTED), directory)
+
+    def _illustrate(self, accepted: Attempt) -> None:
+        """Make and save the visual of ``accepted``; a failure is its record."""
+        if self.illustrator is None:
+            return
+        try:
+            if accepted.render is None or accepted.mask is None:
+                visual = Visual.failed(NO_SILHOUETTE)
+            else:
+                visual = self.illustrator(accepted.render, accepted.mask)
+        except Exception as error:  # the visual's failure, never the design's
+            log.exception("the visual of %s failed", accepted.directory)
+            visual = Visual.failed(_reason(error))
+        try:
+            save(visual, accepted.directory)
+        except OSError:
+            log.exception("could not save the visual of %s", accepted.directory)
+
+    def _design(self, job: Job) -> Attempt | None:
         def record(attempt: Attempt) -> None:
             self.store.add_attempt(
                 AttemptRecord(
@@ -116,7 +160,7 @@ class Worker:
             on_attempt=record,
             revising=self._revising(job),
         )
-        return None if result.accepted is None else result.accepted.number
+        return result.accepted
 
     def _confirmed_site(self) -> DesignSite:
         """The site with what a person has confirmed on the survey, if any."""

@@ -1,8 +1,10 @@
 """Tests for button_nz.api: design jobs over HTTP, run by the worker with a
 scripted model and a fake Blender runner."""
 
+import json
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +14,7 @@ from fastapi.testclient import TestClient
 from button_nz.agent.conversation import Model, Observe, Turn
 from button_nz.agent.loop import DesignSite, Runner
 from button_nz.api.app import create_app
-from button_nz.api.jobs import Worker
+from button_nz.api.jobs import Illustrator, Worker
 from button_nz.api.store import Store
 from button_nz.blender_worker.run import BlenderError, DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
@@ -21,6 +23,7 @@ from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
+from button_nz.perception.visual import VISUAL_MODEL, Visual, visual_client
 from meshes import box
 
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
@@ -45,11 +48,34 @@ class ScriptedModel:
 
 def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
-    png = out_dir / "design.png"
+    png, mask = out_dir / "design.png", out_dir / "dwelling-mask.png"
     png.write_bytes(b"\x89PNG design")
+    mask.write_bytes(b"\x89PNG mask")
     (out_dir / "design.py").write_text(script, encoding="utf-8")
     measurements = {"good": GOOD, "near": NEAR}[script]
-    return DesignOutputs(measurements, out_dir / "design.py", None, png)
+    return DesignOutputs(measurements, out_dir / "design.py", None, png, mask)
+
+
+def maskless_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+    return replace(fake_runner(scene, script, out_dir), mask=None)
+
+
+class FakeIllustrator:
+    """Stands in for Muse Image and SAM: returns ``visual``, or raises ``error``."""
+
+    def __init__(self, visual: Visual | None = None, error: Exception | None = None) -> None:
+        self.visual, self.error = visual, error
+        self.calls: list[tuple[Path, Path]] = []
+
+    def __call__(self, render: Path, mask: Path) -> Visual:
+        self.calls.append((render, mask))
+        if self.error is not None:
+            raise self.error
+        assert self.visual is not None
+        return self.visual
+
+
+ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual")
 
 
 def broken_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
@@ -79,10 +105,16 @@ class Service:
         tmp_path: Path,
         model: Callable[[], Model] = scripted,
         runner: Runner = fake_runner,
+        illustrator: Illustrator | None = None,
     ) -> None:
         self.store = Store(tmp_path / "button.db")
         self.worker = Worker(
-            self.store, site=synthetic_site, model=model, runs_dir=tmp_path / "runs", runner=runner
+            self.store,
+            site=synthetic_site,
+            model=model,
+            runs_dir=tmp_path / "runs",
+            runner=runner,
+            illustrator=illustrator,
         )
         self.client = TestClient(create_app(self.store, self.worker, load_demo_site()))
 
@@ -139,6 +171,8 @@ def test_a_finished_design_shows_every_attempt_and_its_files(service: Service) -
     "path",
     [
         "attempts/1/design.py",
+        "attempts/1/dwelling-mask.png",
+        "attempts/2/visual.txt",
         "attempts/1/measurements.json",
         "attempts/1/..%2F..%2Fbutton.db",
         "attempts/9/design.png",
@@ -254,3 +288,133 @@ def test_a_revision_of_a_revision_keeps_every_instruction(tmp_path: Path) -> Non
     asked = model.seen[-1][-1].text
     assert "Move it away from the street." in asked and "Make it bigger." in asked
     assert asked.index("away from the street") < asked.index("bigger")  # oldest first
+
+
+def test_an_accepted_design_gets_an_ai_visual(tmp_path: Path) -> None:
+    illustrator = FakeIllustrator(ACCEPTED_VISUAL)
+    service = Service(tmp_path, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    attempt = tmp_path / "runs" / job_id / "attempt-2"
+    assert illustrator.calls == [(attempt / "design.png", attempt / "dwelling-mask.png")]
+    first, second = service.client.get(f"/designs/{job_id}").json()["attempts"]
+    assert "visual.png" not in first["files"]  # only the accepted attempt is illustrated
+    assert service.client.get(second["files"]["visual.png"]).content == b"\x89PNG visual"
+    record = service.client.get(second["files"]["visual.json"]).json()
+    assert record == {
+        "model": "muse-image-1.0",
+        "accepted": True,
+        "iou": 0.83,
+        "min_iou": 0.6,
+        "reason": None,
+    }
+
+
+def test_a_rejected_visual_is_recorded_without_an_image(tmp_path: Path) -> None:
+    moved = Visual(VISUAL_MODEL, False, 0.31, "It moved.", None)
+    service = Service(tmp_path, illustrator=FakeIllustrator(moved))
+    job_id = service.queue()
+    service.worker.run_next()
+    files = service.client.get(f"/designs/{job_id}").json()["attempts"][1]["files"]
+    assert "visual.png" not in files
+    record = service.client.get(files["visual.json"]).json()
+    assert record["accepted"] is False and record["iou"] == 0.31
+    assert record["reason"] == "It moved."
+
+
+def test_a_failed_visual_leaves_the_design_as_it_was(tmp_path: Path) -> None:
+    down = FakeIllustrator(error=RuntimeError("the Meta Model API is down"))
+    service = Service(tmp_path, illustrator=down)
+    job_id = service.queue()
+    service.worker.run_next()
+    job = service.client.get(f"/designs/{job_id}").json()
+    assert job["status"] == "done" and job["error"] is None
+    assert job["accepted_attempt"] == 2 and job["attempts"][1]["status"] == "unknown"
+    files = job["attempts"][1]["files"]
+    assert "visual.png" not in files
+    record = service.client.get(files["visual.json"]).json()
+    assert record["accepted"] is False and record["iou"] is None
+    assert record["reason"] == "RuntimeError: the Meta Model API is down"
+
+
+def test_an_attempt_without_a_silhouette_is_not_illustrated(tmp_path: Path) -> None:
+    illustrator = FakeIllustrator(ACCEPTED_VISUAL)
+    service = Service(tmp_path, runner=maskless_runner, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert illustrator.calls == []
+    files = service.client.get(f"/designs/{job_id}").json()["attempts"][1]["files"]
+    record = service.client.get(files["visual.json"]).json()
+    assert record["accepted"] is False and "silhouette" in record["reason"]
+
+
+def test_a_design_with_nothing_accepted_gets_no_visual(tmp_path: Path) -> None:
+    illustrator = FakeIllustrator(ACCEPTED_VISUAL)
+    model = ScriptedModel("near", "near", "near")
+    service = Service(tmp_path, model=lambda: model, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert illustrator.calls == []
+    for attempt in service.client.get(f"/designs/{job_id}").json()["attempts"]:
+        assert not {"visual.png", "visual.json"} & set(attempt["files"])
+
+
+def test_a_design_is_done_before_its_visual_is_made(tmp_path: Path) -> None:
+    """The visual is extra: a restart while Muse Image works mustn't cost the
+    accepted design, so the job is already done when the visual starts."""
+    seen: list[tuple[str, int | None]] = []
+    service: Service | None = None
+
+    def illustrator(render: Path, mask: Path) -> Visual:
+        assert service is not None
+        job = service.store.get_job(job_id)
+        seen.append((job.status, job.accepted_attempt))
+        return ACCEPTED_VISUAL
+
+    service = Service(tmp_path, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert seen == [("done", 2)]
+
+
+def test_a_slow_edit_is_not_retried() -> None:
+    """Each retry of a slow edit would wait again, and be billed again."""
+    assert visual_client("key").max_retries == 0
+
+
+def test_a_job_says_while_its_visual_is_being_made(tmp_path: Path) -> None:
+    """Done, with the visual still to come: the web app keeps looking for it."""
+    during: list[bool] = []
+    service: Service | None = None
+
+    def illustrator(render: Path, mask: Path) -> Visual:
+        assert service is not None
+        during.append(service.client.get(f"/designs/{job_id}").json()["illustrating"])
+        return ACCEPTED_VISUAL
+
+    service = Service(tmp_path, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert during == [True]
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+
+
+def test_without_an_illustrator_no_visual_is_awaited(service: Service) -> None:
+    job_id = service.queue()
+    service.worker.run_next()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+
+
+def test_a_visual_cut_off_by_a_restart_is_recorded_as_such(tmp_path: Path) -> None:
+    """Otherwise the job would say its visual is coming for ever."""
+    service = Service(tmp_path, illustrator=FakeIllustrator(ACCEPTED_VISUAL))
+    job_id = service.queue()
+    service.worker.run_next()
+    attempt = tmp_path / "runs" / job_id / "attempt-2"
+    for name in ("visual.json", "visual.png"):  # as if the server stopped mid-visual
+        (attempt / name).unlink()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is True
+    service.worker.recover_visuals()
+    assert service.client.get(f"/designs/{job_id}").json()["illustrating"] is False
+    record = json.loads((attempt / "visual.json").read_text(encoding="utf-8"))
+    assert record["accepted"] is False and record["reason"] == "interrupted by a restart"

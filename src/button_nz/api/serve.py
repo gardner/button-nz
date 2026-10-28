@@ -5,7 +5,8 @@
 Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``; the
 site survey is read from ``DATA/survey.geojson``. The model key is read per
 job, so the server starts without one and a job queued without it fails with
-that reason.
+that reason. Each accepted design also gets an AI visual (``perception.visual``),
+made here in the server with the same key, never in the Blender sandbox.
 """
 
 import argparse
@@ -21,6 +22,7 @@ from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
 from button_nz.perception.survey import SURVEY_FILE
+from button_nz.perception.visual import illustrate_from_env
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -37,6 +39,7 @@ def main(argv: list[str] | None = None) -> None:
         model=ChatModel.from_env,
         runs_dir=args.data / "runs",
         survey=survey,
+        illustrator=illustrate_from_env,
     )
     site = load_demo_site()
     app = create_app(store, worker, site, survey=survey, aerial=demo_aerial(site))
