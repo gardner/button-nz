@@ -140,3 +140,11 @@ def test_raised_ground_touching_the_crop_edge_doesnt_hide_the_rest() -> None:
     other[20:25, 30:35] = 4.0  # x 1030-1035, touching a crop that ends at x 1030
     (shed,) = unlabelled([], grid(other), (1000.0, 2000.0, 1030.0, 2030.0))
     assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))
+
+
+def test_a_shed_inside_a_lawn_mask_is_still_reported() -> None:
+    """Ground labels say nothing stands there: they don't explain raised ground."""
+    lawn = mask("lawn", slice(2, 17), slice(5, 30))  # 25 m x 15 m, round the shed
+    labelled = features([lawn], grid(SHED_HEIGHT), BBOX, PIXEL_M)
+    (shed,) = unlabelled(labelled, grid(SHED_HEIGHT), BBOX)
+    assert shed.polygon.bounds == pytest.approx((1010.0, 2021.0, 1016.0, 2025.0))

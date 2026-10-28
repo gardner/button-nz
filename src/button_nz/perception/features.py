@@ -102,7 +102,9 @@ def unlabelled(labelled: Sequence[Feature], grid: TerrainGrid, bbox: BBox) -> li
     shapes = rio_features.shapes(raised.astype(np.uint8), mask=raised, transform=transform)
     raised_areas = union_all([shape(geometry) for geometry, _ in shapes])
     standing = _area(raised_areas.intersection(box(*bbox)))
-    covered = union_all([f.polygon for f in labelled]).buffer(grid.cell_m)
+    # Only labels that stand up explain raised ground: a lawn or driveway says nothing does.
+    explaining = [f.polygon for f in labelled if f.concept not in GROUND]
+    covered = union_all(explaining).buffer(grid.cell_m)
     left_over = _area(standing.difference(covered))
     pieces = list(left_over.geoms) if isinstance(left_over, MultiPolygon) else [left_over]
     found: list[Feature] = []
