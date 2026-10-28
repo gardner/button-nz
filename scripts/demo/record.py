@@ -77,6 +77,10 @@ def wait_for(
 
 
 IN_PROGRESS = ("Design queued…", "Design running…")
+RENDERS_LOADED = """() => ["Before", "After"].every((side) => {
+  const image = document.querySelector(`img[alt^="${side}"]`);
+  return image !== null && image.complete && image.naturalWidth > 0;
+})"""
 VISUAL_LOADED = """() => {
   const shown = [...document.querySelectorAll('img[alt^="AI illustration"]')].at(-1);
   return shown !== undefined && shown.complete && shown.naturalWidth > 0;
@@ -171,8 +175,11 @@ def show_visual(run: Run) -> None:
 def view_3d(run: Run) -> None:
     run.page.get_by_role("button", name="View in 3D").last.click()
     # The viewer is drawn below the attempt cards: bring it, not the button, on screen.
-    viewer = run.page.locator("canvas").last
-    viewer.wait_for(state="visible", timeout=30_000)
+    viewer = run.page.locator('[data-model="loaded"]').last
+    try:  # the canvas shows before the model has loaded: wait for the model
+        viewer.wait_for(state="visible", timeout=60_000)
+    except PlaywrightError as error:
+        raise RuntimeError("the 3D model didn't load") from error
     viewer.scroll_into_view_if_needed()
     run.cast.mark("the 3D model")
     run.page.wait_for_timeout(6000)
@@ -193,6 +200,10 @@ def revise(run: Run, change: str) -> None:
 
 
 def before_and_after(run: Run) -> None:
+    try:
+        run.page.wait_for_function(RENDERS_LOADED, timeout=30_000)
+    except PlaywrightError as error:
+        raise RuntimeError("the before and after renders didn't load") from error
     run.cast.mark("before and after")
     # The renders themselves, not the first text that says "Before".
     run.page.get_by_alt_text(re.compile(r"^Before")).first.scroll_into_view_if_needed()
