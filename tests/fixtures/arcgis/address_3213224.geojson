@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:2193"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 2450981,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1505941.63342408,
+          5336793.69313996
+        ]
+      },
+      "properties": {
+        "OBJECTID": 2450981,
+        "address_id": 3213224,
+        "road_id": 1788024,
+        "full_address_number": "35",
+        "full_road_name": "Victory Street",
+        "full_address": "35 Victory Street, Reefton",
+        "territorial_authority": "Buller District",
+        "unit": null,
+        "address_number": 35,
+        "address_number_suffix": null,
+        "address_number_high": null,
+        "road_name": "Victory",
+        "road_name_type": "Street",
+        "road_name_suffix": null,
+        "suburb_locality": "Reefton",
+        "town_city": "Reefton",
+        "is_land": "tr",
+        "address_lifecycle": "Current",
+        "full_road_name_ascii": "Victory Street",
+        "full_address_ascii": "35 Victory Street, Reefton",
+        "territorial_authority_ascii": "Buller District",
+        "road_name_ascii": "Victory",
+        "suburb_locality_ascii": "Reefton",
+        "town_city_ascii": "Reefton"
+      }
+    }
+  ]
+}

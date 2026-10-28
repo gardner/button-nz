@@ -13,13 +13,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from button_nz.geo.geometry import BBox, Point, Ring, bounds, contains, covers
 from button_nz.geo.tiles import tile_bounds
 
-DEMO_SITE_DIR = Path(__file__).resolve().parents[2] / "data" / "demo-site"
+__all__ = ["DEMO_SITE_DIR", "DemoSite", "contains", "load_demo_site"]
 
-type Point = tuple[float, float]
-type BBox = tuple[float, float, float, float]
-type Ring = tuple[Point, ...]
+DEMO_SITE_DIR = Path(__file__).resolve().parents[2] / "data" / "demo-site"
 
 
 @dataclass(frozen=True)
@@ -70,16 +69,6 @@ class DemoSite:
     open_items: tuple[str, ...]
 
 
-def contains(ring: Ring, point: Point) -> bool:
-    """Whether ``point`` lies inside the closed polygon ``ring`` (ray casting)."""
-    x, y = point
-    inside = False
-    for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
-        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
-            inside = not inside
-    return inside
-
-
 def load_demo_site(directory: Path = DEMO_SITE_DIR) -> DemoSite:
     """Load and check the demo-site manifest in ``directory``."""
     manifest = _read(directory / "site.json")
@@ -102,7 +91,7 @@ def load_demo_site(directory: Path = DEMO_SITE_DIR) -> DemoSite:
 def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
     if [p.parcel_id for p in site.parcels] != list(parcel_ids):
         raise ValueError("parcel_ids do not match the parcels file")
-    if site.extent_nztm != _bounds([pt for p in site.parcels for pt in p.ring]):
+    if site.extent_nztm != bounds([pt for p in site.parcels for pt in p.ring]):
         raise ValueError("extent.nztm is not the bounding box of the parcels")
     if not any(contains(p.ring, site.address_nztm) for p in site.parcels):
         raise ValueError("the address point is not inside any parcel")
@@ -114,7 +103,7 @@ def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
     for key, raster in site.rasters.items():
         if raster.asset != f"{raster.collection.rsplit('/', 1)[0]}/{raster.tile}.tiff":
             raise ValueError(f"{key}: asset is not tile {raster.tile} in its collection")
-        if not _covers(tile_bounds(raster.tile), site.extent_nztm):
+        if not covers(tile_bounds(raster.tile), site.extent_nztm):
             raise ValueError(f"{key}: tile {raster.tile} does not cover the site")
 
 
@@ -167,17 +156,3 @@ def _point(raw: Sequence[float]) -> Point:
 
 def _bbox(raw: Sequence[float]) -> BBox:
     return (float(raw[0]), float(raw[1]), float(raw[2]), float(raw[3]))
-
-
-def _bounds(points: Sequence[Point]) -> BBox:
-    xs, ys = [p[0] for p in points], [p[1] for p in points]
-    return (min(xs), min(ys), max(xs), max(ys))
-
-
-def _covers(outer: BBox, inner: BBox) -> bool:
-    return (
-        outer[0] <= inner[0]
-        and outer[1] <= inner[1]
-        and outer[2] >= inner[2]
-        and outer[3] >= inner[3]
-    )

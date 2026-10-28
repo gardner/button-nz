@@ -9,7 +9,7 @@ tile's footprint can never drift from the tile it names.
 
 import re
 
-type BBox = tuple[float, float, float, float]
+from button_nz.geo.geometry import BBox
 
 _LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"  # no I or O
 _SHEET_WIDTH = 24_000.0
