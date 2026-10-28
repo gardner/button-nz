@@ -10,7 +10,7 @@ standard library. The scene JSON comes from ``scene_input``: a local metre
 frame, x east, y north, z up, heights relative to ``frame.datum_m``.
 
 Objects:
-- ``Terrain``: one vertex per DEM cell centre, quads between neighbours.
+- ``Terrain``: one vertex per DEM cell centre, two triangles per cell.
 - ``AboveGround``: a column per cell whose nDSM exceeds ``COLUMN_MIN_M``,
   marking measured above-ground evidence (structures or vegetation), not
   modelled buildings.
@@ -77,11 +77,7 @@ def _terrain(grid: dict[str, Any]) -> None:
         for r in range(rows)
         for c in range(cols)
     ]
-    faces = [
-        (r * cols + c, (r + 1) * cols + c, (r + 1) * cols + c + 1, r * cols + c + 1)
-        for r in range(rows - 1)
-        for c in range(cols - 1)
-    ]
+    faces = terrain_math.terrain_faces(rows, cols)  # the triangles height_at samples
     mesh = b.data.meshes.new("Terrain")
     mesh.from_pydata(verts, [], faces)
     mesh.update()

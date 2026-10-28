@@ -125,3 +125,11 @@ def test_cells_excluded_by_a_raster_mask_raise(
         dst.write_mask(mask)
     with pytest.raises(ValueError, match="nodata"):
         read_terrain(str(path), rasters[1], EXTENT, margin_m=0.0)
+
+
+def test_rasters_of_different_sizes_raise(
+    tmp_path: Path, ground: NDArray[np.float32], rasters: tuple[str, str]
+) -> None:
+    smaller = _write(tmp_path / "small.tif", ground[:60, :60])
+    with pytest.raises(ValueError, match="grid"):
+        read_terrain(rasters[0], smaller, EXTENT, margin_m=0.0)
