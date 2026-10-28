@@ -9,22 +9,15 @@ LINZ geospatial data, and Blender. See [docs/plan.md](docs/plan.md).
 ```bash
 uv sync
 cp .env.example .env   # then fill in LINZ_BASEMAP_API_KEY; never commit .env
-uv run pre-commit install   # installs pre-commit and pre-push hooks
+uv run pre-commit install
 ```
 
-Pushing runs `scripts/pre-push-review.sh`: headless Claude Code (`claude -p`)
-reviews the outgoing commits and writes any P0-P2 findings to `ISSUES.md`, which
-blocks the push. Fix them, delete `ISSUES.md`, commit, and push again. To
-decline a finding, explain why in `BACKGROUND.md` (local, gitignored), which is
-added to the reviewer's prompt. The code is sent to Anthropic, so `claude` must
-be installed and logged in.
-
-Pull requests are reviewed again in CI by `.github/workflows/claude-review.yml`
-(`anthropics/claude-code-action`, authenticated with the `CLAUDE_CODE_OAUTH_TOKEN`
-secret from `claude setup-token`). Findings arrive as review threads, and every
-thread must be resolved before merge: fix it, or reply with why not and resolve
-it; the next review reads those replies. CI and local reviews share one
-subscription quota. Fork and Dependabot PRs skip the CI review (forks get no
+Pull requests are reviewed in CI by `.github/workflows/claude-review.yml`
+(`anthropics/claude-code-action` on Opus, authenticated with the
+`CLAUDE_CODE_OAUTH_TOKEN` secret from `claude setup-token`; the code is sent to
+Anthropic). Findings arrive as review threads, and every thread must be resolved
+before merge: fix it, or reply with why not and resolve it; the next review
+reads those replies. Fork and Dependabot PRs skip the review (forks get no
 secrets, and the token must never reach a freshly bumped action); review those
 by hand. Only maintainers' and reviewer bots' comments reach the reviewer.
 
