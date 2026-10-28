@@ -39,7 +39,8 @@ type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
 class Revision:
     """A design to change: the script that built it, the evaluator's verdict on
     it, and every change the owner has asked for, in their own words, oldest
-    first (a revision of a revision keeps the earlier requests)."""
+    first. The script already includes all but the latest change, so only that
+    one is asked for; the earlier ones are named so they are kept."""
 
     script: str
     feedback: str
@@ -47,10 +48,12 @@ class Revision:
 
     @property
     def request(self) -> str:
-        if len(self.instructions) == 1:
-            return self.instructions[0]
-        asked = "\n".join(f"{n}. {text}" for n, text in enumerate(self.instructions, 1))
-        return f"The owner has asked for these changes, oldest first; keep them all:\n{asked}"
+        *earlier, latest = self.instructions
+        if not earlier:
+            return latest
+        kept = "\n".join(f"- {text}" for text in earlier)
+        already = f"This design already includes these earlier changes; keep them:\n{kept}"
+        return f"{already}\n\nNow: {latest}"
 
 
 @dataclass(frozen=True)

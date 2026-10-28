@@ -266,3 +266,13 @@ def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path)
     prompt = model.seen[0][0].text
     assert "kept clear" in prompt and "(10.00, 2.00)" in prompt
     assert "existing buildings" in prompt and "(30.00, 12.00)" in prompt
+
+
+def test_earlier_changes_are_already_built_and_only_the_latest_is_asked_for() -> None:
+    """The revised script already includes the earlier changes: asking for them
+    again would apply a relative change ("3 m further back") twice."""
+    request = Revision("s", "f", ("Move it 3 m further back.", "Make it bigger.")).request
+    already, now = request.split("Now:")
+    assert "already includes" in already and "Move it 3 m further back." in already
+    assert "Make it bigger." in now and "Move it" not in now
+    assert Revision("s", "f", ("Make it bigger.",)).request == "Make it bigger."
