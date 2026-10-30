@@ -31,7 +31,10 @@ describe("ProductsPanel", () => {
     render(<ProductsPanel jobId="abc123" />);
     expect(fetch).not.toHaveBeenCalled();
     await ask();
-    expect(fetch).toHaveBeenCalledWith("/api/designs/abc123/products", undefined);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/designs/abc123/products",
+      undefined,
+    );
   });
 
   it("lists the products that fit, with their published price and source", async () => {
@@ -42,12 +45,18 @@ describe("ProductsPanel", () => {
     expect((vista as HTMLAnchorElement).href).toBe(
       "https://www.airhome.co.nz/airhome-vista/",
     );
-    expect(screen.getByText(/12\.2 × 4 m · 48 m² · 2 bed, 1 bath/)).toBeTruthy();
-    expect(screen.getByText(/\$190,000 \(incl GST; construction only\)/)).toBeTruthy();
+    expect(
+      screen.getByText(/12\.2 × 4 m · 48 m² · 2 bed, 1 bath/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/\$190,000 \(incl GST; construction only\)/),
+    ).toBeTruthy();
     expect(screen.getByText(/Excludes: decking, landscaping/)).toBeTruthy();
     // a price the supplier doesn't publish is said so, never estimated
     expect(
-      screen.getByText(/Price not published \(price on application; prices incl GST\)/),
+      screen.getByText(
+        /Price not published \(price on application; prices incl GST\)/,
+      ),
     ).toBeTruthy();
   });
 
@@ -56,9 +65,13 @@ describe("ProductsPanel", () => {
     render(<ProductsPanel jobId="abc123" />);
     await ask();
     expect(
-      await screen.findByText(/Not checked \(dimensions not labelled\): Keith Hay Homes Nook 60/),
+      await screen.findByText(
+        /Not checked \(dimensions not labelled\): Keith Hay Homes Nook 60/,
+      ),
     ).toBeTruthy();
-    expect(screen.getByText(/lies inside the accepted design's walls/)).toBeTruthy();
+    expect(
+      screen.getByText(/lies inside the accepted design's walls/),
+    ).toBeTruthy();
   });
 
   it("says when nothing in the catalogue fits", async () => {
@@ -66,7 +79,9 @@ describe("ProductsPanel", () => {
     render(<ProductsPanel jobId="abc123" />);
     await ask();
     expect(
-      await screen.findByText(/No catalogue product fits inside these 65 m² walls/),
+      await screen.findByText(
+        /No catalogue product fits inside these 65 m² walls/,
+      ),
     ).toBeTruthy();
   });
 
@@ -75,7 +90,9 @@ describe("ProductsPanel", () => {
     render(<ProductsPanel jobId="abc123" />);
     await ask();
     expect(
-      await screen.findByText(/Could not find products: design abc123 has no accepted attempt/),
+      await screen.findByText(
+        /Could not find products: design abc123 has no accepted attempt/,
+      ),
     ).toBeTruthy();
   });
 });
@@ -85,9 +102,15 @@ describe("ProductsPanel next steps", () => {
     serve(PRODUCTS);
     render(<ProductsPanel jobId="abc123" />);
     await ask();
-    const council = await screen.findByRole("link", { name: "Buller District Council" });
+    const council = await screen.findByRole("link", {
+      name: "Buller District Council",
+    });
     expect((council as HTMLAnchorElement).href).toContain("bullerdc.govt.nz");
     const firms = screen.getByRole("link", { name: /Local firms/ });
     expect((firms as HTMLAnchorElement).href).toContain("docs/suppliers.md");
+    // the owner, not the trades, files the records with the council
+    expect(
+      screen.getByText(/you give the council the\s+final plans/),
+    ).toBeTruthy();
   });
 });

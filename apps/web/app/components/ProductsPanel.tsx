@@ -53,9 +53,7 @@ function Found({ products }: { products: Products }) {
   return (
     <>
       {fits.length === 0 ? (
-        <p>
-          No catalogue product fits inside these {footprintM2} m² walls.
-        </p>
+        <p>No catalogue product fits inside these {footprintM2} m² walls.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {fits.map((p) => (
@@ -103,11 +101,17 @@ function NextSteps() {
           geotechnical investigation and an engineer.
         </li>
         <li>
-          Certifying plumbers, drainlayers and electricians, whose records go to
-          the council within 20 working days of completion.
+          Certifying plumbers, drainlayers and electricians, who give you their
+          records; within 20 working days of completion you give the council the
+          final plans and every record and certificate.
         </li>
       </ol>
-      <a href={SUPPLIERS} target="_blank" rel="noreferrer" className="underline">
+      <a
+        href={SUPPLIERS}
+        target="_blank"
+        rel="noreferrer"
+        className="underline"
+      >
         Local firms, connections and open questions for the council
       </a>
     </section>
@@ -117,7 +121,12 @@ function NextSteps() {
 function ProductCard({ product: p }: { product: Product }) {
   return (
     <li className="rounded border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-      <a href={p.url} target="_blank" rel="noreferrer" className="font-medium underline">
+      <a
+        href={p.url}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium underline"
+      >
         {p.supplier} {p.model}
       </a>
       <p>

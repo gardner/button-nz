@@ -12,7 +12,10 @@ describe("parseProducts", () => {
       lengthM: 12.2,
       widthM: 4,
       priceNzd: 190000,
-      sources: ["https://www.airhome.co.nz/airhome-vista/", "https://www.airhome.co.nz/faq/"],
+      sources: [
+        "https://www.airhome.co.nz/airhome-vista/",
+        "https://www.airhome.co.nz/faq/",
+      ],
     });
     expect(found.fits[1].priceNzd).toBeNull(); // not published: never a guess
     expect(found.unchecked.map((p) => p.model)).toEqual(["Nook 60"]);

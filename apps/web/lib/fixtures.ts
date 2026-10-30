@@ -112,8 +112,10 @@ export const PRODUCTS = {
       bathrooms: 1,
       price_nzd: 190000,
       price_basis: "incl GST; construction only",
-      excludes: "decking, landscaping, delivery, installation and any other costs",
-      west_coast: "Delivers anywhere in NZ (Christchurch factory); West Coast not named",
+      excludes:
+        "decking, landscaping, delivery, installation and any other costs",
+      west_coast:
+        "Delivers anywhere in NZ (Christchurch factory); West Coast not named",
       sources: [
         "https://www.airhome.co.nz/airhome-vista/",
         "https://www.airhome.co.nz/faq/",
