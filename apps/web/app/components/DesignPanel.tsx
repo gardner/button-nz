@@ -5,6 +5,7 @@ import { Component, type ReactNode, useState } from "react";
 import type { Attempt, Job } from "@/lib/api";
 
 import { ModelViewer } from "./ModelViewer";
+import { ProductsPanel } from "./ProductsPanel";
 import { BeforeAfter, DesignHistory, RevisionForm } from "./Revisions";
 import { useDesignChain } from "./useDesignChain";
 import { VERDICT_STYLE } from "./verdicts";
@@ -70,7 +71,10 @@ function DesignView({
         </ViewerBoundary>
       )}
       {job.status === "done" && job.acceptedAttempt !== null && (
-        <RevisionForm busy={busy} onSubmit={onRevise} />
+        <>
+          <ProductsPanel jobId={job.id} />
+          <RevisionForm busy={busy} onSubmit={onRevise} />
+        </>
       )}
     </>
   );

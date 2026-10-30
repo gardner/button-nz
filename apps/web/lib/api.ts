@@ -26,6 +26,7 @@ import {
   parseFeature,
   parseSurvey,
 } from "./features";
+import { type Products, parseProducts } from "./products";
 
 export { ApiError };
 
@@ -132,6 +133,14 @@ export async function reviseDesign(
 
 export async function getDesign(id: string): Promise<Job> {
   return parseJob(await request(`/designs/${encodeURIComponent(id)}`));
+}
+
+/** The real prefab homes that fit inside design `id`'s accepted walls;
+ * refused (409) if it has none. */
+export async function getProducts(id: string): Promise<Products> {
+  return parseProducts(
+    await request(`/designs/${encodeURIComponent(id)}/products`),
+  );
 }
 
 export async function getFeatures(): Promise<Survey> {
