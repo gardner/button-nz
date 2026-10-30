@@ -7,6 +7,7 @@ poll and inspect.
     GET  /designs/{id}                            status, attempts, accepted attempt
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
                                                   visual.png, visual.json
+    GET  /designs/{id}/products                   real prefabs that fit it (``api.products``)
 
 The surveyed site features are served too (``api.features``). Only those
 artifact names are served, and only as regular files in the job's own run
@@ -14,7 +15,7 @@ directory: never through a symlink.
 """
 
 import re
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime
@@ -28,7 +29,9 @@ from pydantic import BaseModel, Field
 from button_nz.api.aerial import SiteAerial, aerial_router, aerial_view
 from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
+from button_nz.api.products import products_router
 from button_nz.api.store import Job, Store
+from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
 
 ARTIFACT = re.compile(
@@ -76,6 +79,7 @@ def create_app(
     site: DemoSite,
     survey: Path | None = None,
     aerial: SiteAerial | None = None,
+    products: Sequence[Product] | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
@@ -88,6 +92,8 @@ def create_app(
     site_view = _site(site) | {"aerial": aerial_view(aerial)}
     app.include_router(features_router(store, survey))
     app.include_router(aerial_router(aerial))
+    catalogue = load_products() if products is None else products
+    app.include_router(products_router(store, worker.runs_dir, catalogue))
 
     @app.get("/site")
     def get_site() -> dict[str, Any]:
