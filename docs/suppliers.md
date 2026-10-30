@@ -20,7 +20,7 @@ Sources: MBIE's [Exemption Guidance][guide] (Version 2, effective 8 October 2026
 [granny flat page][bdc-gf]. **The building** must be new, standalone, single-storey and
 self-contained; 70 m² or less including any internal garage; at least 2 m from other
 residential buildings and legal boundaries, and not built across a boundary between allotments,
-even on one title (Building Act s 42B; [guidance p.53][guide]); a steel or timber frame, or a
+even on one title (Building Act s 42B; [guidance p.53][guide]); a lightweight steel or timber frame, or a
 certified composite structural product (added by the 8 October 2026 amendment); roof cladding
 no heavier than 20 kg/m² and wall cladding no heavier than 220 kg/m² ([BRANZ BU704][bu704]);
 floor no more than 1 m above ground and height no more than 4 m above floor; no level-entry
@@ -81,7 +81,7 @@ location where the building will be placed" ([guidance p.22][guide]).
 | Keith Hay Homes | Haven 70 | Transportable | 70 | 11.08 × 6.60 (unlabelled) | 2/1 | Not published | Not stated | [page](https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/haven-70.html) |
 | Lockwood | Haven (concept) | Panelised, built on site | 60 | 9.04 × 6.64 | 2/1 | Not published | Yes: West Coast contractor | [brochure p.9][lockwood] |
 | Lockwood | Lakeview (concept) | Panelised, built on site | 69.95 | 10.54 × 6.65 | 2/1 | Not published | Yes | [brochure p.11][lockwood] |
-| Lockwood | Ara (concept) | Panelised, built on site | 70 | 13.59 × 6.24 | 2/1 | Not published | Yes | [brochure p.17][lockwood] |
+| Lockwood | Ara (concept) | Panelised, built on site | 70 | 13.59 × 6.24 (bounding box: the plan is stepped) | 2/1 | Not published | Yes | [brochure p.17][lockwood] |
 | Living Little | Oldham | Transportable | 60 | 14.4 × 4.2 | 2/1 | $180,200 std / $189,100 premium; GST basis not stated | Yes: Hokitika on its list | [page](https://livinglittle.co.nz/homes/oldham/) |
 | Living Little | Cameron | Transportable | 70 | 16.6 × 4.2 | 2/2 | $199,000 std / $212,800 premium; GST basis not stated | Yes | [page](https://livinglittle.co.nz/homes/cameron/) |
 | AirHome | Vista | Transportable | 48 | 12.2 × 4 | 2/1 | $190,000 incl GST; home only | Nationwide; West Coast not named | [page](https://www.airhome.co.nz/airhome-vista/) |
@@ -123,10 +123,11 @@ location where the building will be placed" ([guidance p.22][guide]).
 - Westport's Aflex Homes and Hokitika's Simpson Residential also build transportables (see
   [Builders and prefab installers](#builders-and-prefab-installers)).
 
-**Caveats.** Only Lockwood states its area basis, so treat areas as marketing figures. Whether
-Russley's EPS panels on a steel base or Lockwood's solid timber count as a steel or timber frame
-or a certified composite structural product (section 1) is for the designer to confirm; BDC
-doesn't certify exempt flats. No supplier quoted delivery to Reefton.
+**Caveats.** No supplier states its area basis: Lockwood's "total area" is about length × width,
+and Ara's plan is stepped, so its 13.59 × 6.24 is a bounding box. Treat areas as marketing
+figures. Whether Russley's EPS panels on a steel base or Lockwood's solid timber count as a
+lightweight steel or timber frame or a certified composite structural product (section 1) is for
+the designer to confirm; BDC doesn't certify exempt flats. No supplier quoted delivery to Reefton.
 
 Other models of 70 m² or less from the same suppliers:
 
