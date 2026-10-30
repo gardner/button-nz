@@ -18,9 +18,11 @@ Sources: MBIE's [Exemption Guidance][guide] (Version 2, effective 8 October 2026
 [designers][fs-design] and [building professionals][fs-build] fact sheets (January 2026), the
 [Foundations Guidance][found] (August 2026) and Buller District Council's (BDC)
 [granny flat page][bdc-gf]. **The building** must be new, standalone, single-storey and
-self-contained; 70 m² or less including any internal garage; at least 2 m from other residential buildings
-and legal boundaries; lightweight framing and roof, or a certified composite structural product
-(added by the 8 October 2026 amendment), with wall cladding no heavier than 220 kg/m²;
+self-contained; 70 m² or less including any internal garage; at least 2 m from other
+residential buildings and legal boundaries, and not built across a boundary between allotments,
+even on one title (Building Act s 42B; [guidance p.53][guide]); a steel or timber frame, or a
+certified composite structural product (added by the 8 October 2026 amendment); roof cladding
+no heavier than 20 kg/m² and wall cladding no heavier than 220 kg/m² ([BRANZ BU704][bu704]);
 floor no more than 1 m above ground and height no more than 4 m above floor; no level-entry
 shower needing a membrane; electric or gas heating only; full Building Code compliance with "no
 waivers or modifications". Services must connect to networks where available, with an
@@ -363,6 +365,7 @@ connection point means a larger job or a [network extension][wp-ext]. Phone 03 7
   "Reefton Area" claims there stay unverified.
 
 [guide]: https://www.building.govt.nz/assets/Uploads/projects-and-consents/granny-flats-exemption/granny-flats-exemption-guidance.pdf
+[bu704]: https://www.branz.co.nz/documents/5373/BU704_Small_dwellings_exempt_from_consents_090326.pdf
 [fs-design]: https://www.building.govt.nz/assets/Uploads/projects-and-consents/granny-flats-exemption/fact-sheet-granny-flats-for-designers-lbp-design-architects-engineers.pdf
 [fs-build]: https://www.building.govt.nz/assets/Uploads/projects-and-consents/granny-flats-exemption/fact-sheet-granny-flats-for-building-professionals.pdf
 [found]: https://www.building.govt.nz/assets/Uploads/projects-and-consents/granny-flats-exemption/granny-flats-foundations-guidance.pdf
