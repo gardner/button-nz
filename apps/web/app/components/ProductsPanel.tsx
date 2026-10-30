@@ -53,7 +53,7 @@ function Found({ products }: { products: Products }) {
   return (
     <>
       {fits.length === 0 ? (
-        <p>No catalogue product fits inside these {footprintM2} m² walls.</p>
+        <p>No checked product fits inside these {footprintM2} m² walls.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {fits.map((p) => (

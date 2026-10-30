@@ -80,7 +80,7 @@ describe("ProductsPanel", () => {
     await ask();
     expect(
       await screen.findByText(
-        /No catalogue product fits inside these 65 m² walls/,
+        /No checked product fits inside these 65 m² walls/,
       ),
     ).toBeTruthy();
   });
