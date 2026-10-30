@@ -19,7 +19,8 @@ Sources: MBIE's [Exemption Guidance][guide] (Version 2, effective 8 October 2026
 [Foundations Guidance][found] (August 2026) and Buller District Council's (BDC)
 [granny flat page][bdc-gf]. **The building** must be new, standalone, single-storey and
 self-contained; 70 m² or less including any internal garage; at least 2 m from other dwellings
-and legal boundaries; lightweight framing and roof, wall cladding no heavier than 220 kg/m²;
+and legal boundaries; lightweight framing and roof, or a certified composite structural product
+(added by the 8 October 2026 amendment), with wall cladding no heavier than 220 kg/m²;
 floor no more than 1 m above ground and height no more than 4 m above floor; no level-entry
 shower needing a membrane; electric or gas heating only; full Building Code compliance with "no
 waivers or modifications". Services must connect to networks where available, with an
@@ -331,8 +332,10 @@ The independent point of supply means a new connection (ICP), not a sub-circuit 
 2. Westpower issues a Network Connection Agreement with a new ICP, valid 6 months; the owner's
    retailer accepts the ICP.
 3. After wiring, the contractor sends the agreement, Certificate of Compliance, Record of
-   Inspection and a date (48 hours' notice) to connections@westpower.co.nz. Only a Westpower
-   Approved Contractor connects and energises, within 2 working days.
+   Inspection and a requested date, with at least 48 hours' notice ([contractors'
+   procedure][wp-contractors]), to connections@westpower.co.nz. Only a Westpower Approved
+   Contractor connects and energises; it confirms the date, which "may be different" from the
+   one requested.
 
 From 1 April 2026: **$500 ex GST** connection charge, plus $339/kVA at the distribution-substation
 tier ($0 at others), plus contractor and retailer costs ([charges][wp-charges]). No boundary
@@ -393,6 +396,7 @@ connection point means a larger job or a [network extension][wp-ext]. Phone 03 7
 [ewrb-org]: https://kete.mbie.govt.nz/EW/OrganisationSearch/
 [wiki-wp]: https://en.wikipedia.org/wiki/Westpower
 [wp-connect]: https://westpower.co.nz/consumers/connecting-our-network/how-to-get-connected
+[wp-contractors]: https://westpower.co.nz/contractors/connecting-our-network/how-get-connected
 [wp-charges]: https://westpower.co.nz/contractors/connection-charges/posted-charges
 [wp-ext]: https://westpower.co.nz/consumers/connecting-our-network/network-extensions
 [ciwr]: https://cdn.sanity.io/files/uy55ipiu/public_content/dacde279afac6d3368e2ceaf9d5a9ea3ab7439f9.pdf
