@@ -30,7 +30,7 @@ location where the building will be placed" ([guidance p.22][guide]).
 
 | Role | Obligations | Source |
 |---|---|---|
-| Homeowner | Get a **PIM before work starts**; finish within **2 years** of it. Within **20 working days of completion**, give council the final plans, Records of Work, Certificates of Work and energy certificates, and pay any development contribution. Missing documents: $500 infringement fee or a fine up to $1,000. | [Guidance p.11][guide]; [BDC][bdc-gf] |
+| Homeowner | Get a **PIM before work starts**; finish within **2 years** of it (council can extend this if asked before then). Within **20 working days of completion**, give council the final plans, Records of Work, Certificates of Work and energy certificates, and pay any development contribution. Missing documents: $500 infringement fee or a fine up to $1,000. | [Guidance p.11][guide]; [BDC][bdc-gf] |
 | Designer (LBP Design, Registered Architect or CPEng) | Preliminary plans for the PIM. Address natural hazards, bylaws and planning rules. **Certificate of Work** for restricted design work; update it and the plans if anything changes, and give the owner the final set. | [Designers fact sheet][fs-design] |
 | LBP builder | Restricted building work "carried out or supervised by" an LBP, to the PIM plans. **Record of Work** to homeowner and council. Work of $30,000 or more needs a written contract, checklist and disclosure statement. | [Building professionals fact sheet][fs-build] |
 | Ground investigation | Shallow investigation (hand auger and Scala penetrometer, at least 2 tests at opposite corners) by "a suitably qualified and experienced professional (typically an LBP Builder or a Geotechnician)". Standard NZS 3604 or MBIE foundations apply only on "good" or "suitable" ground: liquefaction no worse than TC2-equivalent, soil class S or M, ULS bearing of at least 200 kPa, no peat, uncontrolled fill or organic soil, slope under about 18°. Otherwise the site "shall require site-specific geotechnical investigation, and specific engineering design". | [Foundations Guidance][found] |
@@ -148,8 +148,10 @@ Other models of 70 m² or less from the same suppliers:
 ## 3. Professionals
 
 No designer, surveyor or structural engineer with a website was found in Reefton; Westport and
-Greymouth, each about 80 km away, are the nearest hubs. An engineer is needed only if the ground
-is outside MBIE's "good" or "suitable" limits ([Foundations][found]). None of the geotechnical
+Greymouth, each about 80 km away, are the nearest hubs. Ground outside MBIE's "good" or "suitable"
+limits needs specific engineering design ([Foundations][found]); that is one reason to need an
+engineer, not the only one. The designer confirms whether the chosen building, such as a
+proprietary steel-base or solid-timber system, needs specific engineering. None of the geotechnical
 firms names the Alpine Fault.
 
 ### Geotechnical
