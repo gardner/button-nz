@@ -217,7 +217,7 @@
       "width_m": 6.24,
       "dimensions_labelled": true,
       "floor_area_m2": 70,
-      "area_basis": "\"total area\"; basis not stated (about length × width)",
+      "area_basis": "\"total area\"; basis not stated. Its plan is stepped, not a rectangle: length × width is its bounding box",
       "bedrooms": 2,
       "bathrooms": 1,
       "price_nzd": null,

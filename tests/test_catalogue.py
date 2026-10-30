@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from shapely import Polygon
+from shapely import Point, Polygon
 from shapely.affinity import rotate, translate
 
 from button_nz.catalogue import (
@@ -154,3 +154,9 @@ def test_unlabelled_dimensions_are_never_presented_as_fitting() -> None:
 def test_a_field_of_the_wrong_type_is_refused(tmp_path: Path, override: dict[str, Any]) -> None:
     with pytest.raises(CatalogueError, match="sample-home"):
         load_products(write(tmp_path / "c.json", product(**override)))
+
+
+def test_a_curved_footprint_with_no_long_walls_is_still_tried() -> None:
+    round_house = Point(0, 0).buffer(5, quad_segs=32)  # 128 edges of about 0.25 m
+    assert fits(round_house, 9, 3.5)
+    assert not fits(round_house, 9, 5)
