@@ -41,3 +41,9 @@ repos:
         entry: uv run --locked shellcheck
         language: system
         types: [shell]
+      - id: prettier
+        name: Prettier (web app)
+        # The files and settings of the web app's own format:check, which CI runs.
+        entry: apps/web/node_modules/.bin/prettier --write
+        language: system
+        files: ^apps/web/(app/.*\.(ts|tsx|css)|lib/.*\.ts|next\.config\.ts|eslint\.config\.mjs|vitest\.config\.mts)$
