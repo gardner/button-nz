@@ -18,7 +18,7 @@ Sources: MBIE's [Exemption Guidance][guide] (Version 2, effective 8 October 2026
 [designers][fs-design] and [building professionals][fs-build] fact sheets (January 2026), the
 [Foundations Guidance][found] (August 2026) and Buller District Council's (BDC)
 [granny flat page][bdc-gf]. **The building** must be new, standalone, single-storey and
-self-contained; 70 m² or less including any internal garage; at least 2 m from other dwellings
+self-contained; 70 m² or less including any internal garage; at least 2 m from other residential buildings
 and legal boundaries; lightweight framing and roof, or a certified composite structural product
 (added by the 8 October 2026 amendment), with wall cladding no heavier than 220 kg/m²;
 floor no more than 1 m above ground and height no more than 4 m above floor; no level-entry
