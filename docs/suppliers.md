@@ -27,7 +27,8 @@ floor no more than 1 m above ground and height no more than 4 m above floor; no 
 shower needing a membrane; electric or gas heating only; full Building Code compliance with "no
 waivers or modifications". Services must connect to networks where available, with an
 **independent point of supply** for electricity (and gas, if used). Drainage is limited to 30
-fixture units, no pumped systems, a DN100 main drain at 1:60 and DN65 branches at 1:40. For a
+fixture units, no pumped systems, a DN100 main drain at 1:60 and DN65 branches at 1:40, among
+other plumbing conditions (the full list is in [guidance pp.31–35][guide]). For a
 unit built off-site, "a project information memorandum (PIM) is only required for the final
 location where the building will be placed" ([guidance p.22][guide]).
 
@@ -327,8 +328,11 @@ Residential ([Annual Plan 2026/27][ap]). Ask BDC whether a granny flat changes t
 
 Westpower runs the network "across Westland, Grey, and part of the Buller Districts"
 ([about](https://westpower.co.nz/about)); [Wikipedia][wiki-wp] names Reefton as a network town.
-The independent point of supply means a new connection (ICP), not a sub-circuit off the house
-(a reading of [guidance p.33][guide]). The steps ([how to get connected][wp-connect]):
+An independent supply "does not necessarily require a new connection": the flat may be supplied
+from the site's existing connection if it has its own switchboard and circuits, not the house's
+wiring; a registered electrician and the lines company decide whether that connection has the
+capacity ([Westland District Council][wdc-exempt]). If it needs a new connection (ICP), the steps
+([how to get connected][wp-connect]):
 
 1. The electrical contractor submits a [Customer Initiated Work Request][ciwr] (7 working days).
 2. Westpower issues a Network Connection Agreement with a new ICP, valid 6 months; the owner's
@@ -400,6 +404,7 @@ connection point means a larger job or a [network extension][wp-ext]. Phone 03 7
 [wiki-wp]: https://en.wikipedia.org/wiki/Westpower
 [wp-connect]: https://westpower.co.nz/consumers/connecting-our-network/how-to-get-connected
 [wp-contractors]: https://westpower.co.nz/contractors/connecting-our-network/how-get-connected
+[wdc-exempt]: https://westlanddc.govt.nz/property-rates-and-consents/building-consent-authority-and-general-information/exempt-building-work/
 [wp-charges]: https://westpower.co.nz/contractors/connection-charges/posted-charges
 [wp-ext]: https://westpower.co.nz/consumers/connecting-our-network/network-extensions
 [ciwr]: https://cdn.sanity.io/files/uy55ipiu/public_content/dacde279afac6d3368e2ceaf9d5a9ea3ab7439f9.pdf
