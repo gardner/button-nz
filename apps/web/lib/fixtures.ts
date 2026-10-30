@@ -90,3 +90,78 @@ export const SURVEY = {
     },
   ],
 };
+
+/** GET /designs/abc123/products: one product that fits, one unchecked. */
+export const PRODUCTS = {
+  footprint_m2: 65.0,
+  basis:
+    "A product fits if its published outside footprint lies inside the accepted design's walls.",
+  fits: [
+    {
+      id: "airhome-vista",
+      supplier: "AirHome",
+      model: "Vista",
+      url: "https://www.airhome.co.nz/airhome-vista/",
+      type: "transportable",
+      length_m: 12.2,
+      width_m: 4.0,
+      dimensions_labelled: true,
+      floor_area_m2: 48,
+      area_basis: "not stated",
+      bedrooms: 2,
+      bathrooms: 1,
+      price_nzd: 190000,
+      price_basis: "incl GST; construction only",
+      excludes:
+        "decking, landscaping, delivery, installation and any other costs",
+      west_coast:
+        "Delivers anywhere in NZ (Christchurch factory); West Coast not named",
+      sources: [
+        "https://www.airhome.co.nz/airhome-vista/",
+        "https://www.airhome.co.nz/faq/",
+      ],
+    },
+    {
+      id: "south-peak-nile",
+      supplier: "South Peak Homes",
+      model: "Nile",
+      url: "https://southpeakhomes.co.nz/floor-plans/nile/",
+      type: "transportable",
+      length_m: 12.0,
+      width_m: 3.5,
+      dimensions_labelled: true,
+      floor_area_m2: 42,
+      area_basis: "not stated",
+      bedrooms: 2,
+      bathrooms: 1,
+      price_nzd: null,
+      price_basis: "price on application; prices incl GST",
+      excludes: "not listed",
+      west_coast: "West Coast is on its region list",
+      sources: ["https://southpeakhomes.co.nz/floor-plans/nile/"],
+    },
+  ],
+  unchecked: [
+    {
+      id: "keith-hay-nook-60",
+      supplier: "Keith Hay Homes",
+      model: "Nook 60",
+      url: "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nook-60.html",
+      type: "transportable",
+      length_m: 9.52,
+      width_m: 6.6,
+      dimensions_labelled: false,
+      floor_area_m2: 60,
+      area_basis: "not stated",
+      bedrooms: 2,
+      bathrooms: 1,
+      price_nzd: null,
+      price_basis: "not published",
+      excludes: "delivery and foundations",
+      west_coast: "not stated",
+      sources: [
+        "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nook-60.html",
+      ],
+    },
+  ],
+};
