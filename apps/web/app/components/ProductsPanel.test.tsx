@@ -46,7 +46,7 @@ describe("ProductsPanel", () => {
       "https://www.airhome.co.nz/airhome-vista/",
     );
     expect(
-      screen.getByText(/12\.2 × 4 m · 48 m² · 2 bed, 1 bath/),
+      screen.getByText(/12\.2 × 4 m · 48 m² \(not stated\) · 2 bed, 1 bath/),
     ).toBeTruthy();
     expect(
       screen.getByText(/\$190,000 \(incl GST; construction only\)/),

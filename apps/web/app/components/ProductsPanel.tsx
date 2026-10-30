@@ -130,7 +130,7 @@ function ProductCard({ product: p }: { product: Product }) {
         {p.supplier} {p.model}
       </a>
       <p>
-        {p.lengthM} × {p.widthM} m · {p.floorAreaM2} m² · {p.bedrooms} bed,{" "}
+        {p.lengthM} × {p.widthM} m · {p.floorAreaM2} m² ({p.areaBasis}) · {p.bedrooms} bed,{" "}
         {p.bathrooms} bath · {p.type}
       </p>
       <p>
