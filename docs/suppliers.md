@@ -37,7 +37,7 @@ location where the building will be placed" ([guidance p.22][guide]).
 | Homeowner | Get a **PIM before work starts**; finish within **2 years** of it (council can extend this if asked before then). Within **20 working days of completion**, give council the final plans, Records of Work, Certificates of Work and energy certificates, and pay any development contribution. Missing documents: $500 infringement fee or a fine up to $1,000. | [Guidance p.11][guide]; [BDC][bdc-gf] |
 | Designer (LBP Design, Registered Architect or CPEng) | Preliminary plans for the PIM. Address natural hazards, bylaws and planning rules. **Certificate of Work** for restricted design work; update it and the plans if anything changes, and give the owner the final set. | [Designers fact sheet][fs-design] |
 | LBP builder | Restricted building work "carried out or supervised by" an LBP, to the PIM plans. **Record of Work** to homeowner and council. Work of $30,000 or more needs a written contract, checklist and disclosure statement. | [Building professionals fact sheet][fs-build] |
-| Ground investigation | Shallow investigation (hand auger and Scala penetrometer, at least 2 tests at opposite corners) by "a suitably qualified and experienced professional (typically an LBP Builder or a Geotechnician)". Standard NZS 3604 or MBIE foundations apply only on "good" or "suitable" ground: liquefaction no worse than TC2-equivalent, soil class S or M, ULS bearing of at least 200 kPa, no peat, uncontrolled fill or organic soil, slope under about 18°. Otherwise the site "shall require site-specific geotechnical investigation, and specific engineering design". | [Foundations Guidance][found] |
+| Ground investigation | Shallow investigation (hand auger and Scala penetrometer, at least 2 tests at opposite corners) by "a suitably qualified and experienced professional (typically an LBP Builder or a Geotechnician)". Two routes, kept apart: NZS 3604 foundations need its "good ground", a ULS bearing capacity of at least **300 kPa**; the guidance's own foundation solutions also cover "low bearing capacity" soils of **200–300 kPa** and TC2-equivalent liquefaction, with further restrictions. Either way: soil class no worse than M, no peat, uncontrolled fill or organic soil, slope under about 18°. Otherwise the site "shall require site-specific geotechnical investigation, and specific engineering design". | [Foundations Guidance][found] |
 | Plumber and drainlayer | PGDB-authorised. **Record of Work** to the homeowner (s 27A, Plumbers, Gasfitters, and Drainlayers Act 2006) on the [prescribed form](https://www.building.govt.nz/assets/Uploads/projects-and-consents/granny-flats-exemption/form-record-of-work-sanitary-plumbing-and-drainlaying-for-non-consented-small-standalone-dwelling.pdf) ([BDC copy](https://bullerdc.govt.nz/media/ujlnp1pg/form-record-of-work-sanitary-plumbing-and-drainlaying-for-non-consented-small-standalone-dwelling.pdf)). | [Guidance p.46][guide] |
 | Electrician | **Certificate of Compliance and Electrical Safety Certificate** to homeowner and contracting party within 20 working days. An owner-occupier may use the s 79 domestic exemption, but a licensed inspector must inspect that work. | [Guidance pp.12, 46][guide] |
 | Gasfitter | **Certificate of Compliance and Gas Safety Certificate** to both parties within 20 working days. | [Guidance p.46][guide] |
@@ -124,8 +124,9 @@ location where the building will be placed" ([guidance p.22][guide]).
   [Builders and prefab installers](#builders-and-prefab-installers)).
 
 **Caveats.** Only Lockwood states its area basis, so treat areas as marketing figures. Whether
-EPS on steel or solid timber counts as "lightweight construction" is for council or an LBP to
-confirm. No supplier quoted delivery to Reefton.
+Russley's EPS panels on a steel base or Lockwood's solid timber count as a steel or timber frame
+or a certified composite structural product (section 1) is for the designer to confirm; BDC
+doesn't certify exempt flats. No supplier quoted delivery to Reefton.
 
 Other models of 70 m² or less from the same suppliers:
 
