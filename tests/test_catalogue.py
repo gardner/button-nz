@@ -86,6 +86,8 @@ def test_unlabelled_dimensions_are_marked() -> None:
         ({"floor_area_m2": 75}, "70"),
         ({"url": "http://example.com"}, "https"),
         ({"price_nzd": 0}, "price"),
+        # an internal area can't fill the whole outside footprint: the walls take some
+        ({"area_basis": "internal", "floor_area_m2": 48.0}, "internal"),
     ],
 )
 def test_a_product_that_breaks_a_rule_is_refused(
