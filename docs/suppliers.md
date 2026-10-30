@@ -123,8 +123,9 @@ location where the building will be placed" ([guidance p.22][guide]).
 - Westport's Aflex Homes and Hokitika's Simpson Residential also build transportables (see
   [Builders and prefab installers](#builders-and-prefab-installers)).
 
-**Caveats.** No supplier states its area basis: Lockwood's "total area" is about length × width,
-and Ara's plan is stepped, so its 13.59 × 6.24 is a bounding box. Treat areas as marketing
+**Caveats.** No supplier states its area basis. Lockwood's "total area" is about length × width
+for Haven and Lakeview; Ara's plan is stepped, so its 13.59 × 6.24 is a bounding box, and Ember's
+and Teoteo's (below) multiply out well over 70 m² too. Treat areas as marketing
 figures. Whether Russley's EPS panels on a steel base or Lockwood's solid timber count as a
 lightweight steel or timber frame or a certified composite structural product (section 1) is for
 the designer to confirm; BDC doesn't certify exempt flats. No supplier quoted delivery to Reefton.
@@ -140,9 +141,9 @@ Other models of 70 m² or less from the same suppliers:
 | Keith Hay | Comfort 70 | 70 | 11.08 × 6.60 (unlabelled) | 3/1 | Not published | [page](https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/comfort-70.html) |
 | Lockwood | Tiro | 60 | 13.138 × 4.568 | 2 or 1 (brochure conflicts)/1 | Not published | [brochure p.5][lockwood] |
 | Lockwood | Eden | 60 | 10.438 × 5.738 | 2/1 | Not published | [brochure p.7][lockwood] |
-| Lockwood | Ember | 70 | 11.36 × 7.01 | 2/1 | Not published | [brochure p.13][lockwood] |
+| Lockwood | Ember | 70 | 11.36 × 7.01 (= 79.6 m² against 70: likely a bounding box; the brochure doesn't say) | 2/1 | Not published | [brochure p.13][lockwood] |
 | Lockwood | Roskill | 70 (plan says 60; conflict) | 9.80 × 7.54 | 2/1 | Not published | [brochure p.15][lockwood] |
-| Lockwood | Teoteo | 70 | 12.94 × 6.78 | 2/1 | Not published | [brochure p.19][lockwood] |
+| Lockwood | Teoteo | 70 | 12.94 × 6.78 (= 87.7 m² against 70: likely a bounding box; the brochure doesn't say) | 2/1 | Not published | [brochure p.19][lockwood] |
 | Living Little | Curtis | 60 | 14.4 × 4.2 | 2/separate | $180,200 / $188,000 | [page](https://livinglittle.co.nz/homes/curtis/) |
 | Living Little | Brodie | 60 | 14.4 × 4.2 | 3/1 | $182,800 / $190,600 | [page](https://livinglittle.co.nz/homes/brodie/) |
 | Living Little | Hendry | 50 | 12.25 × 4.2 | 1/separate | $156,200 / $166,100 | [page](https://livinglittle.co.nz/homes/hendry/) |
