@@ -53,6 +53,7 @@ def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     mask.write_bytes(b"\x89PNG mask")
     (out_dir / "design.py").write_text(script, encoding="utf-8")
     measurements = {"good": GOOD, "near": NEAR}[script]
+    (out_dir / "measurements.json").write_text(json.dumps(measurements), encoding="utf-8")
     return DesignOutputs(measurements, out_dir / "design.py", None, png, mask)
 
 
