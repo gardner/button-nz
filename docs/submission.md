@@ -89,6 +89,8 @@ revision, as the sample. This waits on the open item below.
    required.
 3. **Confirmation of what stands on the site.** The survey decisions in
    `data/demo-site/decisions.json` are the team's, labelled as pending this.
-4. **The supplier list for the prefab catalogue (#11).** Without it, the
-   product, cost and next-steps view is not built.
+4. **The prefab catalogue (#11).** The suppliers, products and local
+   professionals are researched and sourced in [suppliers.md](suppliers.md);
+   the catalogue (`data/catalogue/products.json`) and `GET /designs/{id}/products`
+   are built, but the product, cost and next-steps view is not.
 5. **Deployment:** whether to deploy, and where (see 1 above).
