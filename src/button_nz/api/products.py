@@ -8,6 +8,7 @@ The footprint is the walls Blender measured of the accepted attempt
 
 import json
 from collections.abc import Sequence
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -19,11 +20,12 @@ from button_nz.api.store import Store
 from button_nz.catalogue import Product, matches
 
 BASIS = (
-    "A product fits if its published outside footprint lies inside the accepted "
-    "design's walls, square to one of them, so it keeps the design's boundary, "
-    "separation and kept-area checks. Its height and floor level are not checked: "
-    "the suppliers' figures don't include them. Products whose published dimensions "
-    "aren't labelled can't be checked."
+    "A product fits if its published outside wall footprint lies inside the accepted "
+    "design's walls, square to one of them. It keeps the design's boundary, separation "
+    "and kept-area verdicts only if its eaves overhang no further than the design's, "
+    "and the suppliers mostly don't publish eaves: those checks need running on the "
+    "product's own outline. Its height and floor level are not checked either. Products "
+    "whose published dimensions aren't labelled can't be checked."
 )
 
 
@@ -57,8 +59,10 @@ def products_router(store: Store, runs_dir: Path, products: Sequence[Product]) -
     return router
 
 
+@lru_cache(maxsize=64)
 def _walls(attempt: Path) -> Polygon:
-    """The accepted attempt's walls, as measured: an accepted attempt always has them."""
+    """The accepted attempt's walls, as measured: an accepted attempt always has them,
+    and never changes, so they are measured once."""
     raw = json.loads((attempt / "measurements.json").read_text(encoding="utf-8"))
     footprint = parse_measurements(raw).footprint
     if footprint is None:

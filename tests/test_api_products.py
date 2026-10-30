@@ -34,7 +34,7 @@ def test_the_products_that_fit_an_accepted_design(tmp_path: Path) -> None:
     assert [p["id"] for p in found["unchecked"]] == ["unlabelled"]
     assert found["footprint_m2"] == 30.0
     assert found["fits"][0]["sources"] == ["https://example.com/sample"]
-    assert "height" in found["basis"]  # says what fitting doesn't check
+    assert "height" in found["basis"] and "eaves" in found["basis"]  # what isn't checked
 
 
 def test_only_an_accepted_design_has_products(tmp_path: Path) -> None:
@@ -53,3 +53,12 @@ def test_the_real_catalogue_is_served_by_default(tmp_path: Path) -> None:
     found = service.client.get(f"/designs/{job_id}/products").json()
     assert found["fits"] == []  # nothing real is as small as 6 m x 5 m
     assert {p["supplier"] for p in found["unchecked"]} == {"Keith Hay Homes"}
+
+
+def test_the_walls_are_measured_once_per_accepted_attempt(tmp_path: Path) -> None:
+    service = with_products(tmp_path, FITS)
+    job_id = service.queue()
+    service.worker.run_next()
+    first = service.client.get(f"/designs/{job_id}/products").json()
+    (tmp_path / "runs" / job_id / "attempt-2" / "measurements.json").unlink()
+    assert service.client.get(f"/designs/{job_id}/products").json() == first

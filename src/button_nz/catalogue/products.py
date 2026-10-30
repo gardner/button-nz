@@ -67,6 +67,11 @@ def _problem(product: Product) -> str | None:
             return f"{name} must be positive"
     if product.floor_area_m2 > MAX_FLOOR_AREA_M2:
         return f"over the exemption's {MAX_FLOOR_AREA_M2:g} m²"
+    if (
+        product.area_basis == "internal"
+        and product.floor_area_m2 >= product.length_m * product.width_m
+    ):
+        return "an internal area can't fill the outside footprint: check both figures"
     if product.price_nzd is not None and product.price_nzd <= 0:
         return "a price must be positive, or null if not published"
     return None

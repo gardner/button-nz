@@ -1,12 +1,16 @@
 """Which prefab products fit inside an accepted design's footprint.
 
-A product that fits inside the footprint is at least as far from every
-boundary, building and kept area as the design the evaluator passed, so it
-keeps those checks' verdicts. Its height and floor level are not checked:
-the catalogue doesn't hold them.
+A product that fits has walls no closer to any boundary, building or kept
+area than the design's walls. That alone doesn't keep the design's verdicts:
+the evaluator checks the outline with its eaves, and a product keeps them only
+if its eaves overhang no further than the design's. The suppliers mostly don't
+publish eaves, so those checks need running on the product's own outline. Its
+height and floor level are not checked either.
 
-A product's rectangle is tried square to each of the footprint's walls, both
-ways round, and fits if it lies inside the footprint to within ``TOLERANCE_M``.
+A product's rectangle is tried square to each of the footprint's walls, and to
+its minimum rotated rectangle (so a curved footprint is tried too), both ways
+round. It fits if it lies inside the footprint to within ``TOLERANCE_M``. Other
+orientations aren't tried: a fit can be missed, never invented.
 """
 
 import math
@@ -52,12 +56,16 @@ def fits(footprint: Polygon, length: float, width: float) -> bool:
 
 
 def _wall_angles(footprint: Polygon) -> list[float]:
-    """The directions of the footprint's walls, modulo a right angle."""
+    """The directions of the footprint's walls and of its minimum rotated
+    rectangle, modulo a right angle."""
     angles: dict[int, float] = {}
-    for (x0, y0), (x1, y1) in _edges(footprint):
-        if math.hypot(x1 - x0, y1 - y0) >= MIN_WALL_M:
-            angle = math.atan2(y1 - y0, x1 - x0) % (math.pi / 2)
-            angles.setdefault(round(angle * 1000), angle)
+    walls = [e for e in _edges(footprint) if math.dist(*e) >= MIN_WALL_M]
+    rectangle = footprint.minimum_rotated_rectangle
+    if isinstance(rectangle, Polygon):
+        walls.append(next(_edges(rectangle)))
+    for (x0, y0), (x1, y1) in walls:
+        angle = math.atan2(y1 - y0, x1 - x0) % (math.pi / 2)
+        angles.setdefault(round(angle * 1000), angle)
     return list(angles.values())
 
 
