@@ -44,7 +44,12 @@ if ! grep -q '^META_API_KEY=.' "$repo/.env"; then
   exit 1
 fi
 
-# Tools the services need, found where this shell finds them.
+# Tools the services need, found where this shell finds them. A missing one
+# stops the install: nothing else here runs Blender, so the services would
+# start and every design would fail.
+for tool in uv node pnpm blender; do
+  command -v "$tool" >/dev/null || { echo "$tool isn't on PATH." >&2; exit 1; }
+done
 path="$(dirname "$(command -v uv)"):$(dirname "$(command -v node)"):$(dirname "$(command -v blender)"):/usr/local/bin:/usr/bin:/bin"
 
 (cd "$repo" && uv sync --frozen)
