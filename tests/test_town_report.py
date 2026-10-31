@@ -34,6 +34,7 @@ RESULTS = [
 ]
 META = {
     "commit": "abc1234",
+    "place": "Testville",
     "envelope": (1.0, 2.0, 3.0, 4.0),
     "outside_zone": 5,
     "other_intent": {"Road": 2},
@@ -43,7 +44,7 @@ META = {
             "service": "https://example.test/parcels",
             "licence": "CC-BY-4.0",
             "attribution": "Example Council",
-            "captured": "2015-12 to 2016-06",
+            "dates": "Captured 2015-12 to 2016-06",
         }
     ],
     "products": {"a": "Supplier A Model A (10 x 5 m)", "b": "Supplier B Model B (12 x 6 m)"},
@@ -66,7 +67,8 @@ def test_the_report_states_the_counts_sources_and_what_is_not_checked() -> None:
     assert "| Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves | 1 | 25% |" in text
     assert "| Room under LINZ outlines, stated dimensions | 3 | 75% |" in text
     assert "abc1234" in text
-    assert "Example Council" in text and "CC-BY-4.0" in text
+    assert text.startswith("# Town screen: room for a real prefab in Testville")
+    assert "**Parcels** (CC-BY-4.0; Example Council). Captured 2015-12 to 2016-06." in text
     assert "## What it doesn't check" in text
     assert "Supplier A Model A (10 x 5 m)" in text
     assert "Road: 2" in text
@@ -99,3 +101,11 @@ def test_the_map_colours_each_section_by_its_result(tmp_path: Path) -> None:
     assert at(75, 15) == COLOURS["building"]
     assert at(20, 80) == COLOURS["outlines_only"]
     assert at(80, 80) == COLOURS["clear"]
+
+
+def test_long_map_notes_wrap_inside_the_image(tmp_path: Path) -> None:
+    def height(notes: list[str]) -> int:
+        path = draw_map([], {}, [], (0, 0, 100, 100), tmp_path / "n.png", notes=notes, width_px=400)
+        return Image.open(path).height
+
+    assert height(["word " * 60]) > height(["word"])

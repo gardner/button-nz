@@ -7,7 +7,7 @@ zone of BDC's published zones layer, and whose intent is a title
 """
 
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -27,8 +27,9 @@ BDC_PLANNING_ZONES = (
 BDC_ATTRIBUTION = "Buller District Council; LINZ, Crown copyright reserved"
 RESIDENTIAL = "ZONING='re'"  # "RESIDENTIAL ZONE" in BDC's zones layer
 SECTION_INTENTS = frozenset({"DCDB", "Fee Simple Title"})
-# Reefton and Blacks Point: every Residential zone near Reefton, to the next 100 m.
-REEFTON: BBox = (1505100.0, 5334600.0, 1507800.0, 5337700.0)
+# Reefton's Residential zones, to the next 100 m. Blacks Point's, 850 m to the
+# south-east, are left out: (1507400, 5334600, 1507800, 5335400) covers them.
+REEFTON: BBox = (1505100.0, 5336200.0, 1506700.0, 5337700.0)
 
 type Area = Polygon | MultiPolygon
 
@@ -93,6 +94,12 @@ def residential_sections(parcels: Iterable[Feature], zones: Iterable[Feature]) -
         sections[parcel_id] = Section(parcel_id, area)
     ordered = tuple(sections[k] for k in sorted(sections))
     return Selection(ordered, outside, dict(other))
+
+
+def buildings_on(sections: Sequence[Section], buildings: Sequence[Polygon]) -> tuple[Polygon, ...]:
+    """The ``buildings`` touching at least one of ``sections``, in order."""
+    tree = STRtree([s.shape for s in sections])
+    return tuple(b for b in buildings if len(tree.query(b, predicate="intersects")))
 
 
 def outlines(features: Iterable[Feature]) -> tuple[Polygon, ...]:

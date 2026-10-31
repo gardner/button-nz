@@ -72,7 +72,7 @@ def report(results: Sequence[SectionResult], meta: Mapping[str, Any]) -> str:
     counts = summarise(results)
     total = counts["sections"]
     lines = [
-        "# Town screen: room for a real prefab",
+        f"# Town screen: room for a real prefab in {meta['place']}",
         "",
         _introduction(meta, total, counts["with_buildings"]),
         "",
@@ -158,8 +158,8 @@ def _checks() -> str:
 
 def _source(source: Mapping[str, str]) -> str:
     return (
-        f"- {source['title']}: {source['service']}. {source['licence']}, "
-        f"{source['attribution']}. Captured {source['captured']}."
+        f"- **{source['title']}** ({source['licence']}; {source['attribution']}). "
+        f"{source['dates']}. {source['service']}"
     )
 
 

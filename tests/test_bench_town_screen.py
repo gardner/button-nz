@@ -61,6 +61,6 @@ def test_the_outlines_capture_dates_come_from_the_outlines() -> None:
     found = feature_set((outline("2015-12-26", "2016-03-01"), outline("2016-01-01", "2016-06-01")))
     listed = sources(town([], [], found), ["https://example.test/dem.tiff"])
     by_title = {s["title"]: s for s in listed}
-    dates = by_title["LINZ NZ Building Outlines"]["captured"]
+    dates = by_title["LINZ NZ Building Outlines"]["dates"]
     assert dates == "Captured from aerial photos of 2015-12-26 to 2016-06-01"
     assert "no licence stated" in by_title["Buller District Council zones (Residential)"]["licence"]

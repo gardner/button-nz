@@ -7,7 +7,7 @@ import pytest
 from shapely import box
 from shapely.geometry import mapping
 
-from button_nz.town.sources import outlines, residential_sections
+from button_nz.town.sources import Section, buildings_on, outlines, residential_sections
 
 
 def feature(geometry: Any, **properties: Any) -> dict[str, Any]:
@@ -74,3 +74,10 @@ def test_a_feature_without_polygon_geometry_is_refused() -> None:
     }
     with pytest.raises(ValueError, match="Point"):
         outlines([point])
+
+
+def test_the_buildings_on_sections_are_those_touching_one() -> None:
+    sections = [Section(1, box(0, 0, 10, 10)), Section(2, box(20, 0, 30, 10))]
+    on, off = box(2, 2, 4, 4), box(50, 50, 52, 52)
+    straddling = box(9, 2, 21, 4)
+    assert buildings_on(sections, [on, off, straddling]) == (on, straddling)

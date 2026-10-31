@@ -26,7 +26,7 @@ LEGEND = (
     ("clear", "A real prefab fits, clear of everything over 2 m on the LiDAR"),
     ("outlines_only", "Fits under the LINZ building outlines, but not clear today"),
     ("none", "No prefab in the catalogue fits"),
-    ("building", "LINZ building outline (2015–16)"),
+    ("building", "LINZ building outline (2015-16)"),
 )
 
 
@@ -54,7 +54,9 @@ def draw_map(
     size = max(12, width_px // 70)
     font = ImageFont.load_default(size=size)
     line = round(size * 1.5)
-    legend_height = line * (len(LEGEND) + len(notes) + 3)
+    heading = _wrap(title, font, width_px - 2 * line)
+    wrapped = [w for note in notes for w in _wrap(note, font, width_px - 2 * line)]
+    legend_height = line * (len(heading) + len(LEGEND) + len(wrapped) + 2)
     image = Image.new("RGB", (width_px, map_height + legend_height), COLOURS["background"])
     draw = ImageDraw.Draw(image)
 
@@ -72,21 +74,37 @@ def draw_map(
             fill(shapes[result.parcel_id], COLOURS[colour_of(result)], COLOURS["edge"])
     for building in buildings:
         fill(building, COLOURS["building"], None)
-    _legend(draw, font, map_height, line, title, notes)
+    _legend(draw, font, map_height, line, heading, wrapped)
     image.save(path, format="PNG", optimize=True)
     return path
 
 
+type Font = ImageFont.FreeTypeFont | ImageFont.ImageFont
+
+
+def _wrap(text: str, font: Font, width: float) -> list[str]:
+    """``text`` in lines no wider than ``width`` pixels, broken between words."""
+    lines: list[str] = []
+    for word in text.split():
+        if lines and font.getlength(f"{lines[-1]} {word}") <= width:
+            lines[-1] = f"{lines[-1]} {word}"
+        else:
+            lines.append(word)
+    return lines
+
+
 def _legend(
     draw: ImageDraw.ImageDraw,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    font: Font,
     top: int,
     line: int,
-    title: str,
+    title: Sequence[str],
     notes: Sequence[str],
 ) -> None:
-    x, y = line, top + line // 2
-    draw.text((x, y), title, fill=COLOURS["text"], font=font)
+    x, y = line, top + line // 2 - line
+    for heading in title:
+        y += line
+        draw.text((x, y), heading, fill=COLOURS["text"], font=font)
     for name, label in LEGEND:
         y += line
         draw.rectangle((x, y + 2, x + line - 4, y + line - 6), fill=COLOURS[name])
