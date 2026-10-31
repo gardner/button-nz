@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from record import outcome, partial_path
+from record import fixed_by, outcome, partial_path, placed_name
 
 FEEDBACK = "Blender did not finish with your design: it crashed while running your script."
 
@@ -29,3 +29,21 @@ def test_the_shown_design_ends_on_its_status_line_not_on_words_in_feedback(
 
 def test_a_failed_take_is_kept_beside_the_one_asked_for() -> None:
     assert partial_path(Path("out/demo-raw.webm")) == Path("out/demo-raw-partial.webm")
+
+
+@pytest.mark.parametrize(
+    ("text", "who"),
+    [
+        (
+            "What is on the site This survey is fixed on this server, as the owner decided it.",
+            "the owner",
+        ),
+        ("What is on the site #1 shed Existing building Keep clear Ignore", None),
+    ],
+)
+def test_the_take_reads_who_fixed_the_survey(text: str, who: str | None) -> None:
+    assert fixed_by(text) == who
+
+
+def test_the_take_reads_which_product_a_button_places() -> None:
+    assert placed_name("Place the AirHome Vista on the site") == "AirHome Vista"
