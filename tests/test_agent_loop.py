@@ -34,13 +34,18 @@ SPLIT = GOOD | {  # two separate boxes: rendered, then refused by the contract
 MEASURED = {"good": GOOD, "near": NEAR, "broken": BROKEN, "off": OFF_TERRAIN, "split": SPLIT}
 
 
-@pytest.fixture
-def site() -> DesignSite:
+def flat_site() -> DesignSite:
+    """The 40 m x 20 m parcel on flat ground at 100 m."""
     dem = np.full((20, 40), 100.0)
     grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
     frame = LocalFrame(origin=(0.0, 0.0))
     scene = scene_input(grid, frame, [PARCEL])
     return DesignSite(scene, frame, SiteContext(parcels=(PARCEL,), terrain=grid))
+
+
+@pytest.fixture
+def site() -> DesignSite:
+    return flat_site()
 
 
 class ScriptedModel:
