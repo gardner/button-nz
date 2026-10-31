@@ -23,9 +23,13 @@ def finished(
     parent: str | None = None,
     instruction: str | None = None,
 ) -> str:
-    """A done job whose attempt 1 failed and attempt 2 (if any) was accepted."""
+    """A done job whose attempt 1 failed and attempt 2 (if any) was accepted,
+    recording the survey's decisions as they were when it ran, as the worker does."""
     job = store.create_job("A small studio.", True, parent, instruction)
     store.mark_running(job.id)
+    survey = Survey.read(runs.parent / SURVEY_FILE)
+    assert survey is not None
+    record_survey(store, survey, runs / job.id)
     for number in (1, 2):
         store.add_attempt(AttemptRecord(job.id, number, "fail", "too close", ()))
         folder = runs / job.id / f"attempt-{number}"
@@ -35,6 +39,16 @@ def finished(
         (folder / "script" / "design.blend").write_bytes(b"BLENDER")
     store.mark_done(job.id, accepted)
     return job.id
+
+
+def record_survey(store: Store, survey: Survey, run: Path) -> None:
+    run.mkdir(parents=True, exist_ok=True)
+    used = {
+        "survey_id": survey.id,
+        "decisions": store.decisions(survey.id),
+        "buildings_complete": store.buildings_complete(survey.id),
+    }
+    (run / "survey.json").write_text(json.dumps(used), encoding="utf-8")
 
 
 @pytest.fixture
@@ -68,13 +82,16 @@ def test_a_revision_is_packed_after_the_design_it_revises(data: Path) -> None:
     assert manifest["survey"]["decided_by"] == "the owner"
 
 
-def test_the_survey_is_packed_with_its_decisions(data: Path) -> None:
+def test_the_survey_is_packed_with_the_decisions_the_design_was_checked_against(
+    data: Path,
+) -> None:
     store = Store(data / "button.db")
-    job = finished(store, data / "runs", 2)
     found = Survey.read(data / SURVEY_FILE)
     assert found is not None
     store.decide(found.id, "1", "ignore")
     store.set_buildings_complete(found.id, True)
+    job = finished(store, data / "runs", 2)
+    store.decide(found.id, "2", "keep_clear")  # after it ran: not what it was checked against
     pack(data, job, "the owner", data / "sample.zip")
     with zipfile.ZipFile(data / "sample.zip") as z:
         survey = json.loads(z.read("survey.json"))
@@ -133,4 +150,32 @@ def test_a_linked_folder_is_refused_not_skipped(data: Path) -> None:
     (data / "design.blend").rename(elsewhere / "design.blend")
     script.symlink_to(elsewhere, target_is_directory=True)
     with pytest.raises(SampleError, match="link"):
+        pack(data, job, "the owner", data / "sample.zip")
+
+
+def test_designs_checked_against_different_decisions_are_refused(data: Path) -> None:
+    store = Store(data / "button.db")
+    found = Survey.read(data / SURVEY_FILE)
+    assert found is not None
+    original = finished(store, data / "runs", 2)
+    store.decide(found.id, "1", "building")
+    revised = finished(store, data / "runs", 2, original, "Move it north.")
+    with pytest.raises(SampleError, match="different"):
+        pack(data, revised, "the owner", data / "sample.zip")
+    assert not (data / "sample.zip").exists()
+
+
+def test_a_design_with_no_record_of_its_survey_is_refused(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    (data / "runs" / job / "survey.json").unlink()
+    with pytest.raises(SampleError, match="no record"):
+        pack(data, job, "the owner", data / "sample.zip")
+
+
+def test_a_survey_replaced_since_the_design_ran_is_refused(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    write_survey(data / SURVEY_FILE, "tree", "tree", "shed")
+    with pytest.raises(SampleError, match="changed"):
         pack(data, job, "the owner", data / "sample.zip")

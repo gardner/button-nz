@@ -28,6 +28,7 @@ from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
 INTERRUPTED = "interrupted by a restart"
+SURVEY_USED = "survey.json"  # in each job's run folder: what its design was checked against
 log = logging.getLogger(__name__)
 NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
 
@@ -151,7 +152,7 @@ class Worker:
 
         result = design(
             job.brief,
-            self._confirmed_site(),
+            self._confirmed_site(self.runs_dir / job.id),
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
@@ -162,13 +163,23 @@ class Worker:
         )
         return result.accepted
 
-    def _confirmed_site(self) -> DesignSite:
-        """The site with what a person has confirmed on the survey, if any."""
+    def _confirmed_site(self, run: Path) -> DesignSite:
+        """The site with what a person has confirmed on the survey, if any,
+        recorded in ``run`` as the survey and decisions this design is checked
+        against: they can change after it runs."""
         survey = None if self.survey is None else Survey.read(self.survey)
+        decided = {} if survey is None else self.store.decisions(survey.id)
+        complete = survey is not None and self.store.buildings_complete(survey.id)
+        run.mkdir(parents=True, exist_ok=True)
+        used = {
+            "survey_id": None if survey is None else survey.id,
+            "decisions": decided,
+            "buildings_complete": complete,
+        }
+        (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
         if survey is None:
             return self.site()
-        decisions = {k: Decision(v) for k, v in self.store.decisions(survey.id).items()}
-        complete = self.store.buildings_complete(survey.id)
+        decisions = {k: Decision(v) for k, v in decided.items()}
         return confirmed(self.site(), survey, decisions, complete)
 
 

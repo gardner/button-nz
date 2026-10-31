@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from button_nz.api.jobs import SURVEY_USED
 from button_nz.api.store import Job, Store
 from button_nz.demo_site import DemoSite, load_demo_site
 from button_nz.perception.confirm import Survey
@@ -74,10 +75,7 @@ def pack(data: Path, job_id: str, decided_by: str, out: Path) -> None:
         for k, job in enumerate(designs, 1)
         for packed in _files(data / "runs" / job.id, job, f"design-{k}")
     ]
-    survey = Survey.read(data / SURVEY_FILE)
-    if survey is None:
-        raise SampleError(f"no survey in {data}")
-    surveyed = _surveyed(store, survey, decided_by)
+    surveyed = _surveyed(data, designs, decided_by)
     site = load_demo_site()
     manifest = {
         "packaged_at": datetime.now(UTC).isoformat(),
@@ -133,8 +131,19 @@ def _files(run: Path, job: Job, folder: str) -> list[Packed]:
     return found
 
 
-def _surveyed(store: Store, survey: Survey, decided_by: str) -> dict[str, Any]:
-    decisions = store.decisions(survey.id)
+def _surveyed(data: Path, designs: list[Job], decided_by: str) -> dict[str, Any]:
+    """The survey with the decisions every design was checked against, as the
+    worker recorded them when each ran. Designs checked against different ones,
+    or a survey replaced since, are refused."""
+    used = [_used(data / "runs" / job.id, job) for job in designs]
+    if any(u != used[0] for u in used):
+        raise SampleError("the designs were checked against different survey decisions")
+    if used[0]["survey_id"] is None:
+        raise SampleError("the designs ran without a survey: there is no site record to pack")
+    survey = Survey.read(data / SURVEY_FILE)
+    if survey is None or survey.id != used[0]["survey_id"]:
+        raise SampleError(f"the survey in {data} has changed since the designs ran")
+    decisions: dict[str, str] = used[0]["decisions"]
     features = [
         {**f, "properties": {**f["properties"], "decision": decisions.get(str(f["id"]))}}
         for f in survey.collection["features"]
@@ -143,9 +152,16 @@ def _surveyed(store: Store, survey: Survey, decided_by: str) -> dict[str, Any]:
         **survey.collection,
         "survey_id": survey.id,
         "decided_by": decided_by,
-        "buildings_complete": store.buildings_complete(survey.id),
+        "buildings_complete": used[0]["buildings_complete"],
         "features": features,
     }
+
+
+def _used(run: Path, job: Job) -> dict[str, Any]:
+    record = run / SURVEY_USED
+    if record.is_symlink() or not record.is_file():
+        raise SampleError(f"design {job.id} has no record of the survey it was checked against")
+    return json.loads(record.read_text(encoding="utf-8"))
 
 
 def _design(store: Store, job: Job) -> dict[str, Any]:
