@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 import httpx
 import pytest
 from shapely import box
-from shapely.geometry import mapping
+from shapely.geometry import mapping, shape
 
 from button_nz.config import ServiceEndpoints
 from button_nz.town.sources import (
@@ -95,20 +95,22 @@ def test_the_buildings_on_sections_are_those_touching_one() -> None:
     assert buildings_on(sections, [on, off, straddling]) == (on, straddling)
 
 
-def test_outlines_are_fetched_for_everywhere_a_section_reaches() -> None:
-    # A big section with its point in the zone runs far past the envelope's edge.
+def test_zones_and_outlines_are_fetched_for_everywhere_a_section_reaches() -> None:
+    # A big parcel touches the envelope, but its point (225, 70) lies in a zone
+    # that doesn't reach back into the envelope at all.
     big = feature(box(50, 50, 400, 90), ParcelID=1, ParcelIntent="DCDB")
-    zone = feature(box(0, 0, 300, 100), ZONING="re")  # holds the section's point (225, 70)
-    asked: list[str] = []
+    zone = feature(box(150, 0, 300, 100), ZONING="re")
+    asked: dict[str, tuple[float, float, float, float]] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = urlsplit(str(request.url))
         params = {k: v[0] for k, v in parse_qs(url.query).items()}
-        if "Building_Outlines" in url.path:
-            asked.append(params["geometry"])
-            found: list[dict[str, Any]] = []
-        else:
-            found = [zone] if "Planning" in url.path else [big]
+        x0, y0, x1, y1 = (float(v) for v in params["geometry"].split(","))
+        layer = "outlines" if "Building_Outlines" in url.path else "zones"
+        layer = layer if "Property" not in url.path else "parcels"
+        asked[layer] = (x0, y0, x1, y1)
+        candidates = {"zones": [zone], "parcels": [big], "outlines": []}[layer]
+        found = [f for f in candidates if shape(f["geometry"]).intersects(box(x0, y0, x1, y1))]
         return httpx.Response(
             200, text=json.dumps({"type": "FeatureCollection", "features": found})
         )
@@ -116,5 +118,8 @@ def test_outlines_are_fetched_for_everywhere_a_section_reaches() -> None:
     client = httpx.Client(transport=httpx.MockTransport(handler))
     data = fetch(ServiceEndpoints.from_env({}), client, (0.0, 0.0, 100.0, 100.0))
     assert [s.parcel_id for s in data.selection.sections] == [1]
-    west, south, east, north = (float(v) for v in asked[0].split(","))
+    for layer in ("zones", "outlines"):
+        west, south, east, north = asked[layer]
+        assert west <= 50 and south <= 50 and east >= 400 and north >= 90, layer
+    west, south, east, north = asked["outlines"]
     assert west <= 48 and south <= 48 and east >= 402 and north >= 92

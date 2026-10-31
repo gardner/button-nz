@@ -58,13 +58,14 @@ class TownData:
 
 
 def fetch(endpoints: ServiceEndpoints, client: httpx.Client, bbox: BBox) -> TownData:
-    """The sections in ``bbox`` and the building outlines around them. A
-    section can reach well past ``bbox``, so the outlines are fetched for
-    everywhere the sections reach, plus ``OUTLINE_MARGIN_M``."""
+    """The sections touching ``bbox`` and the building outlines around them.
+    A parcel can reach well past ``bbox``, so the zones are fetched for
+    everywhere the parcels reach, and the outlines for everywhere the
+    sections reach plus ``OUTLINE_MARGIN_M``."""
     layers = PropertyLayers.from_endpoints(endpoints, client)
-    zone_layer = FeatureLayer(BDC_PLANNING_ZONES, "CC-BY-4.0", BDC_ATTRIBUTION, client)
-    zones = zone_layer.in_envelope(bbox, where=RESIDENTIAL)
     parcels = layers.parcels.in_envelope(bbox)
+    zone_layer = FeatureLayer(BDC_PLANNING_ZONES, "CC-BY-4.0", BDC_ATTRIBUTION, client)
+    zones = zone_layer.in_envelope(_extent(parcels.features, bbox), where=RESIDENTIAL)
     selection = residential_sections(parcels.features, zones.features)
     building_outlines = layers.buildings.in_envelope(reach(selection.sections, OUTLINE_MARGIN_M))
     return TownData(
@@ -118,6 +119,14 @@ def outlines(features: Iterable[Feature]) -> tuple[Polygon, ...]:
         area = _area(feature)
         found.extend(area.geoms if isinstance(area, MultiPolygon) else [area])
     return tuple(found)
+
+
+def _extent(features: Sequence[Feature], otherwise: BBox) -> BBox:
+    """The bounds of every one of ``features``, or ``otherwise`` if there are none."""
+    if not features:
+        return otherwise
+    x0, y0, x1, y1 = union_all([_area(f) for f in features]).bounds
+    return (x0, y0, x1, y1)
 
 
 def _area(feature: Feature) -> Area:
