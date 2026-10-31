@@ -36,6 +36,33 @@ describe("parseJob", () => {
     );
     expect(job.parentId).toBeNull();
     expect(job.instruction).toBeNull();
+    expect(job.product).toBeNull();
+  });
+
+  it("reads the product a design places", () => {
+    const job = parseJob({
+      ...JOB,
+      product: {
+        id: "vista",
+        name: "AirHome Vista",
+        length_m: 12.2,
+        width_m: 4,
+      },
+    });
+    expect(job.product).toEqual({
+      id: "vista",
+      name: "AirHome Vista",
+      lengthM: 12.2,
+      widthM: 4,
+    });
+  });
+
+  it("reads a placed product since dropped from the catalogue, without a size", () => {
+    const product = { id: "gone", name: "gone", length_m: null, width_m: null };
+    expect(parseJob({ ...JOB, product }).product).toMatchObject({
+      lengthM: null,
+      widthM: null,
+    });
   });
 
   it("reads which design a revision changes, and how", () => {
@@ -55,6 +82,8 @@ describe("parseJob", () => {
     [{ ...JOB, parent_id: 7 }],
     [{ ...JOB, illustrating: "yes" }],
     [{ ...JOB, instruction: undefined }],
+    [{ ...JOB, product: undefined }],
+    [{ ...JOB, product: { id: "vista" } }],
     [null],
   ])("rejects a malformed job", (raw) => {
     expect(() => parseJob(raw)).toThrow(ApiError);
@@ -75,6 +104,18 @@ describe("the client", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       brief: "A small studio.",
       allow_observations: false,
+    });
+  });
+
+  it("asks for a design that places a product", async () => {
+    const fetch = vi.fn().mockResolvedValue(respond(JOB, 202));
+    vi.stubGlobal("fetch", fetch);
+    await createDesign("A small studio.", true, "airhome-vista");
+    const [, init] = fetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      brief: "A small studio.",
+      allow_observations: true,
+      product_id: "airhome-vista",
     });
   });
 

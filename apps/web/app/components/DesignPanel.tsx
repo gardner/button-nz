@@ -2,7 +2,8 @@
 
 import { Component, type ReactNode, useState } from "react";
 
-import type { Attempt, Job } from "@/lib/api";
+import type { Attempt, Job, PlacedProduct } from "@/lib/api";
+import type { Product } from "@/lib/products";
 
 import { ModelViewer } from "./ModelViewer";
 import { ProductsPanel } from "./ProductsPanel";
@@ -32,6 +33,9 @@ export function DesignPanel({ pollMs = 2000 }: { pollMs?: number }) {
           parent={parent}
           busy={busy}
           onRevise={(instruction) => revise(shown, instruction)}
+          onPlace={(product) =>
+            design(shown.brief, shown.allowObservations, product.id)
+          }
         />
       )}
     </section>
@@ -46,16 +50,19 @@ function DesignView({
   parent,
   busy,
   onRevise,
+  onPlace,
 }: {
   job: Job;
   parent: Job | undefined;
   busy: boolean;
   onRevise: (instruction: string) => void;
+  onPlace: (product: Product) => void;
 }) {
   const [viewing, setViewing] = useState<number | null>(null);
   const model = modelUrl(job, viewing ?? job.acceptedAttempt);
   return (
     <>
+      {job.product && <Placing product={job.product} />}
       <JobStatus job={job} />
       {parent && <BeforeAfter before={parent} after={job} />}
       {job.attempts.map((attempt) => (
@@ -72,11 +79,25 @@ function DesignView({
       )}
       {job.status === "done" && job.acceptedAttempt !== null && (
         <>
-          <ProductsPanel jobId={job.id} />
+          <ProductsPanel jobId={job.id} busy={busy} onPlace={onPlace} />
           <RevisionForm busy={busy} onSubmit={onRevise} />
         </>
       )}
     </>
+  );
+}
+
+/** Which real product this design places, and the walls it must have. */
+function Placing({ product }: { product: PlacedProduct }) {
+  const size =
+    product.lengthM === null || product.widthM === null
+      ? ""
+      : `: walls ${product.lengthM} × ${product.widthM} m`;
+  return (
+    <p className="font-medium">
+      Placing the {product.name}
+      {size}
+    </p>
   );
 }
 
