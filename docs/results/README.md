@@ -10,10 +10,12 @@ indications, not proof.
 ## Experiment C: what does feedback buy? (`button_nz.bench.design_ablation`)
 
 **On the surveyed site** ([report](experiment-c-surveyed-site/report.md),
-code ff1f59a, #57). The two sheds are existing buildings and the three
-trees are kept clear: the team's decisions from the aerial photo and the
-LiDAR, pending the owner's confirmation. Building separation and keep-clear
-are real checks here, and can fail. Muse Spark 1.3, 3 briefs x 3 repeats.
+code ff1f59a, #57). The two features the survey took for sheds are
+existing buildings and the three trees are kept clear: the team's decisions
+from the aerial photo and the LiDAR. The owner has since said nothing is
+built on the section, so the sheds are a test of the separation check, not a
+record of the site. Building separation and keep-clear are real checks here,
+and can fail. Muse Spark 1.3, 3 briefs x 3 repeats.
 
 | Condition | Runs | Accepted | Execution rate | Repair rate | Mean attempts | Mean observations | Mean s | Incomplete |
 |---|---|---|---|---|---|---|---|---|
