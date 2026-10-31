@@ -24,6 +24,7 @@ from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
+from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
@@ -160,8 +161,15 @@ class Worker:
             allow_observations=job.allow_observations,
             on_attempt=record,
             revising=self._revising(job),
+            product=self._placing(job),
         )
         return result.accepted
+
+    def _placing(self, job: Job) -> Footprint | None:
+        """The footprint of the product ``job`` places, as it was when placed."""
+        if job.product is None:
+            return None
+        return Footprint(job.product.name, job.product.length_m, job.product.width_m)
 
     def _confirmed_site(self, run: Path) -> DesignSite:
         """The site with what a person has confirmed on the survey, if any,

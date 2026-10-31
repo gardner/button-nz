@@ -57,6 +57,16 @@ class Proposal:
 
 
 @dataclass(frozen=True)
+class Footprint:
+    """A real product's published outside footprint: its walls must be this
+    rectangle, either way round. The building itself lies within it."""
+
+    name: str  # e.g. "AirHome Vista"
+    length_m: float
+    width_m: float
+
+
+@dataclass(frozen=True)
 class SiteContext:
     parcels: tuple[Ring, ...]  # every parcel on the title, NZTM
     terrain: TerrainGrid

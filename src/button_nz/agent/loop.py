@@ -14,12 +14,12 @@ from pathlib import Path
 
 from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
 from button_nz.agent.observe import ObservationError, observe
-from button_nz.agent.prompt import describe, system_prompt
+from button_nz.agent.prompt import describe, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import SceneInput
-from button_nz.evaluation import Check, InvalidProposal, Report, Status, evaluate
+from button_nz.evaluation import Check, Footprint, InvalidProposal, Report, Status, evaluate
 
 __all__ = [
     "Attempt",
@@ -99,6 +99,7 @@ def design(
     evaluator_feedback: bool = True,
     on_attempt: Callable[[Attempt], None] | None = None,
     revising: Revision | None = None,
+    product: Footprint | None = None,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
     change it as the owner asks. Before each attempt the model may request up to
@@ -107,12 +108,14 @@ def design(
     execution errors (Experiment C's ablation): a script that ran ends the run,
     since asking again would tell the model it failed. The evaluator still
     decides acceptance, and every attempt still records its verdict.
-    ``on_attempt`` sees each attempt as it ends."""
+    ``on_attempt`` sees each attempt as it ends. Placing a real ``product``, the
+    brief gives its footprint, and every attempt is checked to be it."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     prompt = system_prompt(site.scene, keep_clear, buildings)
-    conversation = [Turn("system", prompt), Turn("user", brief)]
+    asked = brief if product is None else f"{brief}\n\n{placing(product)}"
+    conversation = [Turn("system", prompt), Turn("user", asked)]
     if revising is not None:
         conversation += [
             Turn("design", revising.script),
@@ -129,7 +132,7 @@ def design(
             attempt = Attempt(number, "", ask.error, None, directory, ask.observed)
             _write_attempt(attempt)
         else:
-            attempt = _attempt(number, script, site, runner, directory, ask.observed)
+            attempt = _attempt(number, script, site, runner, directory, ask.observed, product)
         attempts.append(attempt)
         if on_attempt is not None:
             on_attempt(attempt)
@@ -220,6 +223,7 @@ def _attempt(
     runner: Runner,
     directory: Path,
     observations: tuple[str, ...],
+    product: Footprint | None,
 ) -> Attempt:
     outputs = runner(site.scene, script, directory)
     report: Report | None = None
@@ -229,7 +233,7 @@ def _attempt(
         datum = site.scene["frame"]["datum_m"]
         proposal = to_proposal(measurements, site.frame, datum)
         judged = True  # from here on, it is the evaluator speaking
-        report = evaluate(proposal, site.context)
+        report = evaluate(proposal, site.context, product)
         feedback = describe(report)
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)

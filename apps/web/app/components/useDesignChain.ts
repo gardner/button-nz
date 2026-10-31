@@ -81,12 +81,12 @@ export function useDesignChain(pollMs: number) {
       });
   }
 
-  /** Start a new design, leaving the old chain behind. */
-  function design(brief: string, observe: boolean) {
-    if (starting.current) return;
-    setChain([]); // stop following the old chain before the new one exists
+  /** Start a new design, leaving the old chain behind once it exists; with
+   * `productId`, one that places that catalogue product. A refused request
+   * (say, the daily cap) keeps the chain on show. */
+  function design(brief: string, observe: boolean, productId?: string) {
     begin(
-      () => createDesign(brief, observe),
+      () => createDesign(brief, observe, productId),
       (job) => setChain([job]),
     );
   }

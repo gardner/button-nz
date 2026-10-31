@@ -4,7 +4,7 @@ against, the site in its local frame, and each attempt's verdicts."""
 from collections.abc import Sequence
 
 from button_nz.blender_worker.scene_input import SceneInput
-from button_nz.evaluation import Report
+from button_nz.evaluation import Footprint, Report
 from button_nz.evaluation.checks import (
     MAX_FLOOR_ABOVE_GROUND_M,
     MAX_FLOOR_AREA_M2,
@@ -96,3 +96,14 @@ def describe(report: Report) -> str:
     lines = [f"Evaluator verdict: {report.status}."]
     lines += [f"- {c.name}: {c.status}. {c.detail}" for c in report.checks]
     return "\n".join(lines)
+
+
+def placing(product: Footprint) -> str:
+    """What the brief adds when the owner places a real product: its footprint,
+    which the evaluator checks the walls against."""
+    return (
+        f"Place this real prefab: the {product.name}. Its walls are a "
+        f"{product.length_m:g} × {product.width_m:g} m rectangle, measured outside: "
+        "build the Dwelling's walls to exactly that, either way round, wherever and "
+        "facing whichever way best suits the brief and the site."
+    )

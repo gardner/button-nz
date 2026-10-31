@@ -12,7 +12,7 @@ import sqlite3
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -62,6 +62,17 @@ class JobStatus(StrEnum):
 
 
 @dataclass(frozen=True)
+class Placed:
+    """A product a design places, as the catalogue gave it when the job was made:
+    a later catalogue can't change what the job was designed and checked to."""
+
+    id: str
+    name: str
+    length_m: float
+    width_m: float
+
+
+@dataclass(frozen=True)
 class Job:
     id: str
     brief: str
@@ -74,6 +85,7 @@ class Job:
     accepted_attempt: int | None
     parent_id: str | None = None  # the design this one revises
     instruction: str | None = None  # the owner's change, in their own words
+    product: Placed | None = None  # the catalogue product it places, as it was then
 
 
 @dataclass(frozen=True)
@@ -100,12 +112,13 @@ class Store:
         allow_observations: bool,
         parent_id: str | None = None,
         instruction: str | None = None,
+        product: Placed | None = None,
     ) -> Job:
         job_id = uuid.uuid4().hex
         with self._db() as db:
             db.execute(
                 "INSERT INTO jobs (id, brief, allow_observations, status, created_at, "
-                "parent_id, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "parent_id, instruction, product) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     brief,
@@ -114,6 +127,7 @@ class Store:
                     _now(),
                     parent_id,
                     instruction,
+                    None if product is None else json.dumps(asdict(product)),
                 ),
             )
         return self.get_job(job_id)
@@ -279,6 +293,7 @@ class Store:
 ADDED_COLUMNS = {  # added after the first release: present in new databases, added to old
     "parent_id": "TEXT REFERENCES jobs (id)",
     "instruction": "TEXT",
+    "product": "TEXT",  # the Placed product, as JSON
 }
 
 
@@ -311,4 +326,5 @@ def _job(row: sqlite3.Row) -> Job:
         accepted_attempt=row["accepted_attempt"],
         parent_id=row["parent_id"],
         instruction=row["instruction"],
+        product=None if row["product"] is None else Placed(**json.loads(row["product"])),
     )

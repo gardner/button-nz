@@ -2,7 +2,8 @@
 poll and inspect.
 
     GET  /site                                    parcels, extent, sources, open items
-    POST /designs {brief, allow_observations}     queue a design; 202 with the job
+    POST /designs {brief, allow_observations,     queue a design; 202 with the job. With
+                   product_id}                    product_id, it places that prefab
     POST /designs/{id}/revisions {instruction}    revise its accepted design; 202
     GET  /designs/{id}                            status, attempts, accepted attempt
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
@@ -17,7 +18,7 @@ directory: never through a symlink.
 """
 
 import re
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import asdict
 from datetime import datetime
@@ -33,7 +34,7 @@ from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
-from button_nz.api.store import Job, Store
+from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
 
@@ -45,6 +46,7 @@ ARTIFACT = re.compile(
 class DesignRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=4000)
     allow_observations: bool = True
+    product_id: str | None = None  # a catalogue product to place, walls and all
 
 
 class RevisionRequest(BaseModel):
@@ -60,6 +62,13 @@ class AttemptView(BaseModel):
     files: dict[str, str]  # artifact name -> URL
 
 
+class ProductView(BaseModel):
+    id: str
+    name: str
+    length_m: float
+    width_m: float
+
+
 class JobView(BaseModel):
     id: str
     brief: str
@@ -72,6 +81,7 @@ class JobView(BaseModel):
     accepted_attempt: int | None
     parent_id: str | None
     instruction: str | None
+    product: ProductView | None  # the prefab it places
     attempts: list[AttemptView]
     illustrating: bool  # done, and its AI visual is still being made: look again
 
@@ -96,15 +106,13 @@ def create_app(
         yield
         worker.stop()
 
-    def admit() -> AbstractContextManager[None]:
-        return nullcontext() if cap is None else cap.admit()
-
     app = FastAPI(title="button-nz", lifespan=lifespan)
     site_view = _site(site) | {"aerial": aerial_view(aerial)}
     app.include_router(features_router(store, survey, survey_decided_by))
     app.include_router(aerial_router(aerial))
     catalogue = load_products() if products is None else products
     app.include_router(products_router(store, worker.runs_dir, catalogue))
+    placeable = {p.id: p for p in catalogue if p.placeable}
 
     @app.get("/site")
     def get_site() -> dict[str, Any]:
@@ -112,8 +120,9 @@ def create_app(
 
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
-        with admit():
-            job = store.create_job(request.brief, request.allow_observations)
+        placed = _placed(placeable, request.product_id)
+        with _admit(cap):
+            job = store.create_job(request.brief, request.allow_observations, product=placed)
         worker.wake()
         return _job_view(store, worker, job)
 
@@ -122,9 +131,13 @@ def create_app(
         parent = _job(store, job_id)
         if parent.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt to revise")
-        with admit():
+        with _admit(cap):
             job = store.create_job(
-                parent.brief, request.allow_observations, parent.id, request.instruction
+                parent.brief,
+                request.allow_observations,
+                parent.id,
+                request.instruction,
+                parent.product,
             )
         worker.wake()
         return _job_view(store, worker, job)
@@ -141,6 +154,22 @@ def create_app(
         return FileResponse(path)
 
     return app
+
+
+def _admit(cap: DailyCap | None) -> AbstractContextManager[None]:
+    """Hold the daily cap while a design run is created, if there is one."""
+    return nullcontext() if cap is None else cap.admit()
+
+
+def _placed(placeable: Mapping[str, Product], product_id: str | None) -> Placed | None:
+    """The product to place, as the catalogue gives it now; a 422 for one whose
+    footprint isn't a known rectangle."""
+    if product_id is None:
+        return None
+    if product_id not in placeable:
+        raise HTTPException(422, f"{product_id} isn't a product whose footprint can be placed")
+    footprint = placeable[product_id].footprint()
+    return Placed(product_id, footprint.name, footprint.length_m, footprint.width_m)
 
 
 def _job(store: Store, job_id: str) -> Job:
@@ -177,6 +206,7 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         accepted_attempt=job.accepted_attempt,
         parent_id=job.parent_id,
         instruction=job.instruction,
+        product=None if job.product is None else ProductView(**asdict(job.product)),
         attempts=attempts,
         illustrating=_illustrating(worker, job),
     )
