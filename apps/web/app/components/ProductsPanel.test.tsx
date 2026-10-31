@@ -28,7 +28,7 @@ async function ask(): Promise<void> {
 describe("ProductsPanel", () => {
   it("asks only when the owner wants to know", async () => {
     const fetch = serve(PRODUCTS);
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     expect(fetch).not.toHaveBeenCalled();
     await ask();
     expect(fetch).toHaveBeenCalledWith(
@@ -39,7 +39,7 @@ describe("ProductsPanel", () => {
 
   it("lists the products that fit, with their published price and source", async () => {
     serve(PRODUCTS);
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     await ask();
     const vista = await screen.findByRole("link", { name: "AirHome Vista" });
     expect((vista as HTMLAnchorElement).href).toBe(
@@ -62,7 +62,7 @@ describe("ProductsPanel", () => {
 
   it("names the products it could not check, and what fitting means", async () => {
     serve(PRODUCTS);
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     await ask();
     expect(
       await screen.findByText(
@@ -74,9 +74,56 @@ describe("ProductsPanel", () => {
     ).toBeTruthy();
   });
 
+  it("offers to place each product that fits on the site", async () => {
+    serve(PRODUCTS);
+    const onPlace = vi.fn();
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={onPlace} />);
+    await ask();
+    const places = await screen.findAllByRole("button", {
+      name: /^Place the .* on the site$/,
+    });
+    expect(places).toHaveLength(
+      PRODUCTS.fits.filter((p) => p.placeable).length,
+    );
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Place the AirHome Vista on the site",
+      }),
+    );
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "airhome-vista" }),
+    );
+  });
+
+  it("doesn't offer to place a product whose figures only bound its plan", async () => {
+    const stepped = {
+      ...PRODUCTS.fits[0],
+      id: "lockwood-ara",
+      supplier: "Lockwood",
+      model: "Ara",
+      bounding_box: true,
+      placeable: false,
+    };
+    serve({ ...PRODUCTS, fits: [stepped] });
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
+    await ask();
+    expect(await screen.findByText(/Can't be placed/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Place the/ })).toBeNull();
+  });
+
+  it("waits to place a product while a design is running", async () => {
+    serve(PRODUCTS);
+    render(<ProductsPanel jobId="abc123" busy onPlace={vi.fn()} />);
+    await ask();
+    const place = await screen.findByRole("button", {
+      name: "Place the AirHome Vista on the site",
+    });
+    expect((place as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("says when nothing in the catalogue fits", async () => {
     serve({ ...PRODUCTS, fits: [] });
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     await ask();
     expect(
       await screen.findByText(
@@ -87,7 +134,7 @@ describe("ProductsPanel", () => {
 
   it("shows why the products couldn't be found", async () => {
     serve({ detail: "design abc123 has no accepted attempt" }, 409);
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     await ask();
     expect(
       await screen.findByText(
@@ -100,7 +147,7 @@ describe("ProductsPanel", () => {
 describe("ProductsPanel next steps", () => {
   it("points to the council and the research on local firms", async () => {
     serve(PRODUCTS);
-    render(<ProductsPanel jobId="abc123" />);
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
     await ask();
     const council = await screen.findByRole("link", {
       name: "Buller District Council",

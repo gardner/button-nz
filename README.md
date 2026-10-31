@@ -81,6 +81,10 @@ for the full plan.
    three are listed as unchecked, never as fitting. The next steps go with
    them: the licensed professionals the exemption needs, and the council's
    records.
+9. **Place a real prefab.** Any product that fits can be placed on the site.
+   Muse designs again, with the product's outside footprint as the walls, and
+   the evaluator checks they are that footprint (`product_footprint`, to
+   0.10 m) before every other check runs on it.
 
 ## Meta models
 
@@ -164,6 +168,8 @@ Source code is under the GNU GPL (see `LICENSE`).
   publish imagery and renders of the site.
 
 ## Run it
+
+To serve it for others, behind an access code, see [docs/deploy.md](docs/deploy.md).
 
 Python 3.14 with [uv](https://docs.astral.sh/uv/), Node with pnpm, and an
 NVIDIA GPU for Blender's Cycles.

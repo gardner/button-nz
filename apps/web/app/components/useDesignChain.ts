@@ -18,7 +18,9 @@ import { useVisuals } from "./useVisuals";
  * longer has the job) stops polling. One design is started at a time.
  * The design shown is the newest unless an earlier step is selected. AI
  * visuals still being made are followed separately (`useVisuals`), and the
- * forms don't wait for them. */
+ * forms don't wait for them. A page opened with `?design=<id>` starts with
+ * that design and the designs it revises, and the address bar keeps the id of
+ * the design on show, so it can be shared. */
 export function useDesignChain(pollMs: number) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -31,6 +33,14 @@ export function useDesignChain(pollMs: number) {
   const working =
     !lost && (newest?.status === "queued" || newest?.status === "running");
   useVisuals(chain, setChain, pollMs);
+  useEffect(() => {
+    const linked = new URLSearchParams(window.location.search).get("design");
+    if (linked === null) return;
+    lineage(linked).then(
+      (jobs) => setChain((started) => (started.length ? started : jobs)),
+      (e: Error) => setProblem(`Could not open design ${linked}: ${e.message}`),
+    );
+  }, []);
   useEffect(() => {
     if (!working || newest === undefined) return;
     const timer = setTimeout(() => {
@@ -71,12 +81,12 @@ export function useDesignChain(pollMs: number) {
       });
   }
 
-  /** Start a new design, leaving the old chain behind. */
-  function design(brief: string, observe: boolean) {
-    if (starting.current) return;
-    setChain([]); // stop following the old chain before the new one exists
+  /** Start a new design, leaving the old chain behind once it exists; with
+   * `productId`, one that places that catalogue product. A refused request
+   * (say, the daily cap) keeps the chain on show. */
+  function design(brief: string, observe: boolean, productId?: string) {
     begin(
-      () => createDesign(brief, observe),
+      () => createDesign(brief, observe, productId),
       (job) => setChain([job]),
     );
   }
@@ -91,6 +101,13 @@ export function useDesignChain(pollMs: number) {
   }
 
   const shown = chain.find((j) => j.id === selected) ?? newest;
+  const shownId = shown?.id;
+  useEffect(() => {
+    if (shownId === undefined) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("design", shownId);
+    window.history.replaceState(null, "", url);
+  }, [shownId]);
   return {
     chain,
     shown,
@@ -100,4 +117,13 @@ export function useDesignChain(pollMs: number) {
     design,
     revise,
   };
+}
+
+/** Design `id`, after the designs it revises, oldest first. */
+async function lineage(id: string): Promise<Job[]> {
+  const jobs: Job[] = [];
+  for (let next: string | null = id; next !== null; next = jobs[0].parentId) {
+    jobs.unshift(await getDesign(next));
+  }
+  return jobs;
 }

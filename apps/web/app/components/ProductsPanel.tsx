@@ -12,8 +12,17 @@ const PRICE = new Intl.NumberFormat("en-NZ", {
 });
 
 /** The real prefab homes that fit inside an accepted design's walls, as their
- * suppliers publish them, found when the owner asks. */
-export function ProductsPanel({ jobId }: { jobId: string }) {
+ * suppliers publish them, found when the owner asks. Each can be placed on the
+ * site (`onPlace`): designed again to its footprint, once no design is running. */
+export function ProductsPanel({
+  jobId,
+  busy,
+  onPlace,
+}: {
+  jobId: string;
+  busy: boolean;
+  onPlace: (product: Product) => void;
+}) {
   const [products, setProducts] = useState<Products | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
@@ -43,12 +52,20 @@ export function ProductsPanel({ jobId }: { jobId: string }) {
       {problem && (
         <p className="text-red-700">Could not find products: {problem}</p>
       )}
-      {products && <Found products={products} />}
+      {products && <Found products={products} busy={busy} onPlace={onPlace} />}
     </section>
   );
 }
 
-function Found({ products }: { products: Products }) {
+function Found({
+  products,
+  busy,
+  onPlace,
+}: {
+  products: Products;
+  busy: boolean;
+  onPlace: (product: Product) => void;
+}) {
   const { fits, unchecked, footprintM2, basis } = products;
   return (
     <>
@@ -57,7 +74,7 @@ function Found({ products }: { products: Products }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {fits.map((p) => (
-            <ProductCard key={p.id} product={p} />
+            <ProductCard key={p.id} product={p} busy={busy} onPlace={onPlace} />
           ))}
         </ul>
       )}
@@ -118,7 +135,15 @@ function NextSteps() {
   );
 }
 
-function ProductCard({ product: p }: { product: Product }) {
+function ProductCard({
+  product: p,
+  busy,
+  onPlace,
+}: {
+  product: Product;
+  busy: boolean;
+  onPlace: (product: Product) => void;
+}) {
   return (
     <li className="rounded border border-zinc-200 p-3 text-sm dark:border-zinc-800">
       <a
@@ -140,6 +165,36 @@ function ProductCard({ product: p }: { product: Product }) {
       </p>
       <p>Excludes: {p.excludes}</p>
       <p>West Coast: {p.westCoast}</p>
+      {p.placeable ? (
+        <PlaceButton product={p} busy={busy} onPlace={onPlace} />
+      ) : (
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Can&apos;t be placed: its plan isn&apos;t the rectangle its figures
+          give.
+        </p>
+      )}
     </li>
+  );
+}
+
+function PlaceButton({
+  product: p,
+  busy,
+  onPlace,
+}: {
+  product: Product;
+  busy: boolean;
+  onPlace: (product: Product) => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onPlace(p)}
+      aria-label={`Place the ${p.supplier} ${p.model} on the site`}
+      className="mt-2 rounded border border-zinc-300 px-3 py-1 disabled:opacity-40 dark:border-zinc-700"
+    >
+      Place it on the site
+    </button>
   );
 }

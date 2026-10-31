@@ -12,6 +12,7 @@ export const JOB = {
   accepted_attempt: 2,
   parent_id: null, // an original design, not a revision of one
   instruction: null,
+  product: null, // it places no catalogue product
   illustrating: false, // no AI visual still to come
   attempts: [
     {
@@ -42,6 +43,8 @@ export const SURVEY = {
   crs: "EPSG:2193",
   survey_id: "s1",
   buildings_complete: false,
+  fixed: false,
+  decided_by: null,
   features: [
     {
       type: "Feature",
@@ -106,6 +109,8 @@ export const PRODUCTS = {
       length_m: 12.2,
       width_m: 4.0,
       dimensions_labelled: true,
+      bounding_box: false,
+      placeable: true,
       floor_area_m2: 48,
       area_basis: "not stated",
       bedrooms: 2,
@@ -130,6 +135,8 @@ export const PRODUCTS = {
       length_m: 12.0,
       width_m: 3.5,
       dimensions_labelled: true,
+      bounding_box: false,
+      placeable: true,
       floor_area_m2: 42,
       area_basis: "not stated",
       bedrooms: 2,
@@ -151,6 +158,8 @@ export const PRODUCTS = {
       length_m: 9.52,
       width_m: 6.6,
       dimensions_labelled: false,
+      bounding_box: false,
+      placeable: false,
       floor_area_m2: 60,
       area_basis: "not stated",
       bedrooms: 2,

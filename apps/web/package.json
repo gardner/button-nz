@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" next.config.ts eslint.config.mjs vitest.config.mts",
-    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" next.config.ts eslint.config.mjs vitest.config.mts",
+    "format": "prettier --write \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" proxy.ts next.config.ts eslint.config.mjs vitest.config.mts vitest.setup.ts",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"lib/**/*.ts\" proxy.ts next.config.ts eslint.config.mjs vitest.config.mts vitest.setup.ts",
     "test": "vitest run"
   },
   "dependencies": {

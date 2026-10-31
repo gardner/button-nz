@@ -7,6 +7,7 @@
 import {
   ApiError,
   asText,
+  flag,
   list,
   number,
   optional,
@@ -31,6 +32,7 @@ export interface Product {
   excludes: string;
   westCoast: string; // what the supplier says about delivering to the West Coast
   sources: string[];
+  placeable: boolean; // its footprint is a known rectangle: it can be placed on a site
 }
 
 export interface Products {
@@ -69,6 +71,7 @@ function parseProduct(raw: unknown): Product {
     excludes: text(product, "excludes"),
     westCoast: text(product, "west_coast"),
     sources: list(product, "sources").map(link),
+    placeable: flag(product, "placeable"),
   };
 }
 
