@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { NextRequest } from "next/server";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { describe, expect, it } from "vitest";
 
+import { config } from "../proxy";
 import { ACCESS_COOKIE, admit } from "./access";
 
 const CODE = "reefton-2026";
@@ -51,5 +53,18 @@ describe("admit", () => {
       expect(response.cookies.get(ACCESS_COOKIE)).toBeUndefined();
       expect(await response.text()).toMatch(/needs an access code/);
     }
+  });
+});
+
+describe("the proxy", () => {
+  it("gates everything but Next's static files, the image optimizer included", () => {
+    const runs = (url: string) =>
+      unstable_doesMiddlewareMatch({ config, nextConfig: {}, url });
+    expect(runs("/")).toBe(true);
+    expect(runs("/api/site/aerial.png")).toBe(true);
+    expect(runs("/_next/image?url=%2Fapi%2Fsite%2Faerial.png&w=640&q=75")).toBe(
+      true,
+    );
+    expect(runs("/_next/static/chunks/main.js")).toBe(false);
   });
 });

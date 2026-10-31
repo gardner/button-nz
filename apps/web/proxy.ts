@@ -10,6 +10,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Next's own static files are the app's public code; everything else is gated.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Next's own static files are the app's public code; everything else, the
+  // image optimizer included (it can fetch /api), is gated.
+  matcher: ["/((?!_next/static|favicon.ico).*)"],
 };
