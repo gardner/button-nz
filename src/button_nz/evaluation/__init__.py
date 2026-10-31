@@ -5,6 +5,7 @@ from button_nz.evaluation.checks import ground_range
 from button_nz.evaluation.evaluate import evaluate
 from button_nz.evaluation.model import (
     Check,
+    Footprint,
     InvalidProposal,
     Proposal,
     Report,
@@ -14,6 +15,7 @@ from button_nz.evaluation.model import (
 
 __all__ = [
     "Check",
+    "Footprint",
     "InvalidProposal",
     "Proposal",
     "Report",

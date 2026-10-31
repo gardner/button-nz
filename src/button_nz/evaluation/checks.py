@@ -13,7 +13,14 @@ from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.blender_worker.terrain_math import height_at, mesh_crossings
-from button_nz.evaluation.model import Check, InvalidProposal, Proposal, SiteContext, Status
+from button_nz.evaluation.model import (
+    Check,
+    Footprint,
+    InvalidProposal,
+    Proposal,
+    SiteContext,
+    Status,
+)
 from button_nz.geo.terrain import TerrainGrid
 
 SCHEDULE_1A = (
@@ -32,6 +39,7 @@ MIN_SEPARATION_M = 2.0  # from any legal boundary and any other residential buil
 TYPICAL_WALL_M = 0.3  # thickest common external wall (timber or steel frame, cladding)
 MAX_WALL_M = 0.6  # thickest realistic external wall (straw bale, rammed earth, ICF)
 EVIDENCE_HEIGHT_M = 2.0  # nDSM above this is reported as possible structure
+PRODUCT_TOLERANCE_M = 0.10  # a placed product's walls may be this far off its footprint
 _EPS = 1e-9
 
 
@@ -136,6 +144,42 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
             f"over {EVIDENCE_HEIGHT_M:g} m within {MIN_SEPARATION_M:g} m of the footprint."
         )
     return Check("building_separation", status, detail, measured, SCHEDULE_1A)
+
+
+def product_footprint(walls: Polygon, product: Footprint) -> Check:
+    """The walls are ``product``'s published outside footprint: a rectangle of
+    its length and width, either way round, to within ``PRODUCT_TOLERANCE_M``."""
+    box = walls.minimum_rotated_rectangle
+    corners = list(box.exterior.coords) if isinstance(box, Polygon) else []
+    sides = sorted((_side(corners, 0), _side(corners, 1)), reverse=True)
+    off = walls.hausdorff_distance(box)
+    measured = {
+        "length_m": sides[0],
+        "width_m": sides[1],
+        "off_rectangle_m": off,
+        "product_length_m": product.length_m,
+        "product_width_m": product.width_m,
+        "tolerance_m": PRODUCT_TOLERANCE_M,
+    }
+    size = f"{product.length_m:g} × {product.width_m:g} m"
+    rule = f"the {product.name}'s published outside footprint, {size}, to {PRODUCT_TOLERANCE_M:g} m"
+    built = f"{sides[0]:.1f} × {sides[1]:.1f} m"
+    want = sorted((product.length_m, product.width_m), reverse=True)
+    if off > PRODUCT_TOLERANCE_M:
+        detail = (
+            f"The walls are not a rectangle: up to {off:.2f} m off the {built} box around them."
+        )
+        return Check("product_footprint", Status.FAIL, detail, measured, rule)
+    if any(abs(s - w) > PRODUCT_TOLERANCE_M for s, w in zip(sides, want, strict=True)):
+        detail = f"The walls are {built}; the {product.name} is {size}."
+        return Check("product_footprint", Status.FAIL, detail, measured, rule)
+    detail = f"The walls are {built}, the {product.name}'s {size}."
+    return Check("product_footprint", Status.PASS, detail, measured, rule)
+
+
+def _side(corners: list[tuple[float, ...]], k: int) -> float:
+    (x0, y0, *_), (x1, y1, *_) = corners[k], corners[k + 1]
+    return float(np.hypot(x1 - x0, y1 - y0))
 
 
 def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
