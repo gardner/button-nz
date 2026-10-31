@@ -4,6 +4,9 @@
     PUT  /site/features/{id} {decision, survey_id}     building, keep_clear or ignore
     PUT  /site/survey {buildings_complete, survey_id}  every building is listed
 
+A public server can fix the survey as someone decided it (``decided_by``): it
+is served with who that was, and changes to it are refused (403).
+
 The survey is read from its file on each request, so a new survey (written by
 ``python -m button_nz.perception.survey``) is served without a restart, and
 starts undecided. A decision names the survey it was made on: one made on an
@@ -30,8 +33,12 @@ class SurveyRequest(BaseModel):
     survey_id: str
 
 
-def features_router(store: Store, survey: Path | None) -> APIRouter:
+def features_router(store: Store, survey: Path | None, decided_by: str | None = None) -> APIRouter:
     router = APIRouter()
+
+    def unless_fixed() -> None:
+        if decided_by is not None:
+            raise HTTPException(403, f"This server's survey is fixed, as {decided_by} decided it.")
 
     @router.get("/site/features")
     def get_features() -> dict[str, Any]:
@@ -41,11 +48,14 @@ def features_router(store: Store, survey: Path | None) -> APIRouter:
             **found.collection,
             "survey_id": found.id,
             "buildings_complete": store.buildings_complete(found.id),
+            "fixed": decided_by is not None,
+            "decided_by": decided_by,
             "features": [_decided(f, decisions.get(f["id"])) for f in found.collection["features"]],
         }
 
     @router.put("/site/features/{feature_id}")
     def put_feature(feature_id: str, request: DecisionRequest) -> dict[str, Any]:
+        unless_fixed()
         found = _survey(survey, request.survey_id)
         feature = found.feature(feature_id)
         if feature is None:
@@ -55,6 +65,7 @@ def features_router(store: Store, survey: Path | None) -> APIRouter:
 
     @router.put("/site/survey")
     def put_survey(request: SurveyRequest) -> dict[str, Any]:
+        unless_fixed()
         found = _survey(survey, request.survey_id)
         undecided = undecided_buildings(found, store.decisions(found.id))
         if request.buildings_complete and undecided:
