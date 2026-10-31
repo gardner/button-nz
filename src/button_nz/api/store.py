@@ -128,6 +128,15 @@ class Store:
             raise KeyError(job_id)
         return _job(row)
 
+    def created_since(self, since: datetime) -> list[datetime]:
+        """When each job created after ``since`` was created, oldest first."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT created_at FROM jobs WHERE created_at > ? ORDER BY created_at",
+                (since.astimezone(UTC).isoformat(),),
+            ).fetchall()
+        return [datetime.fromisoformat(row["created_at"]) for row in rows]
+
     def next_queued(self) -> Job | None:
         with self._db() as db:
             row = db.execute(

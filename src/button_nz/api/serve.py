@@ -1,12 +1,15 @@
 """Serve the API for the demo site:
 
-    uv run --env-file .env python -m button_nz.api.serve [--data var] [--port 8000]
+    uv run --env-file .env python -m button_nz.api.serve [--data var] [--port 8000] \
+        [--daily-designs 30] [--survey-decided-by "the owner, on 31 October 2026"]
 
 Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``; the
 site survey is read from ``DATA/survey.geojson``. The model key is read per
 job, so the server starts without one and a job queued without it fails with
 that reason. Each accepted design also gets an AI visual (``perception.visual``),
-made here in the server with the same key, never in the Blender sandbox.
+made here in the server with the same key, never in the Blender sandbox. A
+server others can reach should cap its design runs a day (``api.limits``) and
+fix the survey as the owner decided it.
 """
 
 import argparse
@@ -19,6 +22,7 @@ from button_nz.agent.model import ChatModel
 from button_nz.api.aerial import demo_aerial
 from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
+from button_nz.api.limits import DailyCap
 from button_nz.api.store import Store
 from button_nz.catalogue import load_products
 from button_nz.demo_site import load_demo_site
@@ -31,6 +35,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--data", type=Path, default=Path("var"))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--daily-designs", type=int, help="start at most this many design runs in any 24 hours"
+    )
+    parser.add_argument(
+        "--survey-decided-by", help="fix the survey, as this person decided it (e.g. 'the owner')"
+    )
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
     survey = args.data / SURVEY_FILE
@@ -45,8 +55,16 @@ def main(argv: list[str] | None = None) -> None:
         products=products,
     )
     site = load_demo_site()
+    cap = None if args.daily_designs is None else DailyCap(store, args.daily_designs)
     app = create_app(
-        store, worker, site, survey=survey, aerial=demo_aerial(site), products=products
+        store,
+        worker,
+        site,
+        survey=survey,
+        aerial=demo_aerial(site),
+        products=products,
+        cap=cap,
+        survey_decided_by=args.survey_decided_by,
     )
     uvicorn.run(app, host=args.host, port=args.port)
 

@@ -7,7 +7,7 @@ property owner or the team lead. Nothing that needs their word is assumed.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, run locally (README, "Run it") | Runs end to end live; **not deployed: a required gap** (see below) |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | Served behind an access code and checked end to end; **no public address until the tunnel has a hostname** (see below) |
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | Two takes recorded; final take after Experiment A's re-run |
 | 3 | Source repository | this repository, GNU GPL (`LICENSE`) | Public |
 | 4 | Technical README | [README.md](../README.md) | Done |
@@ -19,16 +19,18 @@ property owner or the team lead. Nothing that needs their word is assumed.
 
 The app runs on one machine: the API, the web app, and Blender on an NVIDIA
 GPU. Every design is a live call to the Meta Model API and a sandboxed Blender
-run. A public deployment needs:
+run. [deploy.md](deploy.md) serves it from that machine as systemd services,
+behind a Cloudflare tunnel. It adds:
 
-- a GPU host;
-- `META_API_KEY` kept on the server;
-- a choice of how judges may use it, since each design costs model calls.
+- an access code, carried by the link judges get;
+- a daily cap on design runs;
+- the owner's survey, fixed;
+- links that open a finished design at once.
 
-Plan §15 requires a deployed demonstration, so this is an **open required
-gap**, not something the video or the run instructions replace. Unless the
-portal's requirements say otherwise, it needs the owner's decision on where
-and how to deploy.
+`META_API_KEY` stays on the server, read by the API's service only. Plan §15
+requires a deployed demonstration, so it stays a **required gap** until the
+tunnel has a public hostname: that needs the team's Cloudflare account and a
+domain (deploy.md, "Tunnel").
 
 ## 2. Demo video
 
@@ -97,4 +99,4 @@ aren't buildings.
    An accepted design shows the catalogue products that fit and the next
    steps; ten of the 17 have no published price, which only a quote from
    the supplier can give.
-4. **Deployment:** where to host it (see 1 above).
+4. **Deployment:** a tunnel token for a hostname on the team's Cloudflare domain (see 1 above).

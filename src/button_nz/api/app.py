@@ -10,14 +10,16 @@ poll and inspect.
                                                   visual.png, visual.json
     GET  /designs/{id}/products                   real prefabs that fit it (``api.products``)
 
-The surveyed site features are served too (``api.features``). Only those
+The surveyed site features are served too (``api.features``). A public server
+caps the design runs it starts a day (``api.limits``), and can fix the survey
+as someone decided it. Only those
 artifact names are served, and only as regular files in the job's own run
 directory: never through a symlink.
 """
 
 import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +32,7 @@ from pydantic import BaseModel, Field
 from button_nz.api.aerial import SiteAerial, aerial_router, aerial_view
 from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
+from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
 from button_nz.api.store import Job, Store
 from button_nz.catalogue import Product, load_products
@@ -90,7 +93,12 @@ def create_app(
     survey: Path | None = None,
     aerial: SiteAerial | None = None,
     products: Sequence[Product] | None = None,
+    cap: DailyCap | None = None,
+    survey_decided_by: str | None = None,
 ) -> FastAPI:
+    """The API. ``cap`` limits the design runs started a day; with
+    ``survey_decided_by``, the survey is fixed as that person decided it."""
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
         store.recover()
@@ -100,7 +108,7 @@ def create_app(
 
     app = FastAPI(title="button-nz", lifespan=lifespan)
     site_view = _site(site) | {"aerial": aerial_view(aerial)}
-    app.include_router(features_router(store, survey))
+    app.include_router(features_router(store, survey, survey_decided_by))
     app.include_router(aerial_router(aerial))
     catalogue = load_products() if products is None else products
     app.include_router(products_router(store, worker.runs_dir, catalogue))
@@ -113,9 +121,10 @@ def create_app(
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
         _check_placeable(placeable, request.product_id)
-        job = store.create_job(
-            request.brief, request.allow_observations, product_id=request.product_id
-        )
+        with _admit(cap):
+            job = store.create_job(
+                request.brief, request.allow_observations, product_id=request.product_id
+            )
         worker.wake()
         return _job_view(store, worker, job, placeable)
 
@@ -124,13 +133,14 @@ def create_app(
         parent = _job(store, job_id)
         if parent.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt to revise")
-        job = store.create_job(
-            parent.brief,
-            request.allow_observations,
-            parent.id,
-            request.instruction,
-            parent.product_id,
-        )
+        with _admit(cap):
+            job = store.create_job(
+                parent.brief,
+                request.allow_observations,
+                parent.id,
+                request.instruction,
+                parent.product_id,
+            )
         worker.wake()
         return _job_view(store, worker, job, placeable)
 
@@ -146,6 +156,11 @@ def create_app(
         return FileResponse(path)
 
     return app
+
+
+def _admit(cap: DailyCap | None) -> AbstractContextManager[None]:
+    """Hold the daily cap while a design run is created, if there is one."""
+    return nullcontext() if cap is None else cap.admit()
 
 
 def _check_placeable(placeable: Mapping[str, Product], product_id: str | None) -> None:

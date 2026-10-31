@@ -64,8 +64,14 @@ function SurveyList({
   decide,
   setComplete,
 }: Omit<SurveyControl, "survey" | "missing" | "failed"> & { survey: Survey }) {
+  const locked = saving || survey.decidedBy !== null;
   return (
     <>
+      {survey.decidedBy !== null && (
+        <p className="text-sm font-medium">
+          This survey is fixed on this server, as {survey.decidedBy} decided it.
+        </p>
+      )}
       {survey.features.length === 0 ? (
         <p className="text-zinc-600">The survey found nothing on the site.</p>
       ) : (
@@ -74,7 +80,7 @@ function SurveyList({
             <FeatureCard
               key={f.id}
               feature={f}
-              saving={saving}
+              disabled={locked}
               onDecide={decide}
             />
           ))}
@@ -85,7 +91,7 @@ function SurveyList({
           <input
             type="checkbox"
             checked={survey.buildingsComplete}
-            disabled={saving}
+            disabled={locked}
             onChange={(e) => setComplete(e.target.checked)}
           />
           Every building on the site is listed
@@ -106,11 +112,11 @@ function SurveyList({
 
 function FeatureCard({
   feature,
-  saving,
+  disabled,
   onDecide,
 }: {
   feature: SiteFeature;
-  saving: boolean;
+  disabled: boolean; // a change is being saved, or the survey is fixed
   onDecide: SurveyControl["decide"];
 }) {
   const heading = useId();
@@ -150,7 +156,7 @@ function FeatureCard({
               key={decision}
               label={LOOKS[decision].label}
               pressed={feature.decision === decision}
-              disabled={saving}
+              disabled={disabled}
               onClick={() => onDecide(feature.id, decision)}
             />
           ))}
