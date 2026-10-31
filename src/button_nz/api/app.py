@@ -2,7 +2,8 @@
 poll and inspect.
 
     GET  /site                                    parcels, extent, sources, open items
-    POST /designs {brief, allow_observations}     queue a design; 202 with the job
+    POST /designs {brief, allow_observations,     queue a design; 202 with the job. With
+                   product_id}                    product_id, it places that prefab
     POST /designs/{id}/revisions {instruction}    revise its accepted design; 202
     GET  /designs/{id}                            status, attempts, accepted attempt
     GET  /designs/{id}/attempts/{n}/{file}        design.glb, design.png, observation-k.png,
@@ -15,7 +16,7 @@ directory: never through a symlink.
 """
 
 import re
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from datetime import datetime
@@ -42,6 +43,7 @@ ARTIFACT = re.compile(
 class DesignRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=4000)
     allow_observations: bool = True
+    product_id: str | None = None  # a catalogue product to place, walls and all
 
 
 class RevisionRequest(BaseModel):
@@ -57,6 +59,13 @@ class AttemptView(BaseModel):
     files: dict[str, str]  # artifact name -> URL
 
 
+class ProductView(BaseModel):
+    id: str
+    name: str
+    length_m: float | None  # None: no longer in the catalogue, so not known here
+    width_m: float | None
+
+
 class JobView(BaseModel):
     id: str
     brief: str
@@ -69,6 +78,7 @@ class JobView(BaseModel):
     accepted_attempt: int | None
     parent_id: str | None
     instruction: str | None
+    product: ProductView | None  # the prefab it places
     attempts: list[AttemptView]
     illustrating: bool  # done, and its AI visual is still being made: look again
 
@@ -94,6 +104,7 @@ def create_app(
     app.include_router(aerial_router(aerial))
     catalogue = load_products() if products is None else products
     app.include_router(products_router(store, worker.runs_dir, catalogue))
+    placeable = {p.id: p for p in catalogue if p.placeable}
 
     @app.get("/site")
     def get_site() -> dict[str, Any]:
@@ -101,9 +112,12 @@ def create_app(
 
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
-        job = store.create_job(request.brief, request.allow_observations)
+        _check_placeable(placeable, request.product_id)
+        job = store.create_job(
+            request.brief, request.allow_observations, product_id=request.product_id
+        )
         worker.wake()
-        return _job_view(store, worker, job)
+        return _job_view(store, worker, job, placeable)
 
     @app.post("/designs/{job_id}/revisions", status_code=202)
     def post_revision(job_id: str, request: RevisionRequest) -> JobView:
@@ -111,14 +125,18 @@ def create_app(
         if parent.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt to revise")
         job = store.create_job(
-            parent.brief, request.allow_observations, parent.id, request.instruction
+            parent.brief,
+            request.allow_observations,
+            parent.id,
+            request.instruction,
+            parent.product_id,
         )
         worker.wake()
-        return _job_view(store, worker, job)
+        return _job_view(store, worker, job, placeable)
 
     @app.get("/designs/{job_id}")
     def get_design(job_id: str) -> JobView:
-        return _job_view(store, worker, _job(store, job_id))
+        return _job_view(store, worker, _job(store, job_id), placeable)
 
     @app.get("/designs/{job_id}/attempts/{number}/{name}")
     def get_artifact(job_id: str, number: int, name: str) -> FileResponse:
@@ -128,6 +146,12 @@ def create_app(
         return FileResponse(path)
 
     return app
+
+
+def _check_placeable(placeable: Mapping[str, Product], product_id: str | None) -> None:
+    """A 422 unless ``product_id`` is none, or a product whose footprint is known."""
+    if product_id is not None and product_id not in placeable:
+        raise HTTPException(422, f"{product_id} isn't a product whose footprint can be placed")
 
 
 def _job(store: Store, job_id: str) -> Job:
@@ -141,7 +165,7 @@ def _attempt_dir(worker: Worker, job: Job, number: int) -> Path:
     return worker.runs_dir / job.id / f"attempt-{number}"
 
 
-def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
+def _job_view(store: Store, worker: Worker, job: Job, products: Mapping[str, Product]) -> JobView:
     attempts = [
         AttemptView(
             number=a.number,
@@ -164,8 +188,21 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         accepted_attempt=job.accepted_attempt,
         parent_id=job.parent_id,
         instruction=job.instruction,
+        product=_product(products, job.product_id),
         attempts=attempts,
         illustrating=_illustrating(worker, job),
+    )
+
+
+def _product(products: Mapping[str, Product], product_id: str | None) -> ProductView | None:
+    if product_id is None:
+        return None
+    if product_id not in products:  # the catalogue changed since: say so, not guess
+        name = f"{product_id}, no longer in the catalogue"
+        return ProductView(id=product_id, name=name, length_m=None, width_m=None)
+    footprint = products[product_id].footprint()
+    return ProductView(
+        id=product_id, name=footprint.name, length_m=footprint.length_m, width_m=footprint.width_m
     )
 
 

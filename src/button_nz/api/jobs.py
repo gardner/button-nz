@@ -16,7 +16,7 @@ its acceptance.
 import json
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import cache
 from pathlib import Path
 
@@ -24,6 +24,8 @@ from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
+from button_nz.catalogue import Product
+from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
@@ -45,8 +47,10 @@ class Worker:
         max_attempts: int = 3,
         survey: Path | None = None,
         illustrator: Illustrator | None = None,
+        products: Sequence[Product] = (),
     ) -> None:
         self.store = store
+        self.products = {p.id: p for p in products}  # what a job may place
         self.site = cache(site)  # read the terrain once, on the first job
         self.survey = survey  # its confirmed features are read afresh for each job
         self.model = model
@@ -159,8 +163,17 @@ class Worker:
             allow_observations=job.allow_observations,
             on_attempt=record,
             revising=self._revising(job),
+            product=self._placing(job),
         )
         return result.accepted
+
+    def _placing(self, job: Job) -> Footprint | None:
+        """The footprint of the product ``job`` places, if it places one."""
+        if job.product_id is None:
+            return None
+        if job.product_id not in self.products:
+            raise ValueError(f"no product {job.product_id} in the catalogue")
+        return self.products[job.product_id].footprint()
 
     def _confirmed_site(self) -> DesignSite:
         """The site with what a person has confirmed on the survey, if any."""

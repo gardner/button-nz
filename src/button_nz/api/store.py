@@ -74,6 +74,7 @@ class Job:
     accepted_attempt: int | None
     parent_id: str | None = None  # the design this one revises
     instruction: str | None = None  # the owner's change, in their own words
+    product_id: str | None = None  # the catalogue product it places, if any
 
 
 @dataclass(frozen=True)
@@ -100,12 +101,13 @@ class Store:
         allow_observations: bool,
         parent_id: str | None = None,
         instruction: str | None = None,
+        product_id: str | None = None,
     ) -> Job:
         job_id = uuid.uuid4().hex
         with self._db() as db:
             db.execute(
                 "INSERT INTO jobs (id, brief, allow_observations, status, created_at, "
-                "parent_id, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "parent_id, instruction, product_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     brief,
@@ -114,6 +116,7 @@ class Store:
                     _now(),
                     parent_id,
                     instruction,
+                    product_id,
                 ),
             )
         return self.get_job(job_id)
@@ -270,6 +273,7 @@ class Store:
 ADDED_COLUMNS = {  # added after the first release: present in new databases, added to old
     "parent_id": "TEXT REFERENCES jobs (id)",
     "instruction": "TEXT",
+    "product_id": "TEXT",
 }
 
 
@@ -302,4 +306,5 @@ def _job(row: sqlite3.Row) -> Job:
         accepted_attempt=row["accepted_attempt"],
         parent_id=row["parent_id"],
         instruction=row["instruction"],
+        product_id=row["product_id"],
     )

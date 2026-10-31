@@ -12,6 +12,8 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
+from button_nz.evaluation import Footprint
+
 CATALOGUE = Path(__file__).resolve().parents[3] / "data" / "catalogue" / "products.json"
 MAX_FLOOR_AREA_M2 = 70.0  # the granny-flat exemption's limit
 
@@ -48,6 +50,18 @@ class Product(BaseModel):
             return cls.model_validate_json(json.dumps(raw), strict=True)
         except ValidationError as error:
             raise CatalogueError(f"{raw.get('id', '?')}: {error}") from error
+
+    @property
+    def placeable(self) -> bool:
+        """Whether it can be placed on a site: its page says its figures are the
+        outside footprint."""
+        return self.dimensions_labelled
+
+    def footprint(self) -> Footprint:
+        """Its published outside footprint, to design to and check against."""
+        if not self.placeable:
+            raise CatalogueError(f"{self.id}: its page doesn't say what its dimensions measure")
+        return Footprint(f"{self.supplier} {self.model}", self.length_m, self.width_m)
 
     @model_validator(mode="after")
     def _follows_the_rules(self) -> Self:

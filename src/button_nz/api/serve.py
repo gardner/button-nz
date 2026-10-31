@@ -20,6 +20,7 @@ from button_nz.api.aerial import demo_aerial
 from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
+from button_nz.catalogue import load_products
 from button_nz.demo_site import load_demo_site
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.perception.visual import illustrate_from_env
@@ -33,6 +34,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
     survey = args.data / SURVEY_FILE
+    products = load_products()  # what the app offers, and what a design may place
     worker = Worker(
         store,
         site=demo_site,
@@ -40,9 +42,12 @@ def main(argv: list[str] | None = None) -> None:
         runs_dir=args.data / "runs",
         survey=survey,
         illustrator=illustrate_from_env,
+        products=products,
     )
     site = load_demo_site()
-    app = create_app(store, worker, site, survey=survey, aerial=demo_aerial(site))
+    app = create_app(
+        store, worker, site, survey=survey, aerial=demo_aerial(site), products=products
+    )
     uvicorn.run(app, host=args.host, port=args.port)
 
 
