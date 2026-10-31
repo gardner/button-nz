@@ -28,6 +28,7 @@ SETBACK_M = 2.0  # Schedule 1A: from any legal boundary
 SEPARATION_M = 2.0  # Schedule 1A: from other residential buildings
 EAVE_ALLOWANCE_M = 0.6  # an assumed overhang: suppliers rarely publish eaves
 QUAD_SEGS = 16  # segments per quarter circle in a buffer
+ON_SECTION_M2 = 1.0  # less of an outline than this on a section is misregistration
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,7 @@ class SectionResult:
 
     parcel_id: int
     area_m2: float
-    buildings: int  # LINZ outlines overlapping it
+    buildings: int  # LINZ outlines with more than ON_SECTION_M2 on it
     room_m2: float  # under the LINZ outlines
     fits: tuple[str, ...]
     fits_eaves: tuple[str, ...]
@@ -88,7 +89,7 @@ def screen_section(
 ) -> SectionResult:
     """Screen ``section`` against the ``buildings`` around it, and again
     against ``tall``: everything the LiDAR shows over 2 m around it."""
-    on_it = [b for b in buildings if b.intersection(section).area > 0]
+    on_it = [b for b in buildings if b.intersection(section).area > ON_SECTION_M2]
     space = room(section, buildings)
     clear_space = space if tall.is_empty else space.difference(_buffer(tall, SEPARATION_M))
     stated = fitting(space, products)

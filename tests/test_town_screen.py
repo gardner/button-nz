@@ -119,6 +119,12 @@ def test_a_section_is_screened_against_the_outlines_and_the_lidar() -> None:
     assert result.clear_room_m2 < result.room_m2
 
 
+def test_a_sliver_of_a_neighbours_outline_is_not_a_building_on_the_section() -> None:
+    neighbours = box(19.95, 5, 30, 15)  # over the boundary by 5 cm: 0.5 m² on this section
+    result = screen_section(1, box(0, 0, 20, 20), [neighbours], Polygon(), [prefab("s", 6, 4)])
+    assert result.buildings == 0
+
+
 def test_buildings_on_the_section_are_counted() -> None:
     house = box(1, 1, 5, 5)
     result = screen_section(1, box(0, 0, 40, 40), [house], Polygon(), [prefab("small", 6, 4)])

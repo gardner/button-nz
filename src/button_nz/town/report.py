@@ -108,7 +108,8 @@ def _introduction(meta: Mapping[str, Any], total: int, with_buildings: int) -> s
     return (
         f"Code `{meta['commit']}`. Envelope (NZTM2000) `{tuple(meta['envelope'])}`. "
         f"{total} residential sections: BDC parcels with a title whose point lies in a "
-        f"Residential zone ({with_buildings} with a LINZ building outline on them). "
+        f"Residential zone ({with_buildings} with more than 1 m² of a LINZ building outline "
+        "on them). "
         f"Left out: {meta['outside_zone']} titles outside a Residential zone, and parcels "
         f"in one that aren't titles ({left or 'none'}). A section counts if at least one "
         "real prefab with labelled dimensions fits on it, square to one of its walls."
