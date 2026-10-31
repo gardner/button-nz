@@ -148,11 +148,15 @@ def building_separation(footprint: Polygon, site: SiteContext) -> Check:
 
 def product_footprint(walls: Polygon, product: Footprint) -> Check:
     """The walls are ``product``'s published outside footprint: a rectangle of
-    its length and width, either way round, to within ``PRODUCT_TOLERANCE_M``."""
+    its length and width, either way round, to within ``PRODUCT_TOLERANCE_M``.
+    The walls lie inside their minimum rotated rectangle, so they are that
+    rectangle when, grown by the tolerance, they cover all of it: an area test,
+    not just their corners."""
     box = walls.minimum_rotated_rectangle
     corners = list(box.exterior.coords) if isinstance(box, Polygon) else []
     sides = sorted((_side(corners, 0), _side(corners, 1)), reverse=True)
-    off = walls.hausdorff_distance(box)
+    covered = walls.buffer(PRODUCT_TOLERANCE_M).contains(box)
+    off = _farthest_from(walls, box)
     measured = {
         "length_m": sides[0],
         "width_m": sides[1],
@@ -165,7 +169,7 @@ def product_footprint(walls: Polygon, product: Footprint) -> Check:
     rule = f"the {product.name}'s published outside footprint, {size}, to {PRODUCT_TOLERANCE_M:g} m"
     built = f"{sides[0]:.1f} × {sides[1]:.1f} m"
     want = sorted((product.length_m, product.width_m), reverse=True)
-    if off > PRODUCT_TOLERANCE_M:
+    if not covered:
         detail = (
             f"The walls are not a rectangle: up to {off:.2f} m off the {built} box around them."
         )
@@ -175,6 +179,15 @@ def product_footprint(walls: Polygon, product: Footprint) -> Check:
         return Check("product_footprint", Status.FAIL, detail, measured, rule)
     detail = f"The walls are {built}, the {product.name}'s {size}."
     return Check("product_footprint", Status.PASS, detail, measured, rule)
+
+
+def _farthest_from(walls: Polygon, box: BaseGeometry, step_m: float = 0.05) -> float:
+    """How far the box's edge gets from the walls, sampled every ``step_m``."""
+    if not isinstance(box, Polygon):
+        return 0.0
+    edge = box.exterior
+    stops = np.arange(0.0, edge.length, step_m)
+    return max(walls.distance(edge.interpolate(float(d))) for d in stops)
 
 
 def _side(corners: list[tuple[float, ...]], k: int) -> float:

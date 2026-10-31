@@ -53,6 +53,29 @@ def test_walls_that_are_not_a_rectangle_fail() -> None:
     assert check.measured["off_rectangle_m"] == pytest.approx(2.0)
 
 
+@pytest.mark.parametrize(
+    "walls",
+    [
+        ((0, 0), (12.2, 0), (12.2, 4), (6.1, 0.05), (0, 4), (0, 0)),  # a V: half the product
+        (  # a slot cut nearly through
+            (0, 0),
+            (12.2, 0),
+            (12.2, 4),
+            (6.2, 4),
+            (6.2, 0.05),
+            (6.0, 0.05),
+            (6.0, 4),
+            (0, 4),
+            (0, 0),
+        ),
+    ],
+)
+def test_walls_whose_corners_match_but_whose_area_does_not_fail(walls: Ring) -> None:
+    check = product_check(walls)
+    assert check.status is Status.FAIL
+    assert "not a rectangle" in check.detail
+
+
 def test_without_a_product_there_is_no_product_check() -> None:
     report = evaluate(proposal(), site())
     assert "product_footprint" not in {c.name for c in report.checks}

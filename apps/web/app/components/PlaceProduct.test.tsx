@@ -65,4 +65,27 @@ describe("placing a real prefab", () => {
       product_id: "airhome-vista",
     });
   });
+
+  it("keeps the design on show when the placement is refused", async () => {
+    const fetch = vi.fn(() => new Promise<Response>(() => {}));
+    fetch.mockResolvedValueOnce(respond(JOB));
+    fetch.mockResolvedValueOnce(respond(PRODUCTS));
+    fetch.mockResolvedValueOnce(
+      respond({ detail: "This server starts 30 design runs a day" }, 429),
+    );
+    vi.stubGlobal("fetch", fetch);
+    render(<DesignPanel pollMs={5} />);
+    await userEvent.type(screen.getByLabelText("Brief"), "A small studio.");
+    await userEvent.click(screen.getByRole("button", { name: "Design" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Place the AirHome Vista on the site",
+      }),
+    );
+    expect(await screen.findByText(/30 design runs a day/)).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe("Accepted: attempt 2");
+  });
 });
