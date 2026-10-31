@@ -12,7 +12,7 @@ rewrite.
 |---|---|---|
 | Access code | Every page and `/api` request needs it. A link with `?code=` sets an HttpOnly, Secure cookie and drops the code from the address; anything else gets a 401 page. | `apps/web/proxy.ts`, `lib/access.ts` |
 | Daily cap | At most `BUTTON_DAILY_DESIGNS` design runs, originals and revisions, start in any 24 hours. One past it is refused (429, with when the next frees up), never queued. Each run is Meta Model API calls and a GPU Blender run. | `serve --daily-designs`, `api/limits.py` |
-| Fixed survey | The survey is served with who decided it, and changes to it are refused (403), so one visitor can't change what everyone's designs are checked against. | `serve --survey-decided-by`, `api/features.py` |
+| Fixed survey | The survey is served with who decided it, and changes to it are refused (403), so one visitor can't change what everyone's designs are checked against. Left empty, the survey stays open for the owner to decide in the app first. | `serve --survey-decided-by`, `api/features.py` |
 | Design links | `/?design=<id>` opens that design and the designs it revises; the address bar follows the design on show. A judge can open a finished design at once. | `useDesignChain.ts` |
 
 Run locally, as in the README, none of these is on.

@@ -38,7 +38,8 @@ def main(argv: list[str] | None = None) -> None:
         "--daily-designs", type=int, help="start at most this many design runs in any 24 hours"
     )
     parser.add_argument(
-        "--survey-decided-by", help="fix the survey, as this person decided it (e.g. 'the owner')"
+        "--survey-decided-by",
+        help="fix the survey, as this person decided it (e.g. 'the owner'); empty leaves it open",
     )
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
@@ -60,7 +61,7 @@ def main(argv: list[str] | None = None) -> None:
         survey=survey,
         aerial=demo_aerial(site),
         cap=cap,
-        survey_decided_by=args.survey_decided_by,
+        survey_decided_by=args.survey_decided_by or None,  # empty: the owner is deciding
     )
     uvicorn.run(app, host=args.host, port=args.port)
 
