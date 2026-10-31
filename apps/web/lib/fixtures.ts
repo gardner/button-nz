@@ -42,6 +42,8 @@ export const SURVEY = {
   crs: "EPSG:2193",
   survey_id: "s1",
   buildings_complete: false,
+  fixed: false,
+  decided_by: null,
   features: [
     {
       type: "Feature",

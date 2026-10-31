@@ -131,6 +131,25 @@ describe("FeaturesPanel", () => {
     });
   });
 
+  it("shows a fixed survey's decisions, and who made them, without changing them", async () => {
+    const fetch = serve(
+      respond({ ...SURVEY, fixed: true, decided_by: "the owner" }),
+    );
+    render(<Confirming />);
+    const shed = await feature("#1 shed");
+    expect(pressed(shed)).toEqual(["Existing building"]);
+    expect(
+      screen.getByText(/fixed on this server, as the owner decided it/i),
+    ).toBeTruthy();
+    const controls = [
+      ...screen.getAllByRole("button"),
+      screen.getByRole("checkbox"),
+    ];
+    expect(controls.every((c) => (c as HTMLButtonElement).disabled)).toBe(true);
+    await userEvent.click(within(shed).getAllByRole("button")[1]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("explains, in the API's words, that there is no survey yet", async () => {
     const detail = "no survey yet: run python -m button_nz.perception.survey";
     serve(respond({ detail }, 404));
