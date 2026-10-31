@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, computed_field, model_validator
 
 from button_nz.evaluation import Footprint
 
@@ -52,6 +52,7 @@ class Product(BaseModel):
         except ValidationError as error:
             raise CatalogueError(f"{raw.get('id', '?')}: {error}") from error
 
+    @computed_field  # sent with the product, so the app offers only what can be placed
     @property
     def placeable(self) -> bool:
         """Whether it can be placed on a site: its figures are its outside

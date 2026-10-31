@@ -168,3 +168,9 @@ def test_only_a_labelled_rectangle_can_be_placed() -> None:
     assert by_id["airhome-vista"].placeable
     assert not by_id["lockwood-ara"].placeable  # a stepped plan: its figures bound it
     assert not by_id["keith-hay-haven-70"].placeable  # what its figures measure isn't said
+
+
+def test_a_product_says_whether_it_can_be_placed_when_sent() -> None:
+    by_id = {p.id: p for p in load_products()}
+    assert by_id["airhome-vista"].model_dump()["placeable"] is True
+    assert by_id["lockwood-ara"].model_dump()["placeable"] is False

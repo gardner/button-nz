@@ -165,15 +165,36 @@ function ProductCard({
       </p>
       <p>Excludes: {p.excludes}</p>
       <p>West Coast: {p.westCoast}</p>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => onPlace(p)}
-        aria-label={`Place the ${p.supplier} ${p.model} on the site`}
-        className="mt-2 rounded border border-zinc-300 px-3 py-1 disabled:opacity-40 dark:border-zinc-700"
-      >
-        Place it on the site
-      </button>
+      {p.placeable ? (
+        <PlaceButton product={p} busy={busy} onPlace={onPlace} />
+      ) : (
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Can&apos;t be placed: its plan isn&apos;t the rectangle its figures
+          give.
+        </p>
+      )}
     </li>
+  );
+}
+
+function PlaceButton({
+  product: p,
+  busy,
+  onPlace,
+}: {
+  product: Product;
+  busy: boolean;
+  onPlace: (product: Product) => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onPlace(p)}
+      aria-label={`Place the ${p.supplier} ${p.model} on the site`}
+      className="mt-2 rounded border border-zinc-300 px-3 py-1 disabled:opacity-40 dark:border-zinc-700"
+    >
+      Place it on the site
+    </button>
   );
 }

@@ -82,7 +82,9 @@ describe("ProductsPanel", () => {
     const places = await screen.findAllByRole("button", {
       name: /^Place the .* on the site$/,
     });
-    expect(places).toHaveLength(PRODUCTS.fits.length);
+    expect(places).toHaveLength(
+      PRODUCTS.fits.filter((p) => p.placeable).length,
+    );
     await userEvent.click(
       screen.getByRole("button", {
         name: "Place the AirHome Vista on the site",
@@ -91,6 +93,22 @@ describe("ProductsPanel", () => {
     expect(onPlace).toHaveBeenCalledWith(
       expect.objectContaining({ id: "airhome-vista" }),
     );
+  });
+
+  it("doesn't offer to place a product whose figures only bound its plan", async () => {
+    const stepped = {
+      ...PRODUCTS.fits[0],
+      id: "lockwood-ara",
+      supplier: "Lockwood",
+      model: "Ara",
+      bounding_box: true,
+      placeable: false,
+    };
+    serve({ ...PRODUCTS, fits: [stepped] });
+    render(<ProductsPanel jobId="abc123" busy={false} onPlace={vi.fn()} />);
+    await ask();
+    expect(await screen.findByText(/Can't be placed/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Place the/ })).toBeNull();
   });
 
   it("waits to place a product while a design is running", async () => {
