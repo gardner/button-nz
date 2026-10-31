@@ -55,9 +55,10 @@ class FeatureLayer:
     def where(self, clause: str) -> FeatureSet:
         return self._query({"where": clause})
 
-    def in_envelope(self, bbox: BBox) -> FeatureSet:
+    def in_envelope(self, bbox: BBox, where: str = "1=1") -> FeatureSet:
         return self._query(
             {
+                "where": where,
                 "geometry": ",".join(str(v) for v in bbox),
                 "geometryType": "esriGeometryEnvelope",
                 "inSR": NZTM,
