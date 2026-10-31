@@ -11,6 +11,7 @@ describe("parseSurvey", () => {
     const survey = parseSurvey(SURVEY);
     expect(survey.id).toBe("s1");
     expect(survey.buildingsComplete).toBe(false);
+    expect(survey.decidedBy).toBeNull();
     expect(survey.features.map((f) => f.decision)).toEqual([
       "building",
       null,
@@ -26,6 +27,15 @@ describe("parseSurvey", () => {
       note: "The LiDAR shows 4% of it under 0.5 m.",
     });
     expect(survey.features[2]).toMatchObject({ score: null, maxHeightM: null });
+  });
+
+  it("reads who decided a survey this server has fixed", () => {
+    const fixed = { ...SURVEY, fixed: true, decided_by: "the owner" };
+    expect(parseSurvey(fixed).decidedBy).toBe("the owner");
+  });
+
+  it("refuses a fixed survey that doesn't say who decided it", () => {
+    expect(() => parseSurvey({ ...SURVEY, fixed: true })).toThrow(ApiError);
   });
 
   it("reads a polygon and a multipolygon as lists of polygons", () => {
