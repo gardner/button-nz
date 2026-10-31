@@ -78,7 +78,10 @@ the chosen sample's folders before packaging them.
 
 **To do:** package one demo run's folders, the accepted design and its
 revision, as the sample. The owner gave permission on 31 October 2026 to
-publish imagery and renders of the site, so nothing now holds this back.
+publish imagery and renders of the site. Package the sample from the final
+take, which uses the owner's survey (open item 2 below), not from the takes
+so far: those measure separation from the two sheds, which the owner says
+aren't buildings.
 
 ## Open: needs the owner
 
