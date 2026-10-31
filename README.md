@@ -117,6 +117,10 @@ The reports and their logs are in [docs/results](docs/results/README.md).
     - the verdict plus the LiDAR tools.
   - Measured: acceptance, execution and repair rates, attempts, and time.
 
+The [town screen](docs/results/town-screen/report.md)
+(`button_nz.bench.town_screen`) uses no model: it counts the Reefton sections
+with room for a real prefab under the exemption's siting rules.
+
 ## Security
 
 Model-written code is untrusted. Each script runs in Blender under bubblewrap

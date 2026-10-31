@@ -80,6 +80,13 @@ def report(results: Sequence[SectionResult], meta: Mapping[str, Any]) -> str:
         "|---|---|---|",
         *(f"| {LABELS[n]} | {counts[n]} | {_share(counts[n], total)} |" for n in COUNTS),
         "",
+        "## Backyards",
+        "",
+        "A granny flat is usually built beside a home: these are the sections with a "
+        "building on them, and those without.",
+        "",
+        _by_building(results),
+        "",
         "## By section size",
         "",
         _by_size(results),
@@ -114,6 +121,20 @@ def _introduction(meta: Mapping[str, Any], total: int, with_buildings: int) -> s
         f"in one that aren't titles ({left or 'none'}). A section counts if at least one "
         "real prefab with labelled dimensions fits on it, square to one of its walls."
     )
+
+
+def _by_building(results: Sequence[SectionResult]) -> str:
+    rows = [
+        "| Sections | Count | " + " | ".join(LABELS[n] for n in COUNTS) + " |",
+        "|---|---|" + "---|" * len(COUNTS),
+    ]
+    for name, group in (
+        ("With a building on them (a backyard)", [r for r in results if r.buildings]),
+        ("With none", [r for r in results if not r.buildings]),
+    ):
+        cells = " | ".join(str(sum(1 for r in group if getattr(r, n))) for n in COUNTS)
+        rows.append(f"| {name} | {len(group)} | {cells} |")
+    return "\n".join(rows)
 
 
 def _by_size(results: Sequence[SectionResult]) -> str:

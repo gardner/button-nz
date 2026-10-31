@@ -72,6 +72,8 @@ def test_the_report_states_the_counts_sources_and_what_is_not_checked() -> None:
     assert "## What it doesn't check" in text
     assert "Supplier A Model A (10 x 5 m)" in text
     assert "Road: 2" in text
+    assert "| With a building on them (a backyard) | 1 | 1 | 1 | 1 | 1 |" in text
+    assert "| With none | 3 | 2 | 2 | 1 | 0 |" in text
 
 
 def test_results_are_keyed_by_parcel_id_alone(tmp_path: Path) -> None:
