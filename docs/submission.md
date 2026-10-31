@@ -79,7 +79,10 @@ the chosen sample's folders before packaging them.
 | `visual.png`, `visual.json` | the AI visual and its silhouette check (accepted designs only) |
 
 **To do:** package one demo run's folders, the accepted design and its
-revision, as the sample. The owner gave permission on 31 October 2026 to
+revision, as the sample, with
+`python -m button_nz.sample DATA JOB_ID sample.zip --survey-decided-by "the owner"`.
+It also packs the survey with its decisions, every attempt's verdict
+(`sample.json`) and a README naming the sources and their licences. The owner gave permission on 31 October 2026 to
 publish imagery and renders of the site. Package the sample from the final
 take, which uses the owner's survey (open item 2 below), not from the takes
 so far: those measure separation from the two sheds, which the owner says
