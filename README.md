@@ -32,6 +32,10 @@ for the full plan.
                                        ▼       up to three attempts)
                     accepted design: GLB + render in the web app,
                     revisable in plain words ("move it 3 m back")
+                                       │
+                    Muse Image illustrates it; SAM 3.1 checks the
+                    building is still the design's; real prefabs that
+                    fit its footprint, and who to call next
 ```
 
 1. **Site data.** The demo site record (`data/demo-site/site.json`) pins the
@@ -64,6 +68,19 @@ for the full plan.
    verdict and the render go back to Muse for the next attempt.
 6. **Revise.** An accepted design can be changed in plain words. Muse starts
    from the accepted script, and the evaluator checks the result again.
+7. **Illustrate.** Muse Image turns the trusted render into a photograph of
+   the same scene. Image models move and invent things, so SAM 3.1 finds the
+   house in the illustration, and it is shown only if it overlaps the
+   design's silhouette from the same camera (IoU at least 0.6), labelled
+   AI-illustrated.
+8. **Match real prefabs.** `button_nz.catalogue` holds 17 New Zealand prefab
+   products, each with sourced dimensions, and its price where the supplier
+   publishes one (seven do; see [docs/suppliers.md](docs/suppliers.md)). Of the
+   14 whose dimensions are labelled, those whose rectangle fits inside the
+   accepted footprint are shown, with what their price leaves out. The other
+   three are listed as unchecked, never as fitting. The next steps go with
+   them: the licensed professionals the exemption needs, and the council's
+   records.
 
 ## Meta models
 
@@ -71,9 +88,11 @@ for the full plan.
 |---|---|---|
 | `muse-spark-1.3` | `button_nz.agent.model` | the design agent: tool calls to Blender and the LiDAR views, reading its own renders |
 | `muse-spark-1.3` | `button_nz.bench.answering` | Experiment A: answering terrain questions from images |
-| `sam-3.1` | `button_nz.perception.sam` | segmenting the aerial photograph into site features |
+| `sam-3.1` | `button_nz.perception.sam` | segmenting the aerial photograph into site features, and checking each AI visual's house against the design |
+| `muse-image-1.0` | `button_nz.perception.visual` | illustrating an accepted design from its trusted render |
+| `muse-wonder-1.0` | `button_nz.bench.design_ablation --model` | compared with Spark as the design agent ([results](docs/results/README.md)) |
 
-All three are called through the Meta Model API (`https://api.meta.ai/v1`)
+All of them are called through the Meta Model API (`https://api.meta.ai/v1`)
 with `META_API_KEY`.
 
 ## Evaluation
@@ -139,9 +158,10 @@ Source code is under the GNU GPL (see `LICENSE`).
 - **Imagery age.** The LiDAR (2020–24) and the aerial photos (2024–25) were
   captured years apart, and the site may have changed since. That is why the
   owner confirms the survey.
-- **Open items** in `site.json`:
-  - the owner's permission to publish imagery and renders;
-  - the owner's confirmation of what stands on the site.
+- **Open item** in `site.json`: the owner's own survey of the site. The
+  owner says nothing is built on it, so the two features the survey took for
+  sheds are not buildings. The owner gave permission on 31 October 2026 to
+  publish imagery and renders of the site.
 
 ## Run it
 
