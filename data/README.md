@@ -39,9 +39,11 @@ states it.
 
 ## Still open
 
-- Owner permission to publish imagery and renders. This gates public release,
-  not development.
-- Owner confirmation of the structures and vegetation the LiDAR shows on site.
+- The owner's own survey of the site. The owner says nothing is built on it,
+  so the two features the survey took for sheds are not buildings.
+
+The owner gave permission on 31 October 2026 to publish imagery and renders
+of the site.
 
 Do not commit raw downloads until licensing and size are agreed. The manifest
 pins exact tile URLs on LINZ's public S3, so fetch from there.

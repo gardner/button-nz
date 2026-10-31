@@ -139,9 +139,10 @@ Source code is under the GNU GPL (see `LICENSE`).
 - **Imagery age.** The LiDAR (2020–24) and the aerial photos (2024–25) were
   captured years apart, and the site may have changed since. That is why the
   owner confirms the survey.
-- **Open items** in `site.json`:
-  - the owner's permission to publish imagery and renders;
-  - the owner's confirmation of what stands on the site.
+- **Open item** in `site.json`: the owner's own survey of the site. The
+  owner says nothing is built on it, so the two features the survey took for
+  sheds are not buildings. The owner gave permission on 31 October 2026 to
+  publish imagery and renders of the site.
 
 ## Run it
 

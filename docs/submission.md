@@ -77,21 +77,21 @@ the chosen sample's folders before packaging them.
 | `visual.png`, `visual.json` | the AI visual and its silhouette check (accepted designs only) |
 
 **To do:** package one demo run's folders, the accepted design and its
-revision, as the sample. This waits on the open item below.
+revision, as the sample. The owner gave permission on 31 October 2026 to
+publish imagery and renders of the site, so nothing now holds this back.
 
 ## Open: needs the owner
 
-1. **Permission to publish imagery and renders of the site** (an open item in
-   `data/demo-site/site.json`). The video, the sample artifacts and the
-   survey all show it.
-2. **The submission portal's requirements**, which need the team's login:
+1. **The submission portal's requirements**, which need the team's login:
    video length and format, the fields, and whether a deployed URL is
    required.
-3. **Confirmation of what stands on the site.** The survey decisions in
-   `data/demo-site/decisions.json` are the team's, labelled as pending this.
-4. **Quotes for the prefabs (#11).** The suppliers, products and local
+2. **The owner's own survey of the site.** The owner says nothing is built on
+   it, so the two features `data/demo-site/decisions.json` marks as buildings
+   (the team's decisions) are not. The takes so far show those decisions; the
+   final take uses the owner's.
+3. **Quotes for the prefabs (#11).** The suppliers, products and local
    professionals are researched and sourced in [suppliers.md](suppliers.md).
    An accepted design shows the catalogue products that fit and the next
    steps; ten of the 17 have no published price, which only a quote from
    the supplier can give.
-5. **Deployment:** whether to deploy, and where (see 1 above).
+4. **Deployment:** where to host it (see 1 above).
