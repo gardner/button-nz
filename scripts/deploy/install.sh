@@ -27,8 +27,10 @@ BUTTON_ACCESS_CODE="$code"
 BUTTON_DATA="$repo/var"
 # Design runs started in any 24 hours, originals and revisions alike.
 BUTTON_DAILY_DESIGNS="30"
-# Who decided the survey this server serves, fixed.
-BUTTON_SURVEY_DECIDED_BY="the owner"
+# Who decided the survey this server serves, fixed. Leave it empty while the
+# owner decides it in the app (anyone with the code can then change it), and
+# set it, then run this again, once they have.
+BUTTON_SURVEY_DECIDED_BY=""
 SETTINGS
   echo "Wrote $settings: check BUTTON_DATA and BUTTON_SURVEY_DECIDED_BY, then run this again."
   exit 0
