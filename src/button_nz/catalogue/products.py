@@ -33,6 +33,7 @@ class Product(BaseModel):
     length_m: float  # the published outside footprint
     width_m: float
     dimensions_labelled: bool  # False: the page doesn't say what the figures measure
+    bounding_box: bool  # True: the plan isn't a rectangle (its source shows steps)
     floor_area_m2: float  # as the supplier states it
     area_basis: str  # internal, or "not stated"
     bedrooms: int
@@ -53,14 +54,14 @@ class Product(BaseModel):
 
     @property
     def placeable(self) -> bool:
-        """Whether it can be placed on a site: its page says its figures are the
-        outside footprint."""
-        return self.dimensions_labelled
+        """Whether it can be placed on a site: its figures are its outside
+        footprint, and that footprint is a rectangle, not a plan they only bound."""
+        return self.dimensions_labelled and not self.bounding_box
 
     def footprint(self) -> Footprint:
         """Its published outside footprint, to design to and check against."""
         if not self.placeable:
-            raise CatalogueError(f"{self.id}: its page doesn't say what its dimensions measure")
+            raise CatalogueError(f"{self.id}: its footprint isn't a known rectangle")
         return Footprint(f"{self.supplier} {self.model}", self.length_m, self.width_m)
 
     @model_validator(mode="after")

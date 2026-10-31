@@ -29,6 +29,7 @@ def product(**overrides: Any) -> dict[str, Any]:
         "length_m": 12.0,
         "width_m": 4.0,
         "dimensions_labelled": True,
+        "bounding_box": False,
         "floor_area_m2": 48.0,
         "area_basis": "not stated",
         "bedrooms": 2,
@@ -160,3 +161,10 @@ def test_a_curved_footprint_with_no_long_walls_is_still_tried() -> None:
     round_house = Point(0, 0).buffer(5, quad_segs=32)  # 128 edges of about 0.25 m
     assert fits(round_house, 9, 3.5)
     assert not fits(round_house, 9, 5)
+
+
+def test_only_a_labelled_rectangle_can_be_placed() -> None:
+    by_id = {p.id: p for p in load_products()}
+    assert by_id["airhome-vista"].placeable
+    assert not by_id["lockwood-ara"].placeable  # a stepped plan: its figures bound it
+    assert not by_id["keith-hay-haven-70"].placeable  # what its figures measure isn't said

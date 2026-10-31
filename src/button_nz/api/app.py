@@ -34,7 +34,7 @@ from button_nz.api.features import features_router
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
-from button_nz.api.store import Job, Store
+from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
 
@@ -65,8 +65,8 @@ class AttemptView(BaseModel):
 class ProductView(BaseModel):
     id: str
     name: str
-    length_m: float | None  # None: no longer in the catalogue, so not known here
-    width_m: float | None
+    length_m: float
+    width_m: float
 
 
 class JobView(BaseModel):
@@ -120,13 +120,11 @@ def create_app(
 
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
-        _check_placeable(placeable, request.product_id)
+        placed = _placed(placeable, request.product_id)
         with _admit(cap):
-            job = store.create_job(
-                request.brief, request.allow_observations, product_id=request.product_id
-            )
+            job = store.create_job(request.brief, request.allow_observations, product=placed)
         worker.wake()
-        return _job_view(store, worker, job, placeable)
+        return _job_view(store, worker, job)
 
     @app.post("/designs/{job_id}/revisions", status_code=202)
     def post_revision(job_id: str, request: RevisionRequest) -> JobView:
@@ -139,14 +137,14 @@ def create_app(
                 request.allow_observations,
                 parent.id,
                 request.instruction,
-                parent.product_id,
+                parent.product,
             )
         worker.wake()
-        return _job_view(store, worker, job, placeable)
+        return _job_view(store, worker, job)
 
     @app.get("/designs/{job_id}")
     def get_design(job_id: str) -> JobView:
-        return _job_view(store, worker, _job(store, job_id), placeable)
+        return _job_view(store, worker, _job(store, job_id))
 
     @app.get("/designs/{job_id}/attempts/{number}/{name}")
     def get_artifact(job_id: str, number: int, name: str) -> FileResponse:
@@ -163,10 +161,15 @@ def _admit(cap: DailyCap | None) -> AbstractContextManager[None]:
     return nullcontext() if cap is None else cap.admit()
 
 
-def _check_placeable(placeable: Mapping[str, Product], product_id: str | None) -> None:
-    """A 422 unless ``product_id`` is none, or a product whose footprint is known."""
-    if product_id is not None and product_id not in placeable:
+def _placed(placeable: Mapping[str, Product], product_id: str | None) -> Placed | None:
+    """The product to place, as the catalogue gives it now; a 422 for one whose
+    footprint isn't a known rectangle."""
+    if product_id is None:
+        return None
+    if product_id not in placeable:
         raise HTTPException(422, f"{product_id} isn't a product whose footprint can be placed")
+    footprint = placeable[product_id].footprint()
+    return Placed(product_id, footprint.name, footprint.length_m, footprint.width_m)
 
 
 def _job(store: Store, job_id: str) -> Job:
@@ -180,7 +183,7 @@ def _attempt_dir(worker: Worker, job: Job, number: int) -> Path:
     return worker.runs_dir / job.id / f"attempt-{number}"
 
 
-def _job_view(store: Store, worker: Worker, job: Job, products: Mapping[str, Product]) -> JobView:
+def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
     attempts = [
         AttemptView(
             number=a.number,
@@ -203,21 +206,9 @@ def _job_view(store: Store, worker: Worker, job: Job, products: Mapping[str, Pro
         accepted_attempt=job.accepted_attempt,
         parent_id=job.parent_id,
         instruction=job.instruction,
-        product=_product(products, job.product_id),
+        product=None if job.product is None else ProductView(**asdict(job.product)),
         attempts=attempts,
         illustrating=_illustrating(worker, job),
-    )
-
-
-def _product(products: Mapping[str, Product], product_id: str | None) -> ProductView | None:
-    if product_id is None:
-        return None
-    if product_id not in products:  # the catalogue changed since: say so, not guess
-        name = f"{product_id}, no longer in the catalogue"
-        return ProductView(id=product_id, name=name, length_m=None, width_m=None)
-    footprint = products[product_id].footprint()
-    return ProductView(
-        id=product_id, name=footprint.name, length_m=footprint.length_m, width_m=footprint.width_m
     )
 
 

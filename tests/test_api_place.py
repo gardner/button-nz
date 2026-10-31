@@ -15,7 +15,9 @@ from button_nz.demo_site import load_demo_site
 from test_api import ScriptedModel, fake_runner, synthetic_site
 
 
-def product(id: str, length: float, width: float, labelled: bool = True) -> Product:
+def product(
+    id: str, length: float, width: float, labelled: bool = True, bounding_box: bool = False
+) -> Product:
     return Product.parse(
         {
             "id": id,
@@ -26,6 +28,7 @@ def product(id: str, length: float, width: float, labelled: bool = True) -> Prod
             "length_m": length,
             "width_m": width,
             "dimensions_labelled": labelled,
+            "bounding_box": bounding_box,
             "floor_area_m2": round(length * width * 0.9, 1),
             "area_basis": "not stated",
             "bedrooms": 1,
@@ -40,11 +43,18 @@ def product(id: str, length: float, width: float, labelled: bool = True) -> Prod
 
 
 # fake_runner's "good" design has 6 m x 5 m walls.
-CATALOGUE = (product("cabin", 6.0, 5.0), product("long", 8.0, 4.0), product("vague", 6, 5, False))
+CATALOGUE = (
+    product("cabin", 6.0, 5.0),
+    product("long", 8.0, 4.0),
+    product("vague", 6, 5, labelled=False),
+    product("stepped", 6, 5, bounding_box=True),
+)
 
 
 class Placing:
-    def __init__(self, tmp_path: Path, *replies: str) -> None:
+    def __init__(
+        self, tmp_path: Path, *replies: str, catalogue: tuple[Product, ...] = CATALOGUE
+    ) -> None:
         self.model = ScriptedModel(*replies)
         self.store = Store(tmp_path / "button.db")
         self.worker = Worker(
@@ -53,9 +63,8 @@ class Placing:
             model=lambda: self.model,
             runs_dir=tmp_path / "runs",
             runner=fake_runner,
-            products=CATALOGUE,
         )
-        app = create_app(self.store, self.worker, load_demo_site(), products=CATALOGUE)
+        app = create_app(self.store, self.worker, load_demo_site(), products=catalogue)
         self.client = TestClient(app)
 
     def place(self, product_id: str) -> Any:
@@ -90,8 +99,8 @@ def test_walls_that_are_not_the_product_are_not_accepted(tmp_path: Path) -> None
     assert "product_footprint: fail" in job["attempts"][0]["feedback"]
 
 
-@pytest.mark.parametrize("product_id", ["nope", "vague"])
-def test_only_a_product_with_labelled_dimensions_can_be_placed(
+@pytest.mark.parametrize("product_id", ["nope", "vague", "stepped"])
+def test_only_a_product_whose_footprint_is_a_known_rectangle_can_be_placed(
     tmp_path: Path, product_id: str
 ) -> None:
     refused = Placing(tmp_path).place(product_id)
@@ -118,18 +127,11 @@ def test_a_revision_keeps_the_product_it_places(tmp_path: Path) -> None:
     assert "product_footprint: pass" in job["attempts"][0]["feedback"]
 
 
-def test_a_product_since_dropped_from_the_catalogue_is_named_not_guessed(tmp_path: Path) -> None:
-    store = Store(tmp_path / "button.db")
-    job = store.create_job("A studio.", True, product_id="gone")
-    placing = Placing(tmp_path)
-    view = placing.client.get(f"/designs/{job.id}").json()["product"]
-    assert view == {
-        "id": "gone",
-        "name": "gone, no longer in the catalogue",
-        "length_m": None,
-        "width_m": None,
-    }
+def test_a_design_keeps_its_product_as_it_was_when_placed(tmp_path: Path) -> None:
+    job_id = Placing(tmp_path).place("cabin").json()["id"]
+    resized = (product("cabin", 8.0, 4.0),)  # a later catalogue changes the product
+    placing = Placing(tmp_path, "good", catalogue=resized)
+    assert placing.client.get(f"/designs/{job_id}").json()["product"]["length_m"] == 6.0
     assert placing.worker.run_next()
-    failed = placing.client.get(f"/designs/{job.id}").json()
-    assert failed["status"] == "failed"
-    assert "no product gone in the catalogue" in failed["error"]
+    job = placing.client.get(f"/designs/{job_id}").json()
+    assert "product_footprint: pass" in job["attempts"][0]["feedback"]  # checked as placed

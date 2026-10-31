@@ -57,14 +57,6 @@ describe("parseJob", () => {
     });
   });
 
-  it("reads a placed product since dropped from the catalogue, without a size", () => {
-    const product = { id: "gone", name: "gone", length_m: null, width_m: null };
-    expect(parseJob({ ...JOB, product }).product).toMatchObject({
-      lengthM: null,
-      widthM: null,
-    });
-  });
-
   it("reads which design a revision changes, and how", () => {
     const job = parseJob({
       ...JOB,

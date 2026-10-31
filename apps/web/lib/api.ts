@@ -60,13 +60,13 @@ export interface Job {
   illustrating: boolean; // done, and its AI visual is still being made
 }
 
-/** A catalogue product a design places: its walls are its outside footprint.
- * No size if it has left the catalogue since. */
+/** A catalogue product a design places, as it was when placed: its walls are
+ * its outside footprint. */
 export interface PlacedProduct {
   id: string;
   name: string;
-  lengthM: number | null;
-  widthM: number | null;
+  lengthM: number;
+  widthM: number;
 }
 
 export type Point = [number, number]; // NZTM (EPSG:2193) metres
@@ -248,8 +248,8 @@ function parsePlaced(raw: unknown): PlacedProduct {
   return {
     id: text(product, "id"),
     name: text(product, "name"),
-    lengthM: optional(product, "length_m", number),
-    widthM: optional(product, "width_m", number),
+    lengthM: number(product, "length_m"),
+    widthM: number(product, "width_m"),
   };
 }
 

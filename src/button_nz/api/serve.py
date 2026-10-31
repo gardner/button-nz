@@ -24,7 +24,6 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.store import Store
-from button_nz.catalogue import load_products
 from button_nz.demo_site import load_demo_site
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.perception.visual import illustrate_from_env
@@ -44,7 +43,6 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
     survey = args.data / SURVEY_FILE
-    products = load_products()  # what the app offers, and what a design may place
     worker = Worker(
         store,
         site=demo_site,
@@ -52,7 +50,6 @@ def main(argv: list[str] | None = None) -> None:
         runs_dir=args.data / "runs",
         survey=survey,
         illustrator=illustrate_from_env,
-        products=products,
     )
     site = load_demo_site()
     cap = None if args.daily_designs is None else DailyCap(store, args.daily_designs)
@@ -62,7 +59,6 @@ def main(argv: list[str] | None = None) -> None:
         site,
         survey=survey,
         aerial=demo_aerial(site),
-        products=products,
         cap=cap,
         survey_decided_by=args.survey_decided_by,
     )

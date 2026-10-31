@@ -89,14 +89,9 @@ function DesignView({
 
 /** Which real product this design places, and the walls it must have. */
 function Placing({ product }: { product: PlacedProduct }) {
-  const size =
-    product.lengthM === null || product.widthM === null
-      ? ""
-      : `: walls ${product.lengthM} × ${product.widthM} m`;
   return (
     <p className="font-medium">
-      Placing the {product.name}
-      {size}
+      Placing the {product.name}: walls {product.lengthM} × {product.widthM} m
     </p>
   );
 }
