@@ -12,6 +12,7 @@ LiDAR's DEM and DSM tiles into ``CACHE``, screens every section
 """
 
 import argparse
+import math
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -21,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from shapely import STRtree, union_all
+from shapely import STRtree
 
 from button_nz.catalogue import Product, load_products
 from button_nz.config import ServiceEndpoints
@@ -38,6 +39,7 @@ from button_nz.town.sources import (
     TownData,
     buildings_on,
     fetch,
+    reach,
 )
 
 LIDAR_TITLE = "West Coast LiDAR 1m DEM and DSM (2020-2024)"
@@ -93,12 +95,12 @@ def screen_town(
 def lidar_grid(data: TownData, cache: Path) -> tuple[TerrainGrid, BBox, list[str]]:
     """The DEM and nDSM over every section plus ``GRID_MARGIN_M``, joined from
     the LiDAR tiles into ``cache``."""
-    x0, y0, x1, y1 = union_all([s.shape for s in data.selection.sections]).bounds
-    bbox: BBox = (
-        float(int(x0 - GRID_MARGIN_M)),
-        float(int(y0 - GRID_MARGIN_M)),
-        float(int(x1 + GRID_MARGIN_M) + 1),
-        float(int(y1 + GRID_MARGIN_M) + 1),
+    x0, y0, x1, y1 = reach(data.selection.sections, GRID_MARGIN_M)
+    bbox: BBox = (  # whole metres, on the LiDAR's grid
+        float(math.floor(x0)),
+        float(math.floor(y0)),
+        float(math.ceil(x1)),
+        float(math.ceil(y1)),
     )
     dem_urls, dsm_urls = tile_urls(bbox, "dem_1m"), tile_urls(bbox, "dsm_1m")
     dem = mosaic(dem_urls, bbox, cache / "dem.tif")

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 import httpx
-from shapely import MultiPolygon, Polygon, STRtree
+from shapely import MultiPolygon, Polygon, STRtree, union_all
 from shapely.geometry import shape
 
 from button_nz.config import ServiceEndpoints
@@ -30,6 +30,7 @@ SECTION_INTENTS = frozenset({"DCDB", "Fee Simple Title"})
 # Reefton's Residential zones, to the next 100 m. Blacks Point's, 850 m to the
 # south-east, are left out: (1507400, 5334600, 1507800, 5335400) covers them.
 REEFTON: BBox = (1505100.0, 5336200.0, 1506700.0, 5337700.0)
+OUTLINE_MARGIN_M = 10.0  # outlines fetched this far past the sections: over 2 m
 
 type Area = Polygon | MultiPolygon
 
@@ -57,19 +58,26 @@ class TownData:
 
 
 def fetch(endpoints: ServiceEndpoints, client: httpx.Client, bbox: BBox) -> TownData:
-    """The sections in ``bbox`` and the building outlines around them."""
+    """The sections in ``bbox`` and the building outlines around them. A
+    section can reach well past ``bbox``, so the outlines are fetched for
+    everywhere the sections reach, plus ``OUTLINE_MARGIN_M``."""
     layers = PropertyLayers.from_endpoints(endpoints, client)
     zone_layer = FeatureLayer(BDC_PLANNING_ZONES, "CC-BY-4.0", BDC_ATTRIBUTION, client)
     zones = zone_layer.in_envelope(bbox, where=RESIDENTIAL)
     parcels = layers.parcels.in_envelope(bbox)
-    # Wide enough for a building just outside the envelope that is within
-    # the separation distance of a section inside it.
-    wider = (bbox[0] - 50, bbox[1] - 50, bbox[2] + 50, bbox[3] + 50)
-    building_outlines = layers.buildings.in_envelope(wider)
     selection = residential_sections(parcels.features, zones.features)
+    building_outlines = layers.buildings.in_envelope(reach(selection.sections, OUTLINE_MARGIN_M))
     return TownData(
         selection, outlines(building_outlines.features), zones, parcels, building_outlines
     )
+
+
+def reach(sections: Sequence[Section], margin_m: float) -> BBox:
+    """The bounds of every one of ``sections``, ``margin_m`` wider all round."""
+    if not sections:
+        raise ValueError("no residential sections in the envelope")
+    x0, y0, x1, y1 = union_all([s.shape for s in sections]).bounds
+    return (x0 - margin_m, y0 - margin_m, x1 + margin_m, y1 + margin_m)
 
 
 def residential_sections(parcels: Iterable[Feature], zones: Iterable[Feature]) -> Selection:
@@ -80,13 +88,14 @@ def residential_sections(parcels: Iterable[Feature], zones: Iterable[Feature]) -
     for feature in parcels:
         props = cast("Mapping[str, Any]", feature["properties"])
         area = _area(feature)
-        point = area.representative_point()
-        if not len(zoned.query(point, predicate="within")):
-            outside += 1
-            continue
+        in_zone = bool(len(zoned.query(area.representative_point(), predicate="within")))
         intent = str(props.get("ParcelIntent"))
         if intent not in SECTION_INTENTS:
-            other[intent] += 1
+            if in_zone:
+                other[intent] += 1
+            continue
+        if not in_zone:
+            outside += 1
             continue
         parcel_id = int(props["ParcelID"])
         if parcel_id in sections:
