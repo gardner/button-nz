@@ -25,7 +25,11 @@ jobs:
       ${{ !github.event.pull_request.draft
       && github.event.pull_request.head.repo.full_name == github.repository
       && github.event.pull_request.user.login != 'dependabot[bot]' }}
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: on 26.04 the sandbox's seccomp helper can't write
+    # /proc/self/setgroups in its nested user namespace, so every Bash call
+    # fails and no review happens (run 41248689110). 24.04 is the image the
+    # sandbox setup below was verified on.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
