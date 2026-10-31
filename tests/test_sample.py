@@ -179,3 +179,13 @@ def test_a_survey_replaced_since_the_design_ran_is_refused(data: Path) -> None:
     write_survey(data / SURVEY_FILE, "tree", "tree", "shed")
     with pytest.raises(SampleError, match="changed"):
         pack(data, job, "the owner", data / "sample.zip")
+
+
+def test_a_linked_run_folder_is_refused_not_followed(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    run = data / "runs" / job
+    run.rename(data / "elsewhere")
+    run.symlink_to(data / "elsewhere", target_is_directory=True)
+    with pytest.raises(SampleError, match="link"):
+        pack(data, job, "the owner", data / "sample.zip")

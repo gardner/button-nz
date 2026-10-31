@@ -113,6 +113,9 @@ def _lineage(store: Store, job_id: str) -> list[Job]:
 def _files(run: Path, job: Job, folder: str) -> list[Packed]:
     """The listed files of every attempt of ``job``, refusing any link and an
     accepted attempt without every file in ``ACCEPTED``."""
+    for directory in (run.parent, run):  # runs/ and runs/<job> are walked: never through a link
+        if directory.is_symlink():
+            raise SampleError(f"{directory} is a link: not followed")
     accepted = run / f"attempt-{job.accepted_attempt}"
     if accepted.is_symlink() or not accepted.is_dir():
         raise SampleError(f"design {job.id}'s accepted {accepted.name} isn't in {run}")
