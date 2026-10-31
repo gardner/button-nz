@@ -8,10 +8,11 @@ them (``design-<k>/attempt-<n>/``), the survey with its decisions
 (``survey.json``), ``sample.json`` (the designs, their attempts and verdicts)
 and a README that says what each file is and whose data it is built from.
 
-Only the files listed in ``FILES`` go in, and only as regular files: a link is
-refused, never followed. A design without an accepted attempt is refused, so
-a sample is always of what the evaluator accepted. Nothing is written until
-everything is found.
+Only the files listed in ``FILES`` go in, and only as regular files: a link,
+to a file or a folder, is refused, never followed. A design without an
+accepted attempt is refused, so a sample is always of what the evaluator
+accepted, and so is one whose accepted attempt lacks any file in ``ACCEPTED``.
+Nothing is written until everything is found.
 """
 
 import argparse
@@ -31,6 +32,16 @@ from button_nz.perception.survey import SURVEY_FILE
 FILES = re.compile(
     r"scene\.json|script/design\.blend|design\.py|design\.glb|design\.png|measurements\.json"
     r"|attempt\.json|observation-[1-9][0-9]*\.png|visual\.png|visual\.json"
+)
+# What every accepted attempt keeps: without one of them, the sample is partial.
+ACCEPTED = (
+    "attempt.json",
+    "scene.json",
+    "design.py",
+    "script/design.blend",
+    "design.glb",
+    "design.png",
+    "measurements.json",
 )
 DESCRIPTIONS = {
     "scene.json": "the georeferenced site scene: terrain, nDSM, parcels, local frame",
@@ -61,7 +72,7 @@ def pack(data: Path, job_id: str, decided_by: str, out: Path) -> None:
     files = [
         packed
         for k, job in enumerate(designs, 1)
-        for packed in _files(data / "runs" / job.id, f"design-{k}")
+        for packed in _files(data / "runs" / job.id, job, f"design-{k}")
     ]
     survey = Survey.read(data / SURVEY_FILE)
     if survey is None:
@@ -101,16 +112,24 @@ def _lineage(store: Store, job_id: str) -> list[Job]:
     return designs
 
 
-def _files(run: Path, folder: str) -> list[Packed]:
+def _files(run: Path, job: Job, folder: str) -> list[Packed]:
+    """The listed files of every attempt of ``job``, refusing any link and an
+    accepted attempt without every file in ``ACCEPTED``."""
+    accepted = run / f"attempt-{job.accepted_attempt}"
+    if accepted.is_symlink() or not accepted.is_dir():
+        raise SampleError(f"design {job.id}'s accepted {accepted.name} isn't in {run}")
     found: list[Packed] = []
     for attempt in sorted(run.glob("attempt-*")):
-        for path in sorted(attempt.rglob("*")):
+        for path in sorted([attempt, *attempt.rglob("*")]):
+            if path.is_symlink():
+                raise SampleError(f"{path} is a link: not followed")
             name = path.relative_to(attempt).as_posix()
-            if not FILES.fullmatch(name):
-                continue
-            if path.is_symlink() or not path.is_file():
-                raise SampleError(f"{path} is a link or not a file: not packed")
-            found.append(Packed(f"{folder}/{attempt.name}/{name}", path))
+            if path.is_file() and FILES.fullmatch(name):
+                found.append(Packed(f"{folder}/{attempt.name}/{name}", path))
+    kept = {p.name for p in found}
+    missing = [n for n in ACCEPTED if f"{folder}/{accepted.name}/{n}" not in kept]
+    if missing:
+        raise SampleError(f"design {job.id}'s {accepted.name} lacks {', '.join(missing)}")
     return found
 
 

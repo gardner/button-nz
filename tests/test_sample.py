@@ -100,3 +100,37 @@ def test_a_linked_file_is_refused_not_followed(data: Path) -> None:
     render.symlink_to(data / "button.db")
     with pytest.raises(SampleError, match="link"):
         pack(data, job, "the owner", data / "sample.zip")
+
+
+def test_a_missing_accepted_attempt_is_refused_not_packed_without(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    accepted = data / "runs" / job / "attempt-2"
+    for path in sorted(accepted.rglob("*"), reverse=True):
+        path.rmdir() if path.is_dir() else path.unlink()
+    accepted.rmdir()
+    with pytest.raises(SampleError, match="attempt-2"):
+        pack(data, job, "the owner", data / "sample.zip")
+    assert not (data / "sample.zip").exists()
+
+
+def test_an_accepted_attempt_missing_a_file_is_refused(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    (data / "runs" / job / "attempt-2" / "design.glb").unlink()
+    with pytest.raises(SampleError, match="design.glb"):
+        pack(data, job, "the owner", data / "sample.zip")
+
+
+def test_a_linked_folder_is_refused_not_skipped(data: Path) -> None:
+    store = Store(data / "button.db")
+    job = finished(store, data / "runs", 2)
+    script = data / "runs" / job / "attempt-2" / "script"
+    (script / "design.blend").rename(data / "design.blend")
+    script.rmdir()
+    elsewhere = data / "elsewhere"
+    elsewhere.mkdir()
+    (data / "design.blend").rename(elsewhere / "design.blend")
+    script.symlink_to(elsewhere, target_is_directory=True)
+    with pytest.raises(SampleError, match="link"):
+        pack(data, job, "the owner", data / "sample.zip")
