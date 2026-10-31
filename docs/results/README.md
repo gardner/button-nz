@@ -101,7 +101,7 @@ fixed. It is kept for the record; the run above replaces it.
 ## Town screen: room for a real prefab in Reefton (`button_nz.bench.town_screen`)
 
 **Reefton** ([report](town-screen/report.md), [map](town-screen/map.png),
-code efd2618, #72). Every BDC title whose point lies in one of Reefton's
+code b325eca, #72). Every BDC title whose point lies in one of Reefton's
 Residential zones is screened on its own against Schedule 1A's siting rules:
 the outline at least 2 m inside the boundary and 2 m from every LINZ building
 outline. A section counts if at least one of the catalogue's 14 prefabs with
@@ -111,10 +111,10 @@ included: room without removing anything.
 
 | Count, with 0.6 m eaves | All 1,320 sections | 986 with a building (backyards) |
 |---|---|---|
-| Room under the LINZ outlines | 849 (64%) | 571 (58%) |
-| Room clear of everything over 2 m on the LiDAR | 506 (38%) | 343 (35%) |
+| Room under the LINZ outlines | 762 (58%) | 488 (49%) |
+| Room clear of everything over 2 m on the LiDAR | 409 (31%) | 258 (26%) |
 
-Without the eave allowance the counts are 928 and 603. It's a screen, not a
+Without the eave allowance the counts are 859 and 525. It's a screen, not a
 verdict. It doesn't check:
 
 - hazards (Reefton sits beside the Inangahua River);
