@@ -213,9 +213,12 @@ def no_masks(image: NDArray[np.uint8], concept: str) -> list[Mask]:
 
 
 def sources(
-    parcels: list[dict[str, Any]] = PARCELS, lidar: bool = True, gappy_newer: bool = False
+    parcels: list[dict[str, Any]] = PARCELS,
+    lidar: bool = True,
+    gappy_newer: bool = False,
+    point: list[float] = POINT,
 ) -> Sources:
-    found = layers(parcels)
+    found = layers(parcels, point)
     return Sources(
         addresses=found["LINZ_NZ_Addresses"],
         parcels=found["LINZ_NZ_Primary_Parcels"],
@@ -364,3 +367,45 @@ def test_a_parcel_with_no_title_is_never_built(tmp_path: Path) -> None:
     untitled = [parcel(4, A, None)]
     with pytest.raises(SiteError, match="record of title"):
         build_title_site(4, "Lot 4", tmp_path, sources(untitled), lambda _: None)
+
+
+def _box(x0: float, y0: float, x1: float, y1: float) -> list[list[float]]:
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]
+
+
+def _split(pid: int, x0: float, x1: float) -> dict[str, Any]:
+    """A parcel a 4 m lane (y 12-16) cuts in two, as LINZ gives it: a MultiPolygon."""
+    south, north = _box(X0 + x0, Y0, X0 + x1, Y0 + 12), _box(X0 + x0, Y0 + 16, X0 + x1, Y0 + 40)
+    found = parcel(pid, south, "354613")
+    found["geometry"] = {"type": "MultiPolygon", "coordinates": [[south], [north]]}
+    return found
+
+
+SPLIT = [_split(1, 0, 20), _split(2, 20, 40)]  # one title, both parcels cut by the lane
+
+
+def test_a_title_a_road_cuts_in_two_is_built_on_the_addresss_side(tmp_path: Path) -> None:
+    """33 Davis Street, Reefton (#136): a lane cuts both parcels on its title."""
+    build_site(7, tmp_path, sources(SPLIT, point=[X0 + 10, Y0 + 6]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1, 2]
+    assert site.extent_nztm == (X0, Y0, X0 + 40, Y0 + 12)  # the south block only
+    (left_out,) = [item for item in site.open_items if "across a road" in item]
+    assert "960 m²" in left_out  # the north block: 40 x 24 m
+
+
+def test_the_side_of_the_road_is_the_one_the_address_is_on(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(SPLIT, point=[X0 + 30, Y0 + 30]), lambda _: None)
+    assert load_demo_site(tmp_path).extent_nztm == (X0, Y0 + 16, X0 + 40, Y0 + 40)
+
+
+def test_a_title_site_a_road_cuts_in_two_is_built_on_its_larger_side(tmp_path: Path) -> None:
+    found = sources(SPLIT)
+    build_title_site(1, "Lot 1", tmp_path, found, lambda _: None)
+    assert load_demo_site(tmp_path).extent_nztm == (X0, Y0 + 16, X0 + 40, Y0 + 40)
+    assert title_site_name(found.addresses, found.parcels, 1).startswith("Lot 1")
+
+
+def test_a_title_in_one_piece_leaves_nothing_out(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(), lambda _: None)
+    assert not any("across a road" in item for item in load_demo_site(tmp_path).open_items)

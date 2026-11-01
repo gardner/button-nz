@@ -38,6 +38,7 @@ from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
 from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
+from button_nz.sites.blocks import block
 from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
@@ -80,6 +81,7 @@ class Title:
     extent: BBox
     road_id: int | None = None  # the address's road, LINZ's
     addressed: bool = True  # False: a title with no address, built from its parcel
+    left_out_m2: float = 0.0  # the title's land across a road from the site (#136)
 
 
 def build_site(
@@ -147,9 +149,15 @@ def find_title(sources: Sources, address_id: int) -> Title:
     titles = sets.pop() if sets else ()
     if not titles:
         raise SiteError(f"{address.full_address} isn't on a parcel with a record of title")
-    parcels, extent = _title_parcels(sources, titles)
+    parcels, extent, left_out = _title_parcels(sources, titles, address.point)
     return Title(
-        address.full_address, address.point, titles, tuple(parcels), extent, address.road_id
+        address.full_address,
+        address.point,
+        titles,
+        tuple(parcels),
+        extent,
+        address.road_id,
+        left_out_m2=left_out,
     )
 
 
@@ -162,10 +170,12 @@ def title_of_parcel(sources: Sources, parcel_id: int, name: str) -> Title:
     titles = tuple(sorted(titles_of(found[0])))
     if not titles:
         raise SiteError(f"parcel {parcel_id} has no record of title: it isn't a property")
-    parcels, extent = _title_parcels(sources, titles)
+    parcels, extent, left_out = _title_parcels(sources, titles, None)
     middle = union_all([Polygon(_ring(f)) for f in parcels]).representative_point()
     point = (float(middle.x), float(middle.y))
-    return Title(name, point, titles, tuple(parcels), extent, road_id=None, addressed=False)
+    return Title(
+        name, point, titles, tuple(parcels), extent, None, addressed=False, left_out_m2=left_out
+    )
 
 
 def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: int) -> str:
@@ -176,7 +186,7 @@ def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: i
         raise SiteError(f"LINZ has no parcel {parcel_id}")
     props = _props(found[0])
     appellation = str(props.get("appellation") or f"Parcel {props['id']}")
-    middle = Polygon(_ring(found[0])).representative_point()
+    middle = shape(cast("dict[str, Any]", found[0]["geometry"])).representative_point()
     point = (float(middle.x), float(middle.y))
     near = addresses.in_envelope(_grown((*point, *point), NEAR_ADDRESS_M)).features
     if not near:
@@ -185,9 +195,13 @@ def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: i
     return f"{appellation}, beside {_props(nearest)['full_address']}"
 
 
-def _title_parcels(sources: Sources, titles: Sequence[str]) -> tuple[list[Feature], BBox]:
-    """Every parcel on ``titles``, and their extent; more than a section refused."""
-    parcels = _on_titles(sources.parcels, titles)
+def _title_parcels(
+    sources: Sources, titles: Sequence[str], point: Point | None
+) -> tuple[list[Feature], BBox, float]:
+    """The parcels on ``titles`` in the block of land at ``point`` (``blocks.block``),
+    their extent, and the area of the title's land left out; more than a
+    section refused."""
+    parcels, left_out = block(_on_titles(sources.parcels, titles), point)
     extent = bounds([pt for f in parcels for pt in _ring(f)])
     if len(parcels) > MAX_PARCELS or max(extent[2] - extent[0], extent[3] - extent[1]) > MAX_SIDE_M:
         raise SiteError(
@@ -195,7 +209,7 @@ def _title_parcels(sources: Sources, titles: Sequence[str]) -> tuple[list[Featur
             f"{extent[2] - extent[0]:.0f} x {extent[3] - extent[1]:.0f} m: more than a section "
             f"(at most {MAX_PARCELS} parcels within {MAX_SIDE_M:g} m)"
         )
-    return parcels, extent
+    return parcels, extent, left_out
 
 
 def _frontages_of(title: Title, sources: Sources) -> tuple[Frontage, ...]:
@@ -307,6 +321,11 @@ def _manifest(
         open_items.append(
             "Whether the lines between the title's parcels are legal boundaries "
             "(the evaluator reports them as unknown)."
+        )
+    if title.left_out_m2 > 0:
+        open_items.append(
+            f"The title also has {title.left_out_m2:,.0f} m² of land across a road, left out "
+            "of this site: a site is one block of land."
         )
     return {
         "name": title.address,
