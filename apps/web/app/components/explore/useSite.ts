@@ -31,7 +31,11 @@ export function useSite(pollMs: number) {
         setProblem(null);
         setSite(state);
       },
-      (e: Error) => ask === picked.current && setProblem(e.message),
+      (e: Error) => {
+        if (ask !== picked.current) return;
+        setProblem(e.message);
+        setRetries((n) => n + 1); // keep following the site still on show
+      },
     );
   }
 

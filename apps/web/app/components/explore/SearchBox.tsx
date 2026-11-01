@@ -35,7 +35,11 @@ export function SearchBox({
           setFound(addresses);
           setActive(-1);
         },
-        (e: Error) => ask === asked.current && setProblem(e.message),
+        (e: Error) => {
+          if (ask !== asked.current) return;
+          setProblem(e.message);
+          setFound(null); // no suggestions left from an older search
+        },
       );
     }, PAUSE_MS);
     return () => clearTimeout(timer);
@@ -75,7 +79,10 @@ export function SearchBox({
         autoComplete="off"
         autoFocus={autoFocus}
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setFound(null); // the old suggestions are for other text
+        }}
         onKeyDown={keyDown}
         placeholder="Type any New Zealand address…"
         className="w-full rounded-2xl border border-white/20 bg-white/95 px-5 py-4 text-lg text-zinc-900 shadow-2xl outline-none placeholder:text-zinc-500 focus:ring-4 focus:ring-emerald-400/60"

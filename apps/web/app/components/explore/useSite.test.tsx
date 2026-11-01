@@ -57,6 +57,26 @@ describe("useSite", () => {
     expect(fetch.mock.calls.length).toBe(calls);
   });
 
+  it("keeps following the site on show when a new pick fails", async () => {
+    let polls = 0;
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && String(init.body).includes("42"))
+        return Promise.resolve(respond({ detail: "LINZ didn't answer" }, 502));
+      if (init?.method === "POST")
+        return Promise.resolve(respond(SITE_BUILDING, 202));
+      polls += 1;
+      const ready = { ...SITE_READY, id: "addr-1907458" };
+      return Promise.resolve(respond(polls < 6 ? SITE_BUILDING : ready));
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.site?.id).toBe("addr-1907458"));
+    act(() => result.current.fromAddress(42));
+    await waitFor(() => expect(result.current.problem).toContain("LINZ"));
+    await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+  });
+
   it("keeps a newer pick when an older site's poll answers after it", async () => {
     let answerPick: (r: Response) => void = () => {};
     const fetch = vi.fn((url: string, init?: RequestInit) => {

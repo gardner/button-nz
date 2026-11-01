@@ -12,7 +12,10 @@ import { ADDRESSES } from "@/lib/fixtures-sites";
 import { SearchBox } from "./SearchBox";
 
 function serve(body: unknown): ReturnType<typeof vi.fn> {
-  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body)));
+  // A new Response each time: a body can be read only once.
+  const fetch = vi.fn(() =>
+    Promise.resolve(new Response(JSON.stringify(body))),
+  );
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
@@ -71,6 +74,27 @@ describe("SearchBox", () => {
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1907459 }),
     );
+  });
+
+  it("drops the old suggestions as soon as the text changes, and when a search fails", async () => {
+    const fetch = serve(ADDRESSES);
+    render(<SearchBox onPick={vi.fn()} />);
+    await type("35 Victory");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    fetch.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: "LINZ is down" }), {
+          status: 502,
+        }),
+      ),
+    );
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "12 Cuba" },
+    });
+    expect(screen.queryByRole("option")).toBeNull(); // not while it waits
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    expect(screen.queryByRole("option")).toBeNull(); // nor after it fails
+    expect(screen.getByText(/LINZ is down/)).toBeTruthy();
   });
 
   it("says when nothing matches", async () => {
