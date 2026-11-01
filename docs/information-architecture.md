@@ -119,7 +119,9 @@ Each design keeps its files under `DATA/runs/<job>/`:
 ```
 survey.json                 the survey's id and the decisions it was checked against
 design.json                 the run's summary
-attempt-<n>/
+attempt-<n>/                each file below exists only if its step ran: an attempt
+                            with no script keeps just its trace and observations, and
+                            one whose script failed has nothing from the later passes
   attempt.json              the agent's trace: observations, script, verdict, feedback
   observation-<k>.png       the LiDAR views the model asked for
   scene.json                the georeferenced site scene
