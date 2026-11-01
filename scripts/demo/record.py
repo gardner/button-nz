@@ -1,10 +1,12 @@
 """Record the live demo run in a headless browser.
 
-Show the survey as the owner decided it, enter a brief, design, wait for the
-AI visual, view the design in 3D, revise it in plain words, show before and
-after, then the real prefabs that fit, and place one. Everything is live: the
-designs, the revision and the placing call the paid model APIs. Each phase is
-marked, so ``cut.py`` can caption it and speed up the waits.
+Open the town map and tilt it into 3D, find the property by its address,
+show the survey as the owner decided it, enter a brief, design, stand the
+design in 3D among the LiDAR's buildings, show the checked AI visual, revise
+it in plain words and show before and after, then the real prefabs that fit,
+and place one. Everything is live: the designs, the revision and the placing
+call the paid model APIs. Each phase is marked, so ``cut.py`` can caption it
+and speed up the waits.
 
 The take records the owner's decisions, so it needs a server that serves the
 survey fixed as the owner decided it (``serve --survey-decided-by``); any other
@@ -29,7 +31,9 @@ BRIEF = (
     " and keeps the trees."
 )
 CHANGE = "Move it as close to the street as the rules allow, keeping the trees."
-FIXED = re.compile(r"This survey is fixed on this server, as (.+?) decided it\.")
+FIXED = re.compile(r"Fixed on this server, as (.+?) decided it\.")
+ADDRESS = "35 Victory Street, Reefton"
+SITE_LIMIT_S = 900  # a site never built before: parcels, LiDAR, aerial, the SAM survey
 PLACE = re.compile(r"^Place the (.+) on the site$")
 DESIGN_LIMIT_S = 1200
 VISUAL_LIMIT_S = 180
@@ -75,7 +79,7 @@ def wait_for(
     raise TimeoutError(f"the page didn't finish within {limit_s} s")
 
 
-IN_PROGRESS = ("Design queued…", "Design running…")
+IN_PROGRESS = ("Queued…", "Muse is designing")
 RENDERS_LOADED = """() => ["Before", "After"].every((side) => {
   const image = document.querySelector(`img[alt^="${side}"]`);
   return image !== null && image.complete && image.naturalWidth > 0;
@@ -132,111 +136,144 @@ def centre(element: Locator) -> None:
     element.evaluate("e => e.scrollIntoView({block: 'center'})")
 
 
-def open_site(run: Run, base_url: str) -> None:
-    run.page.goto(base_url, wait_until="networkidle")
-    run.cast.mark("the site: title, parcels and the aerial")
-    run.page.wait_for_timeout(4000)
-    run.page.mouse.wheel(0, 900)
-    run.page.wait_for_timeout(1500)
+def map_view(run: Run, label: str) -> None:
+    """Switch the map to "2D" or "3D", and let it settle."""
+    run.page.get_by_role("group", name="Map view").get_by_role("button", name=label).click()
+    run.page.wait_for_timeout(3000)
+
+
+def open_town(run: Run, base_url: str) -> None:
+    page = run.page
+    page.goto(base_url, wait_until="networkidle")
+    page.get_by_text(re.compile(r"sections in Reefton have")).wait_for(timeout=60_000)
+    page.wait_for_timeout(3000)  # the aerial's tiles
+    run.cast.mark("Reefton's residential sections, screened: which have room for a real prefab")
+    page.wait_for_timeout(5000)
+    map_view(run, "3D")
+    run.cast.mark("the town in 3D: every building at its LiDAR height")
+    page.wait_for_timeout(6000)
+    map_view(run, "2D")
+
+
+def find_site(run: Run, address: str) -> None:
+    """Search for the property and open it; a site never built is built first."""
+    page = run.page
+    box = page.get_by_label("Find an address")
+    box.click()
+    box.press_sequentially(address, delay=60)
+    option = page.get_by_role("listbox", name="Addresses").get_by_role("option").first
+    option.wait_for(timeout=30_000)
+    run.cast.mark("any New Zealand address, from LINZ's national address register")
+    page.wait_for_timeout(1500)
+    option.click()
+    page.get_by_text("What's on the site?").wait_for(timeout=SITE_LIMIT_S * 1000)
+    page.wait_for_timeout(4000)  # the map flies there
+    run.cast.mark("the site from open data: its title, the 1 m LiDAR and a 7.5 cm aerial")
+    page.wait_for_timeout(3000)
 
 
 def show_survey(run: Run) -> None:
-    """Show the survey as the owner decided it, feature by feature."""
+    """Show the survey as the owner decided it. The take records the owner's
+    decisions, so a survey the server hasn't fixed fails it before any paid call."""
     page = run.page
     note = page.get_by_text(FIXED)
     note.wait_for(timeout=30_000)
     who = fixed_by(body_text(page))
     if who is None:
         raise RuntimeError("the survey isn't fixed: serve it as the owner decided it")
-    run.cast.mark(f"SAM 3.1 survey, as {who} decided it")
+    run.cast.mark(f"SAM 3.1 surveyed the photo, checked against the LiDAR; {who} decided each")
     centre(note)
-    page.wait_for_timeout(3000)
-    for card in page.get_by_role("article").all():
-        centre(card)
-        page.wait_for_timeout(1200)
+    page.wait_for_timeout(5000)
 
 
 def design(run: Run, brief: str) -> None:
     page = run.page
-    page.mouse.wheel(0, -3000)
-    page.wait_for_timeout(1500)
-    page.locator("svg[aria-label='Site plan, north up']").scroll_into_view_if_needed()
-    page.wait_for_timeout(2500)
-    box = page.get_by_role("textbox").first
-    run.cast.mark("the brief")
+    box = page.get_by_label("What would you like to build?")
+    centre(box)
+    run.cast.mark("the owner's brief, in their own words")
     box.click()
     box.press_sequentially(brief, delay=35)
-    page.get_by_role("button", name="Design").click()
-    run.cast.mark("Muse designs (live; Blender builds and the evaluator checks each attempt)")
+    page.get_by_role("button", name="Design it").click()
+    run.cast.mark(
+        "Muse Spark looks at the LiDAR, writes Blender, and the evaluator checks each attempt"
+    )
     print("design took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(2000)
-    run.cast.mark("the accepted design")
+    run.cast.mark("accepted: every check measured, each with its rule")
+    page.wait_for_timeout(5000)
+
+
+def stand_in_3d(run: Run) -> None:
+    map_view(run, "3D")
+    run.cast.mark(
+        "the design standing on the site, among the buildings and trees the LiDAR measured"
+    )
+    run.page.wait_for_timeout(10_000)  # the camera orbits the design
+    map_view(run, "2D")
+
+
+def hero_tab(run: Run, label: str, limit_s: float = 30) -> Locator:
+    """Show the hero's ``label`` tab, once it has something to show."""
+    hero = run.page.get_by_label("The accepted design")
+    tab = hero.get_by_role("tab", name=label)
+    tab.wait_for(timeout=limit_s * 1000)
+    tab.click()
+    run.page.wait_for_timeout(1500)
+    return hero
 
 
 def show_visual(run: Run) -> None:
-    """Wait for Muse Image's checked, labelled visual, and show it. The take
-    promises one, so without it the take fails (its footage is kept apart)."""
+    """Wait for Muse Image's checked visual, and show it. The take promises one,
+    so without it the take fails (its footage is kept apart)."""
+    start = time.time()
     try:
-        took = wait_for(run.page, lambda t: "AI-illustrated" in t, VISUAL_LIMIT_S)
-    except TimeoutError as error:
+        hero = hero_tab(run, "AI visual", VISUAL_LIMIT_S)
+    except PlaywrightError as error:
         raise RuntimeError("no checked AI visual was shown") from error
-    try:  # the caption shows at once; the take needs the image itself, decoded
+    took = round(time.time() - start)
+    try:
         run.page.wait_for_function(VISUAL_LOADED, timeout=30_000)
     except PlaywrightError as error:
         raise RuntimeError("the AI visual didn't load") from error
-    run.cast.mark(f"the AI visual (Muse Image, silhouette checked by SAM 3.1; {took} s later)")
-    centre(run.page.get_by_alt_text(re.compile(r"^AI illustration")).last)
-    run.page.wait_for_timeout(5000)
-
-
-def view_3d(run: Run) -> None:
-    run.page.get_by_role("button", name="View in 3D").last.click()
-    # The viewer is drawn below the attempt cards: bring it, not the button, on screen.
-    viewer = run.page.locator('[data-model="loaded"]').last
-    try:  # the canvas shows before the model has loaded: wait for the model
-        viewer.wait_for(state="visible", timeout=60_000)
-    except PlaywrightError as error:
-        raise RuntimeError("the 3D model didn't load") from error
-    centre(viewer)
-    run.cast.mark("the 3D model")
+    run.cast.mark(f"Muse Image's illustration: SAM 3.1 found the house kept its shape ({took} s)")
+    centre(hero)
     run.page.wait_for_timeout(6000)
 
 
 def revise(run: Run, change: str) -> None:
     page = run.page
     instruction = page.get_by_label("Change this design")
-    instruction.scroll_into_view_if_needed()
+    centre(instruction)
     instruction.click()
     instruction.press_sequentially(change, delay=35)
     page.get_by_role("button", name="Revise").click()
-    run.cast.mark("revising in plain words (live)")
-    # The revision is shown once it starts; until then the last design's status shows.
+    run.cast.mark("a change in plain words: Muse revises, the evaluator checks again (live)")
     wait_for(page, lambda t: any(status in t for status in IN_PROGRESS), 60, status_text)
     print("revision took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(3000)
 
 
 def before_and_after(run: Run) -> None:
+    hero = hero_tab(run, "Before / after")
     try:
         run.page.wait_for_function(RENDERS_LOADED, timeout=30_000)
     except PlaywrightError as error:
         raise RuntimeError("the before and after renders didn't load") from error
     run.cast.mark("before and after")
-    # The renders themselves, not the first text that says "Before".
-    centre(run.page.get_by_alt_text(re.compile(r"^Before")).first)
+    centre(hero)
     run.page.wait_for_timeout(6000)
 
 
 def show_products(run: Run) -> None:
-    """Ask which real prefabs fit the design on show, and show them."""
+    """The real prefabs that fit the design on show, drawn where they'd stand."""
     page = run.page
-    ask = page.get_by_role("button", name="Which real prefabs fit?").last
-    centre(ask)
-    ask.click()
-    page.get_by_role("heading", name="Next steps").wait_for(timeout=30_000)
-    run.cast.mark("real prefabs that fit, with their published prices, and the next steps")
-    centre(page.get_by_role("listitem").filter(has=page.get_by_role("link")).first)
-    page.wait_for_timeout(6000)
+    heading = page.get_by_role("heading", name=re.compile(r"real prefabs? fits?"))
+    heading.wait_for(timeout=60_000)
+    centre(heading)
+    run.cast.mark(
+        "real prefabs that fit, with their published prices, drawn where each would stand"
+    )
+    page.wait_for_timeout(7000)
 
 
 def place_product(run: Run) -> None:
@@ -252,9 +289,9 @@ def place_product(run: Run) -> None:
     run.cast.mark(f"placing the {name} on the site (live)")
     print("placing took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(2000)
-    run.cast.mark(f"the {name}, placed: its walls checked against its footprint")
-    centre(page.get_by_text("product_footprint").last)
-    page.wait_for_timeout(6000)
+    run.cast.mark(f"the {name}, placed and checked against its footprint and every rule")
+    map_view(run, "3D")
+    page.wait_for_timeout(8000)
 
 
 def record(args: Options) -> None:
@@ -279,15 +316,15 @@ def record(args: Options) -> None:
 
 
 def take(run: Run, args: Options) -> None:
-    open_site(run, args.base_url)
+    open_town(run, args.base_url)
+    find_site(run, ADDRESS)
     show_survey(run)
     design(run, args.brief)
+    stand_in_3d(run)
     show_visual(run)
-    view_3d(run)
     revise(run, args.change)
     if args.screenshot is not None:
         run.page.screenshot(path=args.screenshot, full_page=True)
-    show_visual(run)
     before_and_after(run)
     show_products(run)
     place_product(run)
