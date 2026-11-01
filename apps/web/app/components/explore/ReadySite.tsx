@@ -18,6 +18,7 @@ import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
 import { PrefabSection } from "./PrefabSection";
 import { SurveyPanel } from "./SurveyPanel";
+import { MuseAtWork } from "./MuseAtWork";
 import { DesignLayers, SiteLayers } from "./SiteLayers";
 import type { JourneyState } from "./Stepper";
 import { useDesignMap, useSiteMap } from "./useMapLayers";
@@ -86,6 +87,7 @@ export function ReadySite({
         onEdit={() => setEditing(true)}
       />
       <DesignDock chain={chain} />
+      <AtWork job={shown} />
       {accepted && shown && (
         <Accepted job={shown} chain={chain} onPrefabs={askedPrefabs} />
       )}
@@ -219,6 +221,16 @@ function problemsOf(
 function undrawn(map: DesignMap | null): string[] {
   return (map?.unknown ?? []).map(
     (u) => `${checkLabel(u.check)} isn't drawn: ${u.reason}.`,
+  );
+}
+
+/** The run itself, beside the map, while the shown design is made. */
+function AtWork({ job }: { job: Job | undefined }) {
+  if (job?.status !== "queued" && job?.status !== "running") return null;
+  return (
+    <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10 xl:w-[400px]">
+      <MuseAtWork job={job} />
+    </div>
   );
 }
 

@@ -69,6 +69,23 @@ export interface Job {
   product: PlacedProduct | null; // the catalogue product it places, if any
   attempts: Attempt[];
   illustrating: boolean; // done, and its AI visual is still being made
+  live: Live | null; // while it runs: what it is doing now
+}
+
+export type Phase = "thinking" | "observing" | "rendering" | "checking";
+const PHASES: readonly Phase[] = [
+  "thinking",
+  "observing",
+  "rendering",
+  "checking",
+];
+
+/** A running design's current step, and the LiDAR views made so far in it. */
+export interface Live {
+  attempt: number;
+  phase: Phase;
+  detail: string; // the view asked for, when observing
+  observations: string[]; // URLs through the proxy
 }
 
 /** A catalogue product a design places, as it was when placed: its walls are
@@ -233,6 +250,19 @@ export function parseJob(raw: unknown): Job {
     product: optional(job, "product", (f, k) => parsePlaced(f[k])),
     attempts: list(job, "attempts").map(parseAttempt),
     illustrating: flag(job, "illustrating"),
+    live: optional(job, "live", (f, k) => parseLive(f[k])),
+  };
+}
+
+function parseLive(raw: unknown): Live {
+  const live = record(raw, "live");
+  return {
+    attempt: number(live, "attempt"),
+    phase: oneOf(live, "phase", PHASES),
+    detail: text(live, "detail"),
+    observations: list(live, "observations").map(
+      (url) => `${API}${asText(url, "observation")}`,
+    ),
   };
 }
 
