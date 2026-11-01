@@ -251,8 +251,10 @@ def test_the_maps_buildings_carry_their_heights_and_the_surface_is_served_as_til
     site_id = server.build()["id"]
     layers = server.client.get(f"/sites/{site_id}/map").json()
     (building,) = layers["buildings"]["features"]  # the fake courtyard building
-    assert building["properties"]["height_m"] == 0.0  # the fake LiDAR is flat: DSM = DEM
-    assert building["properties"]["base_m"] == 0.0  # its ground is the site's datum
+    # It spans x0+50 to x0+70 and the grid stops at x0+60 (the title plus 20 m):
+    # half off the LiDAR, it isn't measured from its half (test_sites_extrusion).
+    assert building["properties"]["height_m"] is None
+    assert building["properties"]["base_m"] is None
     assert layers["canopy"]["features"] == []
     west, south, east, north = server.client.get(f"/sites/{site_id}").json()["bounds"]
     lon, lat, z = (west + east) / 2, (south + north) / 2, 19

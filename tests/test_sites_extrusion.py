@@ -33,3 +33,16 @@ def test_a_known_height_on_ground_stands_on_that_ground() -> None:
 def test_a_building_the_owner_confirmed_is_not_also_canopy() -> None:
     assert len(canopy_layer([], [], LIDAR)["features"]) == 1  # unknown, it stands up as canopy
     assert canopy_layer([], [HOUSE], LIDAR)["features"] == []  # confirmed, it's a building
+
+
+def test_a_building_the_grid_covers_only_in_part_is_not_measured() -> None:
+    edge = box(18.0, 8.0, 22.0, 12.0)  # half beyond the 20 m grid
+    assert building_heights(edge, LIDAR)["height_m"] is None
+
+
+def test_an_outline_a_little_off_its_roof_leaves_no_strip_of_canopy() -> None:
+    ndsm = np.zeros((20, 20))
+    ndsm[5:15, 6:14] = 5.0  # an 8 m x 10 m roof, 5 m up
+    lidar = Lidar(TerrainGrid((0.0, 0.0, 20.0, 20.0), 1.0, DEM, ndsm, ("synthetic",)), 100.0)
+    shifted = box(6.8, 5.0, 14.8, 15.0)  # its LINZ outline, 0.8 m east
+    assert canopy_layer([shifted], [], lidar)["features"] == []
