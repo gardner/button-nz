@@ -64,6 +64,25 @@ describe("Explore", () => {
     ).toContain("Find");
   });
 
+  it("says how many screened sections aren't on the map, and doesn't call the rest the town's total", async () => {
+    serve({
+      "GET /api/town/reefton": [
+        {
+          ...TOWN,
+          missing: { ids: [7, 8], reason: "not in LINZ's NZ Primary Parcels" },
+        },
+      ],
+    });
+    render(<Explore pollMs={5} />);
+    expect(
+      (await screen.findByText(/have room for a real prefab/)).textContent,
+    ).toContain("2 of the 3 mapped sections in Reefton");
+    expect(
+      screen.getByText(/2 more screened sections aren't on the map/)
+        .textContent,
+    ).toContain("not in LINZ's NZ Primary Parcels");
+  });
+
   it("asks again for the town when it fails for a moment, but not when refused", async () => {
     const fetch = vi
       .fn()

@@ -115,16 +115,26 @@ export function parseSiteState(raw: unknown): SiteState {
   };
 }
 
+/** A town's screened sections, and the ones that can't be drawn. */
+export interface Town {
+  sections: FeatureCollection<TownSection>;
+  missing: { ids: number[]; reason: string }; // screened, but with no outline
+}
+
 /** A town's sections, coloured by the town screen (docs/results/town-screen). */
-export async function getTown(
-  slug: string,
-): Promise<FeatureCollection<TownSection>> {
-  return parseCollection(
-    await request(`/town/${encodeURIComponent(slug)}`),
-    "town",
-    (p) => ({
+export async function getTown(slug: string): Promise<Town> {
+  const raw = await request(`/town/${encodeURIComponent(slug)}`);
+  const missing = record(record(raw, "town").missing, "missing");
+  return {
+    sections: parseCollection(raw, "town", (p) => ({
       id: number(p, "id"),
       category: oneOf(p, "category", CATEGORIES),
-    }),
-  );
+    })),
+    missing: {
+      ids: list(missing, "ids").map((id) =>
+        number({ "missing id": id }, "missing id"),
+      ),
+      reason: text(missing, "reason"),
+    },
+  };
 }

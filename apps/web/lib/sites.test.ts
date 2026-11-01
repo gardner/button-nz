@@ -99,11 +99,20 @@ describe("getTown", () => {
     const fetch = serve(TOWN);
     const town = await getTown("reefton");
     expect(fetch.mock.calls[0][0]).toBe("/api/town/reefton");
-    expect(town.features.map((f) => f.properties.category)).toEqual([
+    expect(town.missing).toEqual({
+      ids: [],
+      reason: "not in LINZ's NZ Primary Parcels",
+    });
+    expect(town.sections.features.map((f) => f.properties.category)).toEqual([
       "clear",
       "outlines",
       "none",
     ]);
+  });
+
+  it("refuses a town that doesn't say which sections are missing", async () => {
+    serve({ ...TOWN, missing: undefined });
+    await expect(getTown("reefton")).rejects.toThrow(ApiError);
   });
 
   it("refuses a category it doesn't know", async () => {
