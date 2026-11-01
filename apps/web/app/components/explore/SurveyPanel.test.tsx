@@ -35,6 +35,21 @@ describe("SurveyPanel", () => {
     ]);
   });
 
+  it("marks a decision the survey suggested until the owner makes it", () => {
+    const survey = parseSurvey(SURVEY);
+    survey.features[0] = { ...survey.features[0], suggested: true };
+    render(
+      <SurveyPanel
+        control={control({ survey })}
+        selected={null}
+        onSelect={vi.fn()}
+      />,
+    );
+    const [first, second] = screen.getAllByRole("button", { name: /^#\d/ });
+    expect(first.textContent).toMatch(/Existing building \(suggested\)/);
+    expect(second.textContent).not.toMatch(/suggested/);
+  });
+
   it("opens the feature picked on the map, and decides it", () => {
     const decide = vi.fn();
     render(

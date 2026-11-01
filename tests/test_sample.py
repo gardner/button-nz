@@ -235,3 +235,39 @@ def test_designs_on_different_sites_are_refused(data: Path) -> None:
     revised = finished(store, data / "runs", 2, original, "Move it.", site_id=built_site(data))
     with pytest.raises(SampleError, match="different sites"):
         pack(data, revised, "the owner", data / "sample.zip")
+
+
+def test_a_suggested_decision_is_packed_as_the_surveys_not_the_owners(data: Path) -> None:
+    store = Store(data / "button.db")
+    found = Survey.read(data / SURVEY_FILE)
+    assert found is not None
+    store.decide(found.id, "1", "building")
+    job = finished(store, data / "runs", 2)
+    used = json.loads((data / "runs" / job / "survey.json").read_text())
+    used["decisions"]["2"] = "keep_clear"  # the survey's suggestion, as the worker records it
+    used["suggested"] = ["2"]
+    (data / "runs" / job / "survey.json").write_text(json.dumps(used), encoding="utf-8")
+    pack(data, job, "the owner", data / "sample.zip")
+    with zipfile.ZipFile(data / "sample.zip") as z:
+        survey = json.loads(z.read("survey.json"))
+        readme = z.read("README.md").decode()
+    props = [f["properties"] for f in survey["features"]]
+    assert [(p["decision"], p["suggested"]) for p in props] == [
+        ("building", False),
+        ("keep_clear", True),
+    ]
+    assert "suggested" in readme
+
+
+def test_designs_checked_against_a_suggestion_and_an_owners_choice_differ(data: Path) -> None:
+    store = Store(data / "button.db")
+    found = Survey.read(data / SURVEY_FILE)
+    assert found is not None
+    store.decide(found.id, "2", "keep_clear")  # the owner's own choice
+    original = finished(store, data / "runs", 2)
+    revised = finished(store, data / "runs", 2, original, "Move it north.")
+    used = json.loads((data / "runs" / original / "survey.json").read_text())
+    used["suggested"] = ["2"]  # the same decision, but the survey's suggestion then
+    (data / "runs" / original / "survey.json").write_text(json.dumps(used), encoding="utf-8")
+    with pytest.raises(SampleError, match="different survey decisions"):
+        pack(data, revised, "the owner", data / "sample.zip")

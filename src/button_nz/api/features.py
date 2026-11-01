@@ -24,10 +24,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.api.fixed import FixedSurvey, SurveyReplaced, read_fixed
 from button_nz.api.store import Store
-from button_nz.perception.confirm import Decision, Survey, undecided_buildings
+from button_nz.perception.confirm import Decision, Survey, effective, suggested, undecided_buildings
 
 
 class DecisionRequest(BaseModel):
@@ -40,15 +41,16 @@ class SurveyRequest(BaseModel):
     survey_id: str
 
 
-type Resolve = Callable[[str], tuple[Path | None, FixedSurvey | None]]
-"""A site id to its survey file and how it is fixed (None: open to decisions)."""
+type Resolve = Callable[[str], tuple[Path | None, FixedSurvey | None, BaseGeometry]]
+"""A site id to its survey file, how it is fixed (None: open to decisions),
+and the land on its title (what a feature's suggested decision weighs)."""
 
 
 def features_router(
-    store: Store, survey: Path | None, fixed: FixedSurvey | None = None
+    store: Store, survey: Path | None, title: BaseGeometry, fixed: FixedSurvey | None = None
 ) -> APIRouter:
     """The demo site's survey, at ``/site``."""
-    return _router(store, "/site", lambda _: (survey, fixed))
+    return _router(store, "/site", lambda _: (survey, fixed, title))
 
 
 def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
@@ -59,15 +61,15 @@ def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
 def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     router = APIRouter()
 
-    def resolved(site_id: str) -> tuple[Survey | None, str | None]:
+    def resolved(site_id: str) -> tuple[Survey | None, str | None, BaseGeometry]:
         """The site's survey, read once and checked to be the fixed survey if
-        it is fixed (else a 409), and who fixed it."""
-        path, fixed = resolve(site_id)
+        it is fixed (else a 409), who fixed it, and the land on its title."""
+        path, fixed, title = resolve(site_id)
         try:
             survey = read_fixed(path, fixed)
         except SurveyReplaced as error:
             raise HTTPException(409, str(error)) from None
-        return survey, None if fixed is None else fixed.decided_by
+        return survey, None if fixed is None else fixed.decided_by, title
 
     def unless_fixed(decided_by: str | None) -> None:
         if decided_by is not None:
@@ -75,21 +77,25 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
 
     @router.get(f"{prefix}/features")
     def get_features(site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolved(site_id)
+        survey, decided_by, title = resolved(site_id)
         found = _survey(survey)
-        decisions = store.decisions(found.id)
+        own = store.decisions(found.id)
+        decisions = effective(found, own, title, fixed=decided_by is not None)
         return {
             **found.collection,
             "survey_id": found.id,
             "buildings_complete": store.buildings_complete(found.id),
             "fixed": decided_by is not None,
             "decided_by": decided_by,
-            "features": [_decided(f, decisions.get(f["id"])) for f in found.collection["features"]],
+            "features": [
+                _decided(f, decisions.get(f["id"]), suggested=f["id"] not in own)
+                for f in found.collection["features"]
+            ],
         }
 
     @router.put(f"{prefix}/features/{{feature_id}}")
     def put_feature(feature_id: str, request: DecisionRequest, site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolved(site_id)
+        survey, decided_by, _ = resolved(site_id)
         unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
         feature = found.feature(feature_id)
@@ -100,16 +106,26 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
 
     @router.put(f"{prefix}/survey")
     def put_survey(request: SurveyRequest, site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolved(site_id)
+        survey, decided_by, title = resolved(site_id)
         unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
-        undecided = undecided_buildings(found, store.decisions(found.id))
-        if request.buildings_complete and undecided:
-            raise HTTPException(409, f"decide what these are first: {', '.join(undecided)}")
+        if request.buildings_complete:
+            _confirm_list(store, found, title)
         store.set_buildings_complete(found.id, request.buildings_complete)
         return {"survey_id": found.id, "buildings_complete": request.buildings_complete}
 
     return router
+
+
+def _confirm_list(store: Store, found: Survey, title: BaseGeometry) -> None:
+    """Every building listed: refused (409) while a possible building is
+    undecided; else what the list shows is confirmed, its suggestions stored
+    as the owner's own (they are what the owner saw, and agreed was complete)."""
+    own = store.decisions(found.id)
+    undecided = undecided_buildings(found, effective(found, own, title))
+    if undecided:
+        raise HTTPException(409, f"decide what these are first: {', '.join(undecided)}")
+    store.adopt(found.id, {k: v.value for k, v in suggested(found, title).items()})
 
 
 def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:
@@ -121,5 +137,10 @@ def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:
     return found
 
 
-def _decided(feature: dict[str, Any], decision: str | None) -> dict[str, Any]:
-    return {**feature, "properties": {**feature["properties"], "decision": decision}}
+def _decided(
+    feature: dict[str, Any], decision: str | None, suggested: bool = False
+) -> dict[str, Any]:
+    """The feature with its decision, and whether the survey suggested it
+    (the owner hasn't decided it themselves)."""
+    marked = {"decision": decision, "suggested": suggested and decision is not None}
+    return {**feature, "properties": {**feature["properties"], **marked}}

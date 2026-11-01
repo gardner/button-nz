@@ -19,7 +19,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from shapely import Point as ShapelyPoint
-from shapely import Polygon
+from shapely import Polygon, union_all
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.geometry import BBox, Point, Ring, bounds, contains, covers
 from button_nz.geo.tiles import tile_bounds
@@ -199,3 +200,8 @@ def _point(raw: Sequence[float]) -> Point:
 
 def _bbox(raw: Sequence[float]) -> BBox:
     return (float(raw[0]), float(raw[1]), float(raw[2]), float(raw[3]))
+
+
+def site_title(site: DemoSite) -> BaseGeometry:
+    """The land on the site's title: its parcels, joined."""
+    return union_all([Polygon(parcel.ring) for parcel in site.parcels])

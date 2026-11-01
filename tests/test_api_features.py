@@ -22,13 +22,15 @@ def square(x: float, y: float, size: float) -> dict[str, Any]:
     return {"type": "Polygon", "coordinates": [ring]}
 
 
-def write_survey(path: Path, *concepts: str) -> None:
-    """One feature per concept, 6 m squares in a row from (30, 12) NZTM."""
+def write_survey(path: Path, *concepts: str, status: str = "conflict") -> None:
+    """One feature per concept, 6 m squares in a row from (30, 12) NZTM. Each
+    is one the LiDAR disputes, unless ``status`` says otherwise: the survey
+    suggests no decision for those, so they start undecided."""
     features = [
         {
             "type": "Feature",
             "id": str(n),
-            "properties": {"concept": concept, "status": "agrees"},
+            "properties": {"concept": concept, "status": status},
             "geometry": square(30.0 - 8 * (n - 1), 12.0, 6.0) if n < 3 else square(2, 2, 2),
         }
         for n, concept in enumerate(concepts, 1)
@@ -173,8 +175,8 @@ def test_the_list_cannot_be_complete_while_a_possible_building_is_undecided(
 
 
 def test_a_new_survey_is_not_confirmed_complete(surveyed: Surveyed) -> None:
-    write_survey(surveyed.survey, "tree")
-    list_complete(surveyed)
+    write_survey(surveyed.survey, "tree", status="agrees")  # no possible building to decide
+    assert list_complete(surveyed).status_code == 200
     write_survey(surveyed.survey, "shed")
     assert surveyed.client.get("/site/features").json()["buildings_complete"] is False
 
@@ -312,6 +314,7 @@ def test_each_design_records_the_survey_and_decisions_it_was_checked_against(
     assert used == {
         "survey_id": survey.id,
         "decisions": {"1": "building"},
+        "suggested": [],
         "buildings_complete": False,
         "buildings": [square(30.0, 12.0, 6.0)],  # its geometry kept, as decided then
     }
@@ -325,6 +328,43 @@ def test_a_design_on_a_site_without_a_survey_records_that(tmp_path: Path) -> Non
     assert used == {
         "survey_id": None,
         "decisions": {},
+        "suggested": [],
         "buildings_complete": False,
         "buildings": [],
     }
+
+
+def test_what_the_survey_is_sure_of_is_served_as_suggested_until_the_owner_decides(
+    surveyed: Surveyed,
+) -> None:
+    # The demo site's title is far from these test squares: mostly the
+    # neighbour's, so each is suggested Ignore.
+    write_survey(surveyed.survey, "shed", "tree", status="agrees")
+    body = surveyed.client.get("/site/features").json()
+    props = [f["properties"] for f in body["features"]]
+    assert [(p["decision"], p["suggested"]) for p in props] == [("ignore", True)] * 2
+    decide(surveyed, "1", {"decision": "building"})
+    props = [f["properties"] for f in surveyed.client.get("/site/features").json()["features"]]
+    assert [(p["decision"], p["suggested"]) for p in props] == [
+        ("building", False),
+        ("ignore", True),
+    ]
+
+
+def test_a_design_uses_the_suggestions_and_records_which_they_were(tmp_path: Path) -> None:
+    surveyed = Surveyed(tmp_path)
+    write_survey(surveyed.survey, "shed", "tree", status="agrees")
+    decide(surveyed, "1", {"decision": "building"})
+    job_id = surveyed.queue()
+    assert surveyed.worker.run_next()
+    used = json.loads((tmp_path / "runs" / job_id / "survey.json").read_text())
+    assert used["decisions"]["1"] == "building"  # the owner's own
+    assert used["suggested"] == ["2"] and used["decisions"]["2"] in ("keep_clear", "ignore")
+
+
+def test_listing_the_buildings_confirms_the_suggestions_as_the_owners(surveyed: Surveyed) -> None:
+    write_survey(surveyed.survey, "shed", "tree", status="agrees")  # both suggested
+    assert list_complete(surveyed).status_code == 200
+    props = [f["properties"] for f in surveyed.client.get("/site/features").json()["features"]]
+    assert [p["suggested"] for p in props] == [False, False]  # confirmed: now the owner's own
+    assert all(p["decision"] is not None for p in props)

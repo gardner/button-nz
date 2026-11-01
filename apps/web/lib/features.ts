@@ -39,6 +39,7 @@ export interface SiteFeature {
   status: FeatureStatus;
   note: string;
   decision: Decision | null;
+  suggested: boolean; // the survey's suggestion, not yet the owner's own
   polygons: Polygon[];
 }
 
@@ -92,6 +93,7 @@ export function parseFeature(raw: unknown): SiteFeature {
     decision: optional(properties, "decision", (f, k) =>
       oneOf(f, k, DECISIONS),
     ),
+    suggested: flag(properties, "suggested"),
     polygons: parsePolygons(record(feature.geometry, "geometry")),
   };
 }

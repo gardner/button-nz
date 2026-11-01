@@ -137,8 +137,11 @@ def _files(run: Path, job: Job, folder: str) -> list[Packed]:
 
 def _checked_against(used: dict[str, Any]) -> tuple[Any, ...]:
     """What a record says its design was checked against. The kept ``buildings``
-    follow from the survey and its decisions, and older records lack them."""
-    return used["survey_id"], used["decisions"], used["buildings_complete"]
+    follow from the survey and its decisions, and older records lack them.
+    Which decisions were the survey's suggestions counts too: records from
+    before suggestions (#108) had none."""
+    suggested = sorted(used.get("suggested", []))
+    return used["survey_id"], used["decisions"], suggested, used["buildings_complete"]
 
 
 def _site(data: Path, designs: list[Job]) -> tuple[DemoSite, Path]:
@@ -167,8 +170,16 @@ def _surveyed(data: Path, survey_file: Path, designs: list[Job], decided_by: str
     if survey is None or survey.id != used[0]["survey_id"]:
         raise SampleError(f"the survey {survey_file} has changed since the designs ran")
     decisions: dict[str, str] = used[0]["decisions"]
+    suggested = set(used[0].get("suggested", []))  # none before #108
     features = [
-        {**f, "properties": {**f["properties"], "decision": decisions.get(str(f["id"]))}}
+        {
+            **f,
+            "properties": {
+                **f["properties"],
+                "decision": decisions.get(str(f["id"])),
+                "suggested": str(f["id"]) in suggested,
+            },
+        }
         for f in survey.collection["features"]
     ]
     return {
@@ -228,7 +239,9 @@ changed.
 
 {designs}
 
-The survey (`survey.json`) is as {manifest["survey"]["decided_by"]} decided it.
+The survey (`survey.json`) is as {manifest["survey"]["decided_by"]} decided it,
+except a decision marked `suggested`: that is the survey's own suggestion,
+not their decision.
 `sample.json` lists every attempt with its verdict and feedback.
 
 | File in each `attempt-<n>/` | What it is |

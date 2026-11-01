@@ -27,7 +27,7 @@ from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.evaluation import Footprint
-from button_nz.perception.confirm import Decision, Survey, confirmed
+from button_nz.perception.confirm import Decision, Survey, confirmed, effective, title_of
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
 from button_nz.sites.registry import DEMO_SITE_ID
 
@@ -218,12 +218,15 @@ class Worker:
         checked against: they can change after it runs. A fixed survey that
         isn't the one fixed fails the design (never an undecided stand-in)."""
         survey = read_fixed(path, fixed)
-        decided = {} if survey is None else self.store.decisions(survey.id)
+        own = {} if survey is None else self.store.decisions(survey.id)
+        title = title_of(site.context.parcels)
+        decided = {} if survey is None else effective(survey, own, title, fixed is not None)
         complete = survey is not None and self.store.buildings_complete(survey.id)
         run.mkdir(parents=True, exist_ok=True)
         used = {
             "survey_id": None if survey is None else survey.id,
             "decisions": decided,
+            "suggested": sorted(k for k in decided if k not in own),  # not the owner's own
             "buildings_complete": complete,
             "buildings": _confirmed_buildings(survey, decided),  # kept: surveys get replaced
         }

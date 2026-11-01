@@ -40,7 +40,7 @@ from button_nz.api.site_view import site_view as view_of
 from button_nz.api.sites import Sites, SiteService, sites_router
 from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
-from button_nz.demo_site import DemoSite
+from button_nz.demo_site import DemoSite, site_title
 from button_nz.sites.design_map import design_layers, scene_frame
 from button_nz.sites.registry import DEMO_SITE_ID
 
@@ -128,7 +128,7 @@ def create_app(
     routers.append(_design_map_router(store, worker, where))
     app = FastAPI(title="button-nz", lifespan=_lifespan(store, threads))
     site_view = view_of(site) | {"aerial": aerial_view(aerial)}
-    app.include_router(features_router(store, survey, fixed_survey))
+    app.include_router(features_router(store, survey, site_title(site), fixed_survey))
 
     @app.exception_handler(SurveyReplaced)
     def survey_replaced(_: Request, error: SurveyReplaced) -> JSONResponse:
@@ -242,7 +242,7 @@ def _with_sites(
     """The threads to run and the extra routes, with or without any-address sites."""
     if sites is None:
         return [worker], []
-    routers = [sites_router(sites, store), site_features_router(store, sites.sites.survey)]
+    routers = [sites_router(sites, store), site_features_router(store, sites.sites.survey_of)]
     return [worker, sites.builder], routers
 
 
