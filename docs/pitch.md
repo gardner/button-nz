@@ -102,6 +102,10 @@ From live runs on the demo site ([docs/results](results/README.md)):
   Of the 745 properties that already have a building, 439 and 235: room for
   a flat in the backyard. It's a screen, not a verdict: hazards, slope, the
   district plan and services aren't checked.
+- **What it could mean** ([report](results/impact/report.md)): if a quarter
+  of those 622 owners added a flat, Reefton would have 155 more homes, 26%
+  more than its 603 private dwellings in the 2023 Census, housing 155 to 325
+  people. That's a scenario, not a forecast.
 
 ## How it's built
 

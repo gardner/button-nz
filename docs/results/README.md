@@ -133,3 +133,21 @@ verdict. It doesn't check:
   shows).
 
 The report lists every limit.
+
+## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
+
+**Reefton** ([report](impact/report.md), code 8e8bde5). If some share of
+the 622 properties with room for a real prefab (town screen, by title)
+added one flat each, against Stats NZ's 2023 Census for Reefton: 603
+private dwellings, 489 households, 1,026 people (2.1 per household).
+
+| Properties adding a flat | Homes | More homes than today | People housed |
+|---|---|---|---|
+| 10% of 622 | 62 | +10% | 62–130 |
+| 25% of 622 | 155 | +26% | 155–325 |
+| 50% of 622 | 311 | +52% | 311–652 |
+
+On the stricter count (326 properties also clear on the LiDAR), 25% is 81
+homes (+13%). The shares are scenarios, not forecasts, and the census's
+Reefton isn't exactly the screen's Residential zones, so the increase is
+indicative.
