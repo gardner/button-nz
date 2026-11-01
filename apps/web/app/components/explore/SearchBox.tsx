@@ -92,6 +92,7 @@ export function SearchBox({
           setQuery(e.target.value);
           setFound(null); // and so are the suggestions shown
           setProblem(null); // and why the last search failed
+          setPicked(null); // edited, even back to the pick, it is asked again
         }}
         onKeyDown={keyDown}
         placeholder="Type any New Zealand address…"

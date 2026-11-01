@@ -145,6 +145,19 @@ describe("SearchBox", () => {
     expect(screen.queryByText(/LINZ is down/)).toBeNull();
   });
 
+  it("searches again for the picked address once its text is edited back", async () => {
+    const fetch = serve(ADDRESSES);
+    render(<SearchBox onPick={vi.fn()} />);
+    await type("35 Victory");
+    fireEvent.click(
+      screen.getByRole("option", { name: /35 Victory Street, Reefton/ }),
+    );
+    await type("35 Victory Street, Reefto");
+    await type("35 Victory Street, Reefton");
+    expect(screen.getAllByRole("option").length).toBeGreaterThan(0);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("says when nothing matches", async () => {
     serve({ addresses: [] });
     render(<SearchBox onPick={vi.fn()} />);

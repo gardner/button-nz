@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "@/lib/fields";
+import { passing } from "@/lib/fields";
 import {
   type SiteState,
   createSite,
@@ -63,12 +63,15 @@ export function useSite(pollMs: number) {
   const [linkTries, setLinkTries] = useState(0);
   useEffect(() => {
     if (linked === null) return;
+    const ask = picked.current;
     const timer = setTimeout(
-      () =>
+      () => {
+        if (ask !== picked.current) return; // the person has picked since
         pick(
           () => getSite(linked),
           (e) => passing(e) && setLinkTries((n) => n + 1),
-        ),
+        );
+      },
       linkTries === 0 ? 0 : pollMs,
     );
     return () => clearTimeout(timer);
@@ -117,10 +120,4 @@ export function useSite(pollMs: number) {
       pick(() => createSiteForParcel(parcelId));
     },
   };
-}
-
-/** A failure worth trying again: the API restarting, a timeout, or the
- * connection dropping, but not a refusal. */
-function passing(e: Error): boolean {
-  return !(e instanceof ApiError) || e.transient;
 }
