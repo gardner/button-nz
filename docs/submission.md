@@ -84,7 +84,7 @@ revision, as the sample, with
 Before the final take, fix the survey: set `BUTTON_SURVEY_DECIDED_BY` and
 `BUTTON_SURVEY_ID` (its `survey_id` from `/api/site/features`) together in
 `deploy.env` and rerun `install.sh` (#91).
-It also packs the survey with its decisions, every attempt's verdict
+The sample command also packs the survey with its decisions, every attempt's verdict
 (`sample.json`) and a README naming the sources and their licences. The owner gave permission on 31 October 2026 to
 publish imagery and renders of the site. Package the sample from the final
 take, which uses the owner's survey (open item 2 below), not from the takes
