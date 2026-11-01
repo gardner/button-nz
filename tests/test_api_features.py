@@ -313,6 +313,7 @@ def test_each_design_records_the_survey_and_decisions_it_was_checked_against(
         "survey_id": survey.id,
         "decisions": {"1": "building"},
         "buildings_complete": False,
+        "buildings": [square(30.0, 12.0, 6.0)],  # its geometry kept, as decided then
     }
 
 
@@ -321,4 +322,9 @@ def test_a_design_on_a_site_without_a_survey_records_that(tmp_path: Path) -> Non
     job_id = surveyed.queue()
     assert surveyed.worker.run_next()
     used = json.loads((tmp_path / "runs" / job_id / "survey.json").read_text())
-    assert used == {"survey_id": None, "decisions": {}, "buildings_complete": False}
+    assert used == {
+        "survey_id": None,
+        "decisions": {},
+        "buildings_complete": False,
+        "buildings": [],
+    }

@@ -12,6 +12,7 @@ site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
 
 import json
 import threading
+from collections import OrderedDict
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
+from button_nz.agent.demo import design_site
+from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
@@ -32,9 +35,13 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.property import find_address
 from button_nz.perception.confirm import Survey
 from button_nz.perception.survey import SURVEY_FILE
-from button_nz.sites.layers import lonlat_bounds, site_layers
+from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import QueryError, search_addresses
+from button_nz.sites.terrain_tiles import terrain_tile
+
+CACHE_A_DAY = "public, max-age=86400"
+DESIGN_SITES_KEPT = 4  # the worker's thread only reads these
 
 type Outlines = Callable[[BBox], dict[str, Any]]
 """LINZ building outlines over an NZTM bbox, as a FeatureCollection."""
@@ -64,7 +71,9 @@ class Sites:
         self.demo, self.demo_survey, self.demo_aerial = demo, demo_survey, demo_aerial
         self.demo_decided_by = demo_decided_by
         self._load = lru_cache(maxsize=64)(load_demo_site)
+        self._designs: OrderedDict[str, DesignSite] = OrderedDict()  # the few most recent
         self._outlines_lock = threading.Lock()
+        self._designs_lock = threading.Lock()
 
     def record(self, site_id: str) -> SiteRecord:
         try:
@@ -77,6 +86,23 @@ class Sites:
         if record.status is not SiteStatus.READY:
             raise HTTPException(409, f"site {site_id} is {record.status}, not ready")
         return self.demo if site_id == DEMO_SITE_ID else self._load(self.sites_dir / site_id)
+
+    def design_site(self, site_id: str) -> tuple[DesignSite, Path | None]:
+        """Where a design on the site is made, and its survey file (``Worker.site_for``)."""
+        path, _ = self.survey(site_id)
+        with self._designs_lock:  # the worker and the map's requests share it
+            if site_id in self._designs:
+                self._designs.move_to_end(site_id)
+            else:
+                self._designs[site_id] = design_site(self.site(site_id))
+                while len(self._designs) > DESIGN_SITES_KEPT:  # each holds its terrain grids
+                    self._designs.popitem(last=False)
+            return self._designs[site_id], path
+
+    def lidar(self, site_id: str) -> Lidar:
+        """The site's LiDAR grid and the datum its scene's heights count from."""
+        site, _ = self.design_site(site_id)
+        return Lidar(site.context.terrain, float(site.scene["frame"]["datum_m"]))
 
     def survey(self, site_id: str) -> tuple[Path | None, str | None]:
         """The site's survey file, and who fixed it (None: open)."""
@@ -155,12 +181,28 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
         path, _ = sites.survey(site_id)
         survey = None if path is None else Survey.read(path)
         decisions = {} if survey is None else store.decisions(survey.id)
-        return site_layers(site, survey, decisions, sites.buildings(site_id))
+        return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 
+    router.include_router(_terrain_router(sites))
     return router
 
 
 _REQUESTS = threading.Lock()  # one site per address: requests are decided one at a time
+
+
+def _terrain_router(sites: Sites) -> APIRouter:
+    """``GET /sites/{id}/terrain/{z}/{x}/{y}.png``: the site's surface as terrain-RGB."""
+    router = APIRouter()
+
+    @router.get("/sites/{site_id}/terrain/{z}/{x}/{y}.png")
+    def get_terrain(site_id: str, z: int, x: int, y: int) -> Response:
+        lidar = sites.lidar(site_id)
+        png = terrain_tile(lidar.grid, lidar.datum_m, z, x, y)
+        if png is None:
+            raise HTTPException(404, f"no terrain tile {z}/{x}/{y} for site {site_id}")
+        return Response(png, media_type="image/png", headers={"Cache-Control": CACHE_A_DAY})
+
+    return router
 
 
 def _requested(service: SiteService, address_id: int) -> SiteRecord:

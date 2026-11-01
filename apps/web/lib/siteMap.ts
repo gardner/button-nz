@@ -21,7 +21,7 @@ export interface SurveyedFeature {
   concept: string;
   status: FeatureStatus;
   decision: Decision | null; // null until a person decides
-  heightM: number | null; // its LiDAR height above the ground, where it has one
+  heightM: number | null; // its top above the site's datum, where the LiDAR covers it
 }
 
 /** A thing that can be stood up on the map: its bottom (`baseM`) and top
