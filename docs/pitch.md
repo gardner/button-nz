@@ -24,8 +24,10 @@ LiDAR of the ground and everything on it, and 7.5 cm aerial photographs.
 
 Anyone opens https://button.nz and, in one session:
 
-1. **Finds their property by its address**, anywhere in New Zealand that
-   LINZ has 1 m LiDAR. The site is built live, once, from open data:
+1. **Finds their property by its address**, anywhere in New Zealand where
+   LINZ has 1 m LiDAR, a recent aerial photo (0.3 m or finer) and the title's
+   parcels. The site is built live, once, from open data; where one of those
+   is missing, it says which rather than guessing:
    - the title's parcels and the neighbouring building outlines;
    - the newest LiDAR ground and surface models that cover it;
    - the regional aerial photo.
