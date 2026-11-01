@@ -45,8 +45,9 @@ passes: a design within 2 m of a confirmed building fails, and otherwise it is
 
 ## 2. The owner gets a checked concept
 
-**Goal:** a concept for their own brief that meets the exemption's rules,
-with the evidence.
+**Goal:** a concept for their own brief, checked against the exemption's
+measurable rules, with the evidence, and with anything the data can't decide
+shown as unknown.
 
 1. They write a brief in their own words: "A small one-bedroom studio that
    gets the afternoon sun and keeps the trees." They leave "Let the model
@@ -142,8 +143,8 @@ one of their own.
 2. They read the site panel: real parcels, real LiDAR, sources and,
    where recorded, capture dates. They see the survey as the owner decided it, and who decided it.
 3. They write their own brief and press **Design**, and watch it run live:
-   the LiDAR views Muse asks for (by name), a failed check and its repair,
-   the accepted design.
+   the LiDAR views Muse asks for (by name) and each attempt, with a repair
+   if a check fails, until a design is accepted or the attempts run out.
 4. They ask which prefabs fit, and place one.
 5. For depth they turn to the [README](../README.md) (how it works, the Meta
    models) and [docs/results](results/README.md):

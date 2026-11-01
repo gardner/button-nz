@@ -38,7 +38,7 @@ checked against the measured site.
         ├── Before and after (a revision only)
         ├── Attempt 1…n: verdict, each check's plain detail (the full
         │   measurements stay in the trace), the LiDAR views asked for (by name;
-        │   the images are in the run's files), and, if it produced a
+        │   the image-producing views are in the run's files), and, if it produced a
         │   model, its render and View in 3D; the accepted attempt also gets
         │   the AI illustration, when its check passes
         ├── 3D model (ModelViewer)
@@ -108,9 +108,12 @@ on one origin. Everything below is relative to `/api`.
 /designs/{id}/attempts/{n}/{file}        GET   design.glb, design.png, observation-k.png,
                                                visual.png, visual.json only
 /designs/{id}/products                   GET   the prefabs that fit an accepted design
+/town/{slug}                             GET   a town's screen as a map layer (reefton)
+/tiles/aerial/{z}/{x}/{y}.webp           GET   LINZ's aerial basemap, through the server's key
 ```
 
-A public server adds two limits: a daily cap on design runs (429 past it), and
+The town layer and the aerial tiles are served for the map-first UI (#86);
+nothing on today's page uses them yet. A public server adds two limits: a daily cap on design runs (429 past it), and
 a survey fixed as the owner decided it (403 on changes). See
 [deploy.md](deploy.md).
 
