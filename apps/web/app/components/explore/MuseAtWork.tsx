@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 
 import type { Attempt, Job, Phase } from "@/lib/api";
 
-/** The steps of one attempt, in the order a run takes them. */
+/** The steps of one attempt, in the order a run takes them (Muse decides,
+ * then reads a view or has its script built, as many times as it asks). */
 const STEPS: { phase: Phase; label: string }[] = [
+  // Every model call: Muse choosing a LiDAR view to ask for, or writing its
+  // Blender script. The run can't tell which until Muse answers.
+  { phase: "thinking", label: "Muse decides its next move" },
   { phase: "observing", label: "Muse reads the LiDAR" },
-  { phase: "thinking", label: "Muse writes the Blender script" },
   { phase: "rendering", label: "Blender builds and renders it" },
   { phase: "checking", label: "The rules are measured" },
 ];

@@ -69,6 +69,12 @@ describe("MuseAtWork", () => {
     ]);
   });
 
+  it("says Muse is deciding, not writing, while it is asked its next move", () => {
+    render(<MuseAtWork job={running("thinking")} />);
+    const current = screen.getByRole("listitem", { current: "step" });
+    expect(current.textContent).toMatch(/decides its next move/);
+  });
+
   it("says a queued design is waiting its turn", () => {
     const job = {
       ...parseJob(JOB),
