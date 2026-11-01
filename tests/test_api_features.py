@@ -175,8 +175,8 @@ def test_the_list_cannot_be_complete_while_a_possible_building_is_undecided(
 
 
 def test_a_new_survey_is_not_confirmed_complete(surveyed: Surveyed) -> None:
-    write_survey(surveyed.survey, "tree")
-    list_complete(surveyed)
+    write_survey(surveyed.survey, "tree", status="agrees")  # no possible building to decide
+    assert list_complete(surveyed).status_code == 200
     write_survey(surveyed.survey, "shed")
     assert surveyed.client.get("/site/features").json()["buildings_complete"] is False
 
