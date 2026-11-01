@@ -4,18 +4,13 @@ import { useEffect, useState } from "react";
 
 import type { Job } from "@/lib/api";
 import { type Bounds, boundsOf } from "@/lib/geo";
-import {
-  type DesignMap,
-  EMPTY_SITE_MAP,
-  type SiteMap,
-  terrainTiles,
-} from "@/lib/siteMap";
+import { type DesignMap, EMPTY_SITE_MAP, type SiteMap } from "@/lib/siteMap";
 import type { SiteState } from "@/lib/sites";
 
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
-import { Orbit, PITCH_3D, Terrain } from "../map/View3D";
+import { Orbit, PITCH_3D } from "../map/View3D";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
@@ -63,7 +58,6 @@ export function ReadySite({
   return (
     <>
       <SiteOverlays
-        siteId={site.id}
         siteBounds={site.bounds}
         three={three}
         siteMap={siteMap.map}
@@ -96,7 +90,6 @@ export function ReadySite({
 /** What a ready site draws on the map: its rules and survey, and the
  * accepted design with its distances. */
 function SiteOverlays({
-  siteId,
   siteBounds,
   three,
   siteMap,
@@ -104,7 +97,6 @@ function SiteOverlays({
   selected,
   onFeature,
 }: {
-  siteId: string;
   siteBounds: Bounds | null;
   three: boolean;
   siteMap: SiteMap | null;
@@ -115,9 +107,6 @@ function SiteOverlays({
   const framed = designMap && designBounds(designMap);
   return (
     <>
-      {/* The bare earth, with the site's buildings and trees standing on it
-          as tall as the LiDAR says (SiteLayers) and the design among them. */}
-      {three && <Terrain tiles={terrainTiles(siteId)} />}
       {/* The site framed, tilted as the switch says, until there is a
           design to frame (below). */}
       {!framed && <FitTo bounds={siteBounds} pitch={three ? PITCH_3D : 0} />}

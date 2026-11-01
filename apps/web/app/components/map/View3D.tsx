@@ -1,5 +1,6 @@
 "use client";
 
+import type { ExpressionSpecification } from "maplibre-gl";
 import { useEffect } from "react";
 
 import type { Bounds } from "@/lib/geo";
@@ -8,6 +9,15 @@ import { framing, useMap } from "./BaseMap";
 
 /** How far the map tilts in 3D. */
 export const PITCH_3D = 60;
+
+/** A thing's own height, top less bottom (`heightM`, `baseM`), to extrude
+ * from the aerial's 0. On a flat map with no terrain it then stands on the
+ * photo, however far its ground is above the site's datum. */
+export const OWN_HEIGHT: ExpressionSpecification = [
+  "-",
+  ["get", "heightM"],
+  ["get", "baseM"],
+];
 
 /** Tilts the surrounding map for 3D, closer in to at least `zoom` if given
  * (buildings a few metres tall need it), or lays it flat, north up, for 2D. */
@@ -25,31 +35,6 @@ export function Tilt({ three, zoom }: { three: boolean; zoom?: number }) {
     // Tilt when the view changes, not when the zoom wanted does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, three]);
-  return null;
-}
-
-/** The ground as a surface, from terrain-RGB tiles (Mapbox's encoding),
- * with the aerial draped over it; flat again when it goes. */
-export function Terrain({ tiles }: { tiles: string }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!map) return;
-    map.addSource("terrain", {
-      type: "raster-dem",
-      tiles: [tiles],
-      tileSize: 256,
-      encoding: "mapbox",
-      minzoom: 15,
-      maxzoom: 20,
-    });
-    map.setTerrain({ source: "terrain", exaggeration: 1 });
-    return () => {
-      // The map may have gone first, and its style with it.
-      if (!(map as { style?: unknown }).style) return;
-      map.setTerrain(null);
-      if (map.getSource("terrain")) map.removeSource("terrain");
-    };
-  }, [map, tiles]);
   return null;
 }
 

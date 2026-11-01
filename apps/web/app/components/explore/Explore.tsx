@@ -9,7 +9,7 @@ import { type SiteState, type Town, getTown } from "@/lib/sites";
 import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
-import { Tilt, ViewToggle } from "../map/View3D";
+import { OWN_HEIGHT, Tilt, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -48,7 +48,7 @@ const TOWN_BUILDINGS_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": [
     "interpolate",
     ["linear"],
-    ["get", "heightM"],
+    OWN_HEIGHT,
     2,
     "#fafaf9",
     8,
@@ -56,7 +56,7 @@ const TOWN_BUILDINGS_3D: Paint<"fill-extrusion"> = {
     16,
     "#fdba74",
   ],
-  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-height": OWN_HEIGHT,
   "fill-extrusion-base": 0,
   "fill-extrusion-opacity": 0.9,
 };

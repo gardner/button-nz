@@ -1,7 +1,5 @@
 "use client";
 
-import type { ExpressionSpecification } from "maplibre-gl";
-
 import {
   type DesignMap,
   type SiteMap,
@@ -10,6 +8,7 @@ import {
 } from "@/lib/siteMap";
 
 import { GeoLayer, type Paint } from "../map/GeoLayer";
+import { OWN_HEIGHT } from "../map/View3D";
 
 /** How each layer of the site is drawn: the rules as colour on the land. */
 export const SITE_COLOURS = {
@@ -44,13 +43,13 @@ const DECIDED: Paint<"fill"> = {
 const BUILDINGS_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": "#d6d3d1",
   "fill-extrusion-base": 0,
-  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-height": OWN_HEIGHT,
   "fill-extrusion-opacity": 0.85,
 };
 const CANOPY_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": "#4d7c0f",
   "fill-extrusion-base": 0,
-  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-height": OWN_HEIGHT,
   "fill-extrusion-opacity": 0.75,
 };
 
@@ -143,14 +142,6 @@ export function SiteLayers({
     </>
   );
 }
-
-/** The design's own height, floor to roof. With terrain on, MapLibre stands
- * an extrusion on the ground at its centroid, so it rises from there. */
-const OWN_HEIGHT: ExpressionSpecification = [
-  "-",
-  ["get", "heightM"],
-  ["get", "baseM"],
-];
 
 /** The design stood up in place: its walls in its colour, and its eaves as
  * a thin slab at the roof. */

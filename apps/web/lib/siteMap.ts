@@ -14,7 +14,7 @@ import {
 } from "./features";
 import { type Fields, number, oneOf, optional, text } from "./fields";
 import { type FeatureCollection, parseCollection } from "./geo";
-import { API, request } from "./http";
+import { request } from "./http";
 
 export interface SurveyedFeature {
   id: string;
@@ -24,22 +24,18 @@ export interface SurveyedFeature {
   heightM: number | null; // its LiDAR height above the ground, where it has one
 }
 
-/** How tall a thing stands, in metres above the ground under it (#86 v1.1);
- * null where the LiDAR has no cell inside it. */
-export interface Tall {
-  heightM: number | null;
-}
-
-/** A thing that can be stood up on the map: from `baseM` to `heightM`
- * (null where they weren't measured). */
-export interface Raised extends Tall {
+/** A thing that can be stood up on the map: its bottom (`baseM`) and top
+ * (`heightM`), in metres above the site's datum (#86 v1.1, #95); null beyond
+ * the LiDAR, or where they weren't measured. */
+export interface Raised {
   baseM: number | null;
+  heightM: number | null;
 }
 
 export interface SiteMap {
   parcels: FeatureCollection<null>;
   buildings: FeatureCollection<Raised>; // LINZ outlines, as tall as the LiDAR says
-  canopy: FeatureCollection<Tall>; // trees: the LiDAR over 2 m, outside the buildings
+  canopy: FeatureCollection<Raised>; // trees: the LiDAR over 2 m, outside the buildings
   features: FeatureCollection<SurveyedFeature>;
   setback: FeatureCollection<null>; // the 2 m band inside the title boundary
   halos: FeatureCollection<null>; // 2 m around confirmed buildings
@@ -76,7 +72,7 @@ export function parseSiteMap(raw: unknown): SiteMap {
   return {
     ...plain,
     buildings: parseCollection(map.buildings, "buildings", raised),
-    canopy: parseCollection(map.canopy, "canopy", tall),
+    canopy: parseCollection(map.canopy, "canopy", raised),
     features: {
       type: "FeatureCollection",
       features: features.features.map((f) => ({
@@ -110,12 +106,8 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
   };
 }
 
-export function tall(p: Fields): Tall {
-  return { heightM: optional(p, "height_m", number) };
-}
-
-/** Floor and roof, or base and top; absent or null where not measured. */
-function raised(p: Fields): Raised {
+/** Bottom and top; absent or null where not measured. */
+export function raised(p: Fields): Raised {
   return {
     heightM: p.height_m === undefined ? null : optional(p, "height_m", number),
     baseM: p.base_m === undefined ? null : optional(p, "base_m", number),
@@ -123,25 +115,15 @@ function raised(p: Fields): Raised {
 }
 
 /** The features that can be stood up: those with every height measured. */
-export function measured<P extends Tall>(
+export function measured<P extends Raised>(
   data: FeatureCollection<P>,
 ): FeatureCollection<P> {
   return {
     ...data,
     features: data.features.filter(
-      (f) =>
-        f.properties.heightM !== null &&
-        (!("baseM" in f.properties) ||
-          (f.properties as Partial<Raised>).baseM !== null),
+      (f) => f.properties.baseM !== null && f.properties.heightM !== null,
     ),
   };
-}
-
-/** Terrain-RGB tiles of a site's bare earth (DEM), metres above its
- * ground: 404 outside its bounds, where the map is flat (#86 v1.1). The
- * buildings and trees stand on it as extrusions, crisper than a draped DSM. */
-export function terrainTiles(siteId: string): string {
-  return `${API}/sites/${encodeURIComponent(siteId)}/terrain/{z}/{x}/{y}.png`;
 }
 
 const NONE = { type: "FeatureCollection" as const, features: [] };

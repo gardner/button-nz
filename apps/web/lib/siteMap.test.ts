@@ -36,10 +36,13 @@ describe("getSiteMap", () => {
       },
     ]);
     expect(map.buildings.features.map((f) => f.properties)).toEqual([
-      { heightM: 4, baseM: 0.2 },
+      { heightM: 6.2, baseM: 2.2 },
       { heightM: null, baseM: null }, // the LiDAR has no cell inside it
     ]);
-    expect(map.canopy.features[0].properties).toEqual({ heightM: 8.1 });
+    expect(map.canopy.features[0].properties).toEqual({
+      baseM: 1.2,
+      heightM: 9.3,
+    });
     expect(map.room.features).toHaveLength(1);
     expect(map.halos.features).toHaveLength(0);
   });

@@ -13,7 +13,7 @@ export class FakeMap {
   fitted: unknown[] = [];
   pitch = 0;
   bearing = 0;
-  terrain: object | null = null;
+  terrain: object | null = null; // never set: the 3D view has no terrain
   private handlers: { type: string; layer?: string; handler: Handler }[] = [];
 
   constructor(public options: object) {
@@ -142,9 +142,6 @@ export class FakeMap {
   }
   cameraForBounds() {
     return { center: [171.862, -42.1159], zoom: 19 };
-  }
-  setTerrain(terrain: object | null) {
-    this.terrain = terrain;
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

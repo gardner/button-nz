@@ -102,7 +102,7 @@ export const TOWN = {
       {
         type: "Feature",
         id: 11,
-        properties: { height_m: null }, // no LiDAR cell inside it
+        properties: { base_m: null, height_m: null }, // beyond the LiDAR
         geometry: {
           type: "Polygon",
           coordinates: square(171.8603, -42.1159, 0.00002),
@@ -111,7 +111,7 @@ export const TOWN = {
       {
         type: "Feature",
         id: 10,
-        properties: { height_m: 6.5 },
+        properties: { base_m: 0, height_m: 6.5 },
         geometry: {
           type: "Polygon",
           coordinates: square(171.8601, -42.1159, 0.00005),
@@ -160,7 +160,7 @@ export const SITE_MAP = {
   buildings: collection(
     polygon(
       25,
-      { id: 25, height_m: 4, base_m: 0.2 },
+      { id: 25, height_m: 6.2, base_m: 2.2 },
       square(171.8623, -42.1158, 0.00006),
     ),
     polygon(
@@ -170,7 +170,11 @@ export const SITE_MAP = {
     ),
   ),
   canopy: collection(
-    polygon("c0", { height_m: 8.1 }, square(171.8618, -42.1157, 0.00004)),
+    polygon(
+      "c0",
+      { base_m: 1.2, height_m: 9.3 },
+      square(171.8618, -42.1157, 0.00004),
+    ),
   ),
   features: collection(
     unnamed(

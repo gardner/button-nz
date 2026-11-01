@@ -388,7 +388,7 @@ describe("a ready site", () => {
     ).toBeTruthy();
   });
 
-  it("goes 3D on acceptance: the LiDAR surface, the design standing in place, and an orbit until touched", async () => {
+  it("goes 3D on acceptance: the buildings, trees and design standing, and an orbit until touched", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
       "GET /api/town/reefton": TOWN,
@@ -403,28 +403,19 @@ describe("a ready site", () => {
       expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
     );
     const map = FakeMap.last!;
-    expect(map.sources.get("terrain")).toMatchObject({
-      type: "raster-dem",
-      encoding: "mapbox",
-      tiles: [`/api/sites/${SITE}/terrain/{z}/{x}/{y}.png`],
-    });
-    expect(map.terrain).toMatchObject({ source: "terrain" });
-    // With terrain on, MapLibre stands an extrusion on the ground at its
-    // centroid: the walls go from there up their own height.
-    expect(map.layers.get("design-walls-extrusion")).toMatchObject({
-      paint: {
-        "fill-extrusion-base": 0,
-        "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
-      },
-    });
-    // On the bare earth, the site's buildings and trees stand as tall as the
-    // LiDAR says.
-    expect(map.layers.get("site-standing-buildings-extrusion")).toMatchObject({
-      paint: { "fill-extrusion-height": ["get", "heightM"] },
-    });
-    expect(map.layers.get("site-canopy-extrusion")).toMatchObject({
-      paint: { "fill-extrusion-height": ["get", "heightM"] },
-    });
+    // Each stands its own height, top less base, on the aerial: no terrain,
+    // whose DSM would stand the buildings and trees a second time.
+    const own = {
+      "fill-extrusion-base": 0,
+      "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+    };
+    expect(map.terrain).toBeNull();
+    for (const layer of [
+      "design-walls-extrusion",
+      "site-standing-buildings-extrusion",
+      "site-canopy-extrusion",
+    ])
+      expect(map.layers.get(layer)).toMatchObject({ paint: own });
     await vi.waitFor(() => expect(map.pitch).toBe(60));
     const start = map.bearing;
     await vi.waitFor(() => expect(map.bearing).not.toBe(start));
@@ -437,8 +428,6 @@ describe("a ready site", () => {
     await vi.waitFor(() => expect(map.pitch).toBe(0));
     await new Promise((r) => setTimeout(r, 20));
     expect(map.pitch).toBe(0);
-    expect(map.terrain).toBeNull();
-    expect(map.sources.has("terrain")).toBe(false);
     expect(map.layers.has("design-walls-extrusion")).toBe(false);
     expect(map.layers.has("site-canopy-extrusion")).toBe(false);
     expect(map.layers.has("site-standing-buildings-extrusion")).toBe(false);

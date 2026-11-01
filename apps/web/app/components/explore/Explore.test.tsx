@@ -168,7 +168,10 @@ describe("Explore", () => {
     fireEvent.click(screen.getByRole("button", { name: "3D" }));
     expect(map.layers.get("town-buildings-extrusion")).toMatchObject({
       type: "fill-extrusion",
-      paint: { "fill-extrusion-height": ["get", "heightM"] },
+      paint: {
+        "fill-extrusion-base": 0,
+        "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+      },
     });
     // Only the buildings the LiDAR measured stand.
     const standing = map.sources.get("town-buildings")?.data as {
