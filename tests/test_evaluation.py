@@ -302,3 +302,14 @@ def test_far_listed_buildings_pass_only_if_the_list_is_confirmed_complete() -> N
 def test_a_close_listed_building_fails_whether_or_not_the_list_is_complete() -> None:
     near = site(confirmed_buildings=(rect(14, 5, 18, 11),))
     assert check(proposal(), "building_separation", near).status is Status.FAIL
+
+
+@pytest.mark.parametrize("stated", [50.0, 50.004, 80.0])
+def test_a_footprint_under_70_passes_whatever_area_is_stated(stated: float) -> None:
+    """Geometry decides: 49.99 m² outside the walls can't hold 70 inside. A
+    stated area over the footprint is flagged, not failed (a live attempt
+    failed on 'the stated 50 m² is more than the footprint's 50.0 m²')."""
+    walls = rect(2, 2, 12, 6.999)  # 10 x 4.999 = 49.99 m²
+    result = check(proposal(footprint=walls, floor_area_m2=stated), "floor_area")
+    assert result.status is Status.PASS
+    assert "Check the stated value" in result.detail
