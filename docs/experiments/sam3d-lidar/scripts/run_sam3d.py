@@ -2,8 +2,14 @@
 
 usage (from the sam-3d-objects checkout, so its relative config paths resolve):
   CUDA_VISIBLE_DEVICES=1 python run_sam3d.py REPO_DIR SCENE_DIR [SEED]
-Writes SCENE_DIR/{moge,lidar}/: splat.ply (object frame), scene_points.npy (gaussian centres in
-the local site frame, with each one's opacity), pose.json, and run stats.
+Writes SCENE_DIR/{moge,lidar}/, all in the local site frame unless noted:
+- mesh.npz: the mesh SAM 3D decodes from the same latent as its Gaussians
+  (slat_decoder_mesh, output["mesh"][0]: vertices, faces), posed exactly as the
+  Gaussians are. The model score.py scores, like Roofer's mesh.
+- scene_points.npy: the Gaussian centres with each one's opacity (x, y, z,
+  opacity); a secondary record, scored too.
+- splat.ply (object frame), scene_points_p3d.npy (centres, PyTorch3D camera
+  frame), pointmap_used.npy, stats.json (run stats and the pose).
 """
 
 import json
@@ -14,11 +20,6 @@ from pathlib import Path
 import numpy as np
 import torch
 from PIL import Image
-
-repo, scene_dir = Path(sys.argv[1]), Path(sys.argv[2])
-seed = int(sys.argv[3]) if len(sys.argv) > 3 else 42
-sys.path.insert(0, str(repo / "notebook"))
-from inference import Inference, make_scene  # noqa: E402
 
 # OpenCV camera (x right, y down, z fwd) -> PyTorch3D camera (x left, y up, z fwd)
 CV_TO_P3D = np.array([-1.0, -1.0, 1.0])
@@ -32,7 +33,24 @@ def to_site_frame(points_p3d: np.ndarray, cam_to_world: np.ndarray) -> np.ndarra
     return (homog @ cam_to_world.T)[:, :3]
 
 
-def main() -> None:
+def object_to_site(points_local: torch.Tensor, output: dict, cam_to_world: np.ndarray) -> np.ndarray:
+    """Object-frame points (the decoded mesh's vertices) into the site frame, by
+    the same pose and the same call make_scene uses for the Gaussian centres."""
+    from sam3d_objects.utils.visualization import SceneVisualizer
+
+    scene = SceneVisualizer.object_pointcloud(
+        points_local=points_local.unsqueeze(0),
+        quat_l2c=output["rotation"],
+        trans_l2c=output["translation"],
+        scale_l2c=output["scale"],
+    )
+    return to_site_frame(scene.points_list()[0].detach().cpu().numpy(), cam_to_world)
+
+
+def main(repo: Path, scene_dir: Path, seed: int) -> None:
+    sys.path.insert(0, str(repo / "notebook"))
+    from inference import Inference, make_scene
+
     image = np.asarray(Image.open(scene_dir / "oblique.png").convert("RGB"))
     mask = np.asarray(Image.open(scene_dir / "mask.png")) > 127
     rc = np.load(scene_dir / "raycast.npz")
@@ -55,6 +73,9 @@ def main() -> None:
         opacity = scene_gs.get_opacity.detach().cpu().numpy().reshape(-1, 1)
         # x, y, z, opacity: score.py keeps the active Gaussians (opacity > 0.9, SAM 3D's own cut)
         np.save(out_dir / "scene_points.npy", np.c_[to_site_frame(pts, rc["cam_to_world"]), opacity])
+        mesh = output["mesh"][0]
+        np.savez(out_dir / "mesh.npz", vertices=object_to_site(mesh.vertices.float(), output, rc["cam_to_world"]),
+                 faces=mesh.faces.cpu().numpy().astype(np.int64))
         np.save(out_dir / "pointmap_used.npy", output["pointmap"].numpy())
         stats = {
             "seed": seed,
@@ -62,13 +83,15 @@ def main() -> None:
             "run_s": run_s,
             "peak_gpu_gb": torch.cuda.max_memory_allocated() / 1e9,
             "n_gaussians": int(len(pts)),
+            "mesh_vertices": int(len(mesh.vertices)),
+            "mesh_faces": int(len(mesh.faces)),
             "scale": output["scale"].cpu().tolist(),
             "translation": output["translation"].cpu().tolist(),
             "rotation": output["rotation"].cpu().tolist(),
         }
         (out_dir / "stats.json").write_text(json.dumps(stats, indent=1))
-        print(name, json.dumps({k: stats[k] for k in ("run_s", "peak_gpu_gb", "n_gaussians")}))
+        print(name, json.dumps({k: stats[k] for k in ("run_s", "peak_gpu_gb", "n_gaussians", "mesh_faces")}))
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]), Path(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 42)

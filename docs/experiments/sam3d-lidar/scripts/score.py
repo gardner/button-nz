@@ -2,7 +2,9 @@
 
 usage: score.py SPIKE_DIR BUILDING MODEL
   BUILDING: b6 or b3 (SPIKE_DIR/train-BUILDING/outline.json gives the local frame)
-  MODEL:    a Roofer CityJSONSeq (.city.jsonl, NZTM) or SAM 3D's scene_points.npy
+  MODEL:    a mesh: Roofer's CityJSONSeq (.city.jsonl, NZTM) or SAM 3D's mesh.npz
+            from run_sam3d.py (vertices, faces; local site frame), the main
+            SAM 3D model; or points: SAM 3D's scene_points.npy
             (Gaussian centres, local site frame; a fourth column, if present,
             is each Gaussian's opacity, and only the active ones count: opacity
             above ACTIVE_OPACITY, SAM 3D's own cut in notebook/inference.py,
@@ -280,8 +282,23 @@ def _umeyama(src: Array, dst: Array, w: Array) -> tuple[float, Array, Array]:
     return s, rot, mu_d - s * rot @ mu_s
 
 
-def stats(err: Array) -> tuple[float, float]:
-    return float(np.sqrt(np.mean(err**2))), float(np.median(np.abs(err)))
+def stats(prefix: str, err: Array) -> dict[str, float | None]:
+    """RMSE, median of the absolute error and signed median (the bias); null
+    when no truth point had model above it (coverage 0), so the JSON stays strict."""
+    if not len(err):
+        return {f"{prefix}_rmse_m": None, f"{prefix}_median_m": None, f"{prefix}_bias_m": None}
+    return {f"{prefix}_rmse_m": round(float(np.sqrt(np.mean(err**2))), 3),
+            f"{prefix}_median_m": round(float(np.median(np.abs(err))), 3),
+            f"{prefix}_bias_m": round(float(np.median(err)), 3)}
+
+
+def load_mesh(path: Path, origin: tuple[float, float]) -> tuple[Array, NDArray[np.int64]]:
+    """A mesh model: Roofer's CityJSONSeq (NZTM), or run_sam3d.py's mesh.npz
+    (vertices, faces; already in the local site frame)."""
+    if path.suffix == ".npz":
+        mesh = np.load(path)
+        return mesh["vertices"].astype(float), mesh["faces"].astype(np.int64)
+    return cityjson_mesh(path, origin)
 
 
 def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
@@ -295,11 +312,11 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     if model_path.suffix == ".npy":
         model = active_points(np.load(model_path).astype(float))
     else:
-        verts, faces = cityjson_mesh(model_path, (ox, oy))
+        verts, faces = load_mesh(model_path, (ox, oy))
         model = sample(verts, faces, SAMPLE_PER_M2)
         result["validity"] = validity(verts, faces)
-        exact, _ = mesh_top_errors(verts, faces, held_roof)
-        result |= {"roof_exact_median_m": round(float(np.median(np.abs(exact))), 3), "roof_exact_bias_m": round(float(np.median(exact)), 3)}
+        exact = stats("roof_exact", mesh_top_errors(verts, faces, held_roof)[0])
+        result |= {k: exact[k] for k in ("roof_exact_median_m", "roof_exact_bias_m")}
     result["model_points"] = len(model)
 
     import rasterio
@@ -308,11 +325,7 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
         gx, gy = outline.centroid.x + ox, outline.centroid.y + oy
         ground = float(np.median([v[0] for v in dem.sample([(gx + dx, gy + dy) for dx in (-3, 0, 3) for dy in (-3, 0, 3)])]))
     err, cover = top_errors(model, held_roof)
-    rmse, med = stats(err)
-    result |= {
-        "roof_rmse_m": round(rmse, 3),
-        "roof_median_m": round(med, 3),
-        "roof_bias_m": round(float(np.median(err)), 3),
+    result |= stats("roof", err) | {
         "roof_coverage": round(cover, 3),
         "height_err_m": round(float(np.percentile(model[:, 2], 98) - np.percentile(held_roof[:, 2], 98)), 3),
         "ground_m": round(ground, 2),
@@ -322,11 +335,9 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     s, rot, t = similarity_fit(top_points(model), roof_surface(spike, outline, (ox, oy)))
     aligned = s * model @ rot.T + t
     err2, cover2 = top_errors(aligned, held_roof)
-    rmse2, med2 = stats(err2)
-    result |= {"fitted_scale": round(s, 3), "shape_roof_rmse_m": round(rmse2, 3), "shape_roof_median_m": round(med2, 3),
-               "shape_roof_bias_m": round(float(np.median(err2)), 3), "shape_roof_coverage": round(cover2, 3)}
+    result |= {"fitted_scale": round(s, 3)} | stats("shape_roof", err2) | {"shape_roof_coverage": round(cover2, 3)}
     return result
 
 
 if __name__ == "__main__":
-    print(json.dumps(main(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])), indent=1))
+    print(json.dumps(main(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])), indent=1, allow_nan=False))

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # After HF access to facebook/sam-3d-objects is granted and `hf auth login` is done:
 # runs SAM 3D (MoGe depth, and the LiDAR pointmap) on the training-points scenes,
-# then scores every condition against the held-out points (#125).
+# then scores every condition against the held-out points (#125): SAM 3D's mesh
+# (mesh.npz, the main score) and its active Gaussian centres (a secondary record).
 set -euxo pipefail
 SPIKE=/home/gardner/src/sam3d-spike
 REPO=$SPIKE/repo/sam-3d-objects
@@ -19,6 +20,7 @@ cd $SPIKE/eval
 mkdir -p $OUT/scores
 for b in b6 b3; do
   for c in moge lidar; do
-    uv run python -I score.py $OUT $b $OUT/train-$b/$c/scene_points.npy > $OUT/scores/sam3d-$c-$b.json
+    uv run python -I score.py $OUT $b $OUT/train-$b/$c/mesh.npz > $OUT/scores/sam3d-$c-$b.json
+    uv run python -I score.py $OUT $b $OUT/train-$b/$c/scene_points.npy > $OUT/scores/sam3d-$c-$b-gaussians.json
   done
 done

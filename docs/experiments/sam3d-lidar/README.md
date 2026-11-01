@@ -182,9 +182,15 @@ rest are as reported, not yet checked.
 ## The scorer
 
 [`scripts/score.py`](scripts/score.py) reduces every model to points on its
-surface (a mesh sampled at 25 per m²; the centres of SAM 3D's active
-Gaussians, opacity above 0.9, the cut SAM 3D's own code uses, so faint
-floaters don't count), in the site's local frame, then measures:
+surface, in the site's local frame. A mesh is sampled at 25 points per m²:
+Roofer's model, and SAM 3D's own mesh, which SAM 3D decodes from the same
+latent as its Gaussians and [`run_sam3d.py`](scripts/run_sam3d.py) poses
+exactly as it poses them (`mesh.npz`). That mesh is SAM 3D's score, scored the
+same way as Roofer's. Gaussian centres alone would drop each splat's size,
+so a large splat could leave a gap in coverage or footprint. SAM 3D's active
+Gaussian centres (opacity above 0.9, the cut SAM 3D's own code uses, so faint
+floaters don't count) are scored too, as a secondary record. Then it
+measures:
 
 - **Layout, with no alignment:** the roof's vertical error at each held-out
   roof point (RMSE, median, and coverage: the share with model above them);
@@ -197,6 +203,9 @@ floaters don't count), in the site's local frame, then measures:
   the outline: the same roof errors again. This alignment **is condition 3**:
   fitted to training points only, scored on held-out ones.
 - **Validity** (meshes only): watertight, every edge on two faces.
+
+A roof error with no held-out point under the model (coverage 0) is written
+as `null`, not NaN, so every score file is strict JSON.
 
 **Self-test** ([`scripts/selftest.py`](scripts/selftest.py)): Roofer's model
 of the house, as points, distorted on purpose. Layout catches each
@@ -305,7 +314,8 @@ third-party code are untrusted downloads, kept apart from the project.
    ([copy](scripts/get_weights_and_run.sh)). It downloads the weights, runs
    SAM 3D with MoGe depth and with the LiDAR pointmap on both buildings'
    training-points scenes (GPU 1), and scores both, with condition 3 as the
-   scorer's alignment, into `scores/`.
+   scorer's alignment, into `scores/`: `sam3d-{moge,lidar}-{b6,b3}.json` from
+   SAM 3D's mesh, and `...-gaussians.json` from its active Gaussian centres.
 
 The scripts here are copies of the ones run, kept with the results. They
 run in their own environments (`scripts/pyproject.toml` for the split and
