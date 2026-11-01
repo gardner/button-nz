@@ -136,7 +136,7 @@ The report lists every limit.
 
 ## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
 
-**Reefton** ([report](impact/report.md), code d0cbd56). If some share of the
+**Reefton** ([report](impact/report.md), code 979bf70). If some share of the
 **backyards** (properties with a LINZ building outline) with room for a real prefab
 added one flat each: 439 of Reefton's 745 backyards (town screen, by
 title). Today's housing, from Stats NZ's 2023 Census for Reefton: 603
