@@ -42,7 +42,7 @@ NOT_FINITE = "Some of the Dwelling's vertices aren't finite numbers (NaN or inf)
 # the host set them (button_nz.blender_worker.scene_input.DEFAULT_COLOURS).
 DWELLING_RGBA = (0.8, 0.75, 0.65, 1.0)
 ROOF_RGBA = (0.06, 0.07, 0.08, 1.0)
-ROOF_NORMAL_Z = 0.5  # a face this far upward is roof
+ROOF_NORMAL_Z = 0.5  # a face this near level is roof (either winding; the floor is unseen)
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
     "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
@@ -211,7 +211,7 @@ def _bake(
     mesh.materials.append(build_scene.material("Dwelling walls", walls))
     mesh.materials.append(build_scene.material("Dwelling roof", roof))
     for polygon in mesh.polygons:
-        polygon.material_index = 1 if polygon.normal.z > ROOF_NORMAL_Z else 0
+        polygon.material_index = 1 if abs(polygon.normal.z) > ROOF_NORMAL_Z else 0
     b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 

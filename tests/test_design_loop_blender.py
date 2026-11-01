@@ -119,6 +119,36 @@ def test_the_render_colours_the_roof_and_walls_as_the_host_says(tmp_path: Path) 
     assert base["Dwelling walls"] == pytest.approx(colours["walls"], abs=1e-3)
 
 
+class MirroringModel:
+    """Places a mirrored dwelling: every triangle wound the other way."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return MOVED.replace("(6.0, 5.0, 3.6)", "(6.0, 5.0, -3.6)")
+
+
+def test_the_roof_is_the_roof_whichever_way_its_triangles_wind(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    result = design("A studio.", site, MirroringModel(), tmp_path)
+
+    assert result.accepted is not None
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    top = {
+        gltf["materials"][p["material"]]["name"]: gltf["accessors"][p["attributes"]["POSITION"]][
+            "max"
+        ][1]
+        for p in gltf["meshes"][node["mesh"]]["primitives"]
+    }
+    assert top["Dwelling roof"] == pytest.approx(top["Dwelling walls"])  # the top face is roof
+
+
 def glb_json(glb: Path) -> dict[str, Any]:
     """The JSON chunk of a GLB file."""
     data = glb.read_bytes()
