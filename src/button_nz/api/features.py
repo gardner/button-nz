@@ -7,8 +7,10 @@
 The same, for any site, under ``/sites/{site_id}`` (``site_features_router``);
 ``/site`` is the demo site.
 
-A public server can fix the survey as someone decided it (``decided_by``): it
-is served with who that was, and changes to it are refused (403).
+A public server can fix the survey as someone decided it (``FixedSurvey``):
+it is served with who that was, and changes to it are refused (403). It is
+pinned to the survey they decided: a survey file replaced since is refused
+(409) rather than served undecided (``api/fixed.py``).
 
 The survey is read from its file on each request, so a new survey (written by
 ``python -m button_nz.perception.survey``) is served without a restart, and
@@ -23,6 +25,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from button_nz.api.fixed import FixedSurvey, SurveyReplaced, read_fixed
 from button_nz.api.store import Store
 from button_nz.perception.confirm import Decision, Survey, undecided_buildings
 
@@ -37,13 +40,15 @@ class SurveyRequest(BaseModel):
     survey_id: str
 
 
-type Resolve = Callable[[str], tuple[Path | None, str | None]]
-"""A site id to its survey file and who fixed it (None: open to decisions)."""
+type Resolve = Callable[[str], tuple[Path | None, FixedSurvey | None]]
+"""A site id to its survey file and how it is fixed (None: open to decisions)."""
 
 
-def features_router(store: Store, survey: Path | None, decided_by: str | None = None) -> APIRouter:
+def features_router(
+    store: Store, survey: Path | None, fixed: FixedSurvey | None = None
+) -> APIRouter:
     """The demo site's survey, at ``/site``."""
-    return _router(store, "/site", lambda _: (survey, decided_by))
+    return _router(store, "/site", lambda _: (survey, fixed))
 
 
 def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
@@ -54,13 +59,23 @@ def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
 def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     router = APIRouter()
 
+    def resolved(site_id: str) -> tuple[Survey | None, str | None]:
+        """The site's survey, read once and checked to be the fixed survey if
+        it is fixed (else a 409), and who fixed it."""
+        path, fixed = resolve(site_id)
+        try:
+            survey = read_fixed(path, fixed)
+        except SurveyReplaced as error:
+            raise HTTPException(409, str(error)) from None
+        return survey, None if fixed is None else fixed.decided_by
+
     def unless_fixed(decided_by: str | None) -> None:
         if decided_by is not None:
             raise HTTPException(403, f"This server's survey is fixed, as {decided_by} decided it.")
 
     @router.get(f"{prefix}/features")
     def get_features(site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolve(site_id)
+        survey, decided_by = resolved(site_id)
         found = _survey(survey)
         decisions = store.decisions(found.id)
         return {
@@ -74,7 +89,7 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
 
     @router.put(f"{prefix}/features/{{feature_id}}")
     def put_feature(feature_id: str, request: DecisionRequest, site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolve(site_id)
+        survey, decided_by = resolved(site_id)
         unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
         feature = found.feature(feature_id)
@@ -85,7 +100,7 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
 
     @router.put(f"{prefix}/survey")
     def put_survey(request: SurveyRequest, site_id: str = "") -> dict[str, Any]:
-        survey, decided_by = resolve(site_id)
+        survey, decided_by = resolved(site_id)
         unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
         undecided = undecided_buildings(found, store.decisions(found.id))
@@ -97,9 +112,8 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     return router
 
 
-def _survey(path: Path | None, decided_on: str | None = None) -> Survey:
+def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:
     """The survey being served; if a decision ``decided_on`` another, a 409."""
-    found = None if path is None else Survey.read(path)
     if found is None:
         raise HTTPException(404, "no survey yet: run python -m button_nz.perception.survey")
     if decided_on is not None and decided_on != found.id:
