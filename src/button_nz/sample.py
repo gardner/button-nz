@@ -2,7 +2,7 @@
 
     uv run python -m button_nz.sample DATA JOB_ID OUT.zip --survey-decided-by "the owner"
 
-``DATA`` is the API's data directory (``button.db``, ``runs/``, the survey).
+``DATA`` is the API's data directory (``button.db``, ``runs/``, the survey, ``sites/``).
 The archive holds, oldest design first, each attempt's files as the run kept
 them (``design-<k>/attempt-<n>/``), the survey with its decisions
 (``survey.json``), ``sample.json`` (the designs, their attempts and verdicts)
@@ -29,6 +29,7 @@ from button_nz.api.store import Job, Store
 from button_nz.demo_site import DemoSite, load_demo_site
 from button_nz.perception.confirm import Survey
 from button_nz.perception.survey import SURVEY_FILE
+from button_nz.sites.registry import DEMO_SITE_ID
 
 FILES = re.compile(
     r"scene\.json|script/design\.blend|design\.py|design\.glb|design\.png|measurements\.json"
@@ -75,8 +76,8 @@ def pack(data: Path, job_id: str, decided_by: str, out: Path) -> None:
         for k, job in enumerate(designs, 1)
         for packed in _files(data / "runs" / job.id, job, f"design-{k}")
     ]
-    surveyed = _surveyed(data, designs, decided_by)
-    site = load_demo_site()
+    site, survey_file = _site(data, designs)
+    surveyed = _surveyed(data, survey_file, designs, decided_by)
     manifest = {
         "packaged_at": datetime.now(UTC).isoformat(),
         "site": {"name": site.name, "title": site.title},
@@ -134,18 +135,37 @@ def _files(run: Path, job: Job, folder: str) -> list[Packed]:
     return found
 
 
-def _surveyed(data: Path, designs: list[Job], decided_by: str) -> dict[str, Any]:
+def _checked_against(used: dict[str, Any]) -> tuple[Any, ...]:
+    """What a record says its design was checked against. The kept ``buildings``
+    follow from the survey and its decisions, and older records lack them."""
+    return used["survey_id"], used["decisions"], used["buildings_complete"]
+
+
+def _site(data: Path, designs: list[Job]) -> tuple[DemoSite, Path]:
+    """The site every design was made on, and its survey file: the demo's, or
+    one built for an address under ``DATA/sites``."""
+    sites = {job.site_id or DEMO_SITE_ID for job in designs}
+    if len(sites) > 1:
+        raise SampleError(f"the designs were made on different sites: {sorted(sites)}")
+    (site_id,) = sites
+    if site_id == DEMO_SITE_ID:
+        return load_demo_site(), data / SURVEY_FILE
+    folder = data / "sites" / site_id
+    return load_demo_site(folder), folder / SURVEY_FILE
+
+
+def _surveyed(data: Path, survey_file: Path, designs: list[Job], decided_by: str) -> dict[str, Any]:
     """The survey with the decisions every design was checked against, as the
     worker recorded them when each ran. Designs checked against different ones,
     or a survey replaced since, are refused."""
     used = [_used(data / "runs" / job.id, job) for job in designs]
-    if any(u != used[0] for u in used):
+    if any(_checked_against(u) != _checked_against(used[0]) for u in used):
         raise SampleError("the designs were checked against different survey decisions")
     if used[0]["survey_id"] is None:
         raise SampleError("the designs ran without a survey: there is no site record to pack")
-    survey = Survey.read(data / SURVEY_FILE)
+    survey = Survey.read(survey_file)
     if survey is None or survey.id != used[0]["survey_id"]:
-        raise SampleError(f"the survey in {data} has changed since the designs ran")
+        raise SampleError(f"the survey {survey_file} has changed since the designs ran")
     decisions: dict[str, str] = used[0]["decisions"]
     features = [
         {**f, "properties": {**f["properties"], "decision": decisions.get(str(f["id"]))}}

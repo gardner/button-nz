@@ -60,6 +60,9 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     store = Store(args.data / "button.db")
     survey = args.data / SURVEY_FILE
+    site = load_demo_site()
+    decided_by = args.survey_decided_by or None  # empty: the owner is deciding
+    sites = _sites(args.data, site, survey, decided_by, args.daily_sites)
     worker = Worker(
         store,
         site=demo_site,
@@ -67,11 +70,9 @@ def main(argv: list[str] | None = None) -> None:
         runs_dir=args.data / "runs",
         survey=survey,
         illustrator=illustrate_from_env,
+        site_for=sites.sites.design_site,  # any other site
     )
-    site = load_demo_site()
     cap = None if args.daily_designs is None else DailyCap(store.created_since, args.daily_designs)
-    decided_by = args.survey_decided_by or None  # empty: the owner is deciding
-    sites = _sites(args.data, site, survey, decided_by, args.daily_sites)
     app = create_app(
         store,
         worker,

@@ -24,6 +24,9 @@ export const ATTRIBUTION =
   "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
   "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
 
+/** The narrowest strip, in pixels, worth framing a site in beside the panel. */
+const MIN_FRAME = 200;
+
 /** The panel over the map is marked with this attribute, to frame round it. */
 export const PANEL = "data-map-panel";
 
@@ -45,14 +48,11 @@ export function framing(right = 40): {
   const height = window.innerHeight;
   const beside = (width - box.right) * height; // the room right of it
   const under = (height - box.bottom) * width; // the room below it
-  if (beside > under)
-    return {
-      top: 90,
-      bottom: 40,
-      left: box.right + margin,
-      // The hero stands on the right from 1024 px; below that it's in the panel.
-      right: width < 1024 ? margin : right,
-    };
+  // Beside it only if there is a map's width there to frame in; the hero
+  // stands on the right from 1024 px, below that it's in the panel.
+  const side = width < 1024 ? margin : right;
+  if (beside > under && width - box.right - margin - side >= MIN_FRAME)
+    return { top: 90, bottom: 40, left: box.right + margin, right: side };
   const top = Math.min(box.bottom + margin, height * 0.6);
   return { top, bottom: 40, left: margin, right: margin };
 }

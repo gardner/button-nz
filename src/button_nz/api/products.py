@@ -7,17 +7,21 @@ The footprint is the walls Blender measured of the accepted attempt
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from shapely import Polygon
+from shapely.affinity import translate
 
 from button_nz.agent.proposal import DesignError, parse_measurements
 from button_nz.api.store import Store
-from button_nz.catalogue import Product, matches
+from button_nz.catalogue import Product, matches, placement
+from button_nz.geo.crs import LocalFrame
+from button_nz.sites.layers import collection
 
 BASIS = (
     "A product fits if its published outside wall footprint lies inside the accepted "
@@ -31,12 +35,20 @@ BASIS = (
 
 class ProductsView(BaseModel):
     footprint_m2: float
-    fits: list[Product]  # largest first
+    fits: list[dict[str, Any]]  # largest first; each with where it would stand
     unchecked: list[Product]
     basis: str
 
 
-def products_router(store: Store, runs_dir: Path, products: Sequence[Product]) -> APIRouter:
+type FrameFor = Callable[[Path], LocalFrame]  # the frame an attempt was measured in
+
+
+def products_router(
+    store: Store, runs_dir: Path, products: Sequence[Product], frame_for: FrameFor | None = None
+) -> APIRouter:
+    """With ``frame_for``, each fitting product says where it would stand inside
+    the walls (``placed_footprint``, lon/lat): wholly inside where it has room,
+    else over each wall by half of ``catalogue.fit.TOLERANCE_M`` at most."""
     router = APIRouter()
 
     @router.get("/designs/{job_id}/products")
@@ -47,16 +59,29 @@ def products_router(store: Store, runs_dir: Path, products: Sequence[Product]) -
             raise HTTPException(404, f"no design {job_id}") from None
         if job.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt")
-        walls = _walls(runs_dir / job.id / f"attempt-{job.accepted_attempt}")
+        attempt = runs_dir / job.id / f"attempt-{job.accepted_attempt}"
+        walls = _walls(attempt)
         found = matches(walls, products)
+        frame = None if frame_for is None else frame_for(attempt)
         return ProductsView(
             footprint_m2=round(walls.area, 2),
-            fits=list(found.fits),
+            fits=[_fitting(p, walls, frame) for p in found.fits],
             unchecked=list(found.unchecked),
             basis=BASIS,
         )
 
     return router
+
+
+def _fitting(product: Product, walls: Polygon, frame: LocalFrame | None) -> dict[str, Any]:
+    view = product.model_dump()
+    if frame is None:
+        return view
+    placed = placement(walls, product.length_m, product.width_m)
+    if placed is None:  # matches() found it fits: placement() is the same test
+        raise ValueError(f"{product.id} fits but has no placement")
+    on_site = translate(placed, frame.origin[0], frame.origin[1])
+    return view | {"placed_footprint": collection([(on_site, {"id": product.id})])}
 
 
 @lru_cache(maxsize=64)

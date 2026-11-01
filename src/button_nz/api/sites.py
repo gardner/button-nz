@@ -12,6 +12,7 @@ site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
 
 import json
 import threading
+from collections import OrderedDict
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
@@ -22,6 +23,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
+from button_nz.agent.demo import design_site
+from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
@@ -35,6 +38,8 @@ from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.layers import lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import QueryError, search_addresses
+
+DESIGN_SITES_KEPT = 4  # the worker's thread only reads these
 
 type Outlines = Callable[[BBox], dict[str, Any]]
 """LINZ building outlines over an NZTM bbox, as a FeatureCollection."""
@@ -64,6 +69,7 @@ class Sites:
         self.demo, self.demo_survey, self.demo_aerial = demo, demo_survey, demo_aerial
         self.demo_decided_by = demo_decided_by
         self._load = lru_cache(maxsize=64)(load_demo_site)
+        self._designs: OrderedDict[str, DesignSite] = OrderedDict()  # the few most recent
         self._outlines_lock = threading.Lock()
 
     def record(self, site_id: str) -> SiteRecord:
@@ -77,6 +83,17 @@ class Sites:
         if record.status is not SiteStatus.READY:
             raise HTTPException(409, f"site {site_id} is {record.status}, not ready")
         return self.demo if site_id == DEMO_SITE_ID else self._load(self.sites_dir / site_id)
+
+    def design_site(self, site_id: str) -> tuple[DesignSite, Path | None]:
+        """Where a design on the site is made, and its survey file (``Worker.site_for``)."""
+        path, _ = self.survey(site_id)
+        if site_id in self._designs:
+            self._designs.move_to_end(site_id)
+        else:
+            self._designs[site_id] = design_site(self.site(site_id))
+            while len(self._designs) > DESIGN_SITES_KEPT:  # each holds its terrain grids
+                self._designs.popitem(last=False)
+        return self._designs[site_id], path
 
     def survey(self, site_id: str) -> tuple[Path | None, str | None]:
         """The site's survey file, and who fixed it (None: open)."""
