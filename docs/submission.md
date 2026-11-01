@@ -81,6 +81,9 @@ the chosen sample's folders before packaging them.
 **To do:** package one demo run's folders, the accepted design and its
 revision, as the sample, with
 `python -m button_nz.sample DATA JOB_ID sample.zip --survey-decided-by "the owner"`.
+Before the final take, fix the survey: set `BUTTON_SURVEY_DECIDED_BY` and
+`BUTTON_SURVEY_ID` (its `survey_id` from `/api/site/features`) together in
+`deploy.env` and rerun `install.sh` (#91).
 It also packs the survey with its decisions, every attempt's verdict
 (`sample.json`) and a README naming the sources and their licences. The owner gave permission on 31 October 2026 to
 publish imagery and renders of the site. Package the sample from the final
