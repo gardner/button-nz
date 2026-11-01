@@ -1,8 +1,23 @@
 # Experiment: SAM 3D Objects conditioned on LiDAR
 
-**Status:** ready to run, waiting for model access. SAM 3D's weights on
-Hugging Face (`facebook/sam-3d-objects`) are gated, and Meta approves access
-by hand. Everything else is installed and tested on this machine's RTX 5090.
+**Status:** partly built, waiting for model access.
+
+- **Done:** SAM 3D's environment is installed and tested on this machine's
+  RTX 5090. The method's pieces (photo, pointmap, mask) are proven on two
+  buildings, and the MoGe-vs-LiDAR check on the depth input is measured.
+  Those photos, pointmaps and masks were made from LINZ's full DSM, which
+  carries the held-out points, so **they can't be scored**: they have to be
+  remade from the training-points surface (step 6).
+- **Blocked:** SAM 3D's weights on Hugging Face (`facebook/sam-3d-objects`)
+  are gated, and Meta approves access by hand.
+- **Still to build:**
+  - the held-out truth: LINZ's LAS/LAZ points, split into held-out blocks
+    and training points, with a surface made from the training points
+    (step 6);
+  - the photos, pointmaps and masks remade from that surface;
+  - the fitting step (condition 3);
+  - Roofer (condition 4);
+  - the shape and layout scoring (step 5).
 
 ## The question
 
@@ -41,13 +56,56 @@ photographs. So we make an ordinary-looking photo from our data:
    one metric 3D point per pixel, in the camera's coordinates.
 3. **The building's mask:** the pixels whose surface point falls inside its
    LINZ outline (plus 1 m) and stands more than 1 m above ground.
-4. **Two runs of SAM 3D on the same photo and mask:**
-   - **without LiDAR,** where SAM 3D estimates depth itself (MoGe);
-   - **with LiDAR,** passing our pointmap.
-5. **Measure each reconstruction against the truth we have:**
-   - roof height against the nDSM;
-   - footprint against the LINZ outline (overlap, IoU);
-   - overall scale.
+4. **Four conditions, each on the same photo and mask:**
+
+   | Condition | What it tests |
+   |---|---|
+   | SAM 3D, its own MoGe depth | the baseline |
+   | SAM 3D, the LiDAR pointmap | the main question |
+   | SAM 3D, the LiDAR pointmap, then fitted to the training points | whether explicit fitting adds anything |
+   | [Roofer](https://github.com/3DBAG/roofer), from the training points and the outline | a conventional, non-generative baseline |
+
+5. **Measure two things apart.**
+   - **Shape:** after the best scale and rigid alignment, is the roof right?
+     - roof-surface RMSE;
+     - roof-plane topology;
+     - whether the model is a valid closed solid.
+   - **Metric layout:** with no alignment, is it the right size and in the
+     right place?
+     - scale;
+     - position;
+     - roof height above ground;
+     - footprint.
+
+   Monocular depth has no scale at all, so a wrong scale isn't a bad shape;
+   reporting the two apart keeps one from hiding the other.
+
+6. **Measure against truth the model wasn't given.**
+   - LINZ's 1 m DSM is made from all of its LAS/LAZ points. A model given
+     inputs made from the DSM, and scored against the DSM or those points,
+     is only tested on how faithfully it follows its input: **source-data
+     fidelity**, reported as such, never as held-out truth.
+   - For held-out truth, LINZ's LAS/LAZ points are split once: a held-out
+     share (whole spatial blocks, so neighbouring points can't stand in for
+     them), and the rest, the **training points**.
+   - **Nothing a model is given may carry the held-out points.** From the
+     training points alone we build our own surface, and every input comes
+     from it:
+     - the photo (step 1) is draped on it and rendered;
+     - the pointmap (step 2) is cast onto it, so photo and pointmap agree
+       pixel for pixel;
+     - the mask's height test (step 3) uses it;
+     - the fitting step (condition 3) fits to the training points only;
+     - Roofer (condition 4) gets the training points themselves, not a
+       raster, since it finds roof planes in a point cloud.
+   - Each model is scored against the held-out points, which nothing it was
+     given was made from.
+   - Footprint IoU against the LINZ outline mostly tests adherence to the
+     mask, which is drawn from that outline. It's reported as such, not as
+     footprint discovery.
+7. **Report the inputs as what they are:** the oblique photo is synthetic
+   (an orthophoto draped on a 1 m surface), with no real walls. Results
+   apply to synthetic oblique inputs, not to real oblique photography.
 
 ### How the pointmap goes in (verified in the code, not yet run)
 
@@ -60,6 +118,35 @@ photographs. So we make an ordinary-looking photo from our data:
   y up, z forward: OpenCV's with x and y negated). Missing pixels may be NaN.
 - **Scale:** the pipeline normalises scale and restores it on the output, so
   metric LiDAR should give a metric model.
+
+## What's known already
+
+From research the owner gathered on [#125](https://github.com/gardner/button-nz/issues/125#issuecomment-6558069113).
+Only the SAM 3D papers have been checked against their sources here; the
+rest are as reported, not yet checked.
+
+- **Meta's own ablation:** SAM 3D's appendix ("Pointmap Minimally Affects
+  Shape") found people preferred the version with and the version without a
+  pointmap equally often (48% each, on LVIS).
+  - That's perceived shape, on everyday objects, not buildings in metres.
+  - So the LiDAR's likely gain is metric layout (scale, position, height),
+    not shape. Hence step 5's split.
+- **SAM 3D on remote-sensing images** ([arXiv 2512.22452](https://arxiv.org/abs/2512.22452)):
+  image-similarity metrics only, no metric comparison against LiDAR.
+- **Fusing aerial imagery with LiDAR helps purpose-built models,** as
+  reported for LoD2-Former (roof wireframes) and P³ (building polygons).
+  - [P³](https://github.com/raphaelsulzer/PixelsPointsPolygons) includes LINZ
+    data from Twyford, Waipukurau and Gisborne: aerial RGB, LiDAR and
+    building polygons.
+- **Visual quality isn't validity:** one 2026 study reports that only 0.6%
+  of a generative model's building meshes were valid solids. Hence the
+  validity measure.
+- **External references, if time allows:** the ISPRS building
+  reconstruction benchmark (Vaihingen, Toronto), with independent reference
+  roofs; and Building3D (roof meshes and wireframes).
+- **No published study** does exactly this experiment: SAM 3D with measured
+  airborne LiDAR against SAM 3D with estimated depth, on real buildings,
+  with metric evaluation.
 
 ## What we've measured so far: the depth input
 
@@ -95,9 +182,9 @@ To be added after the run:
 
 - [`inputs/`](inputs/): for each building, the virtual oblique photo, its
   mask over it, the LiDAR pointmap (as a depth image), and MoGe's depth error.
-- [`outputs/`](outputs/): for each building, SAM 3D's model with and without
-  LiDAR (rendered views, plus the mesh or splat), and the measurements beside
-  the truth.
+- [`outputs/`](outputs/): for each building, the four conditions' models
+  (rendered views, plus the mesh or splat), with the shape and layout
+  measurements beside the held-out truth.
 
 All imagery comes from LINZ open data (aerial photos and LiDAR, CC BY 4.0).
 No supplier or third-party imagery is used.
@@ -111,7 +198,12 @@ third-party code are untrusted downloads, kept apart from the project.
    owner, with a Hugging Face account).
 2. Once approved: `~/src/sam3d-spike/env/bin/hf auth login`.
 3. `~/src/sam3d-spike/scripts/get_weights_and_run.sh`. It downloads the
-   weights, then runs both conditions for both buildings on GPU 1.
+   weights, then runs the first two conditions (MoGe depth, and the LiDAR
+   pointmap) for both buildings on GPU 1.
+   - **Its inputs come from LINZ's full DSM, so its outputs prove the
+     pipeline runs but can't be scored** (step 6).
+   - Scoring needs the training-points surface and the inputs remade from
+     it, then the fitted condition, Roofer and the scoring (see Status).
 
 **The environment, and why it isn't upstream's:**
 - Upstream's setup pins torch 2.5.1/cu121, which has no kernels for the

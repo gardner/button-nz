@@ -134,3 +134,13 @@ def test_the_report_leads_with_properties() -> None:
     text = report(results, META)
     assert "1 properties (titles)" in text or "1 property (title)" in text
     assert "| Count | Properties | Share | Sections | Share |" in text
+
+
+def test_each_product_is_counted_once_a_property() -> None:
+    results = [
+        result(1, 400, ("a",), property_id=1),
+        result(2, 400, ("a",), property_id=1),  # the same title: one property
+        result(3, 600, ("a",), property_id=3),
+    ]
+    assert summarise(results)["by_product"]["a"]["fits"] == 2
+    assert "| Product (properties) |" in report(results, META)

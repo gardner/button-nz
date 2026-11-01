@@ -64,8 +64,8 @@ def summarise(results: Sequence[SectionResult]) -> dict[str, Any]:
     for name in COUNTS:
         counts[name] = sum(1 for r in results if getattr(r, name))
     products = sorted({p for r in results for p in r.fits})
-    counts["by_product"] = {
-        p: {name: sum(1 for r in results if p in getattr(r, name)) for name in COUNTS}
+    counts["by_product"] = {  # properties, like the headline: once a title
+        p: {name: len({r.property_id for r in results if p in getattr(r, name)}) for name in COUNTS}
         for p in products
     }
     return counts
@@ -178,7 +178,7 @@ def _by_size(results: Sequence[SectionResult]) -> str:
 
 def _by_product(by_product: Mapping[str, Mapping[str, int]], names: Mapping[str, str]) -> str:
     rows = [
-        "| Product | " + " | ".join(LABELS[n] for n in COUNTS) + " |",
+        "| Product (properties) | " + " | ".join(LABELS[n] for n in COUNTS) + " |",
         "|---|" + "---|" * len(COUNTS),
     ]
     for product, counts in sorted(by_product.items(), key=lambda kv: -kv[1]["fits"]):

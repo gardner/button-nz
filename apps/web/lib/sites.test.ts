@@ -149,9 +149,22 @@ describe("getTown", () => {
     serve({
       ...TOWN,
       features: [
-        { ...TOWN.features[0], properties: { id: 1, category: "maybe" } },
+        {
+          ...TOWN.features[0],
+          properties: { id: 1, property: 1, category: "maybe" },
+        },
       ],
     });
-    await expect(getTown("reefton")).rejects.toThrow(ApiError);
+    await expect(getTown("reefton")).rejects.toThrow(/category/);
+  });
+
+  it("refuses a section with no property", async () => {
+    serve({
+      ...TOWN,
+      features: [
+        { ...TOWN.features[0], properties: { id: 1, category: "clear" } },
+      ],
+    });
+    await expect(getTown("reefton")).rejects.toThrow(/property/);
   });
 });
