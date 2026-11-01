@@ -77,7 +77,7 @@ class FakeIllustrator:
         return self.visual
 
 
-ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual")
+ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual", 1)
 
 
 def broken_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
@@ -309,11 +309,12 @@ def test_an_accepted_design_gets_an_ai_visual(tmp_path: Path) -> None:
         "iou": 0.83,
         "min_iou": 0.6,
         "reason": None,
+        "edits": 1,
     }
 
 
 def test_a_rejected_visual_is_recorded_without_an_image(tmp_path: Path) -> None:
-    moved = Visual(VISUAL_MODEL, False, 0.31, "It moved.", None)
+    moved = Visual(VISUAL_MODEL, False, 0.31, "It moved.", None, 2)
     service = Service(tmp_path, illustrator=FakeIllustrator(moved))
     job_id = service.queue()
     service.worker.run_next()

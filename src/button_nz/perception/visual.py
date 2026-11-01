@@ -6,8 +6,9 @@ photograph of the same scene. Image models move, shrink and invent things, so
 the result is checked before anyone sees it: SAM 3.1 finds the houses in the
 illustration, resized to the render's size, and the one that best overlaps
 the Dwelling's silhouette from the render camera (``dwelling-mask.png``, from
-the trusted pass) must overlap it with an IoU of at least ``MIN_IOU``. Even
-then it is an illustration, not the design: show it labelled AI-illustrated.
+the trusted pass) must overlap it with an IoU of at least ``MIN_IOU``. A
+rejected edit is made again, up to ``EDITS`` in all, each checked the same way.
+Even then it is an illustration, not the design: show it labelled AI-illustrated.
 
 These calls run in the host process, never in the Blender sandbox, which has
 no network and no keys.
@@ -30,6 +31,7 @@ from button_nz.agent.model import META_BASE_URL
 from button_nz.perception.sam import Segmenter
 
 __all__ = [
+    "EDITS",
     "MIN_IOU",
     "VISUAL_MODEL",
     "Visual",
@@ -40,6 +42,7 @@ __all__ = [
     "save",
 ]
 
+LANCZOS = Image.Resampling.LANCZOS
 VISUAL_MODEL = "muse-image-1.0"
 CONCEPT = "house"  # what SAM 3.1 is asked to find in the illustration
 # IoU is overlap over union. 0.6 forgives an outline a few pixels off all round
@@ -49,6 +52,10 @@ CONCEPT = "house"  # what SAM 3.1 is asked to find in the illustration
 # feasibility test's failure, a cottage drawn as a shed, falls below it. A first
 # setting: tune it on live results.
 MIN_IOU = 0.6
+# Muse Image's result varies from edit to edit: about two in three pass the check
+# (8 of 12 recorded designs in one run; of five rejected ones, three passed when
+# re-made), so a second edit should take that to about nine in ten (#133).
+EDITS = 2
 EDIT_TIMEOUT_S = 180.0  # an edit took about 24 s in the feasibility test
 VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"
 # Told only to keep the dwelling, Muse Image reframed the shot and drew the small
@@ -89,6 +96,7 @@ class Visual:
     iou: float | None  # the best IoU of a house in it with the silhouette; None if unchecked
     reason: str | None  # why it isn't shown
     png: bytes | None  # the illustration at the render's size: accepted ones only
+    edits: int  # how many edits were made: the last is the one checked here
 
     def __post_init__(self) -> None:
         if self.accepted != (self.png is not None):
@@ -96,7 +104,7 @@ class Visual:
 
     @classmethod
     def failed(cls, reason: str) -> Visual:
-        return cls(VISUAL_MODEL, False, None, reason, None)
+        return cls(VISUAL_MODEL, False, None, reason, None, 0)
 
     def record(self) -> dict[str, object]:
         return {
@@ -105,6 +113,7 @@ class Visual:
             "iou": self.iou,
             "min_iou": MIN_IOU,
             "reason": self.reason,
+            "edits": self.edits,
         }
 
 
@@ -115,21 +124,38 @@ def illustrate(
     segmenter: Segmenter,
     model: str = VISUAL_MODEL,
 ) -> Visual:
-    """Illustrate the render and check the building in it against the silhouette."""
+    """Illustrate the render and check the building in it against the silhouette,
+    up to ``EDITS`` times: the first illustration that passes, or the last rejection."""
     with Image.open(render_png) as render:
         size = render.size
     silhouette = _silhouette(mask_png, size)
     if not silhouette.any():
-        return Visual(model, False, None, NOT_VISIBLE, None)
-    edited = _edit(render_png, _prompt(silhouette), image_client, model)
-    illustration = edited.resize(size, Image.Resampling.LANCZOS)
+        return Visual(model, False, None, NOT_VISIBLE, None, 0)
+    prompt = _prompt(silhouette)
+    visual = Visual.failed(NO_HOUSE)  # replaced by the first edit's check
+    for edits in range(1, EDITS + 1):
+        illustration = _edit(render_png, prompt, image_client, model)
+        visual = _check(illustration.resize(size, LANCZOS), silhouette, segmenter, model, edits)
+        if visual.accepted:
+            break
+    return visual
+
+
+def _check(
+    illustration: Image.Image,
+    silhouette: NDArray[np.bool_],
+    segmenter: Segmenter,
+    model: str,
+    edits: int,
+) -> Visual:
+    """Whether a house SAM finds in ``illustration`` overlaps ``silhouette`` enough."""
     masks = segmenter.masks(np.asarray(illustration), CONCEPT)
     if not masks:
-        return Visual(model, False, 0.0, NO_HOUSE, None)
+        return Visual(model, False, 0.0, NO_HOUSE, None, edits)
     best = max(iou(mask.pixels, silhouette) for mask in masks)
     if best < MIN_IOU:
-        return Visual(model, False, best, MOVED.format(iou=best, min=MIN_IOU), None)
-    return Visual(model, True, best, None, _png(illustration))
+        return Visual(model, False, best, MOVED.format(iou=best, min=MIN_IOU), None, edits)
+    return Visual(model, True, best, None, _png(illustration), edits)
 
 
 def illustrate_from_env(render_png: Path, mask_png: Path) -> Visual:
