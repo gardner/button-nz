@@ -17,6 +17,8 @@ export function useSite(pollMs: number) {
   const [pickProblem, setPickProblem] = useState<string | null>(null);
   const [pollProblem, setPollProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
+  // What the newest pick is opening, until it answers (null: none on its way).
+  const [opening, setOpening] = useState<string | null>(null);
   // The newest site asked for. Only a person's pick moves it on; a poll
   // checks it, so a late answer about an older site never replaces a newer one.
   const picked = useRef(0);
@@ -30,17 +32,21 @@ export function useSite(pollMs: number) {
   function pick(
     request: () => Promise<SiteState>,
     onFailure?: (e: Error) => void,
+    label: string | null = null,
   ) {
     const ask = ++picked.current;
+    setOpening(label);
     request().then(
       (state) => {
         if (ask !== picked.current) return;
+        setOpening(null);
         setPickProblem(null);
         setPollProblem(null);
         setSite(state);
       },
       (e: Error) => {
         if (ask !== picked.current) return;
+        setOpening(null);
         setPickProblem(e.message);
         setRetries((n) => n + 1); // keep following the site still on show
         onFailure?.(e);
@@ -106,9 +112,10 @@ export function useSite(pollMs: number) {
   return {
     site,
     problem: pickProblem ?? pollProblem,
-    fromAddress: (addressId: number) => {
+    opening,
+    fromAddress: (addressId: number, address: string) => {
       forget();
-      pick(() => createSite(addressId));
+      pick(() => createSite(addressId), undefined, address);
     },
   };
 }

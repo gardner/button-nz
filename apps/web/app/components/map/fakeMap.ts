@@ -75,8 +75,10 @@ export class FakeMap {
   getCanvas() {
     return { style: { cursor: "" } };
   }
-  fitBounds(bounds: unknown) {
+  fitOptions: unknown[] = [];
+  fitBounds(bounds: unknown, options?: unknown) {
     this.fitted.push(bounds);
+    this.fitOptions.push(options);
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

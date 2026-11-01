@@ -41,7 +41,7 @@ const TOWN_LINE: Paint<"line"> = {
  * found and its site built live, then surveyed, designed and checked on the
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
-  const { site, problem, fromAddress } = useSite(pollMs);
+  const { site, problem, opening, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
   const [progress, setProgress] = useState<Progress>({});
   const step = stepOf({ site: site?.status, ...progress });
@@ -73,6 +73,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
         <SidePanel
           site={site}
           problem={problem}
+          opening={opening}
           town={town}
           pollMs={pollMs}
           onAddress={fromAddress}
@@ -88,6 +89,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
 function SidePanel({
   site,
   problem,
+  opening,
   town,
   pollMs,
   onAddress,
@@ -95,37 +97,41 @@ function SidePanel({
 }: {
   site: SiteState | null;
   problem: string | null;
+  opening: string | null;
   town: ReturnType<typeof useTown>;
   pollMs: number;
-  onAddress: (addressId: number) => void;
+  onAddress: (addressId: number, address: string) => void;
   onProgress: (progress: Progress) => void;
 }) {
   return (
-    <aside className="absolute left-4 top-20 flex max-h-[calc(100%-6rem)] w-[min(440px,calc(100%-2rem))] flex-col gap-4 overflow-y-auto pb-4 pr-1">
+    <aside
+      data-map-panel
+      className="absolute left-4 top-20 flex max-h-[calc(100%-6rem)] w-[min(440px,calc(100%-2rem))] flex-col gap-4 overflow-y-auto pb-4 pr-1"
+    >
       {!site && (
         <h1 className="text-4xl font-semibold leading-tight tracking-tight drop-shadow-lg">
           Unlock the housing hiding in your backyard
         </h1>
       )}
-      <SearchBox onPick={(a) => onAddress(a.id)} autoFocus />
+      <SearchBox onPick={(a) => onAddress(a.id, a.address)} autoFocus />
       {problem && (
         <p role="alert" className="rounded-xl bg-red-900/85 px-4 py-3 text-sm">
           {problem}
         </p>
       )}
       {!site && town.data && <TownOverview town={town.data} name="Reefton" />}
-      {site && site.status !== "ready" && (
-        <BuildProgress
-          address={site.address}
-          status={site.status}
-          step={site.step}
-          error={site.error}
-        />
+      {opening && (
+        <p
+          aria-live="polite"
+          className="rounded-xl bg-zinc-950/85 px-4 py-3 text-sm"
+        >
+          Opening {opening}…
+        </p>
       )}
-      {site?.status === "ready" && (
-        <ReadySite
-          key={site.id}
+      {site && (
+        <SiteSection
           site={site}
+          held={opening !== null}
           pollMs={pollMs}
           onProgress={onProgress}
         />
@@ -136,6 +142,41 @@ function SidePanel({
         </p>
       )}
     </aside>
+  );
+}
+
+/** The site: its build while it is built, then the ready site, held while
+ * another address opens (a design asked for then would be for the site
+ * about to go). */
+function SiteSection({
+  site,
+  held,
+  pollMs,
+  onProgress,
+}: {
+  site: SiteState;
+  held: boolean;
+  pollMs: number;
+  onProgress: (progress: Progress) => void;
+}) {
+  if (site.status !== "ready")
+    return (
+      <BuildProgress
+        address={site.address}
+        status={site.status}
+        step={site.step}
+        error={site.error}
+      />
+    );
+  return (
+    <fieldset disabled={held} className="contents">
+      <ReadySite
+        key={site.id}
+        site={site}
+        pollMs={pollMs}
+        onProgress={onProgress}
+      />
+    </fieldset>
   );
 }
 

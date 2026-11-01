@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JOB, PRODUCTS, SURVEY } from "@/lib/fixtures";
 import {
+  ADDRESSES,
   CHECKS,
   DESIGN_MAP,
   SITE_MAP,
@@ -236,6 +237,38 @@ describe("a ready site", () => {
     await new Promise((r) => setTimeout(r, 30));
     expect(window.location.search).toContain("design=abc123");
     expect(screen.getByText("Accepted: attempt 1")).toBeTruthy();
+  });
+
+  it("holds the shown site's controls while another address is being opened", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/addresses": ADDRESSES,
+      // POST /sites never answers: the new address is still on its way.
+    });
+    render(<Explore pollMs={5} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /afternoon sun/ }),
+    );
+    const design = screen.getByRole("button", { name: "Design it" });
+    expect(design.matches(":disabled")).toBe(false);
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /35 Victory Road, Laingholm/ }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Design it" }).matches(":disabled"),
+      ).toBe(true),
+    );
+    expect(
+      screen.getByText(/Opening 35 Victory Road, Laingholm, Auckland/),
+    ).toBeTruthy();
   });
 
   it("doesn't open a design linked from another site", async () => {
