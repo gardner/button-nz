@@ -212,14 +212,22 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     if stated is not None:
         measured["value"] = stated
     rule = f"{SCHEDULE_1A}; walls at most {MAX_WALL_M:g} m thick"
-    if stated is not None and stated > outside + _EPS:
-        detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
+    if stated is not None and stated > MAX_FLOOR_AREA_M2 + _EPS:  # stated over the limit
+        detail = f"The stated internal area is {stated:g} m²; at most {MAX_FLOOR_AREA_M2:g}."
         return Check("floor_area", Status.FAIL, detail, measured, rule)
     if outside <= MAX_FLOOR_AREA_M2 + _EPS:  # geometry decides; a stated area can't fail it
         detail = f"The footprint is {outside:.1f} m², so the inside is under {MAX_FLOOR_AREA_M2:g}."
-        if stated is not None and stated < typical_inside - _EPS:
+        if stated is not None and stated > outside + _EPS:
+            detail += (
+                f" The stated {stated:g} m² is more than the {outside:.1f} m² footprint"
+                " (it may be the gross area). Check the stated value."
+            )
+        elif stated is not None and stated < typical_inside - _EPS:
             detail += f" {_thick_walls(stated, outside, typical_inside)} Check the stated value."
         return Check("floor_area", Status.PASS, detail, measured, rule)
+    if stated is not None and stated > outside + _EPS:
+        detail = f"The stated {stated:g} m² is more than the footprint's {outside:.1f} m²."
+        return Check("floor_area", Status.FAIL, detail, measured, rule)
     if least_inside > MAX_FLOOR_AREA_M2 + _EPS:
         detail = (
             f"The footprint is {outside:.1f} m²: even with {MAX_WALL_M:g} m walls the inside "
