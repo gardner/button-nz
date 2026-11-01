@@ -78,10 +78,27 @@ class FeatureLayer:
             }
         )
 
-    def first(self, clause: str, count: int, out_sr: str = NZTM) -> FeatureSet:
+    def first(
+        self,
+        clause: str,
+        count: int,
+        out_sr: str = NZTM,
+        within: tuple[float, float, float, float] | None = None,
+    ) -> FeatureSet:
         """At most ``count`` features matching ``clause``, in ``out_sr``: one
-        page, never paged through."""
+        page, never paged through. ``within``: only those in that lon/lat box."""
+        area = (
+            {}
+            if within is None
+            else {
+                "geometry": ",".join(f"{v:.6f}" for v in within),
+                "geometryType": "esriGeometryEnvelope",
+                "inSR": "4326",
+                "spatialRel": "esriSpatialRelIntersects",
+            }
+        )
         query = {
+            **area,
             "where": clause,
             "outFields": "*",
             "outSR": out_sr,

@@ -277,3 +277,12 @@ def test_a_building_beyond_the_sites_lidar_says_its_height_is_unknown(tmp_path: 
     layers = server.client.get(f"/sites/{site_id}/map").json()
     found = {b["properties"]["id"]: b["properties"] for b in layers["buildings"]["features"]}
     assert found["far"] == {"id": "far", "height_m": None, "base_m": None, "above_ground_m": None}
+
+
+def test_a_search_near_the_map_takes_lon_lat_and_refuses_anything_else(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    near = {"q": "1 Test Street", "near": "171.86,-42.12"}
+    assert server.client.get("/addresses", params=near).status_code == 200
+    for bad in ("171.86", "a,b", "400,-42", "1,2,3"):
+        refused = server.client.get("/addresses", params={"q": "1 Test Street", "near": bad})
+        assert refused.status_code == 422

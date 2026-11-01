@@ -81,3 +81,52 @@ def test_a_search_returns_at_most_eight_addresses_in_lon_lat() -> None:
             "lonlat": [171.862222, -42.115318],
         }
     ]
+
+
+REEFTON = (171.8622, -42.1153)
+
+
+def places_layer(seen: list[dict[str, str]]) -> FeatureLayer:
+    """National answers lead with Wellington and Auckland; asked within an
+    envelope, only the Reefton ones come back."""
+    near = [
+        (1, "12 Broadway, Reefton", 171.8701, -42.1196),
+        (2, "12 Shiel St, Reefton", 171.862, -42.116),
+    ]
+    far = [
+        (3, "12 Cuba Street, Petone", 174.88, -41.22),
+        (4, "12 Queen St, Auckland", 174.77, -36.85),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        params = {k: v[0] for k, v in parse_qs(urlsplit(str(request.url)).query).items()}
+        seen.append(params)
+        rows = list(reversed(near)) if "geometry" in params else far + near
+        features = [
+            {
+                "type": "Feature",
+                "properties": {"address_id": i, "full_address": a, "town_city": ""},
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            }
+            for i, a, lon, lat in rows
+        ]
+        return httpx.Response(200, text=json.dumps({"features": features}))
+
+    return FeatureLayer(
+        URL, "CC-BY-4.0", "LINZ", httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+
+def test_addresses_near_the_map_come_first_nearest_first_then_the_rest() -> None:
+    seen: list[dict[str, str]] = []
+    found = search_addresses(places_layer(seen), "12 st", near=REEFTON)
+    assert [a["id"] for a in found] == [2, 1, 3, 4]  # Reefton's, nearest first; then the rest, once
+    local = seen[0]
+    assert local["geometryType"] == "esriGeometryEnvelope" and local["inSR"] == "4326"
+    assert local["spatialRel"] == "esriSpatialRelIntersects"
+
+
+def test_without_a_place_the_search_is_national_as_before() -> None:
+    seen: list[dict[str, str]] = []
+    found = search_addresses(places_layer(seen), "12 st")
+    assert [a["id"] for a in found] == [3, 4, 1, 2] and len(seen) == 1
