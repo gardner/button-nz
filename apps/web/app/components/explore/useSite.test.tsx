@@ -31,6 +31,18 @@ describe("useSite", () => {
     expect(result.current.problem).toBeNull();
   });
 
+  it("keeps following a build after the connection drops for a moment", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(SITE_BUILDING, 202))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(respond(SITE_READY));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+  });
+
   it("stops following when the site is gone for good, and says why", async () => {
     const fetch = vi
       .fn()

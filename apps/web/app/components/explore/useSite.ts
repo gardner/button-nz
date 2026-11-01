@@ -54,7 +54,7 @@ export function useSite(pollMs: number) {
         (e: Error) => {
           if (ask !== picked.current) return;
           setProblem(e.message);
-          if (e instanceof ApiError && e.transient) setRetries((n) => n + 1);
+          if (!(e instanceof ApiError) || e.transient) setRetries((n) => n + 1);
         },
       );
     }, pollMs);
