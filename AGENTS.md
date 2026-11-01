@@ -17,7 +17,9 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - When working on a GitHub Issue, create a new branch so we can submit a PR when it is ready.
 - After submitting a PR, monitor the PR for any review comments. Use a subagent that:
     - If there are review comments then please evaluate if any of them are actually real or relevant, and then resolve the important issues with a new commit and resolve the GitHub PR conversation with information about the resolution, or with a comment saying why it is not relevant. After pushing a new commit, monitor the PR for new review comments and continue the process.
-    - You can work on other things while waiting for the PR review comments. Remember: pushing code also requests a review, so only push code that is ready for review.
+    - You can work on other things while waiting for the PR review comments.
+    - Remember: pushing code also requests a review, so only push code that is ready for review.
+    - After pushing wait for 5 minutes and address the review comments in batches.
 - Keep the GitHub Project board up to date: https://github.com/users/gardner/projects/4
 
 ## CI review
@@ -30,7 +32,6 @@ To ensure code quality stays high and readable: Use strong types, code formattin
 - Optimize for code readability and long-term maintenance.
 - Write simple yet powerful code.
 - Keep things elegant.
-- Please make descriptive commits at reasonable intervals.
 - Conduct a code review at the end of a large work slice and resolve any issues identified.
 - NO FALLBACKS: accurate results are important. If a system or process fails then we need to fix it. If you need help then stop and ask.
 
