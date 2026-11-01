@@ -43,6 +43,34 @@ describe("useSite", () => {
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
   });
 
+  it("asks again for a linked site when the first ask fails for a moment", async () => {
+    window.history.replaceState(null, "", "/?site=addr-1907458");
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ detail: "the API is restarting" }, 502))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(respond(SITE_READY));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+    expect(result.current.problem).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(3);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("stops asking for a linked site the API refuses for good", async () => {
+    window.history.replaceState(null, "", "/?site=nowhere");
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(respond({ detail: "No site nowhere" }, 404));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    await waitFor(() => expect(result.current.problem).toContain("nowhere"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    window.history.replaceState(null, "", "/");
+  });
+
   it("stops following when the site is gone for good, and says why", async () => {
     const fetch = vi
       .fn()
