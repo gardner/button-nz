@@ -5,8 +5,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
-from shapely.geometry import shape
+import shapely
+from numpy.typing import NDArray
+from pyproj import Transformer
+from shapely.geometry import mapping, shape
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput
@@ -126,6 +131,31 @@ def test_a_designs_record_keeps_the_buildings_it_was_checked_against(tmp_path: P
     record = json.loads((tmp_path / "runs" / job["id"] / "survey.json").read_text())
     assert record["buildings"] == []  # nothing confirmed on the built site's survey
     assert server.client.get(f"/designs/{job['id']}/map").json()["unknown"] == []
+
+
+def nztm(geometry: BaseGeometry) -> BaseGeometry:
+    to_nztm = Transformer.from_crs(4326, 2193, always_xy=True)
+
+    def project(xy: NDArray[np.float64]) -> NDArray[np.float64]:
+        return np.column_stack(to_nztm.transform(xy[:, 0], xy[:, 1]))
+
+    return shapely.transform(geometry, project)
+
+
+def test_a_courtyard_building_is_measured_whole_as_the_evaluator_does(tmp_path: Path) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    layers = server.client.get(f"/designs/{job['id']}/map").json()
+    walls = nztm(shape(layers["walls"]["features"][0]["geometry"]))
+    record_path = tmp_path / "runs" / job["id"] / "survey.json"
+    record = json.loads(record_path.read_text())
+    yard = walls.buffer(5.0)  # a courtyard round the whole design, its walls 5 m off
+    record["buildings"] = [mapping(yard.buffer(3.0).difference(yard))]
+    record_path.write_text(json.dumps(record))
+    layers = server.client.get(f"/designs/{job['id']}/map").json()
+    distances = {d["properties"]["check"]: d["properties"] for d in layers["distances"]["features"]}
+    # the evaluator keeps each building's outer ring: the design stands inside it
+    assert distances["building_separation"]["metres"] == 0.0
 
 
 def test_a_design_whose_record_is_missing_says_its_buildings_are_unknown(
