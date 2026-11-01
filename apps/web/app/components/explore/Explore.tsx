@@ -6,7 +6,7 @@ import { passing } from "@/lib/fields";
 import { measured } from "@/lib/siteMap";
 import { type SiteState, type Town, getTown } from "@/lib/sites";
 
-import { BaseMap, REEFTON, framing, useMap } from "../map/BaseMap";
+import { BaseMap, REEFTON, framing, unpad, useMap } from "../map/BaseMap";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
 import { OWN_HEIGHT, PITCH_3D, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
@@ -127,6 +127,7 @@ function TownView({ three, loaded }: { three: boolean; loaded: boolean }) {
     if (!map) return;
     const look = (duration: number) => {
       const padding = framing();
+      unpad(map); // an earlier ease's padding would be added to this one
       if (!three)
         return map.fitBounds(REEFTON, {
           padding,

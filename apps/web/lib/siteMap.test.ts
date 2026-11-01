@@ -26,6 +26,7 @@ describe("getSiteMap", () => {
         status: "agrees",
         decision: "ignore",
         heightM: null,
+        baseM: null,
       },
       {
         id: "3",
@@ -33,6 +34,7 @@ describe("getSiteMap", () => {
         status: "agrees",
         decision: "keep_clear",
         heightM: 7.2,
+        baseM: null, // absent: not measured
       },
     ]);
     expect(map.buildings.features.map((f) => f.properties)).toEqual([
@@ -72,6 +74,7 @@ describe("getSiteMap", () => {
       status: "conflict",
       decision: null,
       heightM: null,
+      baseM: null,
     });
   });
 

@@ -419,7 +419,8 @@ describe("a ready site", () => {
     ])
       expect(map.layers.get(layer)).toMatchObject({ paint: own });
     await vi.waitFor(() => expect(map.pitch).toBe(60));
-    // The orbit reframes when the map changes shape.
+    // The orbit reframes when the map changes shape, with the padding its
+    // fly-in left counted once.
     act(() => map.fire("resize"));
     expect(map.jumps.at(-1)).toMatchObject({ zoom: 19.5 });
     const start = map.bearing;
@@ -646,6 +647,36 @@ describe("a ready site", () => {
         "2 m from buildings isn't drawn: the design has no record of the survey it was checked against.",
       ),
     ).toBeTruthy();
+  });
+
+  it("stands a building the owner confirmed, as tall as the LiDAR says", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: {
+        ...SITE_MAP,
+        features: {
+          ...SITE_MAP.features,
+          features: SITE_MAP.features.features.map((f, i) => ({
+            ...f,
+            properties: {
+              ...(f as { properties: Record<string, unknown> }).properties,
+              ...(i === 0 ? { decision: "building" } : {}),
+              base_m: i === 0 ? 1 : null,
+              height_m: i === 0 ? 3.6 : null,
+            },
+          })),
+        },
+      },
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    await vi.waitFor(() => expect(drawn("site-confirmed")).toBe(1));
   });
 
   it("doesn't open a design linked from another site", async () => {

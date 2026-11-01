@@ -30,6 +30,7 @@ export interface SurveyedFeature {
   status: FeatureStatus;
   decision: Decision | null; // null until a person decides
   heightM: number | null; // its top above the site's datum, where the LiDAR covers it
+  baseM: number | null; // its bottom, the same way
 }
 
 /** A thing that can be stood up on the map: its bottom (`baseM`) and top
@@ -99,7 +100,7 @@ export function parseSiteMap(raw: unknown): SiteMap {
           decision: optional(f.properties, "decision", (p, k) =>
             oneOf(p, k, DECISIONS),
           ),
-          heightM: optional(f.properties, "height_m", number),
+          ...raised(f.properties),
         },
       })),
     },

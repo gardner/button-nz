@@ -121,17 +121,30 @@ export class FakeMap {
     });
   }
   fitBounds(bounds: unknown, options?: { pitch?: number; bearing?: number }) {
+    // As MapLibre's: the map's own padding is added to the one asked for.
+    if (this.padding !== 0) throw new Error("fit with padding left on the map");
     this.fitted.push(bounds);
     this.fitOptions.push(options);
     this.move({ ...options, zoom: 14 }, () => this.landed.push(bounds));
   }
-  easeTo(options: { pitch?: number; bearing?: number; zoom?: number }) {
+  easeTo(options: {
+    pitch?: number;
+    bearing?: number;
+    zoom?: number;
+    padding?: { left: number };
+  }) {
+    if (options.padding) this.padding = options.padding.left;
     this.move(options);
   }
   /** Jumps, at once: what each jump asked for. */
   jumps: unknown[] = [];
-  jumpTo(options: { zoom?: number; pitch?: number }) {
+  jumpTo(options: {
+    zoom?: number;
+    pitch?: number;
+    padding?: { left: number };
+  }) {
     this.jumps.push(options);
+    if (options.padding) this.padding = options.padding.left;
     this.moving = null; // as MapLibre's: a jump stops a move on its way
     if (options.zoom !== undefined) this.zoom = options.zoom;
     if (options.pitch !== undefined) this.pitch = options.pitch;
@@ -149,8 +162,18 @@ export class FakeMap {
   setBearing(bearing: number) {
     this.bearing = bearing;
   }
+  /** The padding a move left on the map, as MapLibre keeps it. */
+  padding = 0;
+  setPadding(padding: { left: number }) {
+    this.padding = padding.left;
+  }
+  /** As MapLibre's: the map's own padding is added to the one asked for,
+   * so a camera worked out with padding left on the map comes out wrong. */
   cameraForBounds() {
-    return { center: [171.862, -42.1159], zoom: 19.5 };
+    return {
+      center: [171.862, -42.1159],
+      zoom: this.padding === 0 ? 19.5 : 18,
+    };
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

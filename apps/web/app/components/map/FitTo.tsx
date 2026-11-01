@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 import type { Bounds } from "@/lib/geo";
 
-import { framing, useMap } from "./BaseMap";
+import { framing, unpad, useMap } from "./BaseMap";
 
 /** Flies the surrounding map to `bounds` whenever they change, leaving
  * `right` pixels clear on the right (for a panel there), and frames them
@@ -24,7 +24,8 @@ export function FitTo({
   const key = bounds?.join(",");
   useEffect(() => {
     if (!map || !bounds) return;
-    const fit = (duration: number) =>
+    const fit = (duration: number) => {
+      unpad(map);
       map.fitBounds(bounds, {
         padding: framing(right),
         duration,
@@ -33,6 +34,7 @@ export function FitTo({
           ? {}
           : { pitch, ...(pitch === 0 ? { bearing: 0 } : {}) }),
       });
+    };
     fit(2500);
     // On MapLibre's own resize, once the canvas has its new size: the
     // window's event comes before it, and would fit the old canvas.

@@ -197,3 +197,11 @@ class MapBoundary extends Component<
     );
   }
 }
+
+const NO_PADDING = { top: 0, bottom: 0, left: 0, right: 0 };
+
+/** Takes off the padding an ease left on the map: MapLibre adds it to the
+ * padding of the next fit or camera, which would count it twice. */
+export function unpad(map: MapLibreMap): void {
+  map.setPadding(NO_PADDING);
+}

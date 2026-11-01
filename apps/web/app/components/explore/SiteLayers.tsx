@@ -68,6 +68,17 @@ function Standing({ map }: { map: SiteMap }) {
         data={measured(map.canopy)}
         extrusion={CANOPY_3D}
       />
+      {/* What the owner confirmed as a building, LINZ outline or not. */}
+      <GeoLayer
+        id="site-confirmed"
+        data={measured({
+          ...map.features,
+          features: map.features.features.filter(
+            (f) => f.properties.decision === "building",
+          ),
+        })}
+        extrusion={BUILDINGS_3D}
+      />
     </>
   );
 }

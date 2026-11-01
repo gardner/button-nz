@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import type { Bounds } from "@/lib/geo";
 
-import { framing, useMap } from "./BaseMap";
+import { framing, unpad, useMap } from "./BaseMap";
 
 /** How far the map tilts in 3D. */
 export const PITCH_3D = 60;
@@ -56,6 +56,7 @@ export function Orbit({
     const center: [number, number] = [(w + e) / 2, (s + n) / 2];
     const view = () => {
       const padding = framing(right);
+      unpad(map); // the fly-in's padding would be counted again
       return { padding, zoom: map.cameraForBounds(bounds, { padding })?.zoom };
     };
     map.easeTo({ center, ...view(), pitch: PITCH_3D, duration: 2500 });
