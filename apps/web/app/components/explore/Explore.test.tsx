@@ -383,7 +383,7 @@ describe("Explore", () => {
     expect(screen.queryByText(/Tap one/)).toBeNull();
   });
 
-  it("credits Reefton's aerial photos while the town is on show, until a ready site credits its own", async () => {
+  it("credits Reefton's aerial photos throughout, a ready site or not", async () => {
     serve({
       "GET /api/town/reefton": [TOWN],
       "GET /api/addresses": [ADDRESSES],
@@ -409,8 +409,8 @@ describe("Explore", () => {
     );
     expect(FakeMap.last?.sources.has("town-credit")).toBe(true);
     expect(await screen.findByText("Your site")).toBeTruthy();
-    // A site elsewhere (Petone) isn't Reefton's: the site credits its own.
-    expect(FakeMap.last?.sources.has("town-credit")).toBe(false);
+    // The map can be panned back to Reefton from any site.
+    expect(FakeMap.last?.sources.has("town-credit")).toBe(true);
   });
 
   it("credits Reefton's photos before the town's sections have come", async () => {
