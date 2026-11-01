@@ -383,15 +383,29 @@ describe("Explore", () => {
     expect(screen.queryByText(/Tap one/)).toBeNull();
   });
 
-  it("credits Reefton's aerial photos with the town, not on every map", async () => {
-    serve({ "GET /api/town/reefton": [TOWN] });
+  it("credits Reefton's aerial photos while the town is on show, not once a site is", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      "GET /api/addresses": [ADDRESSES],
+      "POST /api/sites": [SITE_READY],
+      "GET /api/sites/35-victory-street-reefton": [SITE_READY],
+    });
     render(<Explore pollMs={5} />);
     await vi.waitFor(() =>
-      expect(FakeMap.last?.sources.get("town")?.attribution).toContain(
+      expect(FakeMap.last?.sources.get("town-credit")?.attribution).toContain(
         "Buller District Council",
       ),
     );
     expect(ATTRIBUTION).not.toContain("Reefton");
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /35 Victory Street, Reefton/ }),
+    );
+    expect(await screen.findByText("Your site")).toBeTruthy();
+    // A site elsewhere (Petone) isn't Reefton's: the site credits its own.
+    expect(FakeMap.last?.sources.has("town-credit")).toBe(false);
   });
 
   it("leaves cleanly, after the map itself is gone", async () => {

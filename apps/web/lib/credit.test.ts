@@ -50,6 +50,21 @@ describe("creditOf", () => {
     );
   });
 
+  it("escapes the sources' words: the map's credit line is HTML", () => {
+    const credit = creditOf([
+      {
+        key: "dem",
+        title: "A & B <C>",
+        licence: "CC-BY-4.0",
+        attribution: `<img src=x onerror="alert(1)">`,
+        capture: null,
+      },
+    ]);
+    expect(credit).toBe(
+      "This site: A &amp; B &lt;C&gt;: &lt;img src=x onerror=&quot;alert(1)&quot;&gt;, CC BY 4.0",
+    );
+  });
+
   it("credits nothing for a site with no sources", () => {
     expect(creditOf([])).toBeUndefined();
   });

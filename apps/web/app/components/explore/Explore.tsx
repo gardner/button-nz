@@ -7,7 +7,7 @@ import { measured } from "@/lib/siteMap";
 import { type SiteState, type Town, getTown } from "@/lib/sites";
 
 import { BaseMap, REEFTON, framing, unpad, useMap } from "../map/BaseMap";
-import { GeoLayer, type Paint } from "../map/GeoLayer";
+import { Credit, GeoLayer, type Paint } from "../map/GeoLayer";
 import {
   CONTEXT_HEIGHT,
   OWN_HEIGHT,
@@ -197,8 +197,10 @@ function TownLayers({
         data={town.sections}
         fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
         line={TOWN_LINE}
-        attribution={TOWN_CREDIT}
       />
+      {/* The town's photos are credited while the town is what's on show:
+          a site, in Reefton or not, credits its own. */}
+      {!behind && <Credit id="town-credit" text={TOWN_CREDIT} />}
       {standing && (
         <GeoLayer
           id="town-buildings"

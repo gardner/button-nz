@@ -33,6 +33,19 @@ export interface GeoLayerProps<P> {
   attribution?: string;
 }
 
+const NOTHING: FeatureCollection<null> = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+/** A credit in the map's attribution while this is mounted, for what the
+ * map shows that no layer of ours draws (a town's photos in the basemap):
+ * MapLibre credits only sources with a layer on the map, so it is one,
+ * empty. */
+export function Credit({ id, text }: { id: string; text: string }) {
+  return <GeoLayer id={id} data={NOTHING} line={{}} attribution={text} />;
+}
+
 /** One GeoJSON layer on the surrounding map: added once, its data replaced
  * when it changes, and removed when it goes. */
 export function GeoLayer<P>({
