@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import pytest
 import shapely
+from fastapi import HTTPException
 from numpy.typing import NDArray
 from pyproj import Transformer
 from shapely.geometry import mapping, shape
@@ -134,6 +135,20 @@ def test_the_map_and_products_stand_where_the_designs_scene_put_them(tmp_path: P
     after = drawn()
     moved = [a.centroid.x - b.centroid.x for a, b in zip(after, before, strict=True)]
     assert moved == pytest.approx([100, 100, 100], abs=0.01)  # walls, title line, product
+
+
+def test_a_designs_map_needs_only_its_own_snapshot_not_the_site_today(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+
+    def gone(site_id: str) -> None:
+        raise HTTPException(409, f"site {site_id} is failed, not ready")
+
+    monkeypatch.setattr(server.sites, "site", gone)  # rebuilt, failed or removed since
+    layers = server.client.get(f"/designs/{job['id']}/map")
+    assert layers.status_code == 200 and layers.json()["unknown"] == []
 
 
 def test_a_design_with_no_accepted_attempt_has_no_map(tmp_path: Path) -> None:
