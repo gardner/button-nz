@@ -67,6 +67,7 @@ class Sites:
         self.demo_decided_by = demo_decided_by
         self._load = lru_cache(maxsize=64)(load_demo_site)
         self._designs: dict[str, DesignSite] = {}  # read once each: the worker's thread only
+        self._outlines_lock = threading.Lock()
 
     def record(self, site_id: str) -> SiteRecord:
         try:
@@ -108,10 +109,13 @@ class Sites:
     def buildings(self, site_id: str) -> dict[str, Any]:
         """The LINZ outlines around the site, read once and kept."""
         path = self.sites_dir / site_id / "buildings.geojson"
-        if not path.is_file():  # the demo site predates them
-            site = self.site(site_id)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(self.outlines(aerial_bbox(site))), encoding="utf-8")
+        with self._outlines_lock:
+            if not path.is_file():  # the demo site predates them
+                site = self.site(site_id)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                partial = path.with_suffix(".partial")  # a cut-off write never looks whole
+                partial.write_text(json.dumps(self.outlines(aerial_bbox(site))), encoding="utf-8")
+                partial.replace(path)
         found: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
         return found
 
@@ -202,12 +206,18 @@ def _view(sites: Sites, record: SiteRecord) -> dict[str, Any]:
     if record.status is SiteStatus.READY:
         site = sites.site(record.id)
         aerial = sites.aerial(record.id)
-        view |= site_view(site) | {
-            "bounds": lonlat_bounds(site.extent_nztm),
-            "aerial": None
-            if aerial is None
-            else {"bbox": list(aerial[0]), "url": f"/sites/{record.id}/aerial.png"},
-        }
+        ready = site_view(site)
+        ready["address_nztm"] = ready.pop("address")  # "address" stays the full address
+        view = (
+            ready
+            | view
+            | {
+                "bounds": lonlat_bounds(site.extent_nztm),
+                "aerial": None
+                if aerial is None
+                else {"bbox": list(aerial[0]), "url": f"/sites/{record.id}/aerial.png"},
+            }
+        )
     return view
 
 

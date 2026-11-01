@@ -96,7 +96,9 @@ def build_site(
     step("survey")
     site = union_all([Polygon(_ring(f)) for f in title.parcels])
     found = survey(sources.segment, aerial_pixels(photo), grid, grid.bbox, PIXEL_M, within=site)
-    write_survey(directory, found, _survey_meta(aerial, grid))
+    reach = _grown(title.extent, TERRAIN_MARGIN_M)
+    lidar = [*cast("list[str]", dem.tiles_for(reach)), *cast("list[str]", dsm.tiles_for(reach))]
+    write_survey(directory, found, _survey_meta(aerial, lidar))
     manifest = _manifest(address_id, title, (dem, dsm, aerial), aerial_tiles, sources)
     manifest["aerial_bbox"] = list(grid.bbox)  # what aerial.png covers, at PIXEL_M
     _write(directory / "site.json", manifest)
@@ -112,7 +114,11 @@ def find_title(sources: Sources, address_id: int) -> Title:
     address = find_address(sources.addresses, address_id).value
     point = ShapelyPoint(address.point)
     under = [f for f in sources.parcels.near(address.point, 0.0).features if _holds(f, point)]
-    titles = tuple(sorted({t for f in under for t in _titles(f)}))
+    sets = {tuple(sorted(_titles(f))) for f in under if _titles(f)}
+    if len(sets) > 1:  # on the line between two properties: whose is it?
+        named = " and ".join(", ".join(s) for s in sorted(sets))
+        raise SiteError(f"{address.full_address} is on the boundary between titles {named}")
+    titles = sets.pop() if sets else ()
     if not titles:
         raise SiteError(f"{address.full_address} isn't on a parcel with a record of title")
     parcels = _on_titles(sources.parcels, titles)
@@ -245,12 +251,14 @@ def _vector(title: str, service: str) -> dict[str, str]:
     return {"title": title, "service": service, "licence": "CC-BY-4.0", "attribution": LINZ}
 
 
-def _survey_meta(aerial: Collection, grid: TerrainGrid) -> dict[str, Any]:
+def _survey_meta(aerial: Collection, lidar: list[str]) -> dict[str, Any]:
+    """Where the survey's evidence came from: LINZ's own aerial and LiDAR tiles,
+    never the server's joined copies."""
     return {
         "model": "sam-3.1",
         "concepts": list(CONCEPTS),
         "aerial": {"title": aerial.title, "captured": [aerial.start, aerial.end]},
-        "lidar": grid.sources,
+        "lidar": lidar,
         "surveyed_at": datetime.now(UTC).isoformat(),
     }
 

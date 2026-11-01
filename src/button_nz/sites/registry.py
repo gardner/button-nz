@@ -248,10 +248,10 @@ class SiteBuilder:
 
     def _loop(self) -> None:
         while not self._stop.is_set():
+            self._wake.clear()  # before draining: a request queued meanwhile wakes the next wait
             while not self._stop.is_set() and self.run_next():
                 pass
             self._wake.wait()
-            self._wake.clear()
 
 
 def _now() -> str:

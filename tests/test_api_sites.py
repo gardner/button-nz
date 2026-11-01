@@ -1,6 +1,8 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -87,6 +89,8 @@ def test_a_site_is_built_then_served_ready(tmp_path: Path) -> None:
     server.builder.run_next()
     site = server.client.get("/sites/1-test-street-reefton").json()
     assert site["status"] == "ready" and site["valuation_number"] is None
+    assert site["address"] == "1 Test Street, Reefton"  # the same while building and ready
+    assert len(site["address_nztm"]) == 2
     west, south, east, north = site["bounds"]
     assert 171 < west < east < 172 and -43 < south < north < -42
     assert site["aerial"]["url"] == "/sites/1-test-street-reefton/aerial.png"
@@ -122,6 +126,7 @@ def test_a_built_sites_survey_is_open_to_its_visitor(tmp_path: Path) -> None:
     site_id = server.build()["id"]
     features = server.client.get(f"/sites/{site_id}/features").json()
     assert features["fixed"] is False and features["features"] == []
+    assert all(url.startswith("https://") for url in features["lidar"])  # LINZ's, not ours
     body = {"buildings_complete": True, "survey_id": features["survey_id"]}
     assert server.client.put(f"/sites/{site_id}/survey", json=body).status_code == 200
 
@@ -207,3 +212,28 @@ def test_two_requests_for_one_new_address_get_the_one_site(tmp_path: Path) -> No
         responses = list(pool.map(ask, range(4)))
     assert {r.status_code for r in responses} == {202}
     assert {r.json()["id"] for r in responses} == {"1-test-street-reefton"}
+
+
+def test_a_site_asked_for_while_the_builder_settles_is_still_built(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    builder = server.builder
+    drained = threading.Event()
+    real = builder.run_next
+
+    def run_next() -> bool:
+        ran = real()
+        if not ran and not drained.is_set():  # the queue looked empty: a request lands now
+            drained.set()
+            server.client.post("/sites", json={"address_id": 7})
+        return ran
+
+    builder.run_next = run_next  # type: ignore[method-assign]
+    builder.start()
+    try:
+        for _ in range(200):
+            if server.client.get("/sites/1-test-street-reefton").json().get("status") == "ready":
+                break
+            time.sleep(0.05)
+        assert server.client.get("/sites/1-test-street-reefton").json()["status"] == "ready"
+    finally:
+        builder.stop()

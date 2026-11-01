@@ -155,3 +155,17 @@ def test_the_best_aerial_that_covers_the_site_is_used(tmp_path: Path) -> None:
     collection, tiles = found
     assert collection.title == "West Coast 0.2m"  # the 7.5 cm one doesn't reach the site
     assert tiles == [f"{IMAGERY}/west-coast/west-coast_2025_0.2m/rgb/2193/{AERIAL_TILE}.tiff"]
+
+
+def test_a_cache_cut_off_mid_write_is_never_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full(*args: object, **kwargs: object) -> int:
+        raise OSError("disk full")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "write_text", full)
+        with pytest.raises(OSError):
+            catalogues(tmp_path, []).lidar_index()
+    assert not (tmp_path / "elevation.json").exists()
+    assert len(catalogues(tmp_path, []).lidar_index()) == 2

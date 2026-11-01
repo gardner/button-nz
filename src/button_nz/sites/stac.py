@@ -144,7 +144,7 @@ class Catalogues:
         with ThreadPoolExecutor(max_workers=16) as pool:
             index = list(pool.map(self.collection, urls))
         self.cache.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps([asdict(c) for c in index]), encoding="utf-8")
+        _write_whole(path, json.dumps([asdict(c) for c in index]))
         return index
 
     def aerials_for(self, region: str, bbox: BBox) -> Iterator[tuple[Collection, list[str]]]:
@@ -166,7 +166,7 @@ class Catalogues:
             return _collection(json.loads(path.read_text(encoding="utf-8")))
         collection = self.collection(url)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(asdict(collection)), encoding="utf-8")
+        _write_whole(path, json.dumps(asdict(collection)))
         return collection
 
     def _children(self, root: str) -> list[str]:
@@ -177,6 +177,14 @@ class Catalogues:
         response = self.client.get(url, timeout=60.0)
         response.raise_for_status()
         return cast("dict[str, Any]", response.json())
+
+
+def _write_whole(path: Path, text: str) -> None:
+    """``text`` to ``path``, written beside it and moved into place, so a
+    cut-off write never looks like a cache."""
+    partial = path.with_name(path.name + ".partial")
+    partial.write_text(text, encoding="utf-8")
+    partial.replace(path)
 
 
 def _collection(raw: dict[str, Any]) -> Collection:

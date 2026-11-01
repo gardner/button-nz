@@ -39,7 +39,8 @@ def parcel(pid: int, ring: list[list[float]], titles: str | None) -> dict[str, A
     }
 
 
-PARCELS = [parcel(2, B, "354613"), parcel(1, A, "354613"), parcel(3, A, "3546130")]
+C = [[X0 + 40, Y0], [X0 + 60, Y0], [X0 + 60, Y0 + 30], [X0 + 40, Y0 + 30], [X0 + 40, Y0]]
+PARCELS = [parcel(2, B, "354613"), parcel(1, A, "354613"), parcel(3, C, "3546130")]
 
 
 def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[str, FeatureLayer]:
@@ -56,7 +57,7 @@ def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[st
                 }
             ]
         elif "Parcels" in url.path and q.get("geometryType") == "esriGeometryPoint":
-            found = [p for p in parcels if p["properties"]["id"] == 1]
+            found = parcels  # the builder keeps those that cover the point
         elif "Parcels" in url.path:
             title = q["where"].split("'%")[1].split("%'")[0]
             found = [p for p in parcels if title in str(p["properties"]["titles"])]
@@ -279,3 +280,19 @@ def test_a_record_that_fails_its_own_checks_leaves_the_site_unbuilt(
     with pytest.raises(SiteError, match="doesn't pass its own checks"):
         build_site(7, tmp_path, sources(), lambda _: None)
     assert not (tmp_path / "site.json").exists()
+
+
+def test_an_address_on_the_line_between_two_titles_is_refused(tmp_path: Path) -> None:
+    neighbours = [parcel(1, A, "354613"), parcel(2, B, "999999")]
+    found = layers(neighbours, point=[X0 + 20.0, Y0 + 15.0])
+    edge = Sources(
+        addresses=found["LINZ_NZ_Addresses"],
+        parcels=found["LINZ_NZ_Primary_Parcels"],
+        buildings=found["LINZ_NZ_Building_Outlines"],
+        catalogues=FakeCatalogues(),
+        segment=no_masks,
+        join=join,
+        read_aerial=read_aerial,
+    )
+    with pytest.raises(SiteError, match="boundary between titles 354613 and 999999"):
+        build_site(7, tmp_path, edge, lambda _: None)
