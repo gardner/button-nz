@@ -54,7 +54,7 @@ def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[st
     targets = {
         "title_boundary_setback": title.boundary,
         "section_boundary_setback": internal,
-        "building_separation": Polygon() if buildings is None else buildings,
+        "building_separation": Polygon() if isinstance(buildings, str) else buildings,
     }
     lines = [
         (
@@ -73,24 +73,24 @@ def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[st
         "outline": collection([(outline, {})]),
         "distances": collection(lines),
         # a check whose line can't be drawn now, and why: never left out silently
-        "unknown": []
-        if buildings is not None
-        else [{"check": "building_separation", "reason": "the survey has changed since it ran"}],
+        "unknown": [{"check": "building_separation", "reason": buildings}]
+        if isinstance(buildings, str)
+        else [],
     }
 
 
-def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | None:
+def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | str:
     """The buildings the design was checked against, as its record kept them;
-    None if that can't be known (an older record, made on a survey since replaced)."""
+    or why that can't be known."""
     if not record.is_file():
-        return Polygon()
+        return "the design has no record of the survey it was checked against"
     used = json.loads(record.read_text(encoding="utf-8"))
     if "buildings" in used:
         kept = [shape(g) for g in used["buildings"]]
     else:  # records before the geometry was kept: only the same survey can say
         found = None if survey is None else Survey.read(survey)
         if found is None or used.get("survey_id") != found.id:
-            return None
+            return "the survey has changed since the design was checked"
         decided: dict[str, str] = used.get("decisions", {})
         kept = [
             shape(f["geometry"])
