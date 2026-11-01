@@ -132,12 +132,31 @@ def find_title(sources: Sources, address_id: int) -> Title:
     return Title(address.full_address, address.point, titles, tuple(parcels), extent)
 
 
+def title_parcels(layer: FeatureLayer, parcel: Feature) -> list[Feature]:
+    """Every parcel on the record(s) of title ``parcel`` is on, itself included;
+    none if it has no title."""
+    titles = _titles(parcel)
+    return _on_titles(layer, titles) if titles else []
+
+
 def _on_titles(layer: FeatureLayer, titles: Sequence[str]) -> list[Feature]:
-    found: dict[int, Feature] = {}
-    for title in titles:
-        for feature in layer.where(f"titles LIKE '%{title}%'").features:
-            if title in _titles(feature):  # LIKE '%1%' also finds 10 and 21
-                found[int(_props(feature)["id"])] = feature
+    """Every parcel on any of ``titles``, asked for in one query. More titles
+    than a section's parcels (a unit-title development's base) is refused
+    before asking: it is more than a section, and each title is a slow,
+    unindexed LIKE."""
+    if len(titles) > MAX_PARCELS:
+        raise SiteError(
+            f"{len(titles)} titles are more than a section (at most {MAX_PARCELS} parcels)"
+        )
+    if not titles:
+        return []
+    # Each is a title number (TITLE), so the clause holds nothing but them.
+    where = " OR ".join(f"titles LIKE '%{title}%'" for title in titles)
+    found = {
+        int(_props(feature)["id"]): feature
+        for feature in layer.where(where).features
+        if set(titles) & set(_titles(feature))  # LIKE '%1%' also finds 10 and 21
+    }
     return [found[k] for k in sorted(found)]
 
 

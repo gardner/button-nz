@@ -99,7 +99,7 @@ def _sites(
         store, data / "sites", demo, survey, demo_aerial(demo), decided_by, layers.outlines
     )
     cap = None if daily is None else DailyCap(store.created_since, daily, "site builds")
-    return SiteService(sites, builder, layers.addresses, cap)
+    return SiteService(sites, builder, layers.addresses, cap, parcels=layers.parcels)
 
 
 def _add_maps(app: FastAPI, data: Path) -> None:

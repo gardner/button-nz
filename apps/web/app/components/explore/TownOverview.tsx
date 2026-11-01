@@ -39,7 +39,7 @@ export function TownOverview({ town, name }: { town: Town; name: string }) {
       )}
       <p className="mt-2 text-sm text-zinc-400">
         Each checked 2 m from its boundaries and buildings, with 0.6 m eaves.
-        Find yours by its address.
+        Find yours by its address, or tap it on the map.
       </p>
       <ul aria-label="Map key" className="mt-4 flex flex-col gap-1.5 text-sm">
         {KEY.map(({ category, label }) => (

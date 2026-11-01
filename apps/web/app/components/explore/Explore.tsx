@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { passing } from "@/lib/fields";
 import { measured } from "@/lib/siteMap";
-import { type SiteState, type Town, getTown } from "@/lib/sites";
+import {
+  type SiteState,
+  type Town,
+  type TownSection,
+  getTown,
+} from "@/lib/sites";
 
 import { BaseMap, REEFTON, framing, unpad, useMap } from "../map/BaseMap";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
@@ -69,7 +74,7 @@ const TOWN_BUILDINGS_3D: Paint<"fill-extrusion"> = {
  * found and its site built live, then surveyed, designed and checked on the
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
-  const { site, problem, opening, fromAddress } = useSite(pollMs);
+  const { site, problem, opening, fromAddress, fromSection } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
   const { progress, three, setThree, onProgress } = useJourney();
   return (
@@ -80,6 +85,9 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             town={town.data}
             behind={site !== null}
             standing={three && site?.status !== "ready"}
+            // A ready site's own shapes lie over the town: a tap there is
+            // for them, so another section is found by its address.
+            onSection={site?.status === "ready" ? undefined : fromSection}
           />
         )}
         <Camera site={site} town={town.data} three={three} />
@@ -180,10 +188,12 @@ function TownLayers({
   town,
   behind,
   standing,
+  onSection,
 }: {
   town: Town;
   behind: boolean;
   standing: boolean; // 3D, with no ready site's own buildings to show
+  onSection?: (parcelId: number) => void; // a section tapped, by its parcel
 }) {
   return (
     <>
@@ -192,6 +202,7 @@ function TownLayers({
         data={town.sections}
         fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
         line={TOWN_LINE}
+        onClick={onSection && ((section: TownSection) => onSection(section.id))}
       />
       {standing && (
         <GeoLayer

@@ -369,18 +369,46 @@ describe("Explore", () => {
     });
   });
 
-  it("doesn't build a site from a section clicked on the town map", async () => {
-    // POST /sites takes an address only (#88): a section isn't a link yet.
-    const fetch = serve({ "GET /api/town/reefton": [TOWN] });
+  it("builds the site of a section tapped on the town map", async () => {
+    const fetch = serve({
+      "GET /api/town/reefton": [TOWN],
+      "POST /api/sites": [SITE_BUILDING],
+      "GET /api/sites/35-victory-street-reefton": [SITE_BUILDING, SITE_READY],
+    });
     render(<Explore pollMs={5} />);
     await vi.waitFor(() =>
       expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
     );
     act(() => FakeMap.last?.click("town-fill", 1));
+    expect(await screen.findByText("Your site")).toBeTruthy();
+    const posted = fetch.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(String(posted?.[1]?.body))).toEqual({ parcel_id: 2 });
+  });
+
+  it("says a tapped section is opening until its site answers", async () => {
+    serve({ "GET /api/town/reefton": [TOWN] }); // POST never answers
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
+    );
+    act(() => FakeMap.last?.click("town-fill", 0));
+    expect(
+      await screen.findByText(/Opening the section you tapped/),
+    ).toBeTruthy();
+  });
+
+  it("doesn't leave a ready site for a tap on it: the town lies under it", async () => {
+    const fetch = serve({
+      "GET /api/town/reefton": [TOWN],
+      "GET /api/sites/35-victory-street-reefton": [SITE_READY],
+    });
+    window.history.replaceState(null, "", "/?site=35-victory-street-reefton");
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText("Your site")).toBeTruthy();
+    act(() => FakeMap.last?.click("town-fill", 1));
     expect(
       fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
     ).toHaveLength(0);
-    expect(screen.queryByText(/Tap one/)).toBeNull();
   });
 
   it("leaves cleanly, after the map itself is gone", async () => {
