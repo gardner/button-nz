@@ -274,4 +274,4 @@ def test_a_building_beyond_the_sites_lidar_says_its_height_is_unknown(tmp_path: 
     path.write_text(json.dumps({**kept, "features": [*kept["features"], beyond]}))
     layers = server.client.get(f"/sites/{site_id}/map").json()
     found = {b["properties"]["id"]: b["properties"] for b in layers["buildings"]["features"]}
-    assert found["far"] == {"id": "far", "height_m": None, "base_m": None}  # never guessed
+    assert found["far"] == {"id": "far", "height_m": None, "base_m": None, "above_ground_m": None}

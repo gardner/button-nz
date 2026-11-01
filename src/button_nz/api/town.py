@@ -59,6 +59,11 @@ def category(row: Mapping[str, Any]) -> str:
     return "outlines" if row.get("fits_eaves") else "none"
 
 
+# The layer's format, in its cache key: bump it whenever ``_build``'s output
+# changes, so a layer cached in an older format is rebuilt, never served.
+LAYER_FORMAT = 2
+
+
 class TownMaps:
     def __init__(
         self,
@@ -78,7 +83,7 @@ class TownMaps:
         old layer."""
         results = self.towns[slug]
         version = hashlib.sha256(results.read_bytes()).hexdigest()[:12]
-        path = self.cache / f"{slug}-{version}.geojson"
+        path = self.cache / f"{slug}-{version}-v{LAYER_FORMAT}.geojson"
         with self._lock:
             if not path.is_file():
                 self.cache.mkdir(parents=True, exist_ok=True)
@@ -119,7 +124,10 @@ class TownMaps:
         }
 
     def _buildings(self, sections: list[BaseGeometry]) -> dict[str, Any]:
-        """The LINZ outlines touching ``sections``, each with its height."""
+        """The LINZ outlines touching ``sections``, each standing on its own
+        ground: ``base_m`` 0 and ``height_m`` its top, as on a site map."""
+        if not sections:  # nothing to ask outlines over
+            return {"type": "FeatureCollection", "features": []}
         tree = STRtree(sections)
         found = self.outlines(_bounds(sections))["features"]
         on = [
@@ -137,12 +145,19 @@ class TownMaps:
                 {
                     "type": "Feature",
                     "id": f.get("id"),
-                    "properties": {"height_m": _rounded(height_above(grid, g))},
+                    "properties": _on_own_ground(_rounded(height_above(grid, g))),
                     "geometry": mapping(lonlat(g)),
                 }
                 for f, g in on
             ],
         }
+
+
+def _on_own_ground(above: float | None) -> dict[str, float | None]:
+    """A town building's extrusion: no site datum, so its own ground is 0."""
+    if above is None:
+        return {"base_m": None, "height_m": None, "above_ground_m": None}
+    return {"base_m": 0.0, "height_m": above, "above_ground_m": above}
 
 
 def _bounds(geometries: list[BaseGeometry]) -> BBox:

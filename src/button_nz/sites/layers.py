@@ -64,10 +64,12 @@ def site_layers(
     lidar: Lidar,
 ) -> dict[str, dict[str, Any]]:
     """Every layer of ``site``, its ``survey`` with ``decisions``, and the LINZ
-    ``buildings`` outlines (an NZTM FeatureCollection). From ``lidar``, each
-    building has ``height_m`` (nDSM p90) and ``base_m`` (median ground above
-    the datum), each survey feature ``height_m`` (null beyond the LiDAR's grid),
-    and ``canopy`` is what stands over 2 m outside the buildings."""
+    ``buildings`` outlines (an NZTM FeatureCollection). Every building, survey
+    feature and canopy shape is extrudable, by one convention shared with the
+    design map: ``base_m`` is its bottom (its median ground) and ``height_m`` its
+    top, both above the site's datum, with ``above_ground_m`` its height over
+    its own ground (nDSM p90). All three are null beyond the LiDAR's grid.
+    ``canopy`` is what stands over 2 m outside the buildings."""
     found = [] if survey is None else cast("list[dict[str, Any]]", survey.collection["features"])
     decided = [(shape(f["geometry"]), str(f["id"]), decisions.get(str(f["id"]))) for f in found]
     confirmed = [g for g, _, d in decided if d == "building"]
@@ -84,12 +86,12 @@ def site_layers(
             for p in site.parcels
         ),
         "buildings": collection(
-            (g, {"id": f.get("id"), **_building_heights(g, lidar)})
+            (g, {"id": f.get("id"), **building_heights(g, lidar)})
             for f in buildings.get("features", [])
             for g in (shape(f["geometry"]),)
         ),
         "features": collection(
-            (g, {**f["properties"], "id": str(f["id"]), "decision": d, **_height(g, lidar)})
+            (g, {**f["properties"], "id": str(f["id"]), "decision": d} | building_heights(g, lidar))
             for f, (g, _, d) in zip(found, decided, strict=True)
         ),
         "canopy": _canopy(buildings, lidar),
@@ -100,14 +102,25 @@ def site_layers(
     }
 
 
-def _height(geometry: BaseGeometry, lidar: Lidar) -> dict[str, float | None]:
-    return {"height_m": _metres(height_above(lidar.grid, geometry))}
+def building_heights(geometry: BaseGeometry, lidar: Lidar) -> dict[str, float | None]:
+    """``geometry``'s extrusion, its height above ground from the LiDAR."""
+    return extrusion(geometry, lidar, height_above(lidar.grid, geometry))
 
 
-def _building_heights(geometry: BaseGeometry, lidar: Lidar) -> dict[str, float | None]:
+def extrusion(
+    geometry: BaseGeometry, lidar: Lidar, above_ground: float | None
+) -> dict[str, float | None]:
+    """Bottom and top above the datum, on ``geometry``'s median ground, and the
+    height over that ground; all null if the ground or the height isn't known."""
     ground = median_ground(lidar.grid, geometry)
-    base = None if ground is None else ground - lidar.datum_m
-    return _height(geometry, lidar) | {"base_m": _metres(base)}
+    if ground is None or above_ground is None:
+        return {"base_m": None, "height_m": None, "above_ground_m": None}
+    base = ground - lidar.datum_m
+    return {
+        "base_m": _metres(base),
+        "height_m": _metres(base + above_ground),
+        "above_ground_m": _metres(above_ground),
+    }
 
 
 def _metres(metres: float | None) -> float | None:
@@ -117,7 +130,7 @@ def _metres(metres: float | None) -> float | None:
 def _canopy(buildings: Mapping[str, Any], lidar: Lidar) -> dict[str, Any]:
     outlines = [shape(f["geometry"]) for f in buildings.get("features", [])]
     trees = canopy(lidar.grid, outlines)
-    return collection((tree, {"height_m": round(height, 2)}) for tree, height in trees)
+    return collection((tree, extrusion(tree, lidar, height)) for tree, height in trees)
 
 
 def _polygonal(geometry: BaseGeometry) -> BaseGeometry:

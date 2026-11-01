@@ -1,5 +1,6 @@
 """Tests for the town map and the aerial tiles over HTTP (button_nz.api.town)."""
 
+import hashlib
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -136,7 +137,9 @@ def test_the_buildings_on_the_towns_sections_carry_their_heights(tmp_path: Path)
     asked: list[BBox] = []
     town = town_app(tmp_path, [], asked=asked).get("/town/reefton").json()
     (house,) = town["buildings"]["features"]  # the shed is on no screened section
-    assert house["id"] == "11" and house["properties"] == {"height_m": 4.5}
+    # On a town map each building stands on its own ground: base 0, top its height.
+    assert house["id"] == "11"
+    assert house["properties"] == {"base_m": 0.0, "height_m": 4.5, "above_ground_m": 4.5}
     lon, lat = house["geometry"]["coordinates"][0][0]
     assert 171 < lon < 172 and -43 < lat < -42
     sections, grid = asked
@@ -144,6 +147,25 @@ def test_the_buildings_on_the_towns_sections_carry_their_heights(tmp_path: Path)
     x0, y0, x1, y1 = grid  # the LiDAR over the house, in whole metres
     assert x0 <= X + 25 and y0 <= Y + 5 and x1 >= X + 31 and y1 >= Y + 13
     assert x1 - x0 < 10 and float(x0).is_integer()
+
+
+def test_a_layer_cached_in_an_older_format_is_rebuilt_not_served(tmp_path: Path) -> None:
+    version = hashlib.sha256(results(tmp_path).read_bytes()).hexdigest()[:12]
+    old = tmp_path / "town" / f"reefton-{version}.geojson"  # the key before the format was in it
+    old.parent.mkdir(parents=True)
+    old.write_text(json.dumps({"type": "FeatureCollection", "features": [], "missing": {}}))
+    town = town_app(tmp_path, [], asked=[]).get("/town/reefton").json()
+    assert "buildings" in town and len(town["features"]) == 3
+
+
+def test_a_town_with_no_resolvable_sections_has_no_buildings_and_asks_for_none(
+    tmp_path: Path,
+) -> None:
+    asked: list[BBox] = []
+    town = town_app(tmp_path, [], held=(), asked=asked).get("/town/reefton").json()
+    assert town["features"] == [] and town["missing"]["ids"] == [1, 2, 3]
+    assert town["buildings"] == {"type": "FeatureCollection", "features": []}
+    assert asked == []  # no outlines asked for over nothing
 
 
 def test_a_section_linz_has_no_parcel_for_is_named_not_drawn(tmp_path: Path) -> None:
