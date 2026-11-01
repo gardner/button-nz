@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from button_nz.agent.demo import design_site
 from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
-from button_nz.api.fixed import FixedSurvey, check_fixed
+from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
@@ -34,7 +34,6 @@ from button_nz.demo_site import DemoSite, load_demo_site
 from button_nz.geo.arcgis import ArcGISError, FeatureLayer
 from button_nz.geo.geometry import BBox
 from button_nz.geo.property import find_address
-from button_nz.perception.confirm import Survey
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
@@ -106,11 +105,10 @@ class Sites:
         return Lidar(site.context.terrain, float(site.scene["frame"]["datum_m"]))
 
     def survey(self, site_id: str) -> tuple[Path | None, FixedSurvey | None]:
-        """The site's survey file, and how it is fixed (None: open). A fixed
-        survey's file is checked to be the one fixed (``SurveyReplaced``)."""
+        """The site's survey file, and how it is fixed (None: open). Read it
+        with ``read_fixed``, which checks a fixed one is the survey fixed."""
         self.site(site_id)
         if site_id == DEMO_SITE_ID:
-            check_fixed(self.demo_survey, self.demo_fixed)
             return self.demo_survey, self.demo_fixed
         return self.sites_dir / site_id / SURVEY_FILE, None
 
@@ -184,8 +182,7 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
     @router.get("/sites/{site_id}/map")
     def get_map(site_id: str) -> dict[str, Any]:
         site = sites.site(site_id)
-        path, _ = sites.survey(site_id)
-        survey = None if path is None else Survey.read(path)
+        survey = read_fixed(*sites.survey(site_id))  # SurveyReplaced: a 409
         decisions = {} if survey is None else store.decisions(survey.id)
         return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 

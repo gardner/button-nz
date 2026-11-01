@@ -4,10 +4,11 @@ survey fixed as someone decided it."""
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from button_nz.api.app import create_app
-from button_nz.api.fixed import FixedSurvey
+from button_nz.api.fixed import FixedSurvey, SurveyReplaced, read_fixed
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.store import Store
@@ -134,3 +135,14 @@ def test_a_design_on_a_replaced_fixed_survey_fails_with_why(tmp_path: Path) -> N
     assert worker.run_next()
     failed = api.get(f"/designs/{job['id']}").json()
     assert failed["status"] == "failed" and "fixed" in failed["error"]
+
+
+def test_the_fixed_survey_is_read_once_and_that_reading_is_what_is_used(tmp_path: Path) -> None:
+    path = tmp_path / "survey.geojson"
+    write_survey(path, "shed", "tree")
+    fixed = FixedSurvey("the owner", survey_id(path))
+    checked = read_fixed(path, fixed)
+    write_survey(path, "tree")  # replaced after the check: the caller keeps what it checked
+    assert checked is not None and checked.id == fixed.survey_id
+    with pytest.raises(SurveyReplaced, match=fixed.survey_id):
+        read_fixed(path, fixed)

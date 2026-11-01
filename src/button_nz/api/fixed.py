@@ -22,13 +22,19 @@ class SurveyReplaced(RuntimeError):
     """The survey file isn't the fixed survey."""
 
 
-def check_fixed(path: Path | None, fixed: FixedSurvey | None) -> None:
-    """Nothing if the survey isn't fixed or ``path`` is the fixed survey; else
-    ``SurveyReplaced``, saying what to do."""
-    if fixed is None:
-        return
+def read_fixed(path: Path | None, fixed: FixedSurvey | None) -> Survey | None:
+    """The survey in ``path`` (None if there is none), read once and checked
+    to be the fixed survey if it is fixed (else ``SurveyReplaced``). Callers use
+    what this returns, never the file again: it may be replaced meanwhile."""
     found = None if path is None else Survey.read(path)
-    if found is not None and found.id == fixed.survey_id:
+    check_fixed(found, fixed)
+    return found
+
+
+def check_fixed(found: Survey | None, fixed: FixedSurvey | None) -> None:
+    """Nothing if the survey isn't fixed or ``found`` is the fixed survey; else
+    ``SurveyReplaced``, saying what to do."""
+    if fixed is None or (found is not None and found.id == fixed.survey_id):
         return
     now = "missing" if found is None else f"survey {found.id}"
     raise SurveyReplaced(

@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from button_nz.api.fixed import FixedSurvey, SurveyReplaced, check_fixed
+from button_nz.api.fixed import FixedSurvey, SurveyReplaced, read_fixed
 from button_nz.api.store import Store
 from button_nz.perception.confirm import Decision, Survey, undecided_buildings
 
@@ -59,12 +59,12 @@ def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
 def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     router = APIRouter()
 
-    def resolved(site_id: str) -> tuple[Path | None, str | None]:
-        """The site's survey file, once checked to be the fixed survey if it is
-        fixed (else a 409), and who fixed it."""
-        survey, fixed = resolve(site_id)
+    def resolved(site_id: str) -> tuple[Survey | None, str | None]:
+        """The site's survey, read once and checked to be the fixed survey if
+        it is fixed (else a 409), and who fixed it."""
+        path, fixed = resolve(site_id)
         try:
-            check_fixed(survey, fixed)
+            survey = read_fixed(path, fixed)
         except SurveyReplaced as error:
             raise HTTPException(409, str(error)) from None
         return survey, None if fixed is None else fixed.decided_by
@@ -112,9 +112,8 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     return router
 
 
-def _survey(path: Path | None, decided_on: str | None = None) -> Survey:
+def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:
     """The survey being served; if a decision ``decided_on`` another, a 409."""
-    found = None if path is None else Survey.read(path)
     if found is None:
         raise HTTPException(404, "no survey yet: run python -m button_nz.perception.survey")
     if decided_on is not None and decided_on != found.id:

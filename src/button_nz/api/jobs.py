@@ -23,7 +23,7 @@ from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
-from button_nz.api.fixed import FixedSurvey, check_fixed
+from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.blender_worker.scene_input import DwellingColours
@@ -160,10 +160,10 @@ class Worker:
                 )
             )
 
-        site, survey = self._where(job)
+        site, survey, fixed = self._where(job)
         result = design(
             job.brief,
-            self._confirmed_site(self.runs_dir / job.id, site, survey),
+            self._confirmed_site(self.runs_dir / job.id, site, survey, fixed),
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
@@ -194,20 +194,23 @@ class Worker:
             return None
         return Footprint(job.product.name, job.product.length_m, job.product.width_m)
 
-    def _where(self, job: Job) -> tuple[DesignSite, Path | None]:
-        """The site ``job`` is designed on, and its survey file."""
+    def _where(self, job: Job) -> tuple[DesignSite, Path | None, FixedSurvey | None]:
+        """The site ``job`` is designed on, its survey file, and how that is
+        fixed (only the demo site's can be)."""
         if job.site_id in (None, DEMO_SITE_ID):
-            check_fixed(self.survey, self.fixed_survey)  # never an undecided stand-in
-            return self.site(), self.survey
+            return self.site(), self.survey, self.fixed_survey
         if self.site_for is None:
             raise ValueError(f"this server designs only on the demo site, not {job.site_id}")
-        return self.site_for(job.site_id)
+        return *self.site_for(job.site_id), None
 
-    def _confirmed_site(self, run: Path, site: DesignSite, path: Path | None) -> DesignSite:
+    def _confirmed_site(
+        self, run: Path, site: DesignSite, path: Path | None, fixed: FixedSurvey | None
+    ) -> DesignSite:
         """``site`` with what a person has confirmed on its survey (``path``), if
         any, recorded in ``run`` as the survey and decisions this design is
-        checked against: they can change after it runs."""
-        survey = None if path is None else Survey.read(path)
+        checked against: they can change after it runs. A fixed survey that
+        isn't the one fixed fails the design (never an undecided stand-in)."""
+        survey = read_fixed(path, fixed)
         decided = {} if survey is None else self.store.decisions(survey.id)
         complete = survey is not None and self.store.buildings_complete(survey.id)
         run.mkdir(parents=True, exist_ok=True)
