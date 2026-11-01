@@ -153,4 +153,40 @@ describe("a ready site", () => {
       screen.getByRole("listitem", { current: "step" }).textContent,
     ).toContain("Check");
   });
+
+  it("doesn't open a design linked from another site", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": { ...ACCEPTED, site_id: "another-site" },
+    });
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText("What's on the site?")).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(window.location.search).toBe(`?site=${SITE}`),
+    );
+    expect(screen.queryByText(/Accepted: attempt/)).toBeNull();
+  });
+
+  it("doesn't ask for a new site when a surveyed feature is clicked", async () => {
+    open();
+    const fetch = serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(true),
+    );
+    act(() => FakeMap.last?.click("town-fill", 0)); // the section under it
+    act(() => FakeMap.last?.click("site-features-fill", 0));
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(0);
+  });
 });

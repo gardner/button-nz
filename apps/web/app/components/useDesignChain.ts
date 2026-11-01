@@ -38,10 +38,16 @@ export function useDesignChain(pollMs: number, siteId?: string) {
     const linked = new URLSearchParams(window.location.search).get("design");
     if (linked === null) return;
     lineage(linked).then(
-      (jobs) => setChain((started) => (started.length ? started : jobs)),
+      (jobs) => {
+        if (siteId !== undefined && jobs.at(-1)?.siteId !== siteId) {
+          dropLink(); // a design on another site: not this site's to show
+          return;
+        }
+        setChain((started) => (started.length ? started : jobs));
+      },
       (e: Error) => setProblem(`Could not open design ${linked}: ${e.message}`),
     );
-  }, []);
+  }, [siteId]); // fixed for a mount: the page remounts this for each site
   useEffect(() => {
     if (!working || newest === undefined) return;
     const timer = setTimeout(() => {
@@ -118,6 +124,13 @@ export function useDesignChain(pollMs: number, siteId?: string) {
     design,
     revise,
   };
+}
+
+/** Takes `?design=` out of the address bar. */
+function dropLink() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("design");
+  window.history.replaceState(null, "", url);
 }
 
 /** Design `id`, after the designs it revises, oldest first. */

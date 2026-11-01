@@ -75,7 +75,7 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
               {VERDICT_WORD[attempt.status]}
             </span>
           </p>
-          {attempt.checks && (
+          {attempt.checks && attempt.checks.length > 0 && (
             <ul aria-label="Checks" className="flex flex-wrap gap-1">
               {attempt.checks.map((c) => (
                 <li
@@ -89,6 +89,7 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
           )}
         </div>
       </div>
+      <Views attempt={attempt} />
       <button
         type="button"
         aria-expanded={open}
@@ -98,7 +99,7 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
         {open ? "Hide details" : "Details"}
       </button>
       {open &&
-        (attempt.checks ? (
+        (attempt.checks?.length ? (
           <dl className="flex flex-col gap-1.5 text-xs">
             {attempt.checks.map((c) => (
               <div key={c.name}>
@@ -116,5 +117,30 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
           </pre>
         ))}
     </article>
+  );
+}
+
+/** The LiDAR views the model asked for before this attempt, as thumbnails
+ * named by the tool that drew each (observation-<k>.png, k from 1). */
+function Views({ attempt }: { attempt: Attempt }) {
+  const views = attempt.observations.flatMap((tool, i) => {
+    const src = attempt.files[`observation-${i + 1}.png`];
+    return src ? [{ k: i + 1, tool: tool.replaceAll("_", " "), src }] : [];
+  });
+  if (views.length === 0) return null;
+  return (
+    <ul aria-label="LiDAR views" className="flex gap-1.5 overflow-x-auto">
+      {views.map((v) => (
+        <li key={v.k} className="shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a view served by the API */}
+          <img
+            src={v.src}
+            alt={`LiDAR view ${v.k}: ${v.tool}`}
+            title={v.tool}
+            className="h-14 w-14 rounded-md object-cover ring-1 ring-white/10"
+          />
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -54,7 +54,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             data={town.data}
             fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
             line={TOWN_LINE}
-            onClick={(section) => fromParcel(section.id)}
+            onClick={site ? undefined : (section) => fromParcel(section.id)}
           />
         )}
         <FitTo bounds={site?.bounds ?? null} />
