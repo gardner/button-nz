@@ -88,10 +88,12 @@ def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | str:
     if "buildings" in used:
         kept = [part for g in used["buildings"] for part in _outer(shape(g))]
     else:  # records before the geometry was kept: only the same survey can say
+        decided: dict[str, str] = used.get("decisions", {})
+        if "building" not in decided.values():
+            return Polygon()  # none confirmed: no survey is needed to say so
         found = None if survey is None else Survey.read(survey)
         if found is None or used.get("survey_id") != found.id:
             return "the survey has changed since the design was checked"
-        decided: dict[str, str] = used.get("decisions", {})
         kept = [
             part
             for f in found.collection["features"]

@@ -165,6 +165,16 @@ def test_designs_checked_against_different_decisions_are_refused(data: Path) -> 
     assert not (data / "sample.zip").exists()
 
 
+def test_a_revision_recorded_with_its_buildings_packs_with_an_older_record(data: Path) -> None:
+    store = Store(data / "button.db")
+    original = finished(store, data / "runs", 2)  # recorded before buildings were kept
+    revised = finished(store, data / "runs", 2, original, "Move it north.")
+    record = data / "runs" / revised / "survey.json"
+    record.write_text(json.dumps({**json.loads(record.read_text()), "buildings": []}))
+    pack(data, revised, "the owner", data / "sample.zip")  # same survey, same decisions
+    assert "design-2/attempt-2/design.glb" in names(data / "sample.zip")
+
+
 def test_a_design_with_no_record_of_its_survey_is_refused(data: Path) -> None:
     store = Store(data / "button.db")
     job = finished(store, data / "runs", 2)
