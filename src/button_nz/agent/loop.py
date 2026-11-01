@@ -20,10 +20,10 @@ from button_nz.agent.proposal import DesignError, parse_measurements, to_proposa
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import (
-    DEFAULT_COLOURS,
-    DwellingColours,
+    DEFAULT_FINISHES,
+    DwellingFinishes,
     SceneInput,
-    with_colours,
+    with_finishes,
 )
 from button_nz.evaluation import Check, Footprint, InvalidProposal, Report, Status, evaluate
 
@@ -127,7 +127,7 @@ def design(
     revising: Revision | None = None,
     product: Footprint | None = None,
     roof: str | None = None,
-    colours: DwellingColours = DEFAULT_COLOURS,
+    finishes: DwellingFinishes = DEFAULT_FINISHES,
     on_step: Callable[[Step], None] = _no_step,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
@@ -140,14 +140,14 @@ def design(
     ``on_attempt`` sees each attempt as it ends. Placing a real ``product``, the
     brief gives its footprint (and its ``roof``, in words, where known), and
     every attempt is checked to be it. Every render uses the host's
-    ``colours`` for the Dwelling's roof and walls. ``on_step`` hears each step
+    ``finishes`` for the Dwelling's roof and walls. ``on_step`` hears each step
     as it starts."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     prompt = system_prompt(site.scene, keep_clear, buildings)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
-    scene = with_colours(site.scene, colours)  # the render's colours: the host's, never the model's
+    scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
     if revising is not None:
         conversation += [

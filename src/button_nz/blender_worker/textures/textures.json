@@ -1,0 +1,51 @@
+{
+  "about": "The finishes the trusted render gives the Dwelling, chosen by the host. maps names the Poly Haven set whose maps it uses; tile_m is the width in metres one tile covers on the building; boards_across turns the texture a quarter turn so its boards run horizontally, as weatherboards do; roughness is the finish's, uniform. The maps were made by scripts/prepare_textures.py from Poly Haven's 2K maps (CC0 1.0).",
+  "licence": "CC0 1.0",
+  "sets": {
+    "white_planks_clean": {
+      "use": "painted weatherboard",
+      "maps": "white_planks_clean",
+      "page": "https://polyhaven.com/a/white_planks_clean",
+      "tile_m": 3.8,
+      "tile_note": "the source covers 1.8 m in 86 mm boards; shown at 180 mm boards, as Shera and Weathertex weatherboards are",
+      "boards_across": true,
+      "roughness": 0.6
+    },
+    "groove_panel": {
+      "use": "vertical-groove sheet cladding (fibre-cement or clad panel)",
+      "maps": "white_planks_clean",
+      "page": "https://polyhaven.com/a/white_planks_clean",
+      "tile_m": 2.8,
+      "tile_note": "the planks upright, their joints 133 mm apart, as a grooved sheet's are",
+      "boards_across": false,
+      "roughness": 0.55
+    },
+    "japanese_cedar_planks": {
+      "use": "solid timber boards",
+      "maps": "japanese_cedar_planks",
+      "page": "https://polyhaven.com/a/japanese_cedar_planks",
+      "tile_m": 1.13,
+      "tile_note": "true scale",
+      "boards_across": true,
+      "roughness": 0.65
+    },
+    "box_profile_metal_sheet": {
+      "use": "5-rib trapezoidal metal roofing, ribs down the slope",
+      "maps": "box_profile_metal_sheet",
+      "page": "https://polyhaven.com/a/box_profile_metal_sheet",
+      "tile_m": 2.0,
+      "tile_note": "true scale",
+      "boards_across": false,
+      "roughness": 0.4
+    },
+    "corrugated_iron": {
+      "use": "corrugated metal roofing, corrugations down the slope",
+      "maps": "corrugated_iron",
+      "page": "https://polyhaven.com/a/corrugated_iron",
+      "tile_m": 1.12,
+      "tile_note": "true scale",
+      "boards_across": false,
+      "roughness": 0.4
+    }
+  }
+}

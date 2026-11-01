@@ -16,8 +16,9 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES, TextureName
 from button_nz.catalogue.products import Appearance
 
 SCHEMA = """
@@ -346,4 +347,19 @@ def _placed_json(product: Placed) -> str:
 
 def _placed(raw: dict[str, Any]) -> Placed:
     look = raw.pop("appearance", None)
-    return Placed(**raw, appearance=None if look is None else Appearance.parse(look))
+    return Placed(**raw, appearance=None if look is None else Appearance.parse(_textured(look)))
+
+
+def _textured(look: dict[str, Any]) -> dict[str, Any]:
+    """A snapshotted look keeps its colours; for a texture it lacks (taken before
+    products had textures) or the render no longer offers, it takes a bespoke
+    design's, so a retired finish can't make the job unreadable."""
+
+    def texture(key: str, default: str) -> str:
+        found = look.get(key)
+        return found if isinstance(found, str) and found in get_args(TextureName) else default
+
+    return look | {
+        "walls_texture": texture("walls_texture", DEFAULT_FINISHES["walls"]["texture"]),
+        "roof_texture": texture("roof_texture", DEFAULT_FINISHES["roof"]["texture"]),
+    }
