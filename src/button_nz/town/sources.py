@@ -38,6 +38,7 @@ type Area = Polygon | MultiPolygon
 class Section:
     parcel_id: int  # BDC's ParcelID
     shape: Area
+    titles: tuple[str, ...] = ()  # the records of title it's on: a property is a title
 
 
 @dataclass(frozen=True)
@@ -100,9 +101,39 @@ def residential_sections(parcels: Iterable[Feature], zones: Iterable[Feature]) -
         parcel_id = int(props["ParcelID"])
         if parcel_id in sections:
             raise ValueError(f"parcel {parcel_id} appears twice")
-        sections[parcel_id] = Section(parcel_id, area)
+        sections[parcel_id] = Section(parcel_id, area, _titles(props.get("Titles")))
     ordered = tuple(sections[k] for k in sorted(sections))
     return Selection(ordered, outside, dict(other))
+
+
+def properties(sections: Sequence[Section]) -> dict[int, int]:
+    """Each section's property: the parcels joined by sharing a title (a
+    title is what's bought, sold and regulated, and can cover several parcels).
+    A property is named by its smallest parcel id, so results name no title.
+    A parcel with no title is a property of its own."""
+    parent = {s.parcel_id: s.parcel_id for s in sections}
+
+    def root(pid: int) -> int:
+        while parent[pid] != pid:
+            parent[pid] = parent[parent[pid]]
+            pid = parent[pid]
+        return pid
+
+    first: dict[str, int] = {}
+    for section in sections:
+        for title in section.titles:
+            other = first.setdefault(title, section.parcel_id)
+            a, b = root(section.parcel_id), root(other)
+            if a != b:
+                parent[max(a, b)] = min(a, b)
+    return {s.parcel_id: root(s.parcel_id) for s in sections}
+
+
+def _titles(raw: object) -> tuple[str, ...]:
+    """BDC's comma-separated titles, as a tuple; none if blank."""
+    if not raw:
+        return ()
+    return tuple(t.strip() for t in str(raw).split(",") if t.strip())
 
 
 def buildings_on(sections: Sequence[Section], buildings: Sequence[Polygon]) -> tuple[Polygon, ...]:

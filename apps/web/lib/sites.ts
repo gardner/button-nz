@@ -56,7 +56,8 @@ export type TownCategory = "clear" | "outlines" | "none";
 const CATEGORIES: readonly TownCategory[] = ["clear", "outlines", "none"];
 
 export interface TownSection {
-  id: number;
+  id: number; // its LINZ parcel
+  property: number; // its property (title): the smallest parcel id on it
   category: TownCategory; // a prefab fits clear today, on the outlines only, or not at all
 }
 
@@ -151,6 +152,7 @@ export async function getTown(slug: string): Promise<Town> {
   return {
     sections: parseCollection(raw, "town", (p) => ({
       id: number(p, "id"),
+      property: number(p, "property"),
       category: oneOf(p, "category", CATEGORIES),
     })),
     buildings: parseCollection(

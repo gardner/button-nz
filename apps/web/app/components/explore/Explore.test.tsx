@@ -62,11 +62,9 @@ describe("Explore", () => {
   it("shows the town's sections, coloured, and its headline counted from them", async () => {
     serve({ "GET /api/town/reefton": [TOWN] });
     render(<Explore pollMs={5} />);
-    expect(
-      await screen.findByText(/sections have room for a real prefab/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/have room for a real prefab/)).toBeTruthy();
     expect(screen.getByText(/of Reefton/).textContent).toContain(
-      "2 of Reefton's 3 sections",
+      "2 of Reefton's 3 properties",
     );
     await vi.waitFor(() =>
       expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
@@ -74,6 +72,22 @@ describe("Explore", () => {
     expect(
       screen.getByRole("listitem", { current: "step" }).textContent,
     ).toContain("Find");
+  });
+
+  it("counts a property of several parcels once, by its title", async () => {
+    const town = {
+      ...TOWN,
+      features: TOWN.features.map((f, i) =>
+        i === 2
+          ? { ...f, properties: { id: 3, property: 2, category: "outlines" } }
+          : f,
+      ),
+    };
+    serve({ "GET /api/town/reefton": [town] });
+    render(<Explore pollMs={5} />);
+    expect(
+      (await screen.findByText(/have room for a real prefab/)).textContent,
+    ).toContain("2 of Reefton's 2 properties");
   });
 
   it("says how many screened sections aren't on the map, and doesn't call the rest the town's total", async () => {
@@ -88,7 +102,7 @@ describe("Explore", () => {
     render(<Explore pollMs={5} />);
     expect(
       (await screen.findByText(/have room for a real prefab/)).textContent,
-    ).toContain("2 of the 3 mapped sections in Reefton");
+    ).toContain("2 of the 3 mapped properties in Reefton");
     expect(
       screen.getByText(/2 more screened sections aren't on the map/)
         .textContent,
@@ -146,9 +160,7 @@ describe("Explore", () => {
   it("frames the town again once its headline is in the panel", async () => {
     serve({ "GET /api/town/reefton": [TOWN] });
     render(<Explore pollMs={5} />);
-    expect(
-      await screen.findByText(/sections have room for a real prefab/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/have room for a real prefab/)).toBeTruthy();
     // Once as the map opens, again with the headline in the panel.
     await vi.waitFor(() =>
       expect(FakeMap.last?.fitted).toEqual([REEFTON, REEFTON]),
@@ -216,9 +228,7 @@ describe("Explore", () => {
     await vi.waitFor(() => expect(FakeMap.last).not.toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "3D" }));
     answer(respond(TOWN));
-    expect(
-      await screen.findByText(/sections have room for a real prefab/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/have room for a real prefab/)).toBeTruthy();
     await new Promise((r) => setTimeout(r, 20));
     expect(FakeMap.last?.pitch).toBe(60);
   });
@@ -319,9 +329,7 @@ describe("Explore", () => {
       .mockResolvedValueOnce(respond(TOWN));
     vi.stubGlobal("fetch", fetch);
     render(<Explore pollMs={5} />);
-    expect(
-      await screen.findByText(/sections have room for a real prefab/),
-    ).toBeTruthy();
+    expect(await screen.findByText(/have room for a real prefab/)).toBeTruthy();
     expect(screen.queryByText(/town map couldn't load/)).toBeNull();
     cleanup();
     const refused = vi

@@ -53,7 +53,7 @@ def frontages(
     title: Sequence[Ring],
     road_parcels: Sequence[BaseGeometry],
     roads: Sequence[Road],
-    street_road_id: int,
+    street_road_id: int | None,
 ) -> tuple[Frontage, ...]:
     """The title's frontages, one per road, in the order first met round its
     boundary."""
@@ -67,7 +67,11 @@ def frontages(
                 found.setdefault(_road_of(line, roads, road_parcels), []).append(edge)
     names = {road.road_id: road.name for road in roads}
     fronting = [
-        Frontage(None if rid is None else names[rid], rid == street_road_id, tuple(on))
+        Frontage(
+            None if rid is None else names[rid],
+            rid is not None and rid == street_road_id,  # an unnamed road is no street
+            tuple(on),
+        )
         for rid, on in found.items()
     ]
     street = next((r for r in roads if r.road_id == street_road_id), None)
@@ -171,7 +175,11 @@ def describe_frontages(found: Sequence[Frontage] | None, local: Callable[[Point]
     if found is None:
         return "- road frontages: not known for this site.\n"
     if not found:
-        return "- road frontages: no edge of the title faces a road.\n"
+        # An address's street is always among them, beside the title or not.
+        return (
+            "- road frontages: no edge of the title faces a road, and the section "
+            "has no street address of its own.\n"
+        )
     lines = ["- road frontages (title edges along a road, local x, y):"]
     for f in found:
         name = f.road or "an unnamed road"
@@ -181,6 +189,8 @@ def describe_frontages(found: Sequence[Frontage] | None, local: Callable[[Point]
             lines.append(f"  - facing {named}: {edges}")
         else:
             lines.append(f"  - {named} runs along no edge: {f.distance_m:.1f} m from {edges}")
+    if not any(f.street for f in found):
+        lines.append("  - the section has no street address of its own.")
     return "\n".join(lines) + "\n"
 
 
@@ -197,7 +207,7 @@ class Layer(Protocol):
 
 
 def fetch_frontages(
-    parcels: Layer, roads: Layer, title: Sequence[Ring], street_road_id: int
+    parcels: Layer, roads: Layer, title: Sequence[Ring], street_road_id: int | None
 ) -> tuple[Frontage, ...]:
     """The title's frontages from LINZ: the road parcels beside it (Primary
     Parcels with ``parcel_intent`` Road) and the named roads in reach of it.
@@ -211,7 +221,7 @@ def fetch_frontages(
         if f["properties"].get("parcel_intent") == "Road" and f.get("geometry")
     ]
     named = [_road(f) for f in roads.in_envelope(reach).features if f.get("geometry")]
-    if not any(road.road_id == street_road_id for road in named):
+    if street_road_id is not None and not any(r.road_id == street_road_id for r in named):
         found = roads.where(f"road_id = {int(street_road_id)}").features
         if not found or not all(f.get("geometry") for f in found):
             raise LookupError(f"LINZ has no road {street_road_id} for the address's street")

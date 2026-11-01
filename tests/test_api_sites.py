@@ -306,11 +306,16 @@ def test_a_clicked_section_starts_the_site_of_the_address_on_it(tmp_path: Path) 
     assert started.json()["id"] == again["id"]  # the same site as searching its address
 
 
-def test_a_section_with_no_address_is_refused_with_what_to_do(tmp_path: Path) -> None:
+def test_a_section_whose_title_has_no_address_is_built_from_its_title(tmp_path: Path) -> None:
     server = Server(tmp_path)
-    refused = server.client.post("/sites", json={"parcel_id": 3})  # parcel C: no address on it
-    assert refused.status_code == 422
-    assert "address" in refused.json()["detail"]
+    started = server.client.post("/sites", json={"parcel_id": 3})  # C: no address on its title
+    assert started.status_code == 202
+    site = started.json()
+    assert site["address"] == "Lot 3, beside 1 Test Street, Reefton"
+    assert server.client.post("/sites", json={"parcel_id": 3}).json()["id"] == site["id"]
+    assert server.builder.run_next()
+    ready = server.client.get(f"/sites/{site['id']}").json()
+    assert ready["status"] == "ready" and ready["name"] == "Lot 3, beside 1 Test Street, Reefton"
     assert server.client.post("/sites", json={"parcel_id": 999}).status_code == 404
 
 
@@ -326,3 +331,33 @@ def test_a_section_without_an_address_uses_the_address_on_its_title(tmp_path: Pa
     started = server.client.post("/sites", json={"parcel_id": 2})  # B: same title as A
     assert started.status_code == 202
     assert started.json()["id"] == server.client.post("/sites", json={"address_id": 7}).json()["id"]
+
+
+def test_a_title_sites_name_is_looked_up_without_holding_up_other_requests(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from button_nz.api import sites as api_sites
+
+    held: list[bool] = []
+
+    def name(*_: Any) -> str:
+        held.append(api_sites._REQUESTS.locked())  # pyright: ignore[reportPrivateUsage]
+        return "Lot 3"
+
+    monkeypatch.setattr(api_sites, "title_site_name", name)
+    assert Server(tmp_path).client.post("/sites", json={"parcel_id": 3}).status_code == 202
+    assert held == [False]  # two LINZ queries: never inside the lock every request takes
+
+
+def test_a_title_whose_parcel_cant_be_read_is_refused_with_why(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from button_nz.api import sites as api_sites
+    from button_nz.sites.build import SiteError
+
+    def bad(*_: Any) -> str:
+        raise SiteError("parcel 3 has land within it")
+
+    monkeypatch.setattr(api_sites, "title_site_name", bad)
+    refused = Server(tmp_path).client.post("/sites", json={"parcel_id": 3})
+    assert refused.status_code == 422 and "land within it" in refused.json()["detail"]

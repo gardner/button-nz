@@ -101,27 +101,36 @@ fixed. It is kept for the record; the run above replaces it.
 ## Town screen: room for a real prefab in Reefton (`button_nz.bench.town_screen`)
 
 **Reefton** ([report](town-screen/report.md), [map](town-screen/map.png),
-code cfde155, #72; first run 98cdd48, identical per section). Every BDC title whose point lies in one of Reefton's
-Residential zones is screened on its own against Schedule 1A's siting rules:
+code 7136d87, #122; first run cfde155, #72, identical per section). Every
+BDC parcel with a title whose point lies in one of Reefton's Residential
+zones is screened on its own against Schedule 1A's siting rules:
 the outline at least 2 m inside the boundary and 2 m from every LINZ building
 outline. A section counts if at least one of the catalogue's 14 prefabs with
 labelled dimensions fits. The LINZ outlines date from 2015–16, so a second
 count also keeps 2 m from everything over 2 m on the 2020–24 LiDAR, trees
 included: room without removing anything.
 
-| Count, with 0.6 m eaves | All 1,320 sections | 986 with a building (backyards) |
-|---|---|---|
-| Room under the LINZ outlines | 762 (58%) | 488 (49%) |
-| Room clear of everything over 2 m on the LiDAR | 409 (31%) | 258 (26%) |
+The parcels are then counted by **property**: a title, which is what's
+bought, sold and regulated, and can cover several parcels (231 of
+Reefton's titles cover 592 parcels between them). A property has room if
+any of its parcels does.
 
-Without the eave allowance the counts are 859 and 525. It's a screen, not a
+| Count, with 0.6 m eaves | All 959 properties | 745 with a building (backyards) | All 1,320 parcels |
+|---|---|---|---|
+| Room under the LINZ outlines | 622 (65%) | 439 (59%) | 762 (58%) |
+| Room clear of everything over 2 m on the LiDAR | 326 (34%) | 235 (32%) | 409 (31%) |
+
+Without the eave allowance the property counts are 698 and 423 (parcels:
+859 and 525). It's a screen, not a
 verdict. It doesn't check:
 
 - hazards (Reefton sits beside the Inangahua River);
 - slope and floor level;
 - the district plan and the NES-DMRU;
 - services;
-- lines between parcels on one title.
+- lines between parcels on one title (each is screened as if a legal
+  boundary, so a title of several parcels may have more room than this
+  shows).
 
 The report lists every limit.
 
@@ -172,3 +181,42 @@ the rejected first attempt by mistake and was re-measured on the accepted
 one (it passed both times; three samples each way all passed). Each run is
 one sample per design, and the one-edit rate varied from 5 to
 8 of 12 between runs, so differences of one or two designs are noise.
+
+## Many real sections: placement before and after (`button_nz.bench.batch`, #117)
+
+The same 7 Reefton sections, from across the town screen's range of sizes,
+each designed for one of the three example briefs, on the live app. Run
+once on master `13b9d7b` ([before](batch/before/report.md)), and again on
+master `6d24db2` ([after](batch/after/report.md)) with
+`--repeat batch/before/results.jsonl`. Between the two, Muse was given the
+title's road frontages and which is the address's street (#119), and the
+room a plain rectangle fits in (#120). One section has no address and
+wasn't designed.
+
+| | Before | After |
+|---|---|---|
+| Designed / accepted | 6 / 6 | 6 / 6 |
+| Accepted on the first attempt | 5 | 6 |
+| Plain rectangles | 6 | 6 |
+| AI visual passed its SAM check | 4 of 6 | 3 of 6 |
+
+"As far from the street as the rules allow", walls to the address's
+street's edge:
+
+| Section | Before | After |
+|---|---|---|
+| 7 Smith Street | 2.34 m | 21.15 m |
+| 81 Main Street | 3.67 m | 24.95 m |
+| 2 Deemac Street | 38.63 m | 37.65 m |
+
+**Notes:**
+- Two of the three "far from the street" designs sat beside the street
+  before the frontages and about 20 m from it after. The third was already
+  far from it. With one design per brief and site, read this as an
+  indication, not proof.
+- **The baseline was cut short.** It picked 10 sections, and a redeploy
+  restarted the API after 7. The after run repeated those 7 only.
+- **The AI visual's verdicts were re-read from the API after each run.** The
+  harness then read them before the visual was made, so it counted a missing
+  one as a failure; it now waits. Across both runs the visual passed 7 of 12:
+  its SAM check rejects a picture whose house was moved or reshaped.

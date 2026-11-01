@@ -36,6 +36,7 @@ class SectionResult:
     """One section's screen. Product ids are largest floor area first."""
 
     parcel_id: int
+    property_id: int  # its property: the smallest parcel id on its titles (sources.properties)
     area_m2: float
     buildings: int  # LINZ outlines with more than ON_SECTION_M2 on it
     room_m2: float  # under the LINZ outlines
@@ -82,6 +83,7 @@ def fitting(
 
 def screen_section(
     parcel_id: int,
+    property_id: int,
     section: BaseGeometry,
     buildings: Sequence[BaseGeometry],
     tall: BaseGeometry,
@@ -99,6 +101,7 @@ def screen_section(
     clear = fitting(clear_space, fitted)
     return SectionResult(
         parcel_id=parcel_id,
+        property_id=property_id,
         area_m2=section.area,
         buildings=len(on_it),
         room_m2=space.area,

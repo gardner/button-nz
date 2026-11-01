@@ -5,7 +5,8 @@
 Re-makes each design's visual as the app does (``perception.visual.illustrate``,
 on its accepted attempt's render and silhouette) and prints one line per
 design: its id, PASS or fail, the edits made and the best IoU. Live: it calls
-the Meta Model API with ``META_API_KEY``, about 25 s and one billed edit each.
+the Meta Model API with ``META_API_KEY``: one billed edit and SAM call per
+design, or two when the first is rejected, about 25 s each.
 """
 
 import argparse

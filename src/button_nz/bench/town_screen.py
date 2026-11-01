@@ -39,6 +39,7 @@ from button_nz.town.sources import (
     TownData,
     buildings_on,
     fetch,
+    properties,
     reach,
 )
 
@@ -81,6 +82,7 @@ def screen_town(
 ) -> list[SectionResult]:
     """Screen every section in ``data`` against its outlines and ``grid``."""
     tree = STRtree(data.buildings)
+    property_of = properties(data.selection.sections)
     results: list[SectionResult] = []
     for section in data.selection.sections:
         reach = section.shape.buffer(SEPARATION_M + 0.1)
@@ -88,7 +90,8 @@ def screen_town(
         x0, y0, x1, y1 = section.shape.bounds
         margin = SEPARATION_M + 1.0
         tall = tall_cells(grid, (x0 - margin, y0 - margin, x1 + margin, y1 + margin))
-        results.append(screen_section(section.parcel_id, section.shape, near, tall, products))
+        pid = section.parcel_id
+        results.append(screen_section(pid, property_of[pid], section.shape, near, tall, products))
     return results
 
 
