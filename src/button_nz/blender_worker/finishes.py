@@ -72,10 +72,19 @@ def _mapping(nodes: Any, links: Any, spec: dict[str, Any]) -> Any:
     return mapping
 
 
+_loaded: dict[str, Any] = {}  # the maps this pass loaded itself, by filename
+
+
 def _image(nodes: Any, filename: str, colour_space: str) -> Any:
+    """An image node showing the committed map ``filename``. Never an image
+    already in the file: the model's saved objects came with theirs, and one
+    could claim a committed map's path while carrying its own pixels."""
+    if filename not in _loaded:
+        image = b.data.images.load(os.path.join(TEXTURES, filename), check_existing=False)
+        image.colorspace_settings.name = colour_space
+        _loaded[filename] = image
     node = nodes.new("ShaderNodeTexImage")
-    node.image = b.data.images.load(os.path.join(TEXTURES, filename), check_existing=True)
-    node.image.colorspace_settings.name = colour_space
+    node.image = _loaded[filename]
     return node
 
 
