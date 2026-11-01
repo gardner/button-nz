@@ -108,6 +108,15 @@ describe("Explore", () => {
     expect(JSON.parse(String(posted?.[1]?.body))).toEqual({ parcel_id: 2 });
   });
 
+  it("leaves cleanly, after the map itself is gone", async () => {
+    serve({ "GET /api/town/reefton": [TOWN] });
+    const { unmount } = render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
+    );
+    expect(() => unmount()).not.toThrow();
+  });
+
   it("reopens the site in the link", async () => {
     window.history.replaceState(null, "", "/?site=35-victory-street-reefton");
     serve({

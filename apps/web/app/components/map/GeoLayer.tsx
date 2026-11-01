@@ -75,6 +75,9 @@ export function GeoLayer<P>({
       map.off("click", target, clicked);
       map.off("mouseenter", target, pointer);
       map.off("mouseleave", target, leave);
+      // The map can go first (its parent's cleanup runs before this one):
+      // removing it drops its style, and with it its layers and sources.
+      if (!(map as { style?: unknown }).style) return;
       for (const layer of [`${id}-line`, `${id}-fill`])
         if (map.getLayer(layer)) map.removeLayer(layer);
       if (map.getSource(id)) map.removeSource(id);

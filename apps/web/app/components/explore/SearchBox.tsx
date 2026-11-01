@@ -80,8 +80,9 @@ export function SearchBox({
         autoFocus={autoFocus}
         value={query}
         onChange={(e) => {
+          asked.current++; // an answer still on its way is for other text
           setQuery(e.target.value);
-          setFound(null); // the old suggestions are for other text
+          setFound(null); // and so are the suggestions shown
         }}
         onKeyDown={keyDown}
         placeholder="Type any New Zealand address…"

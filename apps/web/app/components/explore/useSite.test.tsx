@@ -57,24 +57,29 @@ describe("useSite", () => {
     expect(fetch.mock.calls.length).toBe(calls);
   });
 
-  it("keeps following the site on show when a new pick fails", async () => {
-    let polls = 0;
+  it("keeps following the site on show when a new pick fails, and keeps saying why", async () => {
+    let failed = false; // the second pick has been refused
+    let pollsSince = 0; // polls of the first site since then
     const fetch = vi.fn((url: string, init?: RequestInit) => {
-      if (init?.method === "POST" && String(init.body).includes("42"))
+      if (init?.method === "POST" && String(init.body).includes("42")) {
+        failed = true;
         return Promise.resolve(respond({ detail: "LINZ didn't answer" }, 502));
+      }
       if (init?.method === "POST")
         return Promise.resolve(respond(SITE_BUILDING, 202));
-      polls += 1;
+      if (failed) pollsSince += 1;
       const ready = { ...SITE_READY, id: "addr-1907458" };
-      return Promise.resolve(respond(polls < 6 ? SITE_BUILDING : ready));
+      // Still building for two polls after the refusal, then ready.
+      return Promise.resolve(respond(pollsSince < 3 ? SITE_BUILDING : ready));
     });
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
     act(() => result.current.fromAddress(1907458));
     await waitFor(() => expect(result.current.site?.id).toBe("addr-1907458"));
     act(() => result.current.fromAddress(42));
-    await waitFor(() => expect(result.current.problem).toContain("LINZ"));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+    expect(pollsSince).toBeGreaterThanOrEqual(3); // polls answered after it
+    expect(result.current.problem).toContain("LINZ"); // and didn't clear it
   });
 
   it("keeps a newer pick when an older site's poll answers after it", async () => {

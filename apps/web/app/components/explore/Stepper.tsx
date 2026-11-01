@@ -37,7 +37,7 @@ export function Stepper({ current }: { current: Step }) {
             key={step.key}
             data-state={state}
             aria-current={state === "now" ? "step" : undefined}
-            className={`flex items-center gap-2 rounded-full px-3 py-1.5 transition ${
+            className={`flex items-center gap-2 rounded-full px-2 py-1.5 transition sm:px-3 ${
               state === "now"
                 ? "bg-emerald-500 font-semibold text-zinc-950"
                 : state === "done"
@@ -55,7 +55,9 @@ export function Stepper({ current }: { current: Step }) {
             >
               {state === "done" ? "✓" : i + 1}
             </span>
-            {step.label}
+            <span className={state === "now" ? "" : "hidden sm:inline"}>
+              {step.label}
+            </span>
           </li>
         );
       })}

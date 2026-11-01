@@ -51,6 +51,7 @@ export class FakeMap {
     this.sources.set(id, entry);
   }
   getSource(id: string) {
+    if (!this.style) throw new TypeError("the map has been removed");
     return this.sources.get(id);
   }
   removeSource(id: string) {
@@ -60,6 +61,7 @@ export class FakeMap {
     this.layers.set(layer.id, layer);
   }
   getLayer(id: string) {
+    if (!this.style) throw new TypeError("the map has been removed");
     return this.layers.get(id);
   }
   removeLayer(id: string) {
@@ -76,5 +78,9 @@ export class FakeMap {
   fitBounds(bounds: unknown) {
     this.fitted.push(bounds);
   }
-  remove() {}
+  /** As MapLibre's: removing it drops its style, so later calls throw. */
+  style: object | undefined = {};
+  remove() {
+    this.style = undefined;
+  }
 }

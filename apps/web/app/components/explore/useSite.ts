@@ -17,7 +17,10 @@ import {
  * API refuses for good stops the following, with its reason shown. */
 export function useSite(pollMs: number) {
   const [site, setSite] = useState<SiteState | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  // Why a pick failed stays until the next pick; why a poll failed, until
+  // the next poll answers. A poll can't clear a pick's reason.
+  const [pickProblem, setPickProblem] = useState<string | null>(null);
+  const [pollProblem, setPollProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
   // The newest site asked for. Only a person's pick moves it on; a poll
   // checks it, so a late answer about an older site never replaces a newer one.
@@ -28,12 +31,13 @@ export function useSite(pollMs: number) {
     request().then(
       (state) => {
         if (ask !== picked.current) return;
-        setProblem(null);
+        setPickProblem(null);
+        setPollProblem(null);
         setSite(state);
       },
       (e: Error) => {
         if (ask !== picked.current) return;
-        setProblem(e.message);
+        setPickProblem(e.message);
         setRetries((n) => n + 1); // keep following the site still on show
       },
     );
@@ -52,12 +56,12 @@ export function useSite(pollMs: number) {
       getSite(site.id).then(
         (state) => {
           if (ask !== picked.current) return;
-          setProblem(null);
+          setPollProblem(null);
           setSite(state);
         },
         (e: Error) => {
           if (ask !== picked.current) return;
-          setProblem(e.message);
+          setPollProblem(e.message);
           if (!(e instanceof ApiError) || e.transient) setRetries((n) => n + 1);
         },
       );
@@ -75,7 +79,7 @@ export function useSite(pollMs: number) {
 
   return {
     site,
-    problem,
+    problem: pickProblem ?? pollProblem,
     fromAddress: (addressId: number) => pick(() => createSite(addressId)),
     fromParcel: (parcelId: number) => pick(() => createSiteForParcel(parcelId)),
   };

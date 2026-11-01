@@ -61,13 +61,13 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
         className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"
       />
       <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-4">
-        <p className="rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur">
+        <p className="hidden rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur md:block">
           Button <span className="text-emerald-400">NZ</span>
         </p>
         <div className="pointer-events-auto">
           <Stepper current={step} />
         </div>
-        <span className="w-32" aria-hidden />
+        <span className="hidden w-32 md:block" aria-hidden />
       </header>
       <Panel
         site={site}

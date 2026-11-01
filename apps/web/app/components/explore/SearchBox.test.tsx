@@ -97,6 +97,21 @@ describe("SearchBox", () => {
     expect(screen.getByText(/LINZ is down/)).toBeTruthy();
   });
 
+  it("ignores an answer for older text that arrives after the text changes", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))),
+    );
+    render(<SearchBox onPick={vi.fn()} />);
+    await type("35 Victory"); // asked; its answer is still on its way
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "12 Cuba" },
+    });
+    await act(async () => answer(new Response(JSON.stringify(ADDRESSES))));
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
   it("says when nothing matches", async () => {
     serve({ addresses: [] });
     render(<SearchBox onPick={vi.fn()} />);
