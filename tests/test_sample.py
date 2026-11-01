@@ -2,12 +2,14 @@
 as the submission's sample artifacts."""
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from button_nz.api.store import AttemptRecord, Store
+from button_nz.demo_site import DEMO_SITE_DIR
 from button_nz.perception.confirm import Survey
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sample import SampleError, pack
@@ -22,12 +24,14 @@ def finished(
     accepted: int | None,
     parent: str | None = None,
     instruction: str | None = None,
+    site_id: str | None = None,
 ) -> str:
     """A done job whose attempt 1 failed and attempt 2 (if any) was accepted,
     recording the survey's decisions as they were when it ran, as the worker does."""
-    job = store.create_job("A small studio.", True, parent, instruction)
+    job = store.create_job("A small studio.", True, parent, instruction, site_id=site_id)
     store.mark_running(job.id)
-    survey = Survey.read(runs.parent / SURVEY_FILE)
+    folder = runs.parent if site_id is None else runs.parent / "sites" / site_id
+    survey = Survey.read(folder / SURVEY_FILE)
     assert survey is not None
     record_survey(store, survey, runs / job.id)
     for number in (1, 2):
@@ -199,3 +203,35 @@ def test_a_linked_run_folder_is_refused_not_followed(data: Path) -> None:
     run.symlink_to(data / "elsewhere", target_is_directory=True)
     with pytest.raises(SampleError, match="link"):
         pack(data, job, "the owner", data / "sample.zip")
+
+
+def built_site(data: Path) -> str:
+    """A site built for an address: the demo's manifest renamed, its own survey."""
+    folder = data / "sites" / "1-other-street"
+    shutil.copytree(DEMO_SITE_DIR, folder)
+    manifest = json.loads((folder / "site.json").read_text())
+    (folder / "site.json").write_text(json.dumps({**manifest, "name": "1 Other Street"}))
+    write_survey(folder / SURVEY_FILE, "tree")
+    return folder.name
+
+
+def test_a_design_on_a_built_site_is_packed_with_that_site_and_its_survey(data: Path) -> None:
+    store = Store(data / "button.db")
+    site_id = built_site(data)
+    original = finished(store, data / "runs", 2, site_id=site_id)
+    revised = finished(store, data / "runs", 2, original, "Move it north.", site_id=site_id)
+    pack(data, revised, "the owner", data / "sample.zip")
+    with zipfile.ZipFile(data / "sample.zip") as z:
+        manifest = json.loads(z.read("sample.json"))
+        survey = json.loads(z.read("survey.json"))
+    assert manifest["site"]["name"] == "1 Other Street"
+    expected = Survey.read(data / "sites" / site_id / SURVEY_FILE)
+    assert expected is not None and survey["survey_id"] == expected.id
+
+
+def test_designs_on_different_sites_are_refused(data: Path) -> None:
+    store = Store(data / "button.db")
+    original = finished(store, data / "runs", 2)
+    revised = finished(store, data / "runs", 2, original, "Move it.", site_id=built_site(data))
+    with pytest.raises(SampleError, match="different sites"):
+        pack(data, revised, "the owner", data / "sample.zip")

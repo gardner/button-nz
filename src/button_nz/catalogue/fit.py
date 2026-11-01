@@ -15,7 +15,9 @@ orientations aren't tried: a fit can be missed, never invented.
 The footprint is moved to the origin before it is turned: at NZTM magnitudes
 (millions of metres) the overlay can leave zero-area slivers that look like
 room. And every fit is confirmed by placing the rectangle and checking that
-the footprint covers it, so an overlay artefact can't report a fit.
+the footprint covers it, so an overlay artefact can't report a fit. A
+placement is wholly inside where the product has room; one that fits only to
+the tolerance is centred on its room, over each wall by half of it at most.
 """
 
 import math
@@ -63,14 +65,21 @@ def placement(footprint: Polygon, length: float, width: float) -> Polygon | None
     grid coordinates about (0, 0) loses precision."""
     x0, y0, *_ = footprint.bounds
     moved = translate(footprint, -x0, -y0)
-    for angle in _wall_angles(moved):
-        turned = rotate(moved, -angle, origin=(0, 0), use_radians=True)
-        for along, across in ((length, width), (width, length)):
-            corner = _room_for(turned, along - TOLERANCE_M, across - TOLERANCE_M)
-            if corner is not None:
-                placed = box(corner[0], corner[1], corner[0] + along, corner[1] + across)
-                back = rotate(placed, angle, origin=(0, 0), use_radians=True)
-                return translate(back, x0, y0)
+    turns = [
+        (angle, rotate(moved, -angle, origin=(0, 0), use_radians=True))
+        for angle in _wall_angles(moved)
+    ]
+    # wholly inside if it can be; else centred on the room it has, half the
+    # tolerance over each wall at most
+    for shrink in (0.0, TOLERANCE_M):
+        for angle, turned in turns:
+            for along, across in ((length, width), (width, length)):
+                corner = _room_for(turned, along - shrink, across - shrink)
+                if corner is not None:
+                    x, y = corner[0] - shrink / 2, corner[1] - shrink / 2
+                    placed = box(x, y, x + along, y + across)
+                    back = rotate(placed, angle, origin=(0, 0), use_radians=True)
+                    return translate(back, x0, y0)
     return None
 
 

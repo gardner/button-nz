@@ -142,6 +142,19 @@ def test_a_placement_is_the_product_standing_inside_the_footprint() -> None:
     assert placement(footprint, 16.6, 4.2) is None
 
 
+def test_a_product_with_room_to_spare_is_placed_wholly_inside() -> None:
+    footprint = Polygon([(0, 0), (10.01, 0), (10.01, 4.01), (0, 4.01)])
+    placed = placement(footprint, 10, 4)
+    assert placed is not None and footprint.buffer(1e-6).covers(placed)
+
+
+def test_a_product_fitting_only_to_the_tolerance_overhangs_each_wall_by_half_of_it() -> None:
+    footprint = Polygon([(0, 0), (9.995, 0), (9.995, 3.995), (0, 3.995)])
+    placed = placement(footprint, 10, 4)  # 5 mm too long and too wide: within the 10 mm
+    assert placed is not None and placed.area == pytest.approx(40, rel=1e-6)
+    assert footprint.buffer(0.0025 + 1e-6, join_style="mitre").covers(placed)
+
+
 def test_an_l_shaped_footprint_places_the_product_along_an_arm() -> None:
     corner = Polygon([(0, 0), (10, 0), (10, 4), (4, 4), (4, 10), (0, 10)])
     placed = placement(corner, 9.9, 3.9)
