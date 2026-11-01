@@ -39,6 +39,7 @@ from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import (
     NoSuchSection,
+    NotASection,
     QueryError,
     address_on_section,
     search_addresses,
@@ -308,6 +309,8 @@ def _address_of(service: SiteService, request: SiteRequest) -> int:
         found = address_on_section(service.addresses, service.parcels, request.parcel_id)
     except NoSuchSection:
         raise HTTPException(404, f"no section {request.parcel_id} in LINZ's parcels") from None
+    except NotASection as error:
+        raise HTTPException(422, str(error)) from None
     except ArcGISError as error:
         raise HTTPException(502, f"LINZ's parcel lookup failed: {error}") from None
     if found is None:
