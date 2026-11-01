@@ -129,6 +129,9 @@ describe("Explore", () => {
     screen_(844, 390); // the phone turned: more room beside the panel
     panel(440, 294);
     expect(await fly()).toMatchObject({ left: 16 + 440 + 24 });
+    screen_(320, 480); // a small phone, the panel full: no gutter to frame in
+    panel(288, 384);
+    expect(await fly()).toMatchObject({ top: 480 * 0.6, left: 24 });
     vi.restoreAllMocks();
   });
 
