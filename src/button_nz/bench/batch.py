@@ -65,9 +65,10 @@ def planned(sections: Sequence[dict[str, Any]], count: int) -> list[tuple[int, s
 
 def repeat_of(results: Path) -> list[tuple[int, str]]:
     """An earlier run's sections, each with the brief it had: to measure a
-    change on exactly the same designs."""
+    change on exactly the same designs. A section retried in that run (a
+    failure row, then the retry's) is designed once."""
     rows = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines() if line]
-    return [(int(r["parcel_id"]), str(r["brief"])) for r in rows]
+    return list(dict.fromkeys((int(r["parcel_id"]), str(r["brief"])) for r in rows))
 
 
 def is_rectangle(walls: Sequence[Point]) -> bool:

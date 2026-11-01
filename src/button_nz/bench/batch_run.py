@@ -170,7 +170,16 @@ def _visual(client: httpx.Client, job: dict[str, Any]) -> str:
     """The AI visual's verdict: "passed" or "failed" its SAM check, or "not
     made" (none made, its making or checking failed, or it isn't done in
     time). The visual is made after the design is done (``illustrating``):
-    it's waited for, never counted as failed while still coming."""
+    it's waited for, never counted as failed while still coming. The API
+    failing meanwhile makes it "not made": the accepted design's row is kept,
+    and the run stops at the next section."""
+    try:
+        return _visual_verdict(client, job)
+    except httpx.HTTPError:
+        return "not made"
+
+
+def _visual_verdict(client: httpx.Client, job: dict[str, Any]) -> str:
     deadline = time.monotonic() + VISUAL_TIMEOUT_S
     while job.get("illustrating"):
         if time.monotonic() > deadline:

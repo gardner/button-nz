@@ -86,6 +86,17 @@ def test_a_repeat_runs_an_earlier_runs_sections_with_their_briefs(tmp_path: Path
     assert repeat_of(earlier) == [(7, "far from the street"), (9, "keeping the trees")]
 
 
+def test_a_repeat_runs_a_retried_section_once(tmp_path: Path) -> None:
+    earlier = tmp_path / "results.jsonl"
+    rows = [
+        {"parcel_id": 7, "brief": "far from the street", "outcome": "site failed: a restart"},
+        {"parcel_id": 9, "brief": "keeping the trees", "outcome": "accepted"},
+        {"parcel_id": 7, "brief": "far from the street", "outcome": "accepted"},  # its retry
+    ]
+    earlier.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert repeat_of(earlier) == [(7, "far from the street"), (9, "keeping the trees")]
+
+
 def test_a_fresh_run_pairs_its_picks_with_the_briefs_in_turn() -> None:
     sections = [section(i, 1 + i) for i in range(4)]
     assert planned(sections, 4) == [(0, BRIEFS[0]), (1, BRIEFS[1]), (2, BRIEFS[2]), (3, BRIEFS[0])]
@@ -129,6 +140,18 @@ def test_a_visual_that_never_finishes_is_not_made_and_the_design_is_kept(monkeyp
     monkeypatch.setattr(batch_run, "VISUAL_TIMEOUT_S", 0.0)
     still: dict[str, Any] = {"id": "j", "illustrating": True, "attempts": [], "accepted_attempt": 1}
     client = _visual_client(still)
+    assert batch_run._visual(client, still) == "not made"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_an_api_failure_while_waiting_for_the_visual_keeps_the_design() -> None:
+    """The design is accepted and paid for: its row is written, the visual not made."""
+    from button_nz.bench import batch_run
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("the API restarted", request=request)
+
+    client = httpx.Client(base_url="http://api", transport=httpx.MockTransport(down))
+    still: dict[str, Any] = {"id": "j", "illustrating": True, "attempts": [], "accepted_attempt": 1}
     assert batch_run._visual(client, still) == "not made"  # pyright: ignore[reportPrivateUsage]
 
 
