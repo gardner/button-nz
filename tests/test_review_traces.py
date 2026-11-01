@@ -15,9 +15,11 @@ FAKE_GH = """#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$FAKE_DIR/gh-calls"
 if [[ "$1" == api ]]; then cat "$FAKE_DIR/artifacts"; exit 0; fi
 while [[ $# -gt 0 ]]; do
+  if [[ "$1" == --name ]]; then name="$2"; fi
   if [[ "$1" == --dir ]]; then
     mkdir -p "$2"
-    cp "$FAKE_DIR/trace.json" "$2/claude-review-trace.json.gpg"
+    # Named for its reviewer, as the workflows name it: claude-review or zai-review.
+    cp "$FAKE_DIR/trace.json" "$2/${name%-trace-*}-trace.json.gpg"
   fi
   shift
 done
@@ -165,6 +167,29 @@ def test_a_broken_trace_fails_with_its_real_error(fake_dir: Path, tmp_path: Path
 def test_skips_traces_uploaded_by_fork_runs(fake_dir: Path, tmp_path: Path) -> None:
     """A fork PR's own workflow could upload a forged trace under the same name."""
     artifacts = _artifacts((101, "claude-review-trace-1", "2026-10-28T07:00:00Z"), head_repo=99)
+    result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "No review traces found.\n"
+
+
+def test_glm_traces_are_fetched_beside_claudes_with_their_cost_labelled(
+    fake_dir: Path, tmp_path: Path
+) -> None:
+    out = tmp_path / "out"
+    artifacts = _artifacts(
+        (101, "claude-review-trace-1", "2026-10-28T07:00:00Z"),
+        (102, "zai-review-trace-1", "2026-10-28T08:00:00Z"),
+    )
+    result = _run(fake_dir, artifacts, "5", str(out))
+    assert result.returncode == 0, result.stderr
+    assert json.loads((out / "102-zai-review-trace-1" / "trace.json").read_text()) == TRACE
+    assert json.loads((out / "101-claude-review-trace-1" / "trace.json").read_text()) == TRACE
+    zai, claude = result.stdout.split("# Run 101 (claude-review-trace-1)")  # newest first
+    assert "not Z.ai's bill" in zai and "not Z.ai's bill" not in claude
+
+
+def test_skips_glm_traces_uploaded_by_fork_runs(fake_dir: Path, tmp_path: Path) -> None:
+    artifacts = _artifacts((101, "zai-review-trace-1", "2026-10-28T07:00:00Z"), head_repo=99)
     result = _run(fake_dir, artifacts, "5", str(tmp_path / "out"))
     assert result.returncode == 0, result.stderr
     assert result.stdout == "No review traces found.\n"

@@ -26,6 +26,15 @@ export const ATTRIBUTION =
   "Sections: LINZ NZ Primary Parcels, CC BY 4.0 · " +
   "Heights: LINZ 1 m LiDAR, CC BY 4.0";
 
+/** Fold the map's credits behind their ⓘ button. A site's own sources make
+ * the full line too long to leave open over the map; MapLibre's compact
+ * credits start open and fold only on a drag, and this map mostly flies. */
+export function collapseCredits(map: HTMLElement): void {
+  map
+    .querySelector(".maplibregl-ctrl-attrib.maplibregl-compact")
+    ?.classList.remove("maplibregl-compact-show");
+}
+
 /** From this width the hero stands fixed on the right (Tailwind's xl), with
  * room to frame a design between it and the panel. */
 export const HERO_FIXED = 1280;
@@ -148,12 +157,14 @@ function MapCanvas({
             fitBoundsOptions: { padding: framing() },
             maxZoom: 21,
             maxPitch: 70,
+            attributionControl: { compact: true },
           });
         } catch (error) {
           setProblem(error instanceof Error ? error.message : String(error));
           return;
         }
         made.on("load", () => made && loaded.current(made));
+        made.once("idle", () => made && collapseCredits(made.getContainer()));
       },
       (error: Error) => setProblem(error.message),
     );
