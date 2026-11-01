@@ -18,13 +18,12 @@ from shapely.geometry import shape
 from button_nz.config import ServiceEndpoints
 from button_nz.geo.arcgis import Feature, FeatureLayer, FeatureSet
 from button_nz.geo.geometry import BBox
-from button_nz.geo.property import PropertyLayers
+from button_nz.geo.property import BDC_ATTRIBUTION, BDC_LICENCE, PropertyLayers
 
 BDC_PLANNING_ZONES = (
     "https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/"
     "BDC_Planning_Data_Public_View/FeatureServer/29"
 )
-BDC_ATTRIBUTION = "Buller District Council; LINZ, Crown copyright reserved"
 RESIDENTIAL = "ZONING='re'"  # "RESIDENTIAL ZONE" in BDC's zones layer
 SECTION_INTENTS = frozenset({"DCDB", "Fee Simple Title"})
 # Reefton's Residential zones, to the next 100 m. Blacks Point's, 850 m to the
@@ -64,7 +63,7 @@ def fetch(endpoints: ServiceEndpoints, client: httpx.Client, bbox: BBox) -> Town
     sections reach plus ``OUTLINE_MARGIN_M``."""
     layers = PropertyLayers.from_endpoints(endpoints, client)
     parcels = layers.parcels.in_envelope(bbox)
-    zone_layer = FeatureLayer(BDC_PLANNING_ZONES, "CC-BY-4.0", BDC_ATTRIBUTION, client)
+    zone_layer = FeatureLayer(BDC_PLANNING_ZONES, BDC_LICENCE, BDC_ATTRIBUTION, client)
     zones = zone_layer.in_envelope(_extent(parcels.features, bbox), where=RESIDENTIAL)
     selection = residential_sections(parcels.features, zones.features)
     building_outlines = layers.buildings.in_envelope(reach(selection.sections, OUTLINE_MARGIN_M))

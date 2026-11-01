@@ -27,13 +27,13 @@ from shapely import STRtree
 from button_nz.catalogue import Product, load_products
 from button_nz.config import ServiceEndpoints
 from button_nz.geo.geometry import BBox
+from button_nz.geo.property import BDC_ATTRIBUTION, BDC_LICENCE
 from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.town.lidar import mosaic, tall_cells, tile_urls
 from button_nz.town.map import draw_map
 from button_nz.town.report import report, summarise, write_results
 from button_nz.town.screen import EAVE_ALLOWANCE_M, SEPARATION_M, SectionResult, screen_section
 from button_nz.town.sources import (
-    BDC_ATTRIBUTION,
     BDC_PLANNING_ZONES,
     REEFTON,
     TownData,
@@ -121,15 +121,14 @@ def sources(data: TownData, lidar: Sequence[str]) -> list[dict[str, str]]:
         {
             "title": "Buller District Council property parcels",
             "service": data.parcels.provenance.service,
-            "licence": "CC-BY-4.0 as recorded in data/demo-site/site.json; "
-            "the layer's ArcGIS item states no licence",
+            "licence": BDC_LICENCE,
             "attribution": BDC_ATTRIBUTION,
             "dates": retrieved,
         },
         {
             "title": "Buller District Council zones (Residential)",
             "service": BDC_PLANNING_ZONES,
-            "licence": "no licence stated on the layer's ArcGIS item",
+            "licence": BDC_LICENCE,
             "attribution": BDC_ATTRIBUTION,
             "dates": retrieved,
         },

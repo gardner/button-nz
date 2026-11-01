@@ -56,8 +56,8 @@
     "parcels": {
       "title": "Buller District Council property parcels",
       "service": "https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Property_Master_Public_View/FeatureServer/1",
-      "licence": "CC-BY-4.0",
-      "attribution": "Buller District Council; LINZ, Crown copyright reserved"
+      "licence": "not stated (the layer's ArcGIS item states none)",
+      "attribution": "Buller District Council"
     },
     "building_outlines": {
       "title": "LINZ NZ Building Outlines",
