@@ -21,8 +21,8 @@ manifest's own claims.
 
 ## Sources and provenance
 
-Every layer is CC BY 4.0 except Buller District Council's parcels, which state
-no licence (see "Parcel licence" below). `site.json` records each one's collection, tile,
+Every layer is CC BY 4.0 except Buller District Council's parcels and zones,
+which state no licence (see "Parcel licence" below). `site.json` records each one's collection, tile,
 asset URL, capture dates, resolution and attribution.
 
 | Layer | Dataset | Tile | Capture |
