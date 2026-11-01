@@ -1,13 +1,15 @@
 # Town screen: room for a real prefab in Reefton
 
-Code `cfde155`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
+Code `7136d87`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
 
-| Count | Sections | Share |
-|---|---|---|
-| Room under LINZ outlines, stated dimensions | 859 | 65% |
-| Room under LINZ outlines, with 0.6 m eaves | 762 | 58% |
-| Room clear of everything over 2 m on the LiDAR, stated dimensions | 525 | 40% |
-| Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves | 409 | 31% |
+The sections are 959 properties (titles): a title can cover several parcels, and is what's bought, sold and regulated. A property has room if any of its parcels does.
+
+| Count | Properties | Share | Sections | Share |
+|---|---|---|---|---|
+| Room under LINZ outlines, stated dimensions | 698 | 73% | 859 | 65% |
+| Room under LINZ outlines, with 0.6 m eaves | 622 | 65% | 762 | 58% |
+| Room clear of everything over 2 m on the LiDAR, stated dimensions | 423 | 44% | 525 | 40% |
+| Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves | 326 | 34% | 409 | 31% |
 
 ## Backyards
 
@@ -29,22 +31,22 @@ A granny flat is usually built beside a home: these are the sections with a buil
 
 ## By product
 
-| Product | Room under LINZ outlines, stated dimensions | Room under LINZ outlines, with 0.6 m eaves | Room clear of everything over 2 m on the LiDAR, stated dimensions | Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves |
+| Product (properties) | Room under LINZ outlines, stated dimensions | Room under LINZ outlines, with 0.6 m eaves | Room clear of everything over 2 m on the LiDAR, stated dimensions | Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves |
 |---|---|---|---|---|
-| South Peak Homes Okari (9 x 3.5 m) | 859 | 762 | 525 | 409 |
-| South Peak Homes Nile (12 x 3.5 m) | 783 | 674 | 424 | 327 |
-| AirHome Vista (12.2 x 4 m) | 743 | 642 | 389 | 294 |
-| Russley Portables Frazer (12 x 5.4 m) | 687 | 446 | 319 | 196 |
-| Living Little Oldham (14.4 x 4.2 m) | 670 | 574 | 322 | 241 |
-| South Peak Homes Kendall (13.2 x 4.8 m) | 670 | 550 | 322 | 235 |
-| AirHome Pinnacle (15 x 4 m) | 661 | 559 | 326 | 229 |
-| Russley Portables Methven (15 x 4.2 m) | 652 | 548 | 310 | 220 |
-| Russley Portables Kurow (13.45 x 5.4 m) | 637 | 428 | 282 | 182 |
-| Living Little Cameron (16.6 x 4.2 m) | 583 | 498 | 262 | 200 |
-| Lockwood Haven (concept) (9.04 x 6.64 m) | 509 | 453 | 267 | 211 |
-| Lockwood Lakeview (concept) (10.54 x 6.65 m) | 492 | 437 | 235 | 189 |
-| Lockwood Ara (concept) (13.59 x 6.24 m) | 481 | 404 | 212 | 165 |
-| South Peak Homes Sefton (9.6 x 7.2 m) | 480 | 424 | 238 | 189 |
+| South Peak Homes Okari (9 x 3.5 m) | 698 | 622 | 423 | 326 |
+| South Peak Homes Nile (12 x 3.5 m) | 643 | 557 | 339 | 257 |
+| AirHome Vista (12.2 x 4 m) | 612 | 529 | 311 | 229 |
+| Russley Portables Frazer (12 x 5.4 m) | 564 | 392 | 250 | 166 |
+| South Peak Homes Kendall (13.2 x 4.8 m) | 554 | 460 | 252 | 189 |
+| Living Little Oldham (14.4 x 4.2 m) | 553 | 474 | 252 | 194 |
+| AirHome Pinnacle (15 x 4 m) | 545 | 465 | 257 | 187 |
+| Russley Portables Methven (15 x 4.2 m) | 536 | 455 | 243 | 180 |
+| Russley Portables Kurow (13.45 x 5.4 m) | 524 | 376 | 219 | 155 |
+| Living Little Cameron (16.6 x 4.2 m) | 486 | 417 | 210 | 163 |
+| Lockwood Haven (concept) (9.04 x 6.64 m) | 447 | 403 | 228 | 178 |
+| Lockwood Lakeview (concept) (10.54 x 6.65 m) | 433 | 388 | 199 | 159 |
+| South Peak Homes Sefton (9.6 x 7.2 m) | 421 | 375 | 201 | 158 |
+| Lockwood Ara (concept) (13.59 x 6.24 m) | 420 | 353 | 178 | 139 |
 
 ## What it checks
 

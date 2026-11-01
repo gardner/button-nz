@@ -52,33 +52,56 @@ def write_results(results: Sequence[SectionResult], path: Path) -> Path:
 
 
 def summarise(results: Sequence[SectionResult]) -> dict[str, Any]:
-    """How many sections have room for at least one product, in each count."""
+    """How many sections have room for at least one product, in each count;
+    and the same by property (a title of one or more parcels): a property has
+    room if any of its parcels does, and a building if any of them has one."""
     counts: dict[str, Any] = {
         "sections": len(results),
+        "properties": len({r.property_id for r in results}),
         "with_buildings": sum(1 for r in results if r.buildings),
+        "by_property": _by_property_counts(results),
     }
     for name in COUNTS:
         counts[name] = sum(1 for r in results if getattr(r, name))
     products = sorted({p for r in results for p in r.fits})
-    counts["by_product"] = {
-        p: {name: sum(1 for r in results if p in getattr(r, name)) for name in COUNTS}
+    counts["by_product"] = {  # properties, like the headline: once a title
+        p: {name: len({r.property_id for r in results if p in getattr(r, name)}) for name in COUNTS}
         for p in products
     }
+    return counts
+
+
+def _by_property_counts(results: Sequence[SectionResult]) -> dict[str, int]:
+    groups: dict[int, list[SectionResult]] = {}
+    for r in results:
+        groups.setdefault(r.property_id, []).append(r)
+    counts = {"with_buildings": sum(1 for g in groups.values() if any(r.buildings for r in g))}
+    for name in COUNTS:
+        counts[name] = sum(1 for g in groups.values() if any(getattr(r, name) for r in g))
     return counts
 
 
 def report(results: Sequence[SectionResult], meta: Mapping[str, Any]) -> str:
     """The Markdown report for ``results``; ``meta`` says how they were made."""
     counts = summarise(results)
-    total = counts["sections"]
+    total, owned = counts["sections"], counts["properties"]
+    by_property = counts["by_property"]
     lines = [
         f"# Town screen: room for a real prefab in {meta['place']}",
         "",
         _introduction(meta, total, counts["with_buildings"]),
         "",
-        "| Count | Sections | Share |",
-        "|---|---|---|",
-        *(f"| {LABELS[n]} | {counts[n]} | {_share(counts[n], total)} |" for n in COUNTS),
+        f"The sections are {owned} properties (titles): a title can cover several "
+        "parcels, and is what's bought, sold and regulated. A property has room if any "
+        "of its parcels does.",
+        "",
+        "| Count | Properties | Share | Sections | Share |",
+        "|---|---|---|---|---|",
+        *(
+            f"| {LABELS[n]} | {by_property[n]} | {_share(by_property[n], owned)} "
+            f"| {counts[n]} | {_share(counts[n], total)} |"
+            for n in COUNTS
+        ),
         "",
         "## Backyards",
         "",
@@ -155,7 +178,7 @@ def _by_size(results: Sequence[SectionResult]) -> str:
 
 def _by_product(by_product: Mapping[str, Mapping[str, int]], names: Mapping[str, str]) -> str:
     rows = [
-        "| Product | " + " | ".join(LABELS[n] for n in COUNTS) + " |",
+        "| Product (properties) | " + " | ".join(LABELS[n] for n in COUNTS) + " |",
         "|---|" + "---|" * len(COUNTS),
     ]
     for product, counts in sorted(by_product.items(), key=lambda kv: -kv[1]["fits"]):

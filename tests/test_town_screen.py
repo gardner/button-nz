@@ -108,7 +108,7 @@ def test_a_section_is_screened_against_the_outlines_and_the_lidar() -> None:
     products = [prefab("small", 6, 4), prefab("large", 12, 6)]
     section = box(0, 0, 16, 10)  # room 12 x 6
     tree: BaseGeometry = box(13, 4, 14, 5)  # within 2 m of where "large" must stand
-    result = screen_section(7, section, [], tree, products)
+    result = screen_section(7, 7, section, [], tree, products)
     assert result.parcel_id == 7
     assert result.area_m2 == pytest.approx(160)
     assert result.buildings == 0
@@ -121,12 +121,12 @@ def test_a_section_is_screened_against_the_outlines_and_the_lidar() -> None:
 
 def test_a_sliver_of_a_neighbours_outline_is_not_a_building_on_the_section() -> None:
     neighbours = box(19.95, 5, 30, 15)  # over the boundary by 5 cm: 0.5 m² on this section
-    result = screen_section(1, box(0, 0, 20, 20), [neighbours], Polygon(), [prefab("s", 6, 4)])
+    result = screen_section(1, 1, box(0, 0, 20, 20), [neighbours], Polygon(), [prefab("s", 6, 4)])
     assert result.buildings == 0
 
 
 def test_buildings_on_the_section_are_counted() -> None:
     house = box(1, 1, 5, 5)
-    result = screen_section(1, box(0, 0, 40, 40), [house], Polygon(), [prefab("small", 6, 4)])
+    result = screen_section(1, 1, box(0, 0, 40, 40), [house], Polygon(), [prefab("small", 6, 4)])
     assert result.buildings == 1
     assert result.clear == result.fits == ("small",)

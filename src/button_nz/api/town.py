@@ -22,7 +22,7 @@ import hashlib
 import json
 import math
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -61,7 +61,22 @@ def category(row: Mapping[str, Any]) -> str:
 
 # The layer's format, in its cache key: bump it whenever ``_build``'s output
 # changes, so a layer cached in an older format is rebuilt, never served.
-LAYER_FORMAT = 2
+LAYER_FORMAT = 3
+
+
+RANK = {"none": 0, "outlines": 1, "clear": 2}
+
+
+def _property_categories(rows: Sequence[Mapping[str, Any]]) -> dict[int, str]:
+    """Each property's category: the best of its parcels', so every parcel of
+    a title is coloured by what the property has room for."""
+    best: dict[int, str] = {}
+    for row in rows:
+        pid, found = int(row["property_id"]), category(row)
+        if RANK[found] > RANK[best.get(pid, "none")]:
+            best[pid] = found
+        best.setdefault(pid, found)
+    return best
 
 
 class TownMaps:
@@ -105,10 +120,15 @@ class TownMaps:
             for feature in self.parcels.where(f"id IN ({batch})").features:
                 props = cast("dict[str, Any]", feature["properties"])
                 outlines[int(props["id"])] = shape(cast("dict[str, Any]", feature["geometry"]))
+        best = _property_categories(rows)
         features = [
             {
                 "type": "Feature",
-                "properties": {"id": int(r["parcel_id"]), "category": category(r)},
+                "properties": {
+                    "id": int(r["parcel_id"]),
+                    "property": int(r["property_id"]),
+                    "category": best[int(r["property_id"])],
+                },
                 "geometry": mapping(lonlat(outlines[int(r["parcel_id"])])),
             }
             for r in rows

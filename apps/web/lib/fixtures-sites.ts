@@ -85,7 +85,7 @@ export const TOWN = {
     {
       type: "Feature",
       id: 1,
-      properties: { id: 1, category: "clear" },
+      properties: { id: 1, property: 1, category: "clear" },
       geometry: {
         type: "Polygon",
         coordinates: square(171.86, -42.116, 0.0002),
@@ -94,7 +94,7 @@ export const TOWN = {
     {
       type: "Feature",
       id: 2,
-      properties: { id: 2, category: "outlines" },
+      properties: { id: 2, property: 2, category: "outlines" },
       geometry: {
         type: "Polygon",
         coordinates: square(171.861, -42.116, 0.0002),
@@ -103,7 +103,7 @@ export const TOWN = {
     {
       type: "Feature",
       id: 3,
-      properties: { id: 3, category: "none" },
+      properties: { id: 3, property: 3, category: "none" },
       geometry: {
         type: "Polygon",
         coordinates: square(171.862, -42.116, 0.0002),

@@ -18,17 +18,23 @@ const COUNT = new Intl.NumberFormat("en-NZ");
 /** The town screen's headline, counted from the sections on the map, and
  * the key to their colours. */
 export function TownOverview({ town, name }: { town: Town; name: string }) {
+  // Counted by property (a title of one or more parcels): what's bought,
+  // sold and regulated. Every parcel of one carries the property's category.
   const sections = town.sections.features;
-  const total = sections.length;
-  const room = sections.filter((f) => f.properties.category !== "none").length;
+  const total = new Set(sections.map((f) => f.properties.property)).size;
+  const room = new Set(
+    sections
+      .filter((f) => f.properties.category !== "none")
+      .map((f) => f.properties.property),
+  ).size;
   const missing = town.missing.ids.length;
   return (
     <section className="rounded-2xl bg-zinc-950/80 p-4 text-white shadow-2xl backdrop-blur">
       <p className="text-xl font-semibold leading-snug">
         <span className="text-emerald-400">{COUNT.format(room)}</span>{" "}
         {missing === 0
-          ? `of ${name}'s ${COUNT.format(total)} sections`
-          : `of the ${COUNT.format(total)} mapped sections in ${name}`}{" "}
+          ? `of ${name}'s ${COUNT.format(total)} properties`
+          : `of the ${COUNT.format(total)} mapped properties in ${name}`}{" "}
         have room for a real prefab
       </p>
       {missing > 0 && (
