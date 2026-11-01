@@ -78,9 +78,18 @@ def frontages(
 
 def _away(street: Road, edges: Sequence[Edge]) -> Frontage:
     """The address's street where it runs along no edge: the edge nearest it."""
-    # The edge whose middle is nearest: two edges meeting at the corner
-    # nearest the street are equally near at that corner.
-    nearest = min(edges, key=lambda e: street.centreline.distance(_middle(e)))
+
+    # The nearest edge as a whole; where two are as near (meeting at the
+    # corner nearest the street), the one with more of its length alongside
+    # the street faces it.
+    gap = min(street.centreline.distance(LineString(e)) for e in edges)
+    alongside = street.centreline.buffer(gap + 0.5)
+
+    def nearness(edge: Edge) -> tuple[float, float]:
+        line = LineString(edge)
+        return round(street.centreline.distance(line), 3), -line.intersection(alongside).length
+
+    nearest = min(edges, key=nearness)
     distance = round(street.centreline.distance(LineString(nearest)), 1)
     return Frontage(street.name, True, (nearest,), adjacent=False, distance_m=distance)
 
@@ -94,10 +103,6 @@ def _boundary(title: Sequence[Ring]) -> list[Edge]:
         coords = [(float(x), float(y)) for x, y, *_ in part.exterior.coords]
         edges += [(a, b) for a, b in zip(coords, coords[1:], strict=False)]
     return edges
-
-
-def _middle(edge: Edge) -> BaseGeometry:
-    return LineString(edge).interpolate(0.5, normalized=True)
 
 
 def _along(edge: LineString, area: BaseGeometry) -> bool:

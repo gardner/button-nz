@@ -127,3 +127,10 @@ def test_an_unnamed_lane_beside_the_title_isnt_named_after_the_street_in_front()
     by_road = {f.road: f for f in found}
     assert by_road["Coal Street"].edges == (((0.0, 0.0), (20.0, 0.0)),)  # only the front
     assert by_road[None].edges == (((20.0, 0.0), (20.0, 30.0)),)  # the lane: unnamed
+
+
+def test_a_short_street_near_one_end_of_a_long_edge_is_nearest_that_edge() -> None:
+    long_title = ((0.0, 0.0), (100.0, 0.0), (100.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    stub = Road(1, "Coal Street", LineString([(-5, -1), (2, -1)]))  # 1 m south, at the west end
+    (street,) = frontages([long_title], [], [stub], street_road_id=1)
+    assert street.edges == (((0.0, 0.0), (100.0, 0.0)),) and street.distance_m == 1.0
