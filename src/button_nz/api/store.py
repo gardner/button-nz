@@ -10,7 +10,7 @@ in-progress forever. Plain SQL, so the schema ports to Postgres/PostGIS.
 import json
 import sqlite3
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -240,6 +240,17 @@ class Store:
                 "VALUES (?, ?, ?, ?) ON CONFLICT (survey_id, feature_id) "
                 "DO UPDATE SET decision = excluded.decision, decided_at = excluded.decided_at",
                 (survey_id, feature_id, decision, _now()),
+            )
+
+    def adopt(self, survey_id: str, suggestions: Mapping[str, str]) -> None:
+        """Record each suggestion as a decision, where none has been made yet:
+        never over one already made, even one made since the caller looked."""
+        now = _now()
+        with self._db() as db:
+            db.executemany(
+                "INSERT INTO decisions (survey_id, feature_id, decision, decided_at) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT (survey_id, feature_id) DO NOTHING",
+                [(survey_id, fid, decision, now) for fid, decision in suggestions.items()],
             )
 
     def decisions(self, survey_id: str) -> dict[str, str]:

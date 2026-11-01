@@ -125,9 +125,7 @@ def _confirm_list(store: Store, found: Survey, title: BaseGeometry) -> None:
     undecided = undecided_buildings(found, effective(found, own, title))
     if undecided:
         raise HTTPException(409, f"decide what these are first: {', '.join(undecided)}")
-    for feature_id, decision in suggested(found, title).items():
-        if feature_id not in own:
-            store.decide(found.id, feature_id, decision)
+    store.adopt(found.id, {k: v.value for k, v in suggested(found, title).items()})
 
 
 def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:

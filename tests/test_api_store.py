@@ -114,3 +114,10 @@ def test_a_database_from_before_revisions_is_migrated(tmp_path: Path) -> None:
     assert store.get_job("old").parent_id is None
     child = store.create_job("A studio.", True, parent_id="old", instruction="Face north.")
     assert store.get_job(child.id).instruction == "Face north."
+
+
+def test_a_suggestion_adopted_never_replaces_a_decision_already_made(tmp_path: Path) -> None:
+    store = Store(tmp_path / "button.db")
+    store.decide("s1", "1", "building")  # the owner's, made first (another tab)
+    store.adopt("s1", {"1": "ignore", "2": "keep_clear"})  # a list confirmed on a stale view
+    assert store.decisions("s1") == {"1": "building", "2": "keep_clear"}
