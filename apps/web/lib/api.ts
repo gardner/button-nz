@@ -26,7 +26,12 @@ import {
   parseSurvey,
 } from "./features";
 import { API, request, send } from "./http";
-import { type Products, parseProducts } from "./products";
+import {
+  type Product,
+  type Products,
+  parseCatalogue,
+  parseProducts,
+} from "./products";
 
 export { ApiError };
 
@@ -174,6 +179,11 @@ export async function reviseDesign(
 
 export async function getDesign(id: string): Promise<Job> {
   return parseJob(await request(`/designs/${encodeURIComponent(id)}`));
+}
+
+/** Every prefab in the catalogue, to browse while a design is made. */
+export async function getCatalogue(): Promise<Product[]> {
+  return parseCatalogue(await request("/products"));
 }
 
 /** The real prefab homes that fit inside design `id`'s accepted walls;
