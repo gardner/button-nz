@@ -16,10 +16,6 @@ are legal boundaries is unknown, and the evaluator reports them so.
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, cast
 
-import numpy as np
-import shapely
-from numpy.typing import NDArray
-from pyproj import Transformer
 from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry import mapping, shape
 from shapely.geometry.base import BaseGeometry
@@ -27,20 +23,10 @@ from shapely.geometry.base import BaseGeometry
 from button_nz.demo_site import DemoSite
 from button_nz.evaluation.checks import MIN_SEPARATION_M
 from button_nz.geo.geometry import BBox
+from button_nz.geo.lonlat import TO_LONLAT, lonlat
 from button_nz.perception.confirm import Survey
 
-TO_LONLAT = Transformer.from_crs(2193, 4326, always_xy=True)
 _DIGITS = 7  # about 1 cm
-
-
-def lonlat(geometry: BaseGeometry) -> BaseGeometry:
-    """``geometry`` from NZTM to lon/lat."""
-
-    def project(xy: NDArray[np.float64]) -> NDArray[np.float64]:
-        lon, lat = TO_LONLAT.transform(xy[:, 0], xy[:, 1])
-        return np.column_stack([lon, lat])
-
-    return shapely.transform(geometry, project)
 
 
 def lonlat_bounds(bbox: BBox) -> list[float]:
