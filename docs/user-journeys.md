@@ -24,8 +24,8 @@ owner to them, and doesn't yet serve them directly ([product.md](product.md)).
    on the aerial photo, and where each dataset comes from and, where
    recorded, when it was captured.
 2. Under "What is on the site", each card is something SAM 3.1 found on the
-   photo, with its area and height from the LiDAR. Where the photo and the
-   LiDAR disagree, the card asks for their judgement.
+   photo, with its area and, where the LiDAR can measure it, its height.
+   Where the photo and the LiDAR disagree, the card asks for their judgement.
 3. For each one they choose **Existing building**, **Keep clear** (a tree to
    keep, the vegetable garden) or **Ignore**.
 4. They tick **Every building on the site is listed**.
@@ -166,9 +166,11 @@ from real runs.
      brief, the design, its visual and 3D model, a revision, the prefabs,
      and a placement.
    - `cut.py` cuts it to length, with the speed shown wherever it's sped up.
-4. **Package the sample:** `python -m button_nz.sample` packs the final
-   take's design and revisions, with the survey they were checked against,
-   and refuses anything partial.
+4. **Package the sample:** `python -m button_nz.sample` packs a design and
+   the designs it revises (so pass the final take's latest revision), with
+   the survey they were checked against, and refuses anything partial. The
+   placed prefab is a separate design, with no parent, so it is packed on its
+   own.
 5. **Measure:** the benchmarks in `button_nz.bench` rerun the experiments and
    the town screen; each writes its report from its own log.
 

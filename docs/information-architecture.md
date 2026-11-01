@@ -35,8 +35,9 @@ checked against the measured site.
         ├── Status line: queued, running, accepted, no attempt passed, or failed
         ├── Before and after (a revision only)
         ├── Attempt 1…n: verdict, each check's result in words (with its
-        │   measurement), the LiDAR views asked for, the render, the AI
-        │   illustration, View in 3D
+        │   measurement), the LiDAR views asked for, and, if it produced a
+        │   model, its render and View in 3D; the accepted attempt also gets
+        │   the AI illustration, when its check passes
         ├── 3D model (ModelViewer)
         ├── Which real prefabs fit? (ProductsPanel, an accepted design only)
         │   ├── Each fitting product: size, area, rooms, price, exclusions,

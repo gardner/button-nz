@@ -35,7 +35,7 @@ https://button.nz. How they fit together on the page is in
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
 | **Repair from feedback** | A failed check goes back to Muse with its measurement and the render, for up to three attempts | `agent/loop.py` |
 | **Live progress** | The page follows the design as each attempt finishes | `useDesignChain.ts` |
-| **3D view** | The accepted design, or any attempt, in 3D on the site's terrain | `ModelViewer.tsx` |
+| **3D view** | The accepted design, or any attempt that produced a model, in 3D on the site's terrain | `ModelViewer.tsx` |
 
 ## Checking
 
@@ -90,7 +90,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **Experiments from live runs** | Experiment A (does Muse understand LiDAR: 49% from the photo alone, 83% choosing its own views) and C (what feedback buys: 56% accepted one shot, 100% with the evaluator), and the design-model comparison | `bench/`, [results](results/README.md) |
-| **Sample artifacts** | Packs a design and its revisions, with the survey they were checked against and every verdict, and refuses partial or inconsistent samples | `button_nz.sample` |
+| **Sample artifacts** | Packs a design and the designs it revises (pass the latest revision), with the survey they were checked against and every verdict, and refuses partial or inconsistent samples | `button_nz.sample` |
 | **Demo recording** | Records the live app in a headless browser and cuts it, with the speed shown wherever it's sped up | `scripts/demo/` |
 
 ## What it doesn't do
