@@ -12,6 +12,8 @@ function respond(body: unknown, status = 200): Response {
 afterEach(() => {
   cleanup(); // an earlier test's hook would go on polling
   vi.unstubAllGlobals();
+  // The hook writes ?site= to the address bar; the next test would open it.
+  window.history.replaceState(null, "", "/");
 });
 
 const OTHER = {
