@@ -40,8 +40,7 @@ from button_nz.api.sites import Sites, SiteService, sites_router
 from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
-from button_nz.geo.crs import LocalFrame
-from button_nz.sites.design_map import design_layers
+from button_nz.sites.design_map import design_layers, scene_frame
 from button_nz.sites.registry import DEMO_SITE_ID
 
 ARTIFACT = re.compile(
@@ -119,7 +118,7 @@ def create_app(
     for router in routers:
         app.include_router(router)
     catalogue = load_products() if products is None else products
-    app.include_router(products_router(store, worker.runs_dir, catalogue, where.frame))
+    app.include_router(products_router(store, worker.runs_dir, catalogue, scene_frame))
     placeable = {p.id: p for p in catalogue if p.placeable}
 
     @app.get("/site")
@@ -184,17 +183,9 @@ class Where:
             raise HTTPException(404, f"this server designs only on the demo site, not {site_id}")
         return site_id
 
-    def site(self, job: Job) -> DemoSite:
-        site_id = job.site_id or DEMO_SITE_ID
-        return self.demo if self.sites is None else self.sites.site(site_id)
-
     def survey(self, job: Job) -> Path | None:
         site_id = job.site_id or DEMO_SITE_ID
         return self.demo_survey if self.sites is None else self.sites.survey(site_id)[0]
-
-    def frame(self, job: Job) -> LocalFrame:
-        """The frame the job's designs are measured in: centred on its site's parcels."""
-        return LocalFrame.centred_on(self.site(job).extent_nztm)
 
 
 def _design_map_router(store: Store, worker: Worker, where: Where) -> APIRouter:
@@ -206,7 +197,7 @@ def _design_map_router(store: Store, worker: Worker, where: Where) -> APIRouter:
         if job.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt to map")
         attempt = _attempt_dir(worker, job, job.accepted_attempt)
-        return design_layers(attempt, where.site(job), where.survey(job))
+        return design_layers(attempt, where.survey(job))
 
     return router
 

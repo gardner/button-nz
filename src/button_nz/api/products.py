@@ -18,7 +18,7 @@ from shapely import Polygon
 from shapely.affinity import translate
 
 from button_nz.agent.proposal import DesignError, parse_measurements
-from button_nz.api.store import Job, Store
+from button_nz.api.store import Store
 from button_nz.catalogue import Product, matches, placement
 from button_nz.geo.crs import LocalFrame
 from button_nz.sites.layers import collection
@@ -40,7 +40,7 @@ class ProductsView(BaseModel):
     basis: str
 
 
-type FrameFor = Callable[[Job], LocalFrame]  # the frame a job's designs are measured in
+type FrameFor = Callable[[Path], LocalFrame]  # the frame an attempt was measured in
 
 
 def products_router(
@@ -59,9 +59,10 @@ def products_router(
             raise HTTPException(404, f"no design {job_id}") from None
         if job.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt")
-        walls = _walls(runs_dir / job.id / f"attempt-{job.accepted_attempt}")
+        attempt = runs_dir / job.id / f"attempt-{job.accepted_attempt}"
+        walls = _walls(attempt)
         found = matches(walls, products)
-        frame = None if frame_for is None else frame_for(job)
+        frame = None if frame_for is None else frame_for(attempt)
         return ProductsView(
             footprint_m2=round(walls.area, 2),
             fits=[_fitting(p, walls, frame) for p in found.fits],
