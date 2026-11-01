@@ -118,8 +118,15 @@ def test_a_database_from_before_revisions_is_migrated(tmp_path: Path) -> None:
     assert store.get_job(child.id).instruction == "Face north."
 
 
-def test_a_placed_look_from_before_textures_keeps_its_colours_on_the_default_textures(
-    store: Store,
+@pytest.mark.parametrize(
+    "textures",
+    [
+        {},  # snapshotted before products had textures
+        {"walls_texture": "a_retired_finish", "roof_texture": "box_profile_metal_sheet"},
+    ],
+)
+def test_a_placed_look_keeps_its_colours_and_takes_the_default_for_a_texture_it_lacks(
+    store: Store, textures: dict[str, str]
 ) -> None:
     job = store.create_job("A studio.", allow_observations=True)
     look = {
@@ -128,7 +135,7 @@ def test_a_placed_look_from_before_textures_keeps_its_colours_on_the_default_tex
         "walls": "#e8e6df",
         "roof": "#3b3e36",
         "basis": "published palette",
-    }
+    } | textures
     placed = {"id": "vista", "name": "AirHome Vista", "length_m": 12.2, "width_m": 4.0}
     with sqlite3.connect(store.path) as db:
         db.execute(
@@ -140,6 +147,6 @@ def test_a_placed_look_from_before_textures_keeps_its_colours_on_the_default_tex
 
     assert product is not None and product.appearance is not None
     assert product.appearance.walls == "#e8e6df"
-    finishes = product.appearance.finishes()
-    assert finishes["walls"]["texture"] == DEFAULT_FINISHES["walls"]["texture"]
-    assert finishes["roof"]["texture"] == DEFAULT_FINISHES["roof"]["texture"]
+    assert product.appearance.walls_texture == DEFAULT_FINISHES["walls"]["texture"]
+    roof = textures.get("roof_texture", DEFAULT_FINISHES["roof"]["texture"])
+    assert product.appearance.roof_texture == roof  # one still offered is kept

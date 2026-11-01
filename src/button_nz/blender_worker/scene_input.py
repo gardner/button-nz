@@ -37,7 +37,7 @@ class HeightGrid(TypedDict):
 TextureName = Literal[
     "white_planks_clean",
     "japanese_cedar_planks",
-    "concrete_panels",
+    "groove_panel",
     "box_profile_metal_sheet",
     "corrugated_iron",
 ]

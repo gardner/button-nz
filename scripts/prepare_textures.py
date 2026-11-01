@@ -2,8 +2,8 @@
 
     uv run python scripts/prepare_textures.py inbox/textures
 
-For each set in ``src/button_nz/blender_worker/textures/textures.json`` this
-writes two 1024 px JPEGs next to it:
+For each map set the finishes in ``src/button_nz/blender_worker/textures/textures.json``
+use, this writes two 1024 px JPEGs next to it:
 
 - ``<set>_detail.jpg``: the diffuse map as greyscale detail whose mean is
   ``MEAN`` in linear light, so the render, tinting it with the product's
@@ -26,8 +26,10 @@ CONTRAST = 0.6  # of the photograph's: grime and stains softened; the normal map
 
 
 def main(source: Path) -> None:
-    sets: dict[str, object] = json.loads((TEXTURES / "textures.json").read_text())["sets"]
-    for name in sets:
+    finishes: dict[str, dict[str, str]] = json.loads((TEXTURES / "textures.json").read_text())[
+        "sets"
+    ]
+    for name in sorted({spec["maps"] for spec in finishes.values()}):
         diffuse = Image.open(source / name / f"{name}_diffuse_2k.jpg").convert("RGB")
         detail(diffuse).save(TEXTURES / f"{name}_detail.jpg", quality=90)
         normal = Image.open(source / name / f"{name}_nor_gl_2k.jpg").convert("RGB")

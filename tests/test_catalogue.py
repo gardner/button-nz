@@ -286,19 +286,23 @@ def test_finishes_go_to_blender_as_linear_rgba_over_their_textures() -> None:
 
 def test_every_texture_a_product_can_name_is_committed_and_credited() -> None:
     folder = Path(blender_worker.__file__).with_name("textures")
-    sets = json.loads((folder / "textures.json").read_text())["sets"]
-    assert set(sets) == set(get_args(TextureName))
-    for name, spec in sets.items():
+    finishes = json.loads((folder / "textures.json").read_text())["sets"]
+    assert set(finishes) == set(get_args(TextureName))
+    for spec in finishes.values():
         for kind in ("detail", "normal"):
-            with Image.open(folder / f"{name}_{kind}.jpg") as image:
+            with Image.open(folder / f"{spec['maps']}_{kind}.jpg") as image:
                 assert image.size == (1024, 1024)
-        assert spec["page"].startswith("https://polyhaven.com/a/") and spec["tile_m"] > 0
+        assert spec["page"] == f"https://polyhaven.com/a/{spec['maps']}" and spec["tile_m"] > 0
+    used = {
+        f"{spec['maps']}_{kind}.jpg" for spec in finishes.values() for kind in ("detail", "normal")
+    }
+    assert {p.name for p in folder.glob("*.jpg")} == used  # only the maps a finish uses
     assert "CC0" in (folder / "README.md").read_text()
 
 
 def test_each_product_is_textured_as_its_brief_says() -> None:
     by_id = {p.id: p.appearance for p in load_products()}
-    assert by_id["airhome-vista"].walls_texture == "concrete_panels"  # Cemintel sheet
+    assert by_id["airhome-vista"].walls_texture == "groove_panel"  # Cemintel sheet
     assert by_id["keith-hay-nook-60"].walls_texture == "white_planks_clean"  # weatherboard
     assert by_id["keith-hay-nook-60"].roof_texture == "box_profile_metal_sheet"  # 5-rib
     assert by_id["lockwood-haven"].walls_texture == "japanese_cedar_planks"  # solid timber

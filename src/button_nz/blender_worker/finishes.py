@@ -19,7 +19,7 @@ TEXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "textures")
 
 
 def textures() -> dict[str, Any]:
-    """The texture sets, by name, as ``textures/textures.json`` describes them."""
+    """The finishes, by name, as ``textures/textures.json`` describes them."""
     with open(os.path.join(TEXTURES, "textures.json"), encoding="utf-8") as f:
         sets: dict[str, Any] = json.load(f)["sets"]
     return sets
@@ -37,8 +37,8 @@ def material(name: str, finish: dict[str, Any]) -> Any:
     bsdf = nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = spec["roughness"]
     mapping = _mapping(nodes, links, spec)
-    detail = _image(nodes, f"{texture}_detail.jpg", "sRGB")
-    normal = _image(nodes, f"{texture}_normal.jpg", "Non-Color")
+    detail = _image(nodes, f"{spec['maps']}_detail.jpg", "sRGB")
+    normal = _image(nodes, f"{spec['maps']}_normal.jpg", "Non-Color")
     for image in (detail, normal):
         links.new(mapping.outputs["Vector"], image.inputs["Vector"])
     tint = nodes.new("ShaderNodeMix")

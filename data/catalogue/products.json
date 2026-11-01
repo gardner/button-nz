@@ -383,7 +383,7 @@
         "roof_pitch_deg": null,
         "walls": "#d3d5d2",
         "roof": "#36383a",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
       }
@@ -417,7 +417,7 @@
         "roof_pitch_deg": null,
         "walls": "#d3d5d2",
         "roof": "#36383a",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
       }
@@ -451,7 +451,7 @@
         "roof_pitch_deg": null,
         "walls": "#e8e6df",
         "roof": "#3b3e36",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
       }
@@ -485,7 +485,7 @@
         "roof_pitch_deg": null,
         "walls": "#e8e6df",
         "roof": "#3b3e36",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
       }
@@ -519,7 +519,7 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }
@@ -553,7 +553,7 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }
@@ -587,7 +587,7 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
-        "walls_texture": "concrete_panels",
+        "walls_texture": "groove_panel",
         "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }

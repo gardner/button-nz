@@ -119,7 +119,7 @@ def test_the_render_finishes_the_roof_and_walls_as_the_host_says(tmp_path: Path)
         gltf["materials"][p["material"]]["name"]: gltf["materials"][p["material"]]
         for p in primitives
     }
-    for name, part, tile_m in (("Dwelling walls", "walls", 5.4), ("Dwelling roof", "roof", 1.12)):
+    for name, part, tile_m in (("Dwelling walls", "walls", 3.8), ("Dwelling roof", "roof", 1.12)):
         pbr = materials[name]["pbrMetallicRoughness"]
         assert pbr["baseColorFactor"] == pytest.approx(finishes[part]["rgba"], abs=1e-3)
         colour = pbr["baseColorTexture"]
