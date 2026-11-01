@@ -1,6 +1,7 @@
 """Tests for serving the API in public: a cap on design runs a day, and a
 survey fixed as someone decided it."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -35,10 +36,11 @@ def client(
     cap: int | None = None,
     clock: Clock | None = None,
     decided_by: str | None = None,
+    status: str = "conflict",
 ) -> tuple[TestClient, Worker]:
     store = Store(tmp_path / "button.db")
     survey = tmp_path / "survey.geojson"
-    write_survey(survey, "shed", "tree")
+    write_survey(survey, "shed", "tree", status=status)
     # Fixed, it is pinned to the survey decided: the one written here.
     fixed = None if decided_by is None else FixedSurvey(decided_by, survey_id(survey))
     worker = Worker(
@@ -146,3 +148,13 @@ def test_the_fixed_survey_is_read_once_and_that_reading_is_what_is_used(tmp_path
     assert checked is not None and checked.id == fixed.survey_id
     with pytest.raises(SurveyReplaced, match=fixed.survey_id):
         read_fixed(path, fixed)
+
+
+def test_a_fixed_survey_has_only_the_decisions_made_on_it(tmp_path: Path) -> None:
+    api, worker = client(tmp_path, decided_by="the owner", status="agrees")  # suggestible
+    props = [f["properties"] for f in api.get("/site/features").json()["features"]]
+    assert [p["decision"] for p in props] == [None, None]  # nothing invented, nor credited
+    job = api.post("/designs", json=ORIGINAL).json()
+    assert worker.run_next()
+    used = json.loads((tmp_path / "runs" / job["id"] / "survey.json").read_text())
+    assert used["decisions"] == {} and used["suggested"] == []

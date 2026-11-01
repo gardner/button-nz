@@ -204,9 +204,11 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
     @router.get("/sites/{site_id}/map")
     def get_map(site_id: str) -> dict[str, Any]:
         site = sites.site(site_id)
-        survey = read_fixed(*sites.survey(site_id))  # SurveyReplaced: a 409
+        path, fixed = sites.survey(site_id)
+        survey = read_fixed(path, fixed)  # SurveyReplaced: a 409
         own = {} if survey is None else store.decisions(survey.id)
-        decisions = {} if survey is None else effective(survey, own, site_title(site))
+        title = site_title(site)
+        decisions = {} if survey is None else effective(survey, own, title, fixed is not None)
         return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 
     router.include_router(_terrain_router(sites))

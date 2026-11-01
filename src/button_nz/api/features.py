@@ -28,7 +28,7 @@ from shapely.geometry.base import BaseGeometry
 
 from button_nz.api.fixed import FixedSurvey, SurveyReplaced, read_fixed
 from button_nz.api.store import Store
-from button_nz.perception.confirm import Decision, Survey, effective, undecided_buildings
+from button_nz.perception.confirm import Decision, Survey, effective, suggested, undecided_buildings
 
 
 class DecisionRequest(BaseModel):
@@ -80,7 +80,7 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
         survey, decided_by, title = resolved(site_id)
         found = _survey(survey)
         own = store.decisions(found.id)
-        decisions = effective(found, own, title)
+        decisions = effective(found, own, title, fixed=decided_by is not None)
         return {
             **found.collection,
             "survey_id": found.id,
@@ -109,13 +109,25 @@ def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
         survey, decided_by, title = resolved(site_id)
         unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
-        undecided = undecided_buildings(found, effective(found, store.decisions(found.id), title))
-        if request.buildings_complete and undecided:
-            raise HTTPException(409, f"decide what these are first: {', '.join(undecided)}")
+        if request.buildings_complete:
+            _confirm_list(store, found, title)
         store.set_buildings_complete(found.id, request.buildings_complete)
         return {"survey_id": found.id, "buildings_complete": request.buildings_complete}
 
     return router
+
+
+def _confirm_list(store: Store, found: Survey, title: BaseGeometry) -> None:
+    """Every building listed: refused (409) while a possible building is
+    undecided; else what the list shows is confirmed, its suggestions stored
+    as the owner's own (they are what the owner saw, and agreed was complete)."""
+    own = store.decisions(found.id)
+    undecided = undecided_buildings(found, effective(found, own, title))
+    if undecided:
+        raise HTTPException(409, f"decide what these are first: {', '.join(undecided)}")
+    for feature_id, decision in suggested(found, title).items():
+        if feature_id not in own:
+            store.decide(found.id, feature_id, decision)
 
 
 def _survey(found: Survey | None, decided_on: str | None = None) -> Survey:

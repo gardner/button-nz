@@ -213,7 +213,7 @@ class Worker:
         survey = read_fixed(path, fixed)
         own = {} if survey is None else self.store.decisions(survey.id)
         title = title_of(site.context.parcels)
-        decided = {} if survey is None else effective(survey, own, title)
+        decided = {} if survey is None else effective(survey, own, title, fixed is not None)
         complete = survey is not None and self.store.buildings_complete(survey.id)
         run.mkdir(parents=True, exist_ok=True)
         used = {

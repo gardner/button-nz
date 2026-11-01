@@ -93,9 +93,16 @@ def _suggestion(feature: dict[str, Any], title: BaseGeometry) -> Decision | None
     return None
 
 
-def effective(survey: Survey, decisions: Mapping[str, str], title: BaseGeometry) -> dict[str, str]:
+def effective(
+    survey: Survey, decisions: Mapping[str, str], title: BaseGeometry, fixed: bool = False
+) -> dict[str, str]:
     """The decisions a design is checked on: the owner's, and for the rest
-    what the survey suggests."""
+    what the survey suggests. A ``fixed`` survey has only the decisions made on
+    it: a suggestion there would be credited to whoever fixed it, who could no
+    longer change it (confirming the buildings list stores the suggestions as
+    theirs, before it is fixed)."""
+    if fixed:
+        return dict(decisions)
     return {**{k: v.value for k, v in suggested(survey, title).items()}, **decisions}
 
 

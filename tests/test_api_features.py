@@ -360,3 +360,11 @@ def test_a_design_uses_the_suggestions_and_records_which_they_were(tmp_path: Pat
     used = json.loads((tmp_path / "runs" / job_id / "survey.json").read_text())
     assert used["decisions"]["1"] == "building"  # the owner's own
     assert used["suggested"] == ["2"] and used["decisions"]["2"] in ("keep_clear", "ignore")
+
+
+def test_listing_the_buildings_confirms_the_suggestions_as_the_owners(surveyed: Surveyed) -> None:
+    write_survey(surveyed.survey, "shed", "tree", status="agrees")  # both suggested
+    assert list_complete(surveyed).status_code == 200
+    props = [f["properties"] for f in surveyed.client.get("/site/features").json()["features"]]
+    assert [p["suggested"] for p in props] == [False, False]  # confirmed: now the owner's own
+    assert all(p["decision"] is not None for p in props)
