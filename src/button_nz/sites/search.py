@@ -20,7 +20,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.arcgis import Feature, FeatureLayer
-from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, title_parcels
+from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels
 
 MAX_RESULTS = 8
 NEAR_DEG = 0.25  # about 25 km each way: the town the map shows, and its neighbours
@@ -95,7 +95,7 @@ class NoSuchSection(LookupError):
     """LINZ has no primary parcel with that id."""
 
 
-class NotASection(ValueError):
+class NotASection(SiteError):
     """The parcel's title is more than a section: no site is built for it."""
 
 

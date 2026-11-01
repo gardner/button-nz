@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from button_nz.geo.arcgis import FeatureLayer
-from button_nz.sites.build import MAX_PARCELS
+from button_nz.sites.build import MAX_PARCELS, SiteError, title_parcels
 from button_nz.sites.search import (
     LOCAL_CANDIDATES,
     MAX_RESULTS,
@@ -21,6 +21,8 @@ from button_nz.sites.search import (
     where_clause,
 )
 from test_sites_build import PARCELS, X0, Y0, layers, parcel  # noqa: E402
+from test_sites_build import A as A_RING
+from test_sites_build import B as B_RING
 
 URL = "https://example.test/arcgis/rest/services/LINZ_NZ_Addresses/FeatureServer/0"
 
@@ -196,3 +198,39 @@ def test_a_title_bigger_than_a_section_is_refused_before_any_address_is_asked() 
     with pytest.raises(NotASection, match="more than a section"):
         address_on_section(addresses, parcels, 100)
     assert asked == []
+
+
+def test_a_parcel_on_more_titles_than_a_section_has_is_refused_before_asking_for_them() -> None:
+    many = ", ".join(str(500000 + n) for n in range(MAX_PARCELS + 1))  # a unit-title base
+    base = parcel(100, [[X0, Y0], [X0 + 9, Y0], [X0 + 9, Y0 + 9], [X0, Y0 + 9], [X0, Y0]], many)
+    asked: list[str] = []
+    addresses, parcels = _section_layers([base], asked)
+    with pytest.raises(SiteError, match="more than a section"):
+        address_on_section(addresses, parcels, 100)
+    assert asked == []
+
+
+def test_a_sections_titles_parcels_are_asked_for_in_one_query() -> None:
+    two = ", ".join(("354613", "354614"))
+    lots = [
+        parcel(1, A_RING, two),
+        parcel(2, B_RING, "354614"),
+    ]
+    queries: list[str] = []
+    layer = layers(lots)["LINZ_NZ_Primary_Parcels"]
+    counted = FeatureLayer(
+        layer.url,
+        "CC-BY-4.0",
+        "LINZ",
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda r: (queries.append(str(r.url)), layer.client.get(str(r.url)))[1]
+            )
+        ),
+    )
+    assert [_id(p) for p in title_parcels(counted, lots[0])] == [1, 2]
+    assert len(queries) == 1
+
+
+def _id(feature: Any) -> int:
+    return int(feature["properties"]["id"])

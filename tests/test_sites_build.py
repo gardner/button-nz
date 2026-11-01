@@ -2,6 +2,7 @@
 with every network read faked."""
 
 import json
+import re
 from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -62,8 +63,8 @@ def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[st
             wanted = int(q["where"].removeprefix("id = "))
             found = [p for p in parcels if p["properties"]["id"] == wanted]
         elif "Parcels" in url.path:
-            title = q["where"].split("'%")[1].split("%'")[0]
-            found = [p for p in parcels if title in str(p["properties"]["titles"])]
+            titles = re.findall(r"'%(.+?)%'", q["where"])  # LIKE clauses, OR'd
+            found = [p for p in parcels if any(t in str(p["properties"]["titles"]) for t in titles)]
         else:  # one courtyard building beside the title, its hole kept
             outer = [
                 [X0 + 50, Y0],
