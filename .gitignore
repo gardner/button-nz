@@ -26,3 +26,4 @@ dist/
 
 # Local API data (jobs database and design runs)
 /var/
+inbox/
