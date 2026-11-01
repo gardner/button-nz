@@ -58,7 +58,7 @@ https://button.nz. How they fit together on the page is in
 
 | Feature | What it does | Where |
 |---|---|---|
-| **Muse Image illustration** | Muse Image 1.0 turns the trusted render into a photograph of the same scene | `perception/visual.py` |
+| **Muse Image illustration** | Muse Image 1.0 turns the trusted render into a photograph-like illustration of the dwelling; the surroundings are imagined, and the page says so | `perception/visual.py` |
 | **Checked before it is shown** | SAM 3.1 finds the house in the illustration. It is shown only if it overlaps the design's silhouette from the same camera (IoU ≥ 0.6), labelled AI-illustrated | `perception/visual.py` |
 
 ## Real prefabs
@@ -97,6 +97,7 @@ https://button.nz. How they fit together on the page is in
 
 - **It isn't a building consent or a compliance decision.** It checks the
   exemption's measurable siting and size conditions. It doesn't check
+  for a mezzanine (Schedule 1A forbids one; the envelope can't show it),
   hazards, the district plan, services, structure or cladding weights.
 - **One site.** Only the demo site is wired up. The town screen shows the
   same code working town-wide, but its sections aren't designable in the app.
