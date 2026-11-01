@@ -12,6 +12,7 @@ lines as ``evaluation.checks`` makes them, so the map and the verdict agree.
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -63,10 +64,11 @@ def _measured(attempt: Path) -> tuple[Polygon, Polygon, dict[str, float]]:
     return walls, Polygon([frame.to_nztm(p) for p in plan]), heights
 
 
-def design_layers(attempt: Path, survey: Path | None) -> dict[str, Any]:
-    """The layers of the accepted ``attempt`` of a design on a site whose survey
-    is ``survey``. The attempt's scene holds the frame and parcels it was made
-    and checked in, and its run folder the buildings: the site may have changed."""
+def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str, Any]:
+    """The layers of the accepted ``attempt`` of a design. The attempt's scene
+    holds the frame and parcels it was made and checked in, and its run folder
+    the buildings, so the site as it is now isn't needed: ``survey`` (the site's
+    survey file) is read only for an older record that kept no buildings."""
     walls, outline, heights = _measured(attempt)
     frame = scene_frame(attempt)
     parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in _scene(attempt)["parcels"]]
@@ -101,7 +103,7 @@ def design_layers(attempt: Path, survey: Path | None) -> dict[str, Any]:
     }
 
 
-def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | str:
+def _confirmed(record: Path, survey: Callable[[], Path | None]) -> BaseGeometry | str:
     """The buildings the design was checked against, as its record kept them;
     or why that can't be known."""
     if not record.is_file():
@@ -113,7 +115,8 @@ def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | str:
         decided: dict[str, str] = used.get("decisions", {})
         if "building" not in decided.values():
             return Polygon()  # none confirmed: no survey is needed to say so
-        found = None if survey is None else Survey.read(survey)
+        path = survey()
+        found = None if path is None else Survey.read(path)
         if found is None or used.get("survey_id") != found.id:
             return "the survey has changed since the design was checked"
         kept = [

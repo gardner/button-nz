@@ -198,7 +198,7 @@ def _design_map_router(store: Store, worker: Worker, where: Where) -> APIRouter:
         if job.accepted_attempt is None:
             raise HTTPException(409, f"design {job_id} has no accepted attempt to map")
         attempt = _attempt_dir(worker, job, job.accepted_attempt)
-        return design_layers(attempt, where.survey(job))
+        return design_layers(attempt, lambda: where.survey(job))
 
     return router
 
