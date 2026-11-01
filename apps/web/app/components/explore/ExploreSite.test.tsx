@@ -429,8 +429,9 @@ describe("a ready site", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(map.pitch).toBe(0);
     expect(map.layers.has("design-walls-extrusion")).toBe(false);
-    expect(map.layers.has("site-canopy-extrusion")).toBe(false);
-    expect(map.layers.has("site-standing-buildings-extrusion")).toBe(false);
+    // The standing layers stay, empty, so they keep their place.
+    expect(drawn("site-canopy")).toBe(0);
+    expect(drawn("site-standing-buildings")).toBe(0);
   });
 
   it("calls a design asked for before a survey change outdated, even if it answers after", async () => {
@@ -552,6 +553,26 @@ describe("a ready site", () => {
     render(<Explore pollMs={5} />);
     expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
     await vi.waitFor(() => expect(FakeMap.last?.pitch).toBe(60));
+  });
+
+  it("keeps the picked feature's outline above the buildings and trees standing in 3D", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-selected-line")).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    const order = FakeMap.last?.order ?? [];
+    expect(order.indexOf("site-canopy-extrusion")).toBeGreaterThan(-1);
+    expect(order.indexOf("site-selected-line")).toBeGreaterThan(
+      order.indexOf("site-canopy-extrusion"),
+    );
   });
 
   it("doesn't open a design linked from another site", async () => {

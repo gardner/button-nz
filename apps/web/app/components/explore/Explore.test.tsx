@@ -48,6 +48,16 @@ afterEach(() => {
   window.history.replaceState(null, "", "/"); // a site picked writes ?site=
 });
 
+/** The options of each fit to the ready site, oldest first. */
+function siteFits(): unknown[] {
+  const map = FakeMap.last;
+  if (!map) return [];
+  return map.fitOptions.filter(
+    (_, i) =>
+      JSON.stringify(map.fitted[i]) === JSON.stringify(SITE_READY.bounds),
+  );
+}
+
 describe("Explore", () => {
   it("shows the town's sections, coloured, and its headline counted from them", async () => {
     serve({ "GET /api/town/reefton": [TOWN] });
@@ -111,10 +121,8 @@ describe("Explore", () => {
       });
       window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
       render(<Explore pollMs={5} />);
-      await vi.waitFor(() => expect(FakeMap.last?.fitOptions.length).toBe(1));
-      const options = FakeMap.last?.fitOptions[0] as {
-        padding: Record<string, number>;
-      };
+      await vi.waitFor(() => expect(siteFits()).toHaveLength(1));
+      const options = siteFits()[0] as { padding: Record<string, number> };
       cleanup();
       FakeMap.last = null; // the next page's map is a new one
       window.history.replaceState(null, "", "/");
@@ -138,7 +146,10 @@ describe("Explore", () => {
     expect(
       await screen.findByText(/sections have room for a real prefab/),
     ).toBeTruthy();
-    await vi.waitFor(() => expect(FakeMap.last?.fitted).toEqual([REEFTON]));
+    // Once as the map opens, again with the headline in the panel.
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.fitted).toEqual([REEFTON, REEFTON]),
+    );
   });
 
   it("frames the site again when the map changes shape", async () => {
@@ -148,13 +159,10 @@ describe("Explore", () => {
     });
     window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
     render(<Explore pollMs={5} />);
-    await vi.waitFor(() => expect(FakeMap.last?.fitOptions.length).toBe(1));
+    await vi.waitFor(() => expect(siteFits()).toHaveLength(1));
     act(() => FakeMap.last?.fire("resize")); // the map has taken its new size
-    expect(FakeMap.last?.fitted).toEqual([
-      SITE_READY.bounds,
-      SITE_READY.bounds,
-    ]);
-    expect(FakeMap.last?.fitOptions[1]).toMatchObject({ duration: 0 });
+    expect(siteFits()).toHaveLength(2);
+    expect(siteFits()[1]).toMatchObject({ duration: 0 });
   });
 
   it("stands the town's buildings up in 3D, and lays them down in 2D", async () => {
@@ -188,6 +196,46 @@ describe("Explore", () => {
     fireEvent.click(screen.getByRole("button", { name: "2D" }));
     expect(map.layers.has("town-buildings-extrusion")).toBe(false);
     await vi.waitFor(() => expect(map.pitch).toBe(0));
+  });
+
+  it("tilts the town when 3D is chosen before the town has loaded", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((r) => (answer = r))),
+    );
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(FakeMap.last).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    answer(respond(TOWN));
+    expect(
+      await screen.findByText(/sections have room for a real prefab/),
+    ).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(FakeMap.last?.pitch).toBe(60);
+  });
+
+  it("goes back to the town while a newly picked site builds", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      [`GET /api/sites/${SITE_READY.id}`]: [SITE_READY],
+      "GET /api/addresses": [ADDRESSES],
+      "POST /api/sites": [{ ...SITE_BUILDING, id: "addr-42" }],
+    });
+    window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.landed.at(-1)).toEqual(SITE_READY.bounds),
+    );
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /35 Victory Road, Laingholm/ }),
+    );
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.landed.at(-1)).toEqual(REEFTON),
+    );
   });
 
   it("asks again for the town when it fails for a moment, but not when refused", async () => {

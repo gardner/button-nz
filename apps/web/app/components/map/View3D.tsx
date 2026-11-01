@@ -19,25 +19,6 @@ export const OWN_HEIGHT: ExpressionSpecification = [
   ["get", "baseM"],
 ];
 
-/** Tilts the surrounding map for 3D, closer in to at least `zoom` if given
- * (buildings a few metres tall need it), or lays it flat, north up, for 2D. */
-export function Tilt({ three, zoom }: { three: boolean; zoom?: number }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!map) return;
-    const closer =
-      zoom === undefined ? {} : { zoom: Math.max(map.getZoom(), zoom) };
-    map.easeTo(
-      three
-        ? { pitch: PITCH_3D, duration: 1500, ...closer }
-        : { pitch: 0, bearing: 0, duration: 1200 },
-    );
-    // Tilt when the view changes, not when the zoom wanted does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, three]);
-  return null;
-}
-
 const STOP = ["mousedown", "touchstart", "wheel", "dragstart"] as const;
 
 /** Flies to `bounds`, tilted, then turns slowly round them until the map is

@@ -3,6 +3,7 @@
 import {
   type DesignMap,
   type SiteMap,
+  EMPTY_SITE_MAP,
   type SurveyedFeature,
   measured,
 } from "@/lib/siteMap";
@@ -133,7 +134,9 @@ export function SiteLayers({
         }}
         onClick={onFeature}
       />
-      {three && <Standing map={map} />}
+      {/* Always mounted (empty in 2D), so its layers stay under the
+          picked feature's outline whenever 3D comes on. */}
+      <Standing map={three ? map : EMPTY_SITE_MAP} />
       <GeoLayer
         id="site-selected"
         data={picked}
