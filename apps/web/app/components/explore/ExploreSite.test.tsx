@@ -500,6 +500,33 @@ describe("a ready site", () => {
     expect(screen.queryByText(/Could not open design gone1/)).toBeNull();
   });
 
+  it("says which check the design's map couldn't draw, and why", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": {
+        ...DESIGN_MAP,
+        unknown: [
+          {
+            check: "building_separation",
+            reason:
+              "the design has no record of the survey it was checked against",
+          },
+        ],
+      },
+    });
+    render(<Explore pollMs={5} />);
+    expect(
+      await screen.findByText(
+        "2 m from buildings isn't drawn: the design has no record of the survey it was checked against.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

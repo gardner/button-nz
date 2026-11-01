@@ -10,6 +10,7 @@ import type { SiteState } from "@/lib/sites";
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
+import { checkLabel } from "./AttemptRow";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
@@ -62,7 +63,10 @@ export function ReadySite({
       />
       <SiteHeader
         address={site.address}
-        problems={problemsOf(siteMap.problem, designMap.problem, outdated)}
+        problems={[
+          ...problemsOf(siteMap.problem, designMap.problem, outdated),
+          ...undrawn(accepted ? designMap.map : null),
+        ]}
       />
       <SurveyPanel
         control={survey}
@@ -139,6 +143,13 @@ function problemsOf(
     outdated &&
       "The survey changed after this design was checked, so its checks may no longer hold. Ask for a change to check it again.",
   ].filter((p): p is string => Boolean(p));
+}
+
+/** The checks the design's map couldn't draw, each with why. */
+function undrawn(map: DesignMap | null): string[] {
+  return (map?.unknown ?? []).map(
+    (u) => `${checkLabel(u.check)} isn't drawn: ${u.reason}.`,
+  );
 }
 
 /** How far the shown design has got, for the stepper. */
