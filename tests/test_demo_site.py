@@ -112,3 +112,45 @@ def test_capture_must_start_before_it_ends(site_dir: Path) -> None:
     _edit(site_dir, ("rasters", "dsm", "capture", "end"), "2019-01-01T00:00:00Z")
     with pytest.raises(ValueError, match="dsm"):
         load_demo_site(site_dir)
+
+
+def _as_built(site_dir: Path) -> None:
+    """The demo manifest as the site builder writes one: rasters joined from
+    their tiles into local files, and no valuation number."""
+    path = site_dir / "site.json"
+    manifest: Any = json.loads(path.read_text(encoding="utf-8"))
+    manifest["valuation_number"] = None
+    for key in ("dem", "dsm", "aerial", "aerial_rural"):
+        raster = manifest["rasters"][key]
+        raster["tiles"] = [raster.pop("asset")]
+        raster.pop("tile")
+        raster["asset"] = f"{key}.tif"
+        (site_dir / f"{key}.tif").write_bytes(b"joined")
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_a_built_site_reads_its_local_rasters_and_lists_their_tiles(site_dir: Path) -> None:
+    _as_built(site_dir)
+    site = load_demo_site(site_dir)
+    assert site.valuation_number is None
+    dem = site.rasters["dem"]
+    assert dem.asset == str(site_dir / "dem.tif")
+    assert dem.tile is None
+    assert dem.tiles == (
+        "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0503.tiff",
+    )
+
+
+def test_a_built_raster_must_exist_beside_the_manifest(site_dir: Path) -> None:
+    _as_built(site_dir)
+    (site_dir / "dsm.tif").unlink()
+    with pytest.raises(ValueError, match="dsm"):
+        load_demo_site(site_dir)
+
+
+def test_a_built_rasters_tiles_must_cover_the_site(site_dir: Path) -> None:
+    _as_built(site_dir)
+    north = "https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0403.tiff"
+    _edit(site_dir, ("rasters", "dem", "tiles"), [north])
+    with pytest.raises(ValueError, match="dem: its tiles don't cover"):
+        load_demo_site(site_dir)

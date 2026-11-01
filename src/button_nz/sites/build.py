@@ -1,0 +1,313 @@
+"""Build a site to design on from any LINZ address, out of national open data:
+
+1. **parcels:** the address point, the LINZ primary parcel under it, every
+   parcel on the same record(s) of title, and the LINZ building outlines
+   around them;
+2. **terrain:** the newest 1 m DEM and DSM that both cover the site
+   (``sites.stac``), joined from their tiles into one file each;
+3. **aerial:** the region's best recent aerial over the same ground;
+4. **survey:** SAM 3.1 on the aerial, checked against the LiDAR
+   (``perception.survey``).
+
+Each step's output is written to the site's directory, and the manifest
+(``site.json``, read by ``demo_site.load_demo_site``) last, so a site with a
+manifest is whole. A site the data can't support says why: ``SiteError`` for
+a failure, or ``NoLidar`` where no LiDAR covers it. Nothing is ever filled in.
+"""
+
+import io
+import json
+import math
+import re
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, cast
+
+import numpy as np
+from numpy.typing import NDArray
+from PIL import Image
+from shapely import Point as ShapelyPoint
+from shapely import Polygon, union_all
+from shapely.geometry import shape
+
+from button_nz.geo.arcgis import Feature, FeatureLayer
+from button_nz.geo.geometry import BBox, Point, Ring, bounds
+from button_nz.geo.property import LINZ, find_address
+from button_nz.geo.terrain import TerrainGrid, read_terrain
+from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
+from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
+
+MAX_PARCELS = 12
+MAX_SIDE_M = 200.0  # a site wider or taller than this is more than a section
+TERRAIN_MARGIN_M = 25.0  # read past the site: the design scene's margin is 20 m
+TITLE = r"[0-9A-Za-z/]+"
+
+type Join = Callable[[Sequence[str], BBox, Path], Path]
+type ReadAerial = Callable[[Sequence[str], BBox, float], NDArray[np.uint8]]
+
+
+class SiteError(RuntimeError):
+    """The open data can't make a site here, and why."""
+
+
+class NoLidar(SiteError):
+    """No LiDAR DEM and DSM cover the whole site."""
+
+
+@dataclass(frozen=True)
+class Sources:
+    addresses: FeatureLayer  # LINZ NZ Addresses
+    parcels: FeatureLayer  # LINZ NZ Primary Parcels
+    buildings: FeatureLayer  # LINZ NZ Building Outlines
+    catalogues: Catalogues
+    segment: Segment  # SAM 3.1
+    join: Join  # tiles into one raster (``town.lidar.mosaic``)
+    read_aerial: ReadAerial  # ``geo.imagery.read_aerial``
+
+
+@dataclass(frozen=True)
+class Title:
+    address: str
+    point: Point
+    titles: tuple[str, ...]
+    parcels: tuple[Feature, ...]
+    extent: BBox
+
+
+def build_site(
+    address_id: int, directory: Path, sources: Sources, step: Callable[[str], None]
+) -> None:
+    """Build the site at LINZ address ``address_id`` into ``directory``,
+    telling ``step`` which step it is on."""
+    directory.mkdir(parents=True, exist_ok=True)
+    step("parcels")
+    title = find_title(sources, address_id)
+    _write(directory / "parcels.geojson", _parcels_file(title))
+    outlines = sources.buildings.in_envelope(_grown(title.extent, TERRAIN_MARGIN_M))
+    _write(directory / "buildings.geojson", outlines_collection(outlines.features))
+    step("terrain")
+    dem, dsm, grid = _terrain(title.extent, directory, sources)
+    step("aerial")
+    aerial, aerial_tiles, photo = _aerial(dem.region, grid, title.extent, sources)
+    (directory / "aerial.png").write_bytes(photo)
+    step("survey")
+    site = union_all([Polygon(_ring(f)) for f in title.parcels])
+    found = survey(sources.segment, aerial_pixels(photo), grid, grid.bbox, PIXEL_M, within=site)
+    write_survey(directory, found, _survey_meta(aerial, grid))
+    manifest = _manifest(address_id, title, (dem, dsm, aerial), aerial_tiles, sources)
+    manifest["aerial_bbox"] = list(grid.bbox)  # what aerial.png covers, at PIXEL_M
+    _write(directory / "site.json", manifest)
+
+
+def find_title(sources: Sources, address_id: int) -> Title:
+    """The address, and every parcel on the record(s) of title under its point."""
+    address = find_address(sources.addresses, address_id).value
+    point = ShapelyPoint(address.point)
+    under = [f for f in sources.parcels.near(address.point, 0.0).features if _holds(f, point)]
+    titles = tuple(sorted({t for f in under for t in _titles(f)}))
+    if not titles:
+        raise SiteError(f"{address.full_address} isn't on a parcel with a record of title")
+    parcels = _on_titles(sources.parcels, titles)
+    extent = bounds([pt for f in parcels for pt in _ring(f)])
+    if len(parcels) > MAX_PARCELS or max(extent[2] - extent[0], extent[3] - extent[1]) > MAX_SIDE_M:
+        raise SiteError(
+            f"title {', '.join(titles)} is {len(parcels)} parcels over "
+            f"{extent[2] - extent[0]:.0f} x {extent[3] - extent[1]:.0f} m: more than a section "
+            f"(at most {MAX_PARCELS} parcels within {MAX_SIDE_M:g} m)"
+        )
+    return Title(address.full_address, address.point, titles, tuple(parcels), extent)
+
+
+def _on_titles(layer: FeatureLayer, titles: Sequence[str]) -> list[Feature]:
+    found: dict[int, Feature] = {}
+    for title in titles:
+        for feature in layer.where(f"titles LIKE '%{title}%'").features:
+            if title in _titles(feature):  # LIKE '%1%' also finds 10 and 21
+                found[int(_props(feature)["id"])] = feature
+    return [found[k] for k in sorted(found)]
+
+
+def _terrain(
+    extent: BBox, directory: Path, sources: Sources
+) -> tuple[Collection, Collection, TerrainGrid]:
+    reach = _grown(extent, TERRAIN_MARGIN_M)
+    pairs = lidar_pairs(sources.catalogues.lidar_index(), reach)
+    if not pairs:
+        raise NoLidar("no LINZ 1 m LiDAR DEM and DSM both cover this site")
+    gaps: list[str] = []
+    for dem, dsm in pairs:  # newest first: an edge tile can be empty over the site
+        for collection, name in ((dem, "dem.tif"), (dsm, "dsm.tif")):
+            tiles = cast("list[str]", collection.tiles_for(reach))
+            sources.join(tiles, reach, directory / name)
+        try:
+            grid = read_terrain(str(directory / "dem.tif"), str(directory / "dsm.tif"), extent)
+        except ValueError as error:
+            gaps.append(f"{dem.title}: {error}")
+            continue
+        return dem, dsm, grid
+    raise NoLidar(f"every LiDAR survey listing this site has gaps over it: {'; '.join(gaps)}")
+
+
+def _aerial(
+    region: str, grid: TerrainGrid, extent: BBox, sources: Sources
+) -> tuple[Collection, list[str], bytes]:
+    """The best aerial over the LiDAR's ground, and the photo of it to serve
+    and survey (``grid.bbox`` at ``PIXEL_M``), as PNG."""
+    found = sources.catalogues.aerial_for(region, grid.bbox)
+    if found is None:
+        raise SiteError(f"no aerial photo in {region} at 0.3 m or finer since 2015 covers it")
+    collection, tiles = found
+    pixels = sources.read_aerial(tiles, grid.bbox, PIXEL_M)
+    buffer = io.BytesIO()
+    Image.fromarray(pixels, "RGB").save(buffer, format="PNG")
+    return collection, tiles, buffer.getvalue()
+
+
+def aerial_pixels(png: bytes) -> NDArray[np.uint8]:
+    with Image.open(io.BytesIO(png)) as image:
+        return np.asarray(image.convert("RGB"), dtype=np.uint8)
+
+
+def _grown(extent: BBox, margin_m: float) -> BBox:
+    west, south, east, north = extent
+    return (
+        float(math.floor(west - margin_m)),
+        float(math.floor(south - margin_m)),
+        float(math.ceil(east + margin_m)),
+        float(math.ceil(north + margin_m)),
+    )
+
+
+def _manifest(
+    address_id: int,
+    title: Title,
+    rasters: tuple[Collection, Collection, Collection],
+    aerial_tiles: Sequence[str],
+    sources: Sources,
+) -> dict[str, Any]:
+    dem, dsm, aerial = rasters
+    reach = _grown(title.extent, TERRAIN_MARGIN_M)
+    open_items = ["What stands on the site: the survey's features wait for the owner's word."]
+    if len(title.parcels) > 1:
+        open_items.append(
+            "Whether the lines between the title's parcels are legal boundaries "
+            "(the evaluator reports them as unknown)."
+        )
+    return {
+        "name": title.address,
+        "title": ", ".join(title.titles),
+        "valuation_number": None,
+        "address": {"linz_address_id": address_id, "nztm": list(title.point)},
+        "parcels_file": "parcels.geojson",
+        "parcel_ids": [int(_props(f)["id"]) for f in title.parcels],
+        "extent": {"nztm": list(title.extent)},
+        "rasters": {
+            "dem": _raster(dem, cast("list[str]", dem.tiles_for(reach)), "dem.tif"),
+            "dsm": _raster(dsm, cast("list[str]", dsm.tiles_for(reach)), "dsm.tif"),
+            "aerial": _raster(aerial, aerial_tiles, "aerial.png"),
+        },
+        "vectors": {
+            "parcels": _vector("LINZ NZ Primary Parcels", sources.parcels.url),
+            "building_outlines": _vector("LINZ NZ Building Outlines", sources.buildings.url),
+        },
+        "open_items": open_items,
+        "built_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _raster(collection: Collection, tiles: Sequence[str], asset: str) -> dict[str, Any]:
+    return {
+        "title": collection.title,
+        "collection": collection.url,
+        "tiles": list(tiles),
+        "asset": asset,
+        "resolution_m": collection.gsd_m,
+        "capture": {"start": collection.start, "end": collection.end},
+        "licence": collection.licence,
+        "attribution": ", ".join(collection.providers),
+    }
+
+
+def _vector(title: str, service: str) -> dict[str, str]:
+    return {"title": title, "service": service, "licence": "CC-BY-4.0", "attribution": LINZ}
+
+
+def _survey_meta(aerial: Collection, grid: TerrainGrid) -> dict[str, Any]:
+    return {
+        "model": "sam-3.1",
+        "concepts": list(CONCEPTS),
+        "aerial": {"title": aerial.title, "captured": [aerial.start, aerial.end]},
+        "lidar": grid.sources,
+        "surveyed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _parcels_file(title: Title) -> dict[str, Any]:
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "parcel_id": int(_props(f)["id"]),
+                    "appellation": str(_props(f).get("appellation") or ""),
+                    "survey_area_m2": float(_props(f).get("survey_area") or 0.0),
+                },
+                "geometry": {"type": "Polygon", "coordinates": [[list(p) for p in _ring(f)]]},
+            }
+            for f in title.parcels
+        ],
+    }
+
+
+def outlines_collection(features: Sequence[Feature]) -> dict[str, Any]:
+    """LINZ building outlines as an NZTM FeatureCollection, as LINZ draws them
+    (a courtyard building keeps its hole)."""
+    return {
+        "type": "FeatureCollection",
+        "crs": "EPSG:2193",
+        "features": [
+            {
+                "type": "Feature",
+                "id": str(_props(f).get("building_id", "")),
+                "properties": {"capture_source": _props(f).get("capture_source_name")},
+                "geometry": f["geometry"],
+            }
+            for f in features
+            if f.get("geometry")
+        ],
+    }
+
+
+def _titles(feature: Feature) -> list[str]:
+    raw = str(_props(feature).get("titles") or "")
+    return [t.strip() for t in raw.split(",") if _is_title(t.strip())]
+
+
+def _is_title(value: str) -> bool:
+    return re.fullmatch(TITLE, value) is not None
+
+
+def _holds(feature: Feature, point: ShapelyPoint) -> bool:
+    geometry = cast("dict[str, Any] | None", feature.get("geometry"))
+    return geometry is not None and shape(geometry).covers(point)
+
+
+def _ring(feature: Feature) -> Ring:
+    geometry = cast("dict[str, Any]", feature["geometry"])
+    if geometry.get("type") != "Polygon":
+        raise SiteError(f"parcel {_props(feature).get('id')} isn't a simple polygon")
+    rings = cast("list[list[list[float]]]", geometry["coordinates"])
+    return tuple((float(x), float(y)) for x, y, *_ in rings[0])
+
+
+def _props(feature: Feature) -> dict[str, Any]:
+    return cast("dict[str, Any]", feature["properties"])
+
+
+def _write(path: Path, body: dict[str, Any]) -> None:
+    partial = path.with_suffix(".tmp")
+    partial.write_text(json.dumps(body, indent=1), encoding="utf-8")
+    partial.replace(path)

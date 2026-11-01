@@ -31,6 +31,7 @@ def test_the_address_matches_the_manifest(layers: PropertyLayers) -> None:
 
 def test_the_parcels_match_the_manifest(layers: PropertyLayers) -> None:
     site = load_demo_site()
+    assert site.valuation_number is not None  # Buller's rating data names it
     found = parcels_for_valuation(layers.parcels, site.valuation_number)
     assert sorted(p.parcel_id for p in found.value) == sorted(p.parcel_id for p in site.parcels)
 
