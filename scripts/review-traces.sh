@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Download, decrypt and summarise the CI reviewer's latest transcripts, for
+# Download, decrypt and summarise the CI reviewers' latest transcripts (Claude's
+# and GLM's, from claude-review.yml and zai-review.yml), for
 # retrospectives on the review process. Needs the "button-nz CI review traces"
 # private key in the local GPG keyring. Decrypted transcripts stay in <out-dir>.
 set -euo pipefail
@@ -15,7 +16,8 @@ scripts_dir="$(cd "$(dirname "$0")" && pwd)"
 artifacts="$(gh api --paginate --slurp 'repos/{owner}/{repo}/actions/artifacts?per_page=100' \
   | jq -r '
     [.[].artifacts[]]
-    | map(select((.expired | not) and (.name | startswith("claude-review-trace"))
+    | map(select((.expired | not)
+        and ((.name | startswith("claude-review-trace")) or (.name | startswith("zai-review-trace")))
         and .workflow_run.head_repository_id == .workflow_run.repository_id))
     | sort_by(.created_at) | reverse
     | .[] | "\(.workflow_run.id) \(.name)"')"
@@ -28,7 +30,8 @@ fi
 while read -r run name; do
   dir="$out/$run-$name"
   gh run download "$run" --name "$name" --dir "$dir"
-  gpg --batch --quiet --decrypt "$dir/claude-review-trace.json.gpg" > "$dir/trace.json"
+  reviewer="${name%-trace-*}" # claude-review or zai-review: the file inside is named for it
+  gpg --batch --quiet --decrypt "$dir/$reviewer-trace.json.gpg" > "$dir/trace.json"
   printf '# Run %s (%s)\n\n' "$run" "$name"
   # A review that never inspected the diff (exit 3) fails the CI check; here it is
   # just reported. Any other failure is a real error and stops the script.

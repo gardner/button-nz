@@ -37,12 +37,7 @@ jobs:
     # fails and no review happens (run 41248689110). 24.04 is the image the
     # sandbox setup below was verified on.
     runs-on: ubuntu-24.04
-    timeout-minutes: 45 # GLM can be slow; API_TIMEOUT_MS below allows for it
-    env:
-      ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
-      ANTHROPIC_AUTH_TOKEN: ${{ secrets.ZAI_API_KEY }}
-      API_TIMEOUT_MS: "3000000"
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    timeout-minutes: 45 # GLM can be slow
 
     steps:
       - name: Check out repository
@@ -78,6 +73,15 @@ jobs:
       - name: Review the pull request
         id: review
         uses: anthropics/claude-code-action@v1.0.264
+        # Only this step has the Z.ai key: not the steps that run the PR's own
+        # scripts before it, nor the apt install.
+        env:
+          ANTHROPIC_BASE_URL: https://api.z.ai/api/anthropic
+          ANTHROPIC_AUTH_TOKEN: ${{ secrets.ZAI_API_KEY }}
+          # Per request: well inside the job's 45 minutes, so a stuck request
+          # fails the review rather than the job's timeout cutting it off.
+          API_TIMEOUT_MS: "600000"
+          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
         with:
           # The action requires an Anthropic key; the Z.ai key stands in for it
           # (ANTHROPIC_BASE_URL above sends every request to Z.ai).
