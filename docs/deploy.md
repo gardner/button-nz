@@ -10,7 +10,7 @@ rewrite.
 
 | | What it does | Where |
 |---|---|---|
-| Access code | Every page and `/api` request needs it. A link with `?code=` sets an HttpOnly, Secure cookie and drops the code from the address; anything else gets a 401 page. | `apps/web/proxy.ts`, `lib/access.ts` |
+| Access code | If `BUTTON_ACCESS_CODE` is set, every page and `/api` request needs it. A link with `?code=` sets an HttpOnly, Secure cookie and drops the code from the address; anything else gets a 401 page. Empty, the app is open to anyone. | `apps/web/proxy.ts`, `lib/access.ts` |
 | Daily cap | At most `BUTTON_DAILY_DESIGNS` design runs, originals and revisions, start in any 24 hours. One past it is refused (429, with when the next frees up), never queued. Each run is Meta Model API calls and a GPU Blender run. | `serve --daily-designs`, `api/limits.py` |
 | Fixed survey | The survey is served with who decided it, and changes to it are refused (403), so one visitor can't change what everyone's designs are checked against. Left empty, the survey stays open for the owner to decide in the app first. | `serve --survey-decided-by`, `api/features.py` |
 | Design links | `/?design=<id>` opens that design and the designs it revises; the address bar follows the design on show. A judge can open a finished design at once. | `useDesignChain.ts` |
@@ -18,7 +18,10 @@ rewrite.
 Run locally, as in the README, none of these is on.
 
 An empty `BUTTON_ACCESS_CODE` serves the app to anyone, as button.nz is served
-for judging: the daily cap then bounds what all visitors can spend together.
+for judging. The daily cap and the fixed survey are then the only limits: the
+cap bounds what all visitors can spend together. Set
+`BUTTON_SURVEY_DECIDED_BY` before emptying the code, or anyone can change the
+survey.
 
 ## Install
 
@@ -68,19 +71,19 @@ scripts/deploy/check.sh https://button.<domain> "$BUTTON_ACCESS_CODE" [DESIGN_ID
 
 This checks:
 
-- that the page, the API and a wrong code are refused;
-- that the code's link sets the cookie;
+- with a code: that the page, the API and a wrong code are refused, and that
+  the code's link sets the cookie;
 - that the page and the site load;
 - that the survey is fixed;
 - if a design is given, that it is done.
 
-It ends by printing the link to submit:
-`https://button.<domain>/?design=<id>&code=<code>`.
+It ends by printing the link to submit: `https://button.<domain>/?design=<id>`,
+with `&code=<code>` when there is a code.
 
 ## What is exposed
 
-Through the tunnel, only the web app is reachable, and only with the code.
-Behind it, the API serves:
+Through the tunnel, only the web app is reachable: only with the code if one
+is set, by anyone if not (as on button.nz). Behind it, the API serves:
 
 - the demo site;
 - its fixed survey;
