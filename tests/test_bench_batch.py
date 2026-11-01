@@ -129,3 +129,24 @@ def test_a_visual_that_never_finishes_is_not_made_and_the_design_is_kept(monkeyp
     still: dict[str, Any] = {"id": "j", "illustrating": True, "attempts": [], "accepted_attempt": 1}
     client = _visual_client(still)
     assert batch_run._visual(client, still) == "not made"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_an_api_failure_stops_the_run_with_the_section_left_to_retry(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from button_nz.bench import batch_run
+
+    def down(*_: Any) -> dict[str, Any]:
+        raise httpx.ConnectError("[Errno 111] Connection refused")
+
+    monkeypatch.setattr(batch_run, "_one", down)
+
+    def no_layers(_: object) -> None:
+        return None
+
+    monkeypatch.setattr(batch_run, "LiveLayers", no_layers)
+    earlier = tmp_path / "earlier.jsonl"
+    earlier.write_text(json.dumps({"parcel_id": 7, "brief": "b"}) + "\n", encoding="utf-8")
+    out = tmp_path / "out"
+    batch_run.run_batch("http://api", "reefton", 1, out, earlier)
+    assert not (out / "results.jsonl").exists() or (out / "results.jsonl").read_text() == ""

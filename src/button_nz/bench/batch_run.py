@@ -55,11 +55,14 @@ def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = 
             continue
         try:
             result = _one(client, layers, parcel_id, brief)
-        except CapReached as error:
+        except (CapReached, httpx.HTTPError, TimeoutError) as error:
+            # The cap, or the API or network failing: stop with nothing written
+            # for this section, so running again retries it.
             print(f"stopped: {error}")
             break
-        except (httpx.HTTPError, TimeoutError, LookupError, SiteError, ArcGISError) as error:
-            # One section's failure is recorded, and the run goes on.
+        except (LookupError, SiteError, ArcGISError) as error:
+            # Something about this section's own data (no title, no road, LINZ
+            # refusing it): recorded, and the run goes on.
             result = {"parcel_id": parcel_id, "brief": brief, "outcome": f"error: {error}"}
         _write(out, result)
         print(f"{parcel_id}: {result.get('outcome')}")
@@ -224,4 +227,5 @@ def _report(out: Path) -> None:
             f"| {r.get('attempts', '')} "
             f"| {r.get('rectangle', '')} | {r.get('street_m', '')} |"
         )
+    out.mkdir(parents=True, exist_ok=True)  # a run stopped before its first row
     (out / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
