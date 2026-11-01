@@ -30,6 +30,27 @@ describe("PrefabsMeanwhile", () => {
     expect(link.getAttribute("href")).toBe(first.url);
   });
 
+  it("doesn't call unlabelled figures a footprint, nor an unpublished price 'on request'", async () => {
+    const unlabelled = {
+      ...PRODUCTS.fits[0],
+      id: "unlabelled",
+      placeable: false, // its figures aren't labelled, or only bound its plan
+      price_nzd: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && [unlabelled]))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [item] = await screen.findAllByRole("listitem");
+    expect(item.textContent).not.toContain(" × ");
+    expect(item.textContent).toContain("size not published as a footprint");
+    expect(item.textContent).toContain("price not published");
+    expect(item.textContent).not.toContain("on request");
+  });
+
   it("says when the catalogue couldn't load, rather than showing nothing", async () => {
     vi.stubGlobal(
       "fetch",

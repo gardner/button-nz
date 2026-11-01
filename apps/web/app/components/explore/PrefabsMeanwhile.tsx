@@ -12,8 +12,9 @@ const NZD = new Intl.NumberFormat("en-NZ", {
 });
 
 /** While a design is made: the real prefab catalogue to browse, each with
- * its size, bedrooms and published price, and the supplier's own page. Only
- * words and figures: the suppliers' photos are theirs, not ours to show. */
+ * its size (where published as a footprint), bedrooms and published price,
+ * and the supplier's own page. Only words and figures: the suppliers' photos
+ * are theirs, not ours to show. */
 export function PrefabsMeanwhile() {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -55,12 +56,12 @@ export function PrefabsMeanwhile() {
                 {p.model}
               </a>{" "}
               <span className="text-zinc-400">
-                · {p.supplier} · {p.lengthM} × {p.widthM} m · {p.bedrooms} bed
+                · {p.supplier} · {sizeOf(p)} · {p.bedrooms} bed
               </span>
             </span>
             <span className="shrink-0 tabular-nums text-zinc-300">
               {p.priceNzd === null
-                ? "price on request"
+                ? "price not published"
                 : NZD.format(p.priceNzd)}
             </span>
           </li>
@@ -68,4 +69,12 @@ export function PrefabsMeanwhile() {
       </ul>
     </section>
   );
+}
+
+/** Its outside footprint, where the supplier's figures are one: labelled,
+ * and a rectangle rather than the box round a stepped plan (`placeable`). */
+function sizeOf(p: Product): string {
+  return p.placeable
+    ? `${p.lengthM} × ${p.widthM} m`
+    : "size not published as a footprint";
 }
