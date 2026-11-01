@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SITE_BUILDING, SITE_READY } from "@/lib/fixtures-sites";
@@ -9,7 +9,10 @@ function respond(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup(); // an earlier test's hook would go on polling
+  vi.unstubAllGlobals();
+});
 
 const OTHER = {
   ...SITE_BUILDING,
@@ -55,6 +58,33 @@ describe("useSite", () => {
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
     expect(result.current.problem).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(3);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("stops asking for a linked site once the person picks their own", async () => {
+    window.history.replaceState(null, "", "/?site=addr-1907458");
+    const fetch = vi.fn((url: string, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === "POST"
+          ? respond(OTHER, 202)
+          : url.endsWith("/sites/addr-1907458")
+            ? respond({ detail: "the API is restarting" }, 502)
+            : respond(OTHER, 202),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const linked = () =>
+      fetch.mock.calls.filter(([url]) =>
+        String(url).endsWith("/sites/addr-1907458"),
+      ).length;
+    const { result } = renderHook(() => useSite(20));
+    await waitFor(() => expect(result.current.problem).toContain("restarting"));
+    act(() => result.current.fromAddress(42));
+    const asked = linked();
+    await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));
+    await new Promise((r) => setTimeout(r, 100)); // several retries' worth
+    expect(result.current.site?.id).toBe("addr-42");
+    expect(linked()).toBe(asked);
     window.history.replaceState(null, "", "/");
   });
 
