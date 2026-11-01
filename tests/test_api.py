@@ -48,6 +48,7 @@ class ScriptedModel:
 
 def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "scene.json").write_text(json.dumps(scene), encoding="utf-8")  # as run.py does
     png, mask = out_dir / "design.png", out_dir / "dwelling-mask.png"
     png.write_bytes(b"\x89PNG design")
     mask.write_bytes(b"\x89PNG mask")

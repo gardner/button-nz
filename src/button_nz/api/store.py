@@ -86,6 +86,7 @@ class Job:
     parent_id: str | None = None  # the design this one revises
     instruction: str | None = None  # the owner's change, in their own words
     product: Placed | None = None  # the catalogue product it places, as it was then
+    site_id: str | None = None  # the site it is designed on; None: the demo site
 
 
 @dataclass(frozen=True)
@@ -113,12 +114,13 @@ class Store:
         parent_id: str | None = None,
         instruction: str | None = None,
         product: Placed | None = None,
+        site_id: str | None = None,
     ) -> Job:
         job_id = uuid.uuid4().hex
         with self._db() as db:
             db.execute(
                 "INSERT INTO jobs (id, brief, allow_observations, status, created_at, "
-                "parent_id, instruction, product) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "parent_id, instruction, product, site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     brief,
@@ -128,6 +130,7 @@ class Store:
                     parent_id,
                     instruction,
                     None if product is None else json.dumps(asdict(product)),
+                    site_id,
                 ),
             )
         return self.get_job(job_id)
@@ -294,6 +297,7 @@ ADDED_COLUMNS = {  # added after the first release: present in new databases, ad
     "parent_id": "TEXT REFERENCES jobs (id)",
     "instruction": "TEXT",
     "product": "TEXT",  # the Placed product, as JSON
+    "site_id": "TEXT",  # None for jobs made before sites: the demo site
 }
 
 
@@ -327,4 +331,5 @@ def _job(row: sqlite3.Row) -> Job:
         parent_id=row["parent_id"],
         instruction=row["instruction"],
         product=None if row["product"] is None else Placed(**json.loads(row["product"])),
+        site_id=row["site_id"],
     )
