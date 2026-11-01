@@ -121,10 +121,6 @@ const JOB_STATUSES: readonly JobStatus[] = [
 ];
 const VERDICTS: readonly Verdict[] = ["pass", "fail", "unknown", "error"];
 
-export async function getSite(): Promise<Site> {
-  return parseSite(await request("/site"));
-}
-
 /** Queue a design for `brief`; with `productId`, it places that product. */
 export async function createDesign(
   brief: string,

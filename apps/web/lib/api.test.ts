@@ -6,7 +6,6 @@ import {
   decideFeature,
   getDesign,
   getFeatures,
-  getSite,
   parseJob,
   parseSite,
   reviseDesign,
@@ -225,8 +224,7 @@ describe("the client", () => {
         url: "/site/aerial.png",
       },
     };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respond(site)));
-    const parsed = await getSite();
+    const parsed = parseSite(site);
     expect(parsed.aerial).toEqual({
       bbox: [1505916, 5336767, 1505980, 5336833],
       url: "/api/site/aerial.png", // through the proxy

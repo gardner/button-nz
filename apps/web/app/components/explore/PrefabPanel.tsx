@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { getProducts } from "@/lib/api";
 import type { Product, Products } from "@/lib/products";
 
-import { NextSteps } from "../ProductsPanel";
+import { NextSteps } from "./NextSteps";
 
 const PRICE = new Intl.NumberFormat("en-NZ", {
   style: "currency",

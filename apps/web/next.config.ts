@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/:path*` }];
   },
+  // The map-first page moved from /explore to /; old links keep working.
+  async redirects() {
+    return [{ source: "/explore", destination: "/", permanent: true }];
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
