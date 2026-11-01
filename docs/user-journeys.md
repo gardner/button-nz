@@ -171,8 +171,8 @@ from real runs.
 1. **Serve it:**
    - `scripts/deploy/install.sh` builds the app and writes the settings and
      systemd services, adding the Cloudflare tunnel once its token is there.
-   - `check.sh` checks a code-gated URL as a visitor reaches it. button.nz
-     runs open (`BUTTON_ACCESS_CODE` emptied); a check for that is #84.
+   - `check.sh` checks the served URL as a visitor reaches it, with or
+     without a code (button.nz runs open, `BUTTON_ACCESS_CODE` emptied).
    - Details are in [deploy.md](deploy.md).
 2. **Fix the survey** once the owner has decided it: set
    `BUTTON_SURVEY_DECIDED_BY` and run `install.sh` again.

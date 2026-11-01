@@ -175,7 +175,7 @@ Source code is under the GNU GPL (see `LICENSE`).
 
 ## Run it
 
-To serve it for others, behind an access code, see [docs/deploy.md](docs/deploy.md).
+To serve it for others, open or behind an access code, see [docs/deploy.md](docs/deploy.md).
 
 Python 3.14 with [uv](https://docs.astral.sh/uv/), Node with pnpm, and an
 NVIDIA GPU for Blender's Cycles.
