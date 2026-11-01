@@ -34,6 +34,11 @@ const TOWN_FILL: Paint<"fill"> = {
   "fill-opacity": ["match", ["get", "category"], "none", 0.2, 0.55],
 };
 
+/** Reefton's urban aerial photos, under the town's sections. */
+const TOWN_CREDIT =
+  "Reefton: Buller 0.075m Urban Aerial Photos (2024-2025): Toitū Te Whenua " +
+  "Land Information New Zealand, Aerial Surveys, Buller District Council, CC BY 4.0";
+
 /** Once a site is chosen, the town steps back behind it. */
 const TOWN_FILL_BEHIND: Paint<"fill"> = { ...TOWN_FILL, "fill-opacity": 0.12 };
 
@@ -192,6 +197,7 @@ function TownLayers({
         data={town.sections}
         fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
         line={TOWN_LINE}
+        attribution={TOWN_CREDIT}
       />
       {standing && (
         <GeoLayer

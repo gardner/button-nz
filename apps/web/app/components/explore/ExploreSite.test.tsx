@@ -86,6 +86,22 @@ function open() {
 }
 
 describe("a ready site", () => {
+  it("credits its own data's providers on the map", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.sources.get("site-setback")?.attribution).toContain(
+        "West Coast Regional Council, CC BY 4.0",
+      ),
+    );
+  });
+
   it("draws its rules and survey on the map, and lists what was found", async () => {
     open();
     serve({

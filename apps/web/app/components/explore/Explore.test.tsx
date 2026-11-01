@@ -15,7 +15,7 @@ import {
 } from "@/lib/fixtures-sites";
 
 import { FakeMap } from "../map/fakeMap";
-import { REEFTON } from "../map/BaseMap";
+import { ATTRIBUTION, REEFTON } from "../map/BaseMap";
 import { Explore } from "./Explore";
 
 vi.mock("maplibre-gl", async () => ({
@@ -381,6 +381,17 @@ describe("Explore", () => {
       fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
     ).toHaveLength(0);
     expect(screen.queryByText(/Tap one/)).toBeNull();
+  });
+
+  it("credits Reefton's aerial photos with the town, not on every map", async () => {
+    serve({ "GET /api/town/reefton": [TOWN] });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.sources.get("town")?.attribution).toContain(
+        "Buller District Council",
+      ),
+    );
+    expect(ATTRIBUTION).not.toContain("Reefton");
   });
 
   it("leaves cleanly, after the map itself is gone", async () => {

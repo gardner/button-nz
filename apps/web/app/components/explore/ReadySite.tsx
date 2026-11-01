@@ -1,5 +1,6 @@
 "use client";
 
+import { creditOf } from "@/lib/credit";
 import { useEffect, useState } from "react";
 
 import type { Job } from "@/lib/api";
@@ -60,6 +61,7 @@ export function ReadySite({
     <>
       <SiteOverlays
         siteBounds={site.bounds}
+        credit={siteCredit(site)}
         three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
@@ -91,10 +93,16 @@ export function ReadySite({
   );
 }
 
+/** The credit for the site's own data, once its sources have come. */
+function siteCredit(site: SiteState): string | undefined {
+  return site.site ? creditOf(site.site.sources) : undefined;
+}
+
 /** What a ready site draws on the map: its rules and survey, and the
  * accepted design with its distances. */
 function SiteOverlays({
   siteBounds,
+  credit,
   three,
   siteMap,
   designMap,
@@ -102,6 +110,7 @@ function SiteOverlays({
   onFeature,
 }: {
   siteBounds: Bounds | null;
+  credit: string | undefined;
   three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
@@ -121,6 +130,7 @@ function SiteOverlays({
         map={siteMap ?? EMPTY_SITE_MAP}
         selected={selected}
         three={three}
+        credit={credit}
         onFeature={(f) => onFeature(f.id)}
       />
       {designMap && (
