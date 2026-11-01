@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError } from "@/lib/fields";
+import { passing } from "@/lib/fields";
 import {
   type SiteState,
   createSite,
@@ -120,10 +120,4 @@ export function useSite(pollMs: number) {
       pick(() => createSiteForParcel(parcelId));
     },
   };
-}
-
-/** A failure worth trying again: the API restarting, a timeout, or the
- * connection dropping, but not a refusal. */
-function passing(e: Error): boolean {
-  return !(e instanceof ApiError) || e.transient;
 }

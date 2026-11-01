@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { FeatureCollection } from "@/lib/geo";
+import { passing } from "@/lib/fields";
 import { type SiteState, type TownSection, getTown } from "@/lib/sites";
 
 import { BaseMap, REEFTON } from "../map/BaseMap";
@@ -42,7 +43,7 @@ const TOWN_LINE: Paint<"line"> = {
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, fromAddress, fromParcel } = useSite(pollMs);
-  const town = useTown("reefton");
+  const town = useTown("reefton", pollMs);
   const [design, setDesign] = useState<JourneyState["design"]>();
   const step = stepOf({ site: site?.status, design });
   return (
@@ -140,11 +141,29 @@ function SidePanel({
   );
 }
 
-function useTown(slug: string) {
+/** The town's sections; a failure that passes is asked again `retryMs` on. */
+function useTown(slug: string, retryMs: number) {
   const [data, setData] = useState<FeatureCollection<TownSection> | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [tries, setTries] = useState(0);
   useEffect(() => {
-    getTown(slug).then(setData, (e: Error) => setProblem(e.message));
-  }, [slug]);
+    let gone = false;
+    const timer = setTimeout(
+      () =>
+        getTown(slug).then(
+          (town) => !gone && (setData(town), setProblem(null)),
+          (e: Error) => {
+            if (gone) return;
+            setProblem(e.message);
+            if (passing(e)) setTries((n) => n + 1);
+          },
+        ),
+      tries === 0 ? 0 : retryMs,
+    );
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [slug, tries]); // eslint-disable-line react-hooks/exhaustive-deps -- retryMs only paces
   return { data, problem };
 }

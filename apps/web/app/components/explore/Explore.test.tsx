@@ -64,6 +64,31 @@ describe("Explore", () => {
     ).toContain("Find");
   });
 
+  it("asks again for the town when it fails for a moment, but not when refused", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ detail: "the API is restarting" }, 502))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(respond(TOWN));
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    expect(
+      await screen.findByText(/sections have room for a real prefab/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/town map couldn't load/)).toBeNull();
+    cleanup();
+    const refused = vi
+      .fn()
+      .mockResolvedValue(
+        respond({ detail: "no town screen for reefton" }, 404),
+      );
+    vi.stubGlobal("fetch", refused);
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText(/no town screen/)).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(refused).toHaveBeenCalledTimes(1);
+  });
+
   it("builds the site of a found address, step by step, and flies there", async () => {
     const fetch = serve({
       "GET /api/town/reefton": [TOWN],
