@@ -10,13 +10,13 @@ named road within reach is an unnamed frontage, not a guess.
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from shapely import LineString, Polygon, union_all
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.geo.arcgis import FeatureLayer
+from button_nz.geo.arcgis import FeatureSet
 from button_nz.geo.geometry import BBox, Point, Ring, bounds
 
 TOUCH_M = 0.5  # an edge this close to a road parcel runs along it
@@ -169,27 +169,39 @@ def _edge(edge: Edge, local: Callable[[Point], Point]) -> str:
     return f"({ax:.2f}, {ay:.2f}) to ({bx:.2f}, {by:.2f})"
 
 
+class Layer(Protocol):
+    """What frontages read from a LINZ layer (``geo.arcgis.FeatureLayer``)."""
+
+    def in_envelope(self, bbox: BBox) -> FeatureSet: ...
+    def where(self, clause: str) -> FeatureSet: ...
+
+
 def fetch_frontages(
-    parcels: FeatureLayer, roads: FeatureLayer, title: Sequence[Ring], street_road_id: int
+    parcels: Layer, roads: Layer, title: Sequence[Ring], street_road_id: int
 ) -> tuple[Frontage, ...]:
     """The title's frontages from LINZ: the road parcels beside it (Primary
-    Parcels with ``parcel_intent`` Road) and the named roads in reach of it."""
+    Parcels with ``parcel_intent`` Road) and the named roads in reach of it.
+    The address's street is fetched by its id however far off it is (a rear
+    section's street may be well beyond reach); LINZ having no such road is a
+    ``LookupError``, never a site recorded without its street."""
     reach = _grown(bounds([p for ring in title for p in ring]), REACH_M)
     road_parcels = [
         shape(f["geometry"])
         for f in parcels.in_envelope(reach).features
         if f["properties"].get("parcel_intent") == "Road" and f.get("geometry")
     ]
-    named = [
-        Road(
-            int(f["properties"]["road_id"]),
-            str(f["properties"]["full_road_name"]),
-            shape(f["geometry"]),
-        )
-        for f in roads.in_envelope(reach).features
-        if f.get("geometry")
-    ]
+    named = [_road(f) for f in roads.in_envelope(reach).features if f.get("geometry")]
+    if not any(road.road_id == street_road_id for road in named):
+        found = roads.where(f"road_id = {int(street_road_id)}").features
+        if not found or not all(f.get("geometry") for f in found):
+            raise LookupError(f"LINZ has no road {street_road_id} for the address's street")
+        named += [_road(f) for f in found]
     return frontages(title, road_parcels, named, street_road_id)
+
+
+def _road(feature: Any) -> Road:
+    props = feature["properties"]
+    return Road(int(props["road_id"]), str(props["full_road_name"]), shape(feature["geometry"]))
 
 
 def _grown(bbox: BBox, by: float) -> BBox:

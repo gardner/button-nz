@@ -143,7 +143,10 @@ def _frontages_of(title: Title, sources: Sources) -> tuple[Frontage, ...]:
     if title.road_id is None:
         raise SiteError(f"LINZ gives no road for {title.address}: its street can't be named")
     rings = [_ring(f) for f in title.parcels]
-    return fetch_frontages(sources.parcels, sources.roads, rings, title.road_id)
+    try:
+        return fetch_frontages(sources.parcels, sources.roads, rings, title.road_id)
+    except LookupError as error:  # LINZ lacks the address's road: no street to name
+        raise SiteError(str(error)) from error
 
 
 def title_parcels(layer: FeatureLayer, parcel: Feature) -> list[Feature]:
