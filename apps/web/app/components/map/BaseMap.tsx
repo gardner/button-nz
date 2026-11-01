@@ -18,11 +18,13 @@ import type { Bounds } from "@/lib/geo";
 /** The aerial basemap, LINZ's, proxied by the API so its key stays there. */
 export const AERIAL_TILES = "/api/tiles/aerial/{z}/{x}/{y}.webp";
 /** Credits for what the map shows: LINZ's aerial basemap (Reefton's urban
- * photos are LINZ's, Aerial Surveys' and Buller District Council's), and the
- * sections, which the API serves from LINZ's NZ Primary Parcels (#86). */
+ * photos are LINZ's, Aerial Surveys' and Buller District Council's), the
+ * sections, which the API serves from LINZ's NZ Primary Parcels (#86), and
+ * the heights the 3D view stands on, from LINZ's 1 m LiDAR. */
 export const ATTRIBUTION =
   "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
-  "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
+  "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0 · " +
+  "Heights: LINZ 1 m LiDAR, CC BY 4.0";
 
 /** From this width the hero stands fixed on the right (Tailwind's xl), with
  * room to frame a design between it and the panel. */

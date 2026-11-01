@@ -11,8 +11,8 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **A real, verified site** | 35 Victory Street, Reefton: four sections on one title, with the parcels, the 1 m LiDAR DEM and DSM, and the 7.5 cm aerial photo pinned to exact tiles. Each dataset records its source, licence and attribution, and its capture dates where they are known | `data/demo-site/`, `button_nz.demo_site` |
-| **Site plan** | The parcels drawn north up over the aerial photo, with the surveyed features and a key | `SitePanel.tsx`, `api/aerial.py` |
-| **Sources and open items** | Every dataset's licence, its capture dates where recorded (the parcels have none), and what is still to confirm, on the page | `SitePanel.tsx` |
+| **The map** | Any address, found from LINZ and built into a site; its parcels, rules and surveyed features drawn on LINZ's aerial basemap, in 2D or 3D | `explore/Explore.tsx`, `explore/SiteLayers.tsx`, `api/sites.py` |
+| **Sources** | Every dataset's licence and capture dates where recorded are in the site's record (`GET /sites/{id}`); the map credits the aerial, the parcels and the LiDAR | `api/site_view.py`, `map/BaseMap.tsx` |
 
 ## The survey
 
@@ -20,22 +20,22 @@ https://button.nz. How they fit together on the page is in
 |---|---|---|
 | **SAM 3.1 survey** | Segments the aerial photo one concept at a time (building, shed, tree, hedge, garden bed, driveway, path, car). Each mask becomes a polygon on the national grid | `perception/sam.py`, `perception/survey.py` |
 | **Checked against the LiDAR** | Where the LiDAR can see it, each feature's height is read from the nDSM, and its status says whether the photo and the LiDAR agree: "agrees", "conflict" (the owner decides), "unlabelled" (raised ground no label covers), "transient" (a parked car, not part of the site) or "unchecked" (no rule for the concept, or too small for 1 m cells, so no height). Nothing is guessed | `perception/features.py`, `perception/survey.py` |
-| **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `FeaturesPanel.tsx`, `api/features.py` |
-| **Buildings complete** | The owner says every building is listed; the box can't be ticked while a possible building is undecided. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `FeaturesPanel.tsx`, `perception/confirm.py` |
+| **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `explore/SurveyPanel.tsx`, `api/features.py` |
+| **Buildings complete** | The owner says every building is listed; the box can't be ticked while a possible building is undecided. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `explore/SurveyPanel.tsx`, `perception/confirm.py` |
 | **A fixed survey** | A public server can fix the survey as the owner decided it: shown with who decided, and closed to changes | `serve --survey-decided-by` |
 
 ## Designing
 
 | Feature | What it does | Where |
 |---|---|---|
-| **A brief in plain words** | "A small one-bedroom studio that gets the afternoon sun", up to 4,000 characters | `DesignPanel.tsx` |
+| **A brief in plain words** | "A small one-bedroom studio that gets the afternoon sun", up to 4,000 characters | `explore/DesignDock.tsx` |
 | **Muse Spark designs in Blender** | Muse Spark 1.3 writes a complete Blender Python script as a tool call, to a contract: one Dwelling mesh, built on the terrain | `agent/loop.py`, `agent/prompt.py` |
 | **LiDAR views on request** | Before each attempt, Muse may ask for up to four views: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. They don't count as attempts | `agent/observe.py`, `lidar/` |
 | **Sandboxed Blender** | The script runs in headless Blender inside a bubblewrap sandbox: no network, no keys, read-only system files, capped memory, processes and scratch space | `blender_worker/sandbox.py` |
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
 | **Repair from feedback** | A failed check goes back to Muse as feedback, with the render when the attempt produced one, for up to three attempts | `agent/loop.py` |
 | **Live progress** | The page follows the design as each attempt finishes | `useDesignChain.ts` |
-| **3D view** | The accepted design, or any attempt that produced a model, in 3D on the site's terrain | `ModelViewer.tsx` |
+| **3D view** | The accepted design's model in 3D on the site's terrain, and in 3D on the map among the site's buildings and trees | `ModelViewer.tsx`, `explore/HeroMedia.tsx`, `map/View3D.tsx` |
 
 ## Checking
 
@@ -52,7 +52,7 @@ https://button.nz. How they fit together on the page is in
 |---|---|---|
 | **Revise in plain words** | "Move it 3 m further from the street." Muse starts from the accepted script; the evaluator checks the result again | `Revisions.tsx`, `api/jobs.py` |
 | **History, before and after** | Every step of the chain is listed; any step can be shown beside the one it changed | `Revisions.tsx` |
-| **Shareable links** | `?design=<id>` opens a design and the designs it revises; the address bar follows the design on show | `useDesignChain.ts` |
+| **Shareable links** | `?site=<id>&design=<id>` opens a design on its site and the designs it revises; the address bar follows the design on show. An older `?design=<id>` link opens the design's own site | `useDesignChain.ts`, `explore/useSite.ts` |
 
 ## The AI visual
 
@@ -66,9 +66,9 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **A sourced catalogue** | 17 New Zealand prefab products of up to 70 m² from 6 suppliers, from their own pages: outside footprint, area and its basis, rooms, price (or "not published"), exclusions, West Coast delivery, sources | `data/catalogue/products.json`, `catalogue/products.py` |
-| **Which prefabs fit** | Products whose published footprint fits inside an accepted design's walls, square to one of its walls or to its minimum rotated rectangle (other angles aren't tried, so a fit can be missed, never invented), largest first. Products whose figures aren't labelled are listed as unchecked, never as fitting | `catalogue/fit.py`, `ProductsPanel.tsx` |
+| **Which prefabs fit** | Products whose published footprint fits inside an accepted design's walls, square to one of its walls or to its minimum rotated rectangle (other angles aren't tried, so a fit can be missed, never invented), largest first. Products whose figures aren't labelled are listed as unchecked, never as fitting | `catalogue/fit.py`, `explore/PrefabPanel.tsx` |
 | **Place a prefab** | "Place it on the site" designs again with the product's footprint as the walls. The evaluator checks the walls are that footprint, by area, to 0.10 m, before every other check. A product whose figures only bound a stepped plan (Lockwood Ara) can't be placed | `evaluation/checks.py` (`product_footprint`), `api/app.py` |
-| **Next steps** | What the exemption asks of the owner next: a PIM from Buller District Council, licensed people, a ground test, and records to the council within 20 working days | `ProductsPanel.tsx`, [suppliers.md](suppliers.md) |
+| **Next steps** | What the exemption asks of the owner next: a PIM from Buller District Council, licensed people, a ground test, and records to the council within 20 working days | `explore/NextSteps.tsx`, [suppliers.md](suppliers.md) |
 
 ## Town scale
 

@@ -105,9 +105,11 @@ describe("a ready site", () => {
       "site-features-fill",
     ])
       expect(FakeMap.last?.layers.has(layer)).toBe(true);
+    // The layers are there from the start, empty until the site's map comes.
+    await vi.waitFor(() => expect(drawn("site-features")).toBeGreaterThan(0));
     act(() => FakeMap.last?.click("site-features-fill", 0));
     expect(
-      screen.getByRole("group", { name: "What is #1 shed?" }),
+      await screen.findByRole("group", { name: "What is #1 shed?" }),
     ).toBeTruthy();
     expect(
       screen.getByRole("listitem", { current: "step" }).textContent,

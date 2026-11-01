@@ -7,56 +7,51 @@ each part does, see [features.md](features.md); for who uses it and how, see
 
 ## The page
 
-Button NZ is one page (`apps/web/app/page.tsx`), served at https://button.nz.
-It has two columns: the site on the left and the design on the right. On a
-narrow screen the site comes first.
+Button NZ is one page (`apps/web/app/page.tsx`, the `Explore` component),
+served at https://button.nz: a full-screen aerial map with a panel over its
+left and the journey's steps across the top. On a phone the panel spans the
+width and the map frames what it shows below it.
 
 ```
-Button NZ
-Housing concepts for a real property, designed by an AI agent in Blender and
-checked against the measured site.
-├── The site (SiteSection)
-│   ├── Site panel (SitePanel)
-│   │   ├── Name, title and valuation number
-│   │   ├── Site plan, north up: parcels, aerial photo, surveyed features, plan key
-│   │   ├── Sources: each dataset's title, licence, attribution, and capture dates where recorded
-│   │   └── Still to confirm: the site's open items
-│   └── What is on the site (FeaturesPanel)
-│       ├── Fixed-survey note: who decided it, when the server has fixed it
-│       ├── One card per surveyed feature (#1 shed, #3 tree, …)
-│       │   ├── What it is (SAM 3.1's concept, or "only the LiDAR saw it"), its area,
-│       │   │   its height where the LiDAR has one,
-│       │   │   and whether the LiDAR agrees
-│       │   └── Decision: Existing building · Keep clear · Ignore
-│       └── Every building on the site is listed (checkbox)
-└── The design (DesignPanel)
-    ├── Brief (BriefForm): the owner's words, and "Let the model request LiDAR views"
-    ├── Design history: the original and each revision (once there is more than one)
-    └── The design on show (DesignView)
-        ├── Placing the <product>: walls L × W m (a placed prefab only)
-        ├── Status line: queued, running, accepted, no attempt passed, or failed
-        ├── Before and after (a revision only)
-        ├── Attempt 1…n: verdict, each check's plain detail (the full
-        │   measurements stay in the trace), the LiDAR views asked for (by name;
-        │   the image-producing views are in the run's files), and, if it produced a
-        │   model, its render and View in 3D; the accepted attempt also gets
-        │   the AI illustration, when its check passes
-        ├── 3D model (ModelViewer)
-        ├── Which real prefabs fit? (ProductsPanel, an accepted design only)
-        │   ├── Each fitting product: size, area, rooms, price, exclusions,
-        │   │   West Coast delivery, and "Place it on the site"
-        │   ├── Products not checked (dimensions not labelled)
-        │   ├── What "fits" means
-        │   └── Next steps: PIM, licensed people, ground, records to the council
-        └── Change this design (RevisionForm, an accepted design only)
+Button NZ                  Find · Survey · Design · Check · Prefab        2D | 3D
+├── The map (BaseMap): LINZ's aerial basemap
+│   ├── Reefton's sections, coloured by the town screen (clear · outlines · none);
+│   │   in 3D the town's buildings stand at their LiDAR heights
+│   └── Once a site is ready (SiteLayers, DesignLayers):
+│       ├── Parcels, the 2 m setback band, 2 m halos round confirmed buildings,
+│       │   keep-clear areas and the room left for a dwelling
+│       ├── The surveyed features, coloured by decision; a tap picks one
+│       ├── The accepted design: its outline, walls and each measured distance
+│       │   (DistanceLabels)
+│       └── In 3D: the site's buildings and trees, and the design, standing at their
+│           heights; on acceptance the camera flies round the design (Orbit)
+└── The panel (SidePanel)
+    ├── Unlock the housing hiding in your backyard (until a site is chosen)
+    ├── Address search (SearchBox): any New Zealand address, from LINZ
+    ├── The town's headline (TownOverview): how many sections have room
+    ├── Building the site (BuildProgress): parcels, terrain, aerial, survey
+    └── A ready site (ReadySite)
+        ├── Your site: its address, and anything its map couldn't show
+        ├── What's on the site? (SurveyPanel): one chip per surveyed feature, the
+        │   picked one's three decisions, and "Every building on the site is listed"
+        ├── What would you like to build? (DesignDock): the brief, examples, the
+        │   history, each attempt (AttemptRow: verdict, a badge per check, the LiDAR
+        │   views asked for), and Change this design
+        ├── Which real prefabs fit? (PrefabSection, PrefabPanel): each with its
+        │   size, price, area basis and West Coast delivery, shown on the map while
+        │   pointed at, and "Place it on the site"; then the next steps (NextSteps)
+        └── The accepted design's hero (HeroMedia): 3D model, AI visual, before/after
 ```
 
 ### Addresses
 
 | Address | What it shows |
 |---|---|
-| `/` | The site, its survey, and a blank brief |
-| `/?design=<id>` | That design after the designs it revises, oldest first. The address bar follows the design on show, so any step can be shared |
+| `/` | Reefton's sections and the address search |
+| `/?site=<id>` | That site, built or being built |
+| `/?site=<id>&design=<id>` | That design on its site, after the designs it revises. The address bar follows the design on show, so any step can be shared |
+| `/?design=<id>` | Links from before sites: opens the design's own site, then the design |
+| `/explore` | Redirects to `/`, keeping the query |
 | `/?code=<code>` | Only when the server has an access code: sets the access cookie and drops the code from the address |
 
 ## The content
