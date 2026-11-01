@@ -1,6 +1,6 @@
 import type { Attempt, Job } from "@/lib/api";
 
-export const VERDICT_STYLE: Record<Attempt["status"], string> = {
+const VERDICT_STYLE: Record<Attempt["status"], string> = {
   pass: "bg-green-100 text-green-900",
   unknown: "bg-amber-100 text-amber-900",
   fail: "bg-red-100 text-red-900",

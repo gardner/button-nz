@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { JOB } from "@/lib/fixtures";
 import { SITE_BUILDING, SITE_READY } from "@/lib/fixtures-sites";
 
 import { useSite } from "./useSite";
@@ -88,6 +89,44 @@ describe("useSite", () => {
     expect(result.current.site?.id).toBe("addr-42");
     expect(linked()).toBe(asked);
     window.history.replaceState(null, "", "/");
+  });
+
+  it("opens the site of a design linked on its own, as old links are, and keeps the link", async () => {
+    window.history.replaceState(null, "", "/?design=abc123");
+    const fetch = vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith("/designs/abc123")
+          ? respond({ ...JOB, site_id: SITE_READY.id })
+          : url.endsWith(`/sites/${SITE_READY.id}`)
+            ? respond(SITE_READY)
+            : respond({ detail: "no" }, 404),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    await waitFor(() => expect(result.current.site?.id).toBe(SITE_READY.id));
+    const query = new URLSearchParams(window.location.search);
+    expect(query.get("design")).toBe("abc123");
+    expect(query.get("site")).toBe(SITE_READY.id);
+  });
+
+  it("drops a design link that failed once the person picks a site", async () => {
+    window.history.replaceState(null, "", "/?design=gone1");
+    const fetch = vi.fn((url: string, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === "POST"
+          ? respond(SITE_READY, 202)
+          : respond({ detail: "no design gone1" }, 404),
+      ),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    await waitFor(() => expect(result.current.problem).toContain("gone1"));
+    act(() => result.current.fromAddress(1907458, "an address"));
+    await waitFor(() => expect(result.current.site?.id).toBe(SITE_READY.id));
+    const query = new URLSearchParams(window.location.search);
+    expect(query.get("site")).toBe(SITE_READY.id);
+    expect(query.get("design")).toBeNull();
   });
 
   it("stops asking for a linked site the API refuses for good", async () => {

@@ -29,10 +29,3 @@ export const LOOKS: Record<
     stroke: "rgb(217 119 6)",
   },
 };
-
-export const SHOWN: readonly Shown[] = [
-  "building",
-  "keep_clear",
-  "ignore",
-  "undecided",
-];

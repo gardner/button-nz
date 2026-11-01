@@ -4,7 +4,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JOB } from "@/lib/fixtures";
 
-import { DesignPanel } from "./DesignPanel";
+import { DesignDock } from "./explore/DesignDock";
+import { HeroMedia } from "./explore/HeroMedia";
+import { BeforeAfter } from "./Revisions";
+import { useDesignChain } from "./useDesignChain";
+
+/** The design dock as the explore page shows it, with the accepted design's
+ * hero, and the before/after of a revision (the hero's compare tab) beside. */
+function Dock({ pollMs }: { pollMs: number }) {
+  const chain = useDesignChain(pollMs);
+  const shown = chain.shown;
+  const parent = chain.chain.find((j) => j.id === shown?.parentId);
+  const accepted = shown?.status === "done" && shown.acceptedAttempt !== null;
+  return (
+    <>
+      <DesignDock chain={chain} />
+      {shown && accepted && <HeroMedia job={shown} parent={parent} />}
+      {shown && parent && <BeforeAfter before={parent} after={shown} />}
+    </>
+  );
+}
 
 vi.mock("./ModelViewer", () => ({
   ModelViewer: ({ url }: { url: string }) => (
@@ -69,8 +88,11 @@ afterEach(() => {
 });
 
 async function design(): Promise<void> {
-  await userEvent.type(screen.getByLabelText("Brief"), "A small studio.");
-  await userEvent.click(screen.getByRole("button", { name: "Design" }));
+  await userEvent.type(
+    screen.getByLabelText("What would you like to build?"),
+    "A small studio.",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Design it" }));
 }
 
 async function revise(instruction: string): Promise<void> {
@@ -95,7 +117,7 @@ function source(alt: string | RegExp): string {
 describe("revising a design", () => {
   it("offers a change only once a design has an accepted attempt", async () => {
     serve({ ...JOB, accepted_attempt: null });
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     expect(
       await screen.findByText("No attempt passed every check."),
@@ -105,7 +127,7 @@ describe("revising a design", () => {
 
   it("needs an instruction, as long as the API takes", async () => {
     serve(ORIGINAL);
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     const field = (await screen.findByLabelText(
       "Change this design",
@@ -129,7 +151,7 @@ describe("revising a design", () => {
       },
       MOVED,
     );
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     const [url, init] = fetch.mock.calls[1] as [string, RequestInit];
@@ -155,7 +177,7 @@ describe("revising a design", () => {
 
   it("revises a revision, building a chain", async () => {
     const fetch = serve(ORIGINAL, MOVED, TURNED);
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     await revise(TURN);
@@ -172,7 +194,7 @@ describe("revising a design", () => {
 
   it("shows the step of the history that is selected", async () => {
     serve(ORIGINAL, MOVED);
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     await screen.findByAltText(/^After/);
@@ -216,7 +238,7 @@ describe("revising a design", () => {
       return respond(MOVED);
     });
     vi.stubGlobal("fetch", fetch);
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE); // straight away, while the original's visual is being made
     await screen.findByAltText(/^After/);
@@ -228,18 +250,21 @@ describe("revising a design", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /A small studio\./ }),
     );
+    await userEvent.click(
+      await screen.findByRole("tab", { name: "AI visual" }),
+    );
     expect(
-      await screen.findByAltText("AI illustration of attempt 2"),
+      await screen.findByAltText("AI illustration of the accepted design"),
     ).toBeTruthy();
   });
 
   it("follows one design at a time", async () => {
     serve(ORIGINAL, { ...MOVED, status: "queued", attempts: [] });
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
-    expect(await screen.findByText("Design queued…")).toBeTruthy();
-    const button = screen.getByRole("button", { name: "Design" });
+    expect(await screen.findByText("Queued…")).toBeTruthy();
+    const button = screen.getByRole("button", { name: "Design it" });
     expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -251,7 +276,7 @@ describe("revising a design", () => {
       attempts: [],
       error: "Blender exited with status 1",
     });
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     expect(
@@ -274,7 +299,7 @@ describe("revising a design", () => {
       { ...MOVED, status: "failed", accepted_attempt: null, attempts: [] },
       revision("ghi789", "abc123", TURN),
     );
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     await screen.findByText(/The design run failed/);
@@ -294,7 +319,7 @@ describe("revising a design", () => {
       accepted_attempt: null,
       attempts: [attempt("def456", 1, "fail")],
     });
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     expect(
@@ -309,7 +334,7 @@ describe("revising a design", () => {
   it("says why a design can't be revised, keeping the instruction", async () => {
     const detail = "design abc123 has no accepted attempt to revise";
     serve(ORIGINAL, respond({ detail }, 409));
-    render(<DesignPanel pollMs={5} />);
+    render(<Dock pollMs={5} />);
     await design();
     await revise(MOVE);
     expect(await screen.findByText(detail)).toBeTruthy();

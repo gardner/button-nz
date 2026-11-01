@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 
-import type { Job } from "@/lib/api";
+import type { Job, PlacedProduct } from "@/lib/api";
 
 import { DesignHistory, RevisionForm } from "../Revisions";
-import { Placing } from "../DesignPanel";
 import type { useDesignChain } from "../useDesignChain";
 import { AttemptRow } from "./AttemptRow";
 
@@ -145,6 +144,15 @@ function Status({ job }: { job: Job }) {
   return (
     <p role="status" className={`text-sm font-medium ${tone}`}>
       {text}
+    </p>
+  );
+}
+
+/** Which real product this design places, and the walls it must have. */
+function Placing({ product }: { product: PlacedProduct }) {
+  return (
+    <p className="font-medium">
+      Placing the {product.name}: walls {product.lengthM} × {product.widthM} m
     </p>
   );
 }
