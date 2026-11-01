@@ -34,8 +34,9 @@ owner to them, and doesn't yet serve them directly ([product.md](product.md)).
 
 **What can go wrong:** the photo (2024–25) and the LiDAR (2020–24) are older
 than the site. The owner's word is what counts. A feature left undecided
-constrains nothing, and "buildings complete" unticked leaves separation
-"unknown" in every design.
+constrains nothing, and with "buildings complete" unticked separation never
+passes: a design within 2 m of a confirmed building fails, and otherwise it is
+"unknown".
 
 ## 2. The owner gets a checked concept
 
