@@ -99,3 +99,17 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
     })),
   };
 }
+
+const NONE = { type: "FeatureCollection" as const, features: [] };
+
+/** A site map with nothing in it, to draw while the real one is on its way:
+ * its layers keep their place under the design's. */
+export const EMPTY_SITE_MAP: SiteMap = {
+  parcels: NONE,
+  buildings: NONE,
+  features: NONE,
+  setback: NONE,
+  halos: NONE,
+  keep_clear: NONE,
+  room: NONE,
+};

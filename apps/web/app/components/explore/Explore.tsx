@@ -56,7 +56,8 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             line={TOWN_LINE}
           />
         )}
-        <FitTo bounds={site?.bounds ?? null} />
+        {/* The town is framed again once its headline fills the panel. */}
+        <FitTo bounds={site?.bounds ?? (town.data ? REEFTON : null)} />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"

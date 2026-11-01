@@ -47,7 +47,7 @@ export interface Check {
 export interface Attempt {
   number: number;
   status: Verdict;
-  checks: Check[] | null; // null when the API doesn't send them (the demo site's)
+  checks: Check[] | null; // null when the API can't tell, or doesn't send them
   feedback: string;
   observations: string[];
   files: Record<string, string>; // artifact name -> URL through the proxy
@@ -272,8 +272,9 @@ function parseAttempt(raw: unknown): Attempt {
   return {
     number: number(attempt, "number"),
     status: oneOf(attempt, "status", VERDICTS),
+    // Absent (the demo site's) or null (the API can't tell): none to show.
     checks:
-      "checks" in attempt ? list(attempt, "checks").map(parseCheck) : null,
+      attempt.checks == null ? null : list(attempt, "checks").map(parseCheck),
     feedback: text(attempt, "feedback"),
     observations: list(attempt, "observations").map((o) =>
       asText(o, "observation"),
