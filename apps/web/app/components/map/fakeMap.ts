@@ -153,6 +153,11 @@ export class FakeMap {
   getPitch() {
     return this.pitch;
   }
+  /** Reefton's centre, as a real map framed on the town reports it. */
+  getCenter() {
+    return { lng: 171.8622, lat: -42.1153 };
+  }
+
   getZoom() {
     return this.zoom;
   }

@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { type Address, MIN_QUERY, searchAddresses } from "@/lib/sites";
 
+import { useMap } from "../map/BaseMap";
+
 const PAUSE_MS = 250;
 
 /** Find any New Zealand address: LINZ's addresses, asked for once the
@@ -17,6 +19,7 @@ export function SearchBox({
 }) {
   const listId = useId();
   const [query, setQuery] = useState("");
+  const map = useMap();
   const [found, setFound] = useState<Address[] | null>(null);
   const [active, setActive] = useState(-1);
   const [problem, setProblem] = useState<string | null>(null);
@@ -28,7 +31,8 @@ export function SearchBox({
     if (!searching) return;
     const ask = ++asked.current;
     const timer = setTimeout(() => {
-      searchAddresses(query).then(
+      const centre = map?.getCenter(); // rank addresses near where the map looks first
+      searchAddresses(query, centre && [centre.lng, centre.lat]).then(
         (addresses) => {
           if (ask !== asked.current) return; // a later search has been asked
           setProblem(null);
@@ -43,7 +47,7 @@ export function SearchBox({
       );
     }, PAUSE_MS);
     return () => clearTimeout(timer);
-  }, [query, searching]);
+  }, [query, searching, map]);
 
   // The list lies in the panel's flow, so the panel may need to scroll to it.
   useEffect(() => {

@@ -35,6 +35,14 @@ describe("searchAddresses", () => {
     });
   });
 
+  it("ranks addresses near where the map looks first", async () => {
+    const fetch = serve(ADDRESSES);
+    await searchAddresses("10 Broadway", [171.862234, -42.115318]);
+    expect(fetch.mock.calls[0][0]).toBe(
+      "/api/addresses?q=10%20Broadway&near=171.8622%2C-42.1153",
+    );
+  });
+
   it("doesn't ask for fewer than three letters", async () => {
     const fetch = serve(ADDRESSES);
     expect(await searchAddresses("35")).toEqual([]);
