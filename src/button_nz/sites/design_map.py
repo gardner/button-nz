@@ -33,6 +33,14 @@ from button_nz.sites.layers import collection
 def walls_and_outline(attempt: Path, site: DemoSite) -> tuple[Polygon, Polygon]:
     """The attempt's walls and outline, in NZTM: measured in the site's frame,
     centred on its parcels as every design scene is."""
+    walls, outline, _ = _measured(attempt, site)
+    return walls, outline
+
+
+def _measured(attempt: Path, site: DemoSite) -> tuple[Polygon, Polygon, dict[str, float]]:
+    """Walls, outline, and the Dwelling's lowest and highest points above the
+    scene's datum (``base_m``, ``height_m``): the site's terrain tiles count
+    from the same datum, so it stands in place on them."""
     raw = json.loads((attempt / "measurements.json").read_text(encoding="utf-8"))
     measured = parse_measurements(raw)
     if measured.footprint is None:
@@ -40,13 +48,16 @@ def walls_and_outline(attempt: Path, site: DemoSite) -> tuple[Polygon, Polygon]:
     frame = LocalFrame.centred_on(site.extent_nztm)
     walls = Polygon([frame.to_nztm(p) for p in measured.footprint])
     plan: Ring = measured.outline or measured.footprint
-    return walls, Polygon([frame.to_nztm(p) for p in plan])
+    heights: dict[str, float] = {}
+    if measured.z_min is not None and measured.z_max is not None:
+        heights = {"base_m": round(measured.z_min, 2), "height_m": round(measured.z_max, 2)}
+    return walls, Polygon([frame.to_nztm(p) for p in plan]), heights
 
 
 def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[str, Any]:
     """The layers of the accepted ``attempt`` of a design on ``site``, whose
     survey is ``survey``; the design's run folder holds what it was checked against."""
-    walls, outline = walls_and_outline(attempt, site)
+    walls, outline, heights = _measured(attempt, site)
     parcels = [Polygon(p.ring) for p in site.parcels]
     title = union_all(parcels)
     internal = union_all([p.boundary for p in parcels]).difference(title.boundary.buffer(1e-6))
@@ -69,8 +80,8 @@ def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[st
         if not target.is_empty
     ]
     return {
-        "walls": collection([(walls, {})]),
-        "outline": collection([(outline, {})]),
+        "walls": collection([(walls, heights)]),
+        "outline": collection([(outline, heights)]),
         "distances": collection(lines),
         # a check whose line can't be drawn now, and why: never left out silently
         "unknown": []

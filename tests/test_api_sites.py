@@ -151,6 +151,7 @@ def test_the_map_draws_the_rules_on_the_title_in_lon_lat(tmp_path: Path) -> None
         "halos",
         "keep_clear",
         "room",
+        "canopy",
     }
     assert len(layers["parcels"]["features"]) == 2
     (room,) = layers["room"]["features"]
@@ -238,3 +239,24 @@ def test_a_site_asked_for_while_the_builder_settles_is_still_built(tmp_path: Pat
         assert server.client.get("/sites/1-test-street-reefton").json()["status"] == "ready"
     finally:
         builder.stop()
+
+
+def test_the_maps_buildings_carry_their_heights_and_the_surface_is_served_as_tiles(
+    tmp_path: Path,
+) -> None:
+    import math
+
+    server = Server(tmp_path)
+    site_id = server.build()["id"]
+    layers = server.client.get(f"/sites/{site_id}/map").json()
+    (building,) = layers["buildings"]["features"]  # the fake courtyard building
+    assert building["properties"]["height_m"] == 0.0  # the fake LiDAR is flat: DSM = DEM
+    assert building["properties"]["base_m"] == 0.0  # its ground is the site's datum
+    assert layers["canopy"]["features"] == []
+    west, south, east, north = server.client.get(f"/sites/{site_id}").json()["bounds"]
+    lon, lat, z = (west + east) / 2, (south + north) / 2, 19
+    x = int((lon + 180) / 360 * 2**z)
+    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2**z)
+    tile = server.client.get(f"/sites/{site_id}/terrain/{z}/{x}/{y}.png")
+    assert tile.status_code == 200 and tile.headers["content-type"] == "image/png"
+    assert server.client.get(f"/sites/{site_id}/terrain/{z}/{x + 50}/{y}.png").status_code == 404
