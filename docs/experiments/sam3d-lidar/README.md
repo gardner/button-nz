@@ -19,8 +19,8 @@ but its results use depth estimated from the image itself.
 As far as we know, nobody has fed it survey LiDAR.
 
 - SAM 3D has been run on remote-sensing images from the image alone
-  ([arXiv 2512.22452](https://arxiv.org/abs/2512.22452)), judged by FID
-  only, with no measured ground truth.
+  ([arXiv 2512.22452](https://arxiv.org/abs/2512.22452)), judged by image
+  similarity (FID and CLIP-based CMMD), with no measured ground truth.
 - We have both:
   - LINZ's 1 m LiDAR ground and surface models (DEM and DSM) for any address
     they cover;
@@ -60,6 +60,12 @@ photographs. So we make an ordinary-looking photo from our data:
   metric LiDAR should give a metric model.
 
 ## What we've measured so far: the depth input
+
+**Not yet reproducible from this repo.** These figures were recorded by hand
+from the spike's scripts in `~/src/sam3d-spike/scripts/` (`render_oblique.py`,
+`mask.py`, `moge_check.py`), which aren't committed yet. They'll be committed
+with the run (#125), as `docs/results` experiments are, with the commit
+named. Until then, treat this table as a lab note.
 
 SAM 3D hasn't run yet. What we could measure is the depth it would use
 without LiDAR: MoGe (`Ruicheng/moge-vitl`) on our virtual oblique photos,
