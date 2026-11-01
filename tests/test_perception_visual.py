@@ -16,7 +16,7 @@ import httpx2  # the HTTP client the openai SDK is built on
 import numpy as np
 import pytest
 from numpy.typing import NDArray
-from openai import DefaultHttpxClient, OpenAI
+from openai import BadRequestError, DefaultHttpxClient, OpenAI
 from PIL import Image
 
 from button_nz.agent.model import META_BASE_URL
@@ -85,6 +85,7 @@ class Api:
         self.edit = edit if edit is not None else {"created": 0, "data": [{"b64_json": b64}]}
         self.sam_texts = [sam_text] if isinstance(sam_text, str) else sam_text  # last repeats
         self.edits: list[bytes] = []
+        self.failing_edits: set[int] = set()  # which edits, counted from 1, are refused
         self.segmentations: list[dict[str, Any]] = []
         client = OpenAI(
             base_url=META_BASE_URL,
@@ -96,6 +97,8 @@ class Api:
     def _handle(self, request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("/images/edits"):
             self.edits.append(request.content)
+            if len(self.edits) in self.failing_edits:
+                return httpx2.Response(400, json={"error": {"message": "refused"}})
             return httpx2.Response(200, json=self.edit)
         assert request.url.path.endswith("/responses")
         self.segmentations.append(json.loads(request.content))
@@ -134,13 +137,32 @@ def test_an_illustration_accepted_first_time_takes_one_edit(tmp_path: Path) -> N
 
 
 def test_a_rejected_illustration_gets_a_second_edit(tmp_path: Path) -> None:
-    """Muse Image's result varies from edit to edit: of five rejected designs
-    re-made once, three passed (#133). The second is checked just the same."""
+    """Muse Image's result varies from edit to edit: of the seven designs whose
+    first edit was rejected, the second rescued two (#133). It is checked just
+    the same."""
     api = Api(sam_text=["", TREES])  # no house in the first, the dwelling in the second
     visual = api.illustrate(*_files(tmp_path, FIRST))
     assert visual.accepted and visual.iou == pytest.approx(1.0)
     assert visual.edits == EDITS == 2 and len(api.edits) == len(api.segmentations) == 2
     assert visual.record()["edits"] == 2
+
+
+def test_a_failed_second_edit_keeps_the_first_edits_rejection(tmp_path: Path) -> None:
+    """The first edit was made and measured: its IoU is the record, not lost."""
+    shifted = np.roll(FIRST, 12, axis=1)
+    api = Api()
+    api.failing_edits = {2}
+    visual = api.illustrate(*_files(tmp_path, shifted))
+    assert not visual.accepted and visual.iou is not None and visual.iou < MIN_IOU
+    assert visual.edits == 1  # edits checked
+    assert visual.reason is not None and "second edit failed" in visual.reason
+
+
+def test_a_failed_first_edit_is_an_error_as_before(tmp_path: Path) -> None:
+    api = Api()
+    api.failing_edits = {1}
+    with pytest.raises(BadRequestError):
+        api.illustrate(*_files(tmp_path, FIRST))
 
 
 def test_an_illustration_rejected_every_time_is_not_shown(tmp_path: Path) -> None:

@@ -19,16 +19,16 @@ import io
 import json
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
-from openai import OpenAI
+from openai import APIError, OpenAI
 from PIL import Image
 
 from button_nz.agent.model import META_BASE_URL
-from button_nz.perception.sam import Segmenter
+from button_nz.perception.sam import SegmentationError, Segmenter
 
 __all__ = [
     "EDITS",
@@ -79,6 +79,7 @@ PROMPT = (
     "ground is a grassed New Zealand section; the thin red lines are property boundaries "
     "and may be left out. Do not add any new buildings."
 )
+RETRY_FAILED = "A second edit failed: {error}"
 NOT_VISIBLE = "The dwelling isn't visible from the render camera, so there is nothing to keep."
 NO_HOUSE = "SAM 3.1 found no house in the illustration."
 MOVED = (
@@ -98,7 +99,7 @@ class Visual:
     iou: float | None  # the best IoU of a house in it with the silhouette; None if unchecked
     reason: str | None  # why it isn't shown
     png: bytes | None  # the illustration at the render's size: accepted ones only
-    edits: int  # how many edits were made: the last is the one checked here
+    edits: int  # how many edits were made and checked: the last is the one recorded here
 
     def __post_init__(self) -> None:
         if self.accepted != (self.png is not None):
@@ -136,8 +137,13 @@ def illustrate(
     prompt = _prompt(silhouette)
     visual = Visual.failed(NO_HOUSE)  # replaced by the first edit's check
     for edits in range(1, EDITS + 1):
-        illustration = _edit(render_png, prompt, image_client, model)
-        visual = _check(illustration.resize(size, LANCZOS), silhouette, segmenter, model, edits)
+        try:
+            illustration = _edit(render_png, prompt, image_client, model)
+            visual = _check(illustration.resize(size, LANCZOS), silhouette, segmenter, model, edits)
+        except (APIError, VisualError, SegmentationError) as error:
+            if edits == 1:  # nothing measured yet: the failure is the record
+                raise
+            return replace(visual, reason=f"{visual.reason} {RETRY_FAILED.format(error=error)}")
         if visual.accepted:
             break
     return visual
