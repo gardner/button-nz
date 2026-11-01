@@ -18,6 +18,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+from shapely import Point as ShapelyPoint
+from shapely import Polygon
+
 from button_nz.geo.geometry import BBox, Point, Ring, bounds, contains, covers
 from button_nz.geo.tiles import tile_bounds
 
@@ -99,7 +102,7 @@ def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
         raise ValueError("parcel_ids do not match the parcels file")
     if site.extent_nztm != bounds([pt for p in site.parcels for pt in p.ring]):
         raise ValueError("extent.nztm is not the bounding box of the parcels")
-    if not any(contains(p.ring, site.address_nztm) for p in site.parcels):
+    if not any(_on(p.ring, site.address_nztm) for p in site.parcels):
         raise ValueError("the address point is not inside any parcel")
     captures = {k: r.capture for k, r in site.rasters.items()}
     captures |= {k: v.capture for k, v in site.vectors.items() if v.capture}
@@ -114,6 +117,12 @@ def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:
             raise ValueError(f"{key}: asset is not tile {raster.tile} in its collection")
         if not covers(tile_bounds(raster.tile), site.extent_nztm):
             raise ValueError(f"{key}: tile {raster.tile} does not cover the site")
+
+
+def _on(ring: Ring, point: Point) -> bool:
+    """Whether ``point`` is in ``ring`` or on its edge: an address can be on a
+    boundary, as the site builder finds its parcel."""
+    return Polygon(ring).covers(ShapelyPoint(point))
 
 
 def _check_joined(key: str, raster: RasterSource, extent: BBox) -> None:

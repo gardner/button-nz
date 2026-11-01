@@ -150,7 +150,7 @@ def test_the_lidar_index_is_built_once_and_cached(tmp_path: Path) -> None:
 
 
 def test_the_best_aerial_that_covers_the_site_is_used(tmp_path: Path) -> None:
-    found = catalogues(tmp_path, []).aerial_for("west-coast", SITE)
+    found = next(catalogues(tmp_path, []).aerials_for("west-coast", SITE), None)
     assert found is not None
     collection, tiles = found
     assert collection.title == "West Coast 0.2m"  # the 7.5 cm one doesn't reach the site

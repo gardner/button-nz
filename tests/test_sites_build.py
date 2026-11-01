@@ -2,7 +2,7 @@
 with every network read faked."""
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -128,15 +128,16 @@ class FakeCatalogues(Catalogues):
             ]
         return found
 
-    def aerial_for(self, region: str, bbox: BBox) -> tuple[Collection, list[str]] | None:
-        aerial = collection(
-            f"{IMAGERY}/west-coast/b_2025_0.075m/rgb/2193/collection.json",
-            "Aerial",
-            1000,
-            bbox,
-            0.075,
-        )
-        return aerial, [f"https://example.test/{t}.tiff" for t in tiles_covering(bbox, 1000)]
+    def aerials_for(self, region: str, bbox: BBox) -> Iterator[tuple[Collection, list[str]]]:
+        for name in (
+            ("gappy_2026_0.075m", "b_2025_0.075m") if self.gappy_newer else ("b_2025_0.075m",)
+        ):
+            url = f"{IMAGERY}/west-coast/{name}/rgb/2193/collection.json"
+            aerial = collection(url, f"Aerial {name}", 1000, bbox, 0.075)
+            yield (
+                aerial,
+                [f"https://example.test/{name}/{t}.tiff" for t in tiles_covering(bbox, 1000)],
+            )
 
 
 def join(tiles: Sequence[str], bbox: BBox, path: Path) -> Path:
@@ -160,6 +161,8 @@ def join(tiles: Sequence[str], bbox: BBox, path: Path) -> Path:
 
 
 def read_aerial(tiles: Sequence[str], bbox: BBox, pixel_m: float) -> NDArray[np.uint8]:
+    if "gappy" in tiles[0]:
+        raise ValueError(f"{bbox} is not covered by {list(tiles)}")
     rows, cols = round((bbox[3] - bbox[1]) / pixel_m), round((bbox[2] - bbox[0]) / pixel_m)
     return np.full((rows, cols, 3), 90, dtype=np.uint8)
 
@@ -244,3 +247,35 @@ def test_a_parcel_with_land_within_it_that_isnt_its_own_is_refused(tmp_path: Pat
     holed["geometry"]["coordinates"] = [A, hole]
     with pytest.raises(SiteError, match="isn't its own"):
         build_site(7, tmp_path, sources([holed]), lambda _: None)
+
+
+def test_an_aerial_with_a_gap_over_the_site_gives_way_to_the_next(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(gappy_newer=True), lambda _: None)
+    assert load_demo_site(tmp_path).rasters["aerial"].title == "Aerial b_2025_0.075m"
+
+
+def test_an_address_on_a_parcel_edge_is_on_the_parcel(tmp_path: Path) -> None:
+    found = layers(PARCELS, point=[X0 + 20.0, Y0 + 15.0])  # on the line between A and B
+    edge = Sources(
+        addresses=found["LINZ_NZ_Addresses"],
+        parcels=found["LINZ_NZ_Primary_Parcels"],
+        buildings=found["LINZ_NZ_Building_Outlines"],
+        catalogues=FakeCatalogues(),
+        segment=no_masks,
+        join=join,
+        read_aerial=read_aerial,
+    )
+    build_site(7, tmp_path, edge, lambda _: None)
+    assert load_demo_site(tmp_path).name == "1 Test Street, Reefton"
+
+
+def test_a_record_that_fails_its_own_checks_leaves_the_site_unbuilt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuses(directory: Path) -> object:
+        raise ValueError("the address point is not inside any parcel")
+
+    monkeypatch.setattr("button_nz.sites.build.load_demo_site", refuses)
+    with pytest.raises(SiteError, match="doesn't pass its own checks"):
+        build_site(7, tmp_path, sources(), lambda _: None)
+    assert not (tmp_path / "site.json").exists()

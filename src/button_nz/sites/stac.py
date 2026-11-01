@@ -16,7 +16,7 @@ collection: no tile needs fetching to know.
 
 import json
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -147,14 +147,15 @@ class Catalogues:
         path.write_text(json.dumps([asdict(c) for c in index]), encoding="utf-8")
         return index
 
-    def aerial_for(self, region: str, bbox: BBox) -> tuple[Collection, list[str]] | None:
-        """The best aerial collection in ``region`` covering ``bbox``, and its tiles."""
+    def aerials_for(self, region: str, bbox: BBox) -> Iterator[tuple[Collection, list[str]]]:
+        """Each aerial collection in ``region`` whose tiles cover ``bbox``, best
+        first, with its tiles. A tile can still be empty over the site, so a
+        builder tries them in turn."""
         for url in aerial_candidates(self._children(IMAGERY), region):
             collection = self._cached(url)
             tiles = collection.tiles_for(bbox)
             if tiles is not None:
-                return collection, tiles
-        return None
+                yield collection, tiles
 
     def collection(self, url: str) -> Collection:
         return parse_collection(url, self._json(url))
