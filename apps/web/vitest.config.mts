@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    testTimeout: 15_000, // longer than a findBy* wait (vitest.setup.ts)
     include: ["**/*.test.{ts,tsx}"],
     exclude: ["node_modules/**", ".next/**"],
   },
