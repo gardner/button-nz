@@ -304,8 +304,8 @@ def test_a_close_listed_building_fails_whether_or_not_the_list_is_complete() -> 
     assert check(proposal(), "building_separation", near).status is Status.FAIL
 
 
-@pytest.mark.parametrize("stated", [50.0, 50.004, 80.0])
-def test_a_footprint_under_70_passes_whatever_area_is_stated(stated: float) -> None:
+@pytest.mark.parametrize("stated", [50.0, 50.004])
+def test_a_footprint_under_70_passes_a_stated_area_a_little_over_it(stated: float) -> None:
     """Geometry decides: 49.99 m² outside the walls can't hold 70 inside. A
     stated area over the footprint is flagged, not failed (a live attempt
     failed on 'the stated 50 m² is more than the footprint's 50.0 m²')."""
@@ -313,3 +313,13 @@ def test_a_footprint_under_70_passes_whatever_area_is_stated(stated: float) -> N
     result = check(proposal(footprint=walls, floor_area_m2=stated), "floor_area")
     assert result.status is Status.PASS
     assert "Check the stated value" in result.detail
+
+
+def test_a_stated_internal_area_over_70_fails_whatever_the_footprint() -> None:
+    walls = rect(2, 2, 12, 6.999)  # 49.99 m² outside
+    result = check(proposal(footprint=walls, floor_area_m2=80.0), "floor_area")
+    assert result.status is Status.FAIL
+
+
+def test_an_ordinary_stated_area_passes_without_a_remark() -> None:
+    assert "Check the stated value" not in check(proposal(), "floor_area").detail
