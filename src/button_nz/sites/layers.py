@@ -61,13 +61,13 @@ def site_layers(
     survey: Survey | None,
     decisions: Mapping[str, str],
     buildings: Mapping[str, Any],
-    lidar: Lidar | None = None,
+    lidar: Lidar,
 ) -> dict[str, dict[str, Any]]:
     """Every layer of ``site``, its ``survey`` with ``decisions``, and the LINZ
-    ``buildings`` outlines (an NZTM FeatureCollection). With ``lidar``, each
-    building gains ``height_m`` (nDSM p90) and ``base_m`` (median ground above
-    the datum), each survey feature ``height_m``, and ``canopy`` what stands
-    over 2 m outside the buildings."""
+    ``buildings`` outlines (an NZTM FeatureCollection). From ``lidar``, each
+    building has ``height_m`` (nDSM p90) and ``base_m`` (median ground above
+    the datum), each survey feature ``height_m`` (null beyond the LiDAR's grid),
+    and ``canopy`` is what stands over 2 m outside the buildings."""
     found = [] if survey is None else cast("list[dict[str, Any]]", survey.collection["features"])
     decided = [(shape(f["geometry"]), str(f["id"]), decisions.get(str(f["id"]))) for f in found]
     confirmed = [g for g, _, d in decided if d == "building"]
@@ -100,20 +100,21 @@ def site_layers(
     }
 
 
-def _height(geometry: BaseGeometry, lidar: Lidar | None) -> dict[str, float]:
-    found = None if lidar is None else height_above(lidar.grid, geometry)
-    return {} if found is None else {"height_m": round(found, 2)}
+def _height(geometry: BaseGeometry, lidar: Lidar) -> dict[str, float | None]:
+    return {"height_m": _metres(height_above(lidar.grid, geometry))}
 
 
-def _building_heights(geometry: BaseGeometry, lidar: Lidar | None) -> dict[str, float]:
-    ground = None if lidar is None else median_ground(lidar.grid, geometry)
-    base = {} if ground is None or lidar is None else {"base_m": round(ground - lidar.datum_m, 2)}
-    return _height(geometry, lidar) | base
+def _building_heights(geometry: BaseGeometry, lidar: Lidar) -> dict[str, float | None]:
+    ground = median_ground(lidar.grid, geometry)
+    base = None if ground is None else ground - lidar.datum_m
+    return _height(geometry, lidar) | {"base_m": _metres(base)}
 
 
-def _canopy(buildings: Mapping[str, Any], lidar: Lidar | None) -> dict[str, Any]:
-    if lidar is None:
-        return collection([])
+def _metres(metres: float | None) -> float | None:
+    return None if metres is None else round(metres, 2)
+
+
+def _canopy(buildings: Mapping[str, Any], lidar: Lidar) -> dict[str, Any]:
     outlines = [shape(f["geometry"]) for f in buildings.get("features", [])]
     trees = canopy(lidar.grid, outlines)
     return collection((tree, {"height_m": round(height, 2)}) for tree, height in trees)

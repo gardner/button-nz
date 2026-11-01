@@ -1,6 +1,7 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+import json
 import threading
 import time
 from collections.abc import Callable
@@ -11,8 +12,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 from httpx2 import Response  # what TestClient returns
-from shapely import Point
-from shapely.geometry import shape
+from shapely import Point, box
+from shapely.geometry import mapping, shape
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Runner
@@ -260,3 +261,17 @@ def test_the_maps_buildings_carry_their_heights_and_the_surface_is_served_as_til
     tile = server.client.get(f"/sites/{site_id}/terrain/{z}/{x}/{y}.png")
     assert tile.status_code == 200 and tile.headers["content-type"] == "image/png"
     assert server.client.get(f"/sites/{site_id}/terrain/{z}/{x + 50}/{y}.png").status_code == 404
+
+
+def test_a_building_beyond_the_sites_lidar_says_its_height_is_unknown(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    site_id = server.build()["id"]
+    kept = server.sites.buildings(site_id)
+    x, y, _, _ = shape(kept["features"][0]["geometry"]).bounds
+    far = mapping(box(x + 900, y, x + 910, y + 10))  # well past the site's LiDAR grid
+    beyond: dict[str, Any] = {"type": "Feature", "id": "far", "properties": {}, "geometry": far}
+    path = tmp_path / "sites" / site_id / "buildings.geojson"
+    path.write_text(json.dumps({**kept, "features": [*kept["features"], beyond]}))
+    layers = server.client.get(f"/sites/{site_id}/map").json()
+    found = {b["properties"]["id"]: b["properties"] for b in layers["buildings"]["features"]}
+    assert found["far"] == {"id": "far", "height_m": None, "base_m": None}  # never guessed
