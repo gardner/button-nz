@@ -25,6 +25,7 @@ from button_nz.sites.search import address_on_section
 POLL_S = 5.0
 SITE_TIMEOUT_S = 15 * 60
 DESIGN_TIMEOUT_S = 30 * 60
+VISUAL_TIMEOUT_S = 10 * 60
 TO_NZTM = Transformer.from_crs(4326, 2193, always_xy=True)
 
 
@@ -124,6 +125,15 @@ def _walls(client: httpx.Client, job_id: str) -> list[Point]:
 
 
 def _visual(client: httpx.Client, job: dict[str, Any]) -> bool | None:
+    """Whether the AI visual passed its SAM check; None if none was made. The
+    visual is made after the design is done (``illustrating``): wait for it,
+    never count one still coming as a failure."""
+    deadline = time.monotonic() + VISUAL_TIMEOUT_S
+    while job.get("illustrating"):
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"design {job['id']}'s visual still being made")
+        time.sleep(POLL_S)
+        job = client.get(f"/designs/{job['id']}").raise_for_status().json()
     accepted = next(a for a in job["attempts"] if a["number"] == job["accepted_attempt"])
     url = accepted["files"].get("visual.json")
     return None if url is None else bool(client.get(url).raise_for_status().json()["accepted"])
@@ -168,8 +178,9 @@ def _report(out: Path) -> None:
         f"- sections tried: {len(rows)}; designed: {len(designed)}; accepted: {len(accepted)}",
         f"- accepted on the first attempt: {len(first)} of {len(designed)}",
         f"- plain rectangles: {sum(1 for r in accepted if r['rectangle'])} of {len(accepted)}",
-        f"- AI visual passed its SAM check: {sum(1 for r in accepted if r['visual'])} "
-        f"of {len(accepted)}",
+        f"- AI visual passed its SAM check: {sum(1 for r in accepted if r['visual'] is True)}"
+        f"; failed: {sum(1 for r in accepted if r['visual'] is False)}"
+        f"; none made: {sum(1 for r in accepted if r['visual'] is None)}",
         f"- median design time: {median(r['seconds'] for r in designed):.0f} s" if designed else "",
         "",
         "## First attempts' failing checks",
