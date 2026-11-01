@@ -49,7 +49,7 @@ describe("useSite", () => {
   });
 
   it("asks again for a linked site when the first ask fails for a moment", async () => {
-    window.history.replaceState(null, "", "/?site=addr-1907458");
+    window.history.replaceState(null, "", "/?site=35-victory-street-reefton");
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(respond({ detail: "the API is restarting" }, 502))
@@ -64,12 +64,12 @@ describe("useSite", () => {
   });
 
   it("stops asking for a linked site once the person picks their own", async () => {
-    window.history.replaceState(null, "", "/?site=addr-1907458");
+    window.history.replaceState(null, "", "/?site=35-victory-street-reefton");
     const fetch = vi.fn((url: string, init?: RequestInit) =>
       Promise.resolve(
         init?.method === "POST"
           ? respond(OTHER, 202)
-          : url.endsWith("/sites/addr-1907458")
+          : url.endsWith("/sites/35-victory-street-reefton")
             ? respond({ detail: "the API is restarting" }, 502)
             : respond(OTHER, 202),
       ),
@@ -77,7 +77,7 @@ describe("useSite", () => {
     vi.stubGlobal("fetch", fetch);
     const linked = () =>
       fetch.mock.calls.filter(([url]) =>
-        String(url).endsWith("/sites/addr-1907458"),
+        String(url).endsWith("/sites/35-victory-street-reefton"),
       ).length;
     const { result } = renderHook(() => useSite(20));
     await waitFor(() => expect(result.current.problem).toContain("restarting"));
@@ -119,11 +119,58 @@ describe("useSite", () => {
     ).toHaveLength(3);
   });
 
+  it("doesn't let a poll of the old site replace a retried pick that answered first", async () => {
+    let answerPoll: (r: Response) => void = () => {};
+    let posts = 0;
+    let polls = 0;
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posts++;
+        if (posts === 1) return Promise.resolve(respond(SITE_BUILDING, 202));
+        if (posts === 2)
+          return Promise.resolve(
+            respond({ detail: "LINZ didn't answer" }, 502),
+          );
+        return Promise.resolve(respond(OTHER, 202));
+      }
+      if (url.endsWith("/35-victory-street-reefton") && ++polls >= 2)
+        return new Promise<Response>((r) => (answerPoll = r)); // held
+      return new Promise<Response>(() => {});
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() =>
+      expect(result.current.site?.id).toBe("35-victory-street-reefton"),
+    );
+    act(() => result.current.fromAddress(42));
+    await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));
+    await act(async () => answerPoll(respond(SITE_BUILDING)));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(result.current.site?.id).toBe("addr-42");
+  });
+
+  it("asks only once when the daily cap refuses a pick, and says why", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        respond({ detail: "Today's site builds are used." }, 429),
+      );
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.problem).toContain("used"));
+    await new Promise((r) => setTimeout(r, 40));
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("stops following when the site is gone for good, and says why", async () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(respond(SITE_BUILDING, 202))
-      .mockResolvedValue(respond({ detail: "no site addr-1907458" }, 404));
+      .mockResolvedValue(
+        respond({ detail: "no site 35-victory-street-reefton" }, 404),
+      );
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
     act(() => result.current.fromAddress(1907458));
@@ -144,14 +191,16 @@ describe("useSite", () => {
       if (init?.method === "POST")
         return Promise.resolve(respond(SITE_BUILDING, 202));
       if (failed) pollsSince += 1;
-      const ready = { ...SITE_READY, id: "addr-1907458" };
+      const ready = { ...SITE_READY, id: "35-victory-street-reefton" };
       // Still building for two polls after the refusal, then ready.
       return Promise.resolve(respond(pollsSince < 3 ? SITE_BUILDING : ready));
     });
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
     act(() => result.current.fromAddress(1907458));
-    await waitFor(() => expect(result.current.site?.id).toBe("addr-1907458"));
+    await waitFor(() =>
+      expect(result.current.site?.id).toBe("35-victory-street-reefton"),
+    );
     act(() => result.current.fromAddress(42));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
     expect(pollsSince).toBeGreaterThanOrEqual(3); // polls answered after it
@@ -186,7 +235,9 @@ describe("useSite", () => {
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
     act(() => result.current.fromAddress(1907458));
-    await waitFor(() => expect(result.current.site?.id).toBe("addr-1907458"));
+    await waitFor(() =>
+      expect(result.current.site?.id).toBe("35-victory-street-reefton"),
+    );
     act(() => result.current.fromAddress(42));
     await new Promise((r) => setTimeout(r, 30)); // several polls of the first site
     await act(async () => answerPick(respond(OTHER, 202)));

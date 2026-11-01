@@ -33,7 +33,7 @@ export const ADDRESSES = {
 
 /** GET /sites/{id} while it is being built. */
 export const SITE_BUILDING = {
-  id: "addr-1907458",
+  id: "35-victory-street-reefton",
   address: "35 Victory Street, Reefton",
   status: "building",
   step: "terrain",
