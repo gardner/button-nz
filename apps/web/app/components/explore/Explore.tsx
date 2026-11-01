@@ -40,7 +40,7 @@ const TOWN_LINE: Paint<"line"> = {
 /** Map-first: Reefton's sections coloured by the town screen, any address
  * found and its site built live, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
-  const { site, problem, fromAddress, fromParcel } = useSite(pollMs);
+  const { site, problem, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
   const step = stepOf({ site: site?.status });
   return (
@@ -52,7 +52,6 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             data={town.data}
             fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
             line={TOWN_LINE}
-            onClick={(section) => fromParcel(section.id)}
           />
         )}
         <FitTo bounds={site?.bounds ?? null} />

@@ -88,7 +88,7 @@ export interface Source {
 export interface Site {
   name: string;
   title: string;
-  valuationNumber: string;
+  valuationNumber: string | null; // null where the council has none
   address: Point;
   extent: [number, number, number, number]; // west, south, east, north
   parcels: Parcel[];
@@ -251,7 +251,7 @@ export function parseSite(raw: unknown): Site {
   return {
     name: text(site, "name"),
     title: text(site, "title"),
-    valuationNumber: text(site, "valuation_number"),
+    valuationNumber: optional(site, "valuation_number", text),
     address: asPoint(site.address),
     extent: numbers(site.extent, 4) as Site["extent"],
     parcels: list(parcels, "features").map(parseParcel),

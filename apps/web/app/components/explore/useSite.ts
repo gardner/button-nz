@@ -3,12 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { passing } from "@/lib/fields";
-import {
-  type SiteState,
-  createSite,
-  createSiteForParcel,
-  getSite,
-} from "@/lib/sites";
+import { type SiteState, createSite, getSite } from "@/lib/sites";
 
 /** The site being explored: started from an address or a clicked section,
  * followed while the server builds it, and kept in the address bar
@@ -112,10 +107,6 @@ export function useSite(pollMs: number) {
     fromAddress: (addressId: number) => {
       forget();
       pick(() => createSite(addressId));
-    },
-    fromParcel: (parcelId: number) => {
-      forget();
-      pick(() => createSiteForParcel(parcelId));
     },
   };
 }

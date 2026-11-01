@@ -61,15 +61,21 @@ describe("sites", () => {
     serve(SITE_READY);
     const site = await getSite("35-victory-street-reefton");
     expect(site.status).toBe("ready");
+    expect(site.address).toBe("35 Victory Street, Reefton");
     expect(site.bounds).toEqual([171.8619, -42.1161, 171.8625, -42.1155]);
-    expect(site.site?.title).toBe("354613");
+    expect(site.site).toMatchObject({
+      title: "354613",
+      valuationNumber: null,
+      address: [1505941.6, 5336793.7],
+    });
   });
 
   it.each([
     [{ ...SITE_BUILDING, status: "paused" }],
     [{ ...SITE_BUILDING, step: "dreaming" }],
-    [{ ...SITE_READY, bounds: null }],
-    [{ ...SITE_READY, site: null }],
+    [{ ...SITE_READY, bounds: undefined }],
+    [{ ...SITE_READY, address_nztm: undefined }],
+    [{ ...SITE_READY, crs: "EPSG:4326" }],
   ])("refuses a site state it doesn't expect", (raw) => {
     expect(() => parseSiteState(raw)).toThrow(ApiError);
   });

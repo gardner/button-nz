@@ -38,31 +38,29 @@ export const SITE_BUILDING = {
   status: "building",
   step: "terrain",
   error: null,
-  bounds: null,
-  site: null,
 };
 
-/** GET /sites/{id} once it is ready: bounds in lon/lat, and under "site"
- * everything GET /site returns (whose own "address" is an NZTM point). */
+/** GET /sites/{id} once it is ready (#88's `_view`, as tests/test_api_sites.py
+ * asserts it): GET /site's fields at the top level, its NZTM point renamed
+ * `address_nztm` so `address` stays the text, with lon/lat bounds and the
+ * aerial. */
 export const SITE_READY = {
+  name: "35 Victory Street, Reefton",
+  title: "354613",
+  valuation_number: null,
+  crs: "EPSG:2193",
+  address_nztm: [1505941.6, 5336793.7],
+  extent: [1505926.13, 5336777.48, 1505969.74, 5336822.22],
+  parcels: { type: "FeatureCollection", features: [] },
+  sources: {},
+  open_items: [],
   id: "35-victory-street-reefton",
   address: "35 Victory Street, Reefton",
   status: "ready",
   step: null,
   error: null,
   bounds: [171.8619, -42.1161, 171.8625, -42.1155],
-  site: {
-    name: "35 Victory Street, Reefton",
-    title: "354613",
-    valuation_number: "1905027200",
-    crs: "EPSG:2193",
-    address: [1505941.6, 5336793.7],
-    extent: [1505926.13, 5336777.48, 1505969.74, 5336822.22],
-    parcels: { type: "FeatureCollection", features: [] },
-    sources: {},
-    open_items: [],
-    aerial: null,
-  },
+  aerial: null,
 };
 
 /** GET /town/reefton: three sections, one of each category. */
