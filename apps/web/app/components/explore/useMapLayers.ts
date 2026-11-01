@@ -20,7 +20,8 @@ export function useSiteMap(siteId: string | null, version: number) {
     let gone = false;
     getSiteMap(siteId).then(
       (m) => !gone && (setMap(m), setProblem(null)),
-      (e: Error) => !gone && setProblem(e.message),
+      // The old layers would show rules the server no longer holds.
+      (e: Error) => !gone && (setMap(null), setProblem(e.message)),
     );
     return () => {
       gone = true;

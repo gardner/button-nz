@@ -34,13 +34,13 @@ const BADGE: Record<Check["status"], string> = {
 };
 const VERDICT: Record<Attempt["status"], string> = {
   pass: "bg-emerald-500 text-zinc-950",
-  unknown: "bg-emerald-500/70 text-zinc-950",
+  unknown: "bg-amber-400 text-zinc-950",
   fail: "bg-red-500 text-white",
   error: "bg-zinc-600 text-white",
 };
 const VERDICT_WORD: Record<Attempt["status"], string> = {
   pass: "Passed",
-  unknown: "Passed, some unknown",
+  unknown: "No failures; some checks unknown",
   fail: "Failed",
   error: "Didn't build",
 };

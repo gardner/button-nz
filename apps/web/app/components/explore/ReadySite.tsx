@@ -33,12 +33,18 @@ export function ReadySite({
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState(false); // the survey, opened again
-  const survey = useSurvey(site.id, () => setVersion((v) => v + 1));
-  const siteMap = useSiteMap(site.id, version);
   const chain = useDesignChain(pollMs, site.id);
+  const [checkedBefore, setCheckedBefore] = useState<readonly string[]>([]);
+  const survey = useSurvey(site.id, () => {
+    setVersion((v) => v + 1);
+    // Every design so far was checked on the survey as it was.
+    setCheckedBefore(chain.chain.map((j) => j.id));
+  });
+  const siteMap = useSiteMap(site.id, version);
   const shown = chain.shown;
   const designMap = useDesignMap(shown);
   const accepted = shown?.status === "done" && shown.acceptedAttempt !== null;
+  const outdated = shown !== undefined && checkedBefore.includes(shown.id);
 
   const design = designState(shown);
   useEffect(() => onDesign(design), [design, onDesign]);
@@ -56,11 +62,7 @@ export function ReadySite({
       />
       <SiteHeader
         address={site.address}
-        problems={[
-          siteMap.problem && `The site's map couldn't load: ${siteMap.problem}`,
-          designMap.problem &&
-            `The design's overlay couldn't load: ${designMap.problem}`,
-        ]}
+        problems={problemsOf(siteMap.problem, designMap.problem, outdated)}
       />
       <SurveyPanel
         control={survey}
@@ -123,6 +125,21 @@ function designBounds(map: DesignMap): Bounds | null {
   return [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
 }
 
+/** What the site's header warns of: layers that couldn't load, and a
+ * design checked on the survey as it was before a change. */
+function problemsOf(
+  siteMap: string | null,
+  designMap: string | null,
+  outdated: boolean,
+): string[] {
+  return [
+    siteMap && `The site's map couldn't load: ${siteMap}`,
+    designMap && `The design's overlay couldn't load: ${designMap}`,
+    outdated &&
+      "The survey changed after this design was checked, so its checks may no longer hold. Ask for a change to check it again.",
+  ].filter((p): p is string => Boolean(p));
+}
+
 /** How far the shown design has got, for the stepper. */
 function designState(shown: Job | undefined): JourneyState["design"] {
   if (!shown) return undefined;
@@ -138,7 +155,7 @@ function SiteHeader({
   problems,
 }: {
   address: string;
-  problems: (string | null | false)[];
+  problems: string[];
 }) {
   return (
     <section className="rounded-2xl bg-zinc-950/85 px-5 py-4 shadow-2xl backdrop-blur">
@@ -146,7 +163,7 @@ function SiteHeader({
         Your site
       </p>
       <p className="text-lg font-semibold">{address}</p>
-      {problems.filter(Boolean).map((p) => (
+      {problems.map((p) => (
         <p key={String(p)} className="mt-1 text-sm text-red-300">
           {p}
         </p>
