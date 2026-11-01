@@ -106,15 +106,16 @@ def address_on_section(
     """The LINZ address on primary parcel ``parcel_id``, so a section clicked on
     the map starts the same site as searching for it. A section with no address
     of its own takes one on another parcel of its title (one property), nearest
-    the section's middle. None when the whole title has none.
+    the section's middle. None when the title has none a site could be built on.
 
-    A title a road cuts in two is measured by the section's own block of it
-    (``blocks.block``), which a site is built on, and an address on that block
-    comes before one across the road. A block too big for a site
-    (``MAX_PARCELS``, ``MAX_SIDE_M``, as ``find_title`` refuses) is refused
-    before any address is asked for, and the title's addresses are asked for
-    once per block, over that block's extent. An address across the road, which builds
-    the block it is on, is refused if that block is too big."""
+    A title a road cuts in two is in blocks (``blocks.blocks_of``); a site is
+    built on one. The section's own block is measured (``MAX_PARCELS``,
+    ``MAX_SIDE_M``, as ``find_title`` refuses) before any address is asked
+    for, and its addresses come first. Only if it has none are the title's
+    other blocks asked, nearest first, until one has an address: each over
+    its own extent, never the land between. A block too big for a site is
+    never asked (its address would be refused), and more blocks than a
+    section's parcels is more than a section."""
     found = parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise NoSuchSection(parcel_id)
@@ -122,33 +123,42 @@ def address_on_section(
     on_title = title_parcels(parcels, found[0])
     if not on_title:  # a road, a reserve: find_title would refuse its address too
         raise NotASection(f"parcel {parcel_id} has no record of title: it isn't a property")
-    mine = _block_of(section, on_title)
-    own = unary_union([_shape(p) for p in mine])  # the block alone: not the section's far pieces
-    here = section.intersection(own)
+    middle = section.representative_point()
+    mine, *others = sorted(blocks_of(on_title), key=lambda b: _land(b).distance(middle))
     _refuse_more_than_a_section(parcel_id, mine)
-    on = [
-        (not own.covers(point), not here.covers(point), here.centroid.distance(point), a, point)
-        for point, a in _addresses_on(addresses, on_title)
-    ]
-    if not on:
-        return None
-    across, _, _, address, point = min(on, key=lambda o: o[:4])  # its block (its own first)
-    if across:  # the site is built on the address's block: measure that one too
-        _refuse_more_than_a_section(parcel_id, block(on_title, (point.x, point.y))[0])
-    return address
+    here = section.intersection(_land(mine))  # the block alone: not the section's far pieces
+    if on := _addresses_on(addresses, mine):
+        return min(on, key=lambda o: (not here.covers(o[0]), here.centroid.distance(o[0])))[1]
+    sections = [b for b in others if not _too_big(b)]
+    if len(sections) > MAX_PARCELS:
+        raise NotASection(
+            f"parcel {parcel_id}'s block has no address, and its title is "
+            f"{len(sections) + 1} blocks: more than a section"
+        )
+    for other in sections:  # nearest first
+        if on := _addresses_on(addresses, other):
+            return min(on, key=lambda o: here.centroid.distance(o[0]))[1]
+    return None
+
+
+def _land(found: list[Feature]) -> BaseGeometry:
+    return unary_union([_shape(p) for p in found])
+
+
+def _too_big(found: list[Feature]) -> str | None:
+    """Why a block of a title is too big for a site, as ``find_title`` would
+    refuse it: more than ``MAX_PARCELS`` parcels, or wider or taller than
+    ``MAX_SIDE_M``. None if it is a section."""
+    west, south, east, north = _land(found).bounds
+    count = parcels_in(found)  # parcels, not their pieces
+    if count > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
+        return f"{count} parcels over {east - west:.0f} x {north - south:.0f} m"
+    return None
 
 
 def _refuse_more_than_a_section(parcel_id: int, found: list[Feature]) -> None:
-    """Refuse a block of ``parcel_id``'s title too big for a site, as
-    ``find_title`` would: more than ``MAX_PARCELS`` parcels, or wider or
-    taller than ``MAX_SIDE_M``."""
-    west, south, east, north = unary_union([_shape(p) for p in found]).bounds
-    count = parcels_in(found)  # parcels, not their pieces
-    if count > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
-        raise NotASection(
-            f"parcel {parcel_id}'s title is {count} parcels over "
-            f"{east - west:.0f} x {north - south:.0f} m: more than a section"
-        )
+    if size := _too_big(found):
+        raise NotASection(f"parcel {parcel_id}'s title is {size}: more than a section")
 
 
 def _shape(feature: Feature) -> BaseGeometry:
@@ -184,14 +194,13 @@ def _props_of(feature: Feature) -> dict[str, Any]:
     return cast("dict[str, Any]", feature["properties"])
 
 
-def _addresses_on(addresses: FeatureLayer, on_title: list[Feature]) -> list[tuple[Point, int]]:
-    """The addresses on the title's land, each at its point, asked for block
-    by block: one envelope over blocks far apart would hold the land between."""
-    on: dict[int, Point] = {}
-    for found in blocks_of(on_title):
-        land = unary_union([_shape(p) for p in found])
-        for feature in addresses.in_envelope(land.bounds).features:
-            xy = cast("dict[str, Any]", feature["geometry"])["coordinates"][:2]
-            if land.covers(point := Point(float(xy[0]), float(xy[1]))):
-                on[int(_props_of(feature)["address_id"])] = point
-    return [(point, a) for a, point in on.items()]
+def _addresses_on(addresses: FeatureLayer, found: list[Feature]) -> list[tuple[Point, int]]:
+    """The addresses on a block of the title, each at its point, asked over
+    the block's own extent."""
+    land = _land(found)
+    on: list[tuple[Point, int]] = []
+    for feature in addresses.in_envelope(land.bounds).features:
+        xy = cast("dict[str, Any]", feature["geometry"])["coordinates"][:2]
+        if land.covers(point := Point(float(xy[0]), float(xy[1]))):
+            on.append((point, int(_props_of(feature)["address_id"])))
+    return on

@@ -277,15 +277,14 @@ def test_a_titles_blocks_far_apart_are_each_asked_for_addresses_not_the_land_bet
     asked: list[str] = []
     addresses, parcels = _section_layers([near, far], asked)
     assert address_on_section(addresses, parcels, 1) == 7
-    for url in asked:
-        west, south, east, north = map(
-            float, parse_qs(urlsplit(url).query)["geometry"][0].split(",")
-        )
-        assert max(east - west, north - south) <= MAX_SIDE_M
+    assert all(width <= MAX_SIDE_M for width in _widths(asked))
 
 
-def _addresses(points: list[tuple[int, list[float]]]) -> FeatureLayer:
-    """An address layer serving these addresses, whatever envelope is asked."""
+def _addresses(
+    points: list[tuple[int, list[float]]], asked: list[str] | None = None
+) -> FeatureLayer:
+    """An address layer serving these addresses, whatever envelope is asked;
+    each request's URL kept in ``asked``."""
     features = [
         {
             "type": "Feature",
@@ -295,7 +294,13 @@ def _addresses(points: list[tuple[int, list[float]]]) -> FeatureLayer:
         for aid, xy in points
     ]
     body = json.dumps({"type": "FeatureCollection", "features": features})
-    client = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, text=body)))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if asked is not None:
+            asked.append(str(request.url))
+        return httpx.Response(200, text=body)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
     return FeatureLayer(URL, "CC-BY-4.0", "LINZ", client)
 
 
@@ -342,11 +347,56 @@ def test_a_parcel_in_touching_pieces_counts_once_toward_a_tapped_blocks_parcels(
     assert address_on_section(_addresses([(8, [X0 + 15, Y0 + 5])]), parcels, 1) == 8
 
 
-def test_an_address_across_the_gap_on_a_block_too_big_is_refused_before_it_is_queued() -> None:
+def _widths(asked: list[str]) -> list[float]:
+    """How wide or tall each envelope asked of the address layer was, in m."""
+    found: list[float] = []
+    for url in asked:
+        west, south, east, north = map(
+            float, parse_qs(urlsplit(url).query)["geometry"][0].split(",")
+        )
+        found.append(max(east - west, north - south))
+    return found
+
+
+def test_a_block_too_big_for_a_site_is_never_asked_for_its_addresses() -> None:
     """A small block of the title with no address; the title's address is on a
-    block across a road wider than a section: tapping the small one is refused."""
+    farm block across a road, wider than a section. The farm's addresses are
+    never paged through, and the tap builds the small block as a title site."""
     small = parcel(1, _sq(X0, Y0, 10), "354613")
-    farm = parcel(2, _sq(X0 + 30, Y0, MAX_SIDE_M + 50), "354613")
+    farm = parcel(2, _sq(X0 + 30, Y0, MAX_SIDE_M + 5000), "354613")
     parcels = layers([small, farm])["LINZ_NZ_Primary_Parcels"]
+    asked: list[str] = []
+    assert address_on_section(_addresses([(8, [X0 + 50, Y0 + 15])], asked), parcels, 1) is None
+    assert _widths(asked) == [10]
+
+
+def test_an_address_on_the_tapped_block_asks_no_other_block() -> None:
+    near = parcel(1, _sq(X0, Y0, 20), "354613")
+    far = parcel(2, _sq(X0 + 5000, Y0, 20), "354613")
+    parcels = layers([near, far])["LINZ_NZ_Primary_Parcels"]
+    asked: list[str] = []
+    addresses = _addresses([(8, [X0 + 5, Y0 + 5]), (9, [X0 + 5005, Y0 + 5])], asked)
+    assert address_on_section(addresses, parcels, 1) == 8
+    assert len(asked) == 1
+
+
+def test_with_no_address_on_its_block_the_nearest_block_with_one_is_taken() -> None:
+    """Asked nearest first, stopping at the first block with an address."""
+    tapped = parcel(1, _sq(X0, Y0, 10), "354613")
+    near = parcel(2, _sq(X0 + 30, Y0, 10), "354613")
+    far = parcel(3, _sq(X0 + 90, Y0, 10), "354613")
+    parcels = layers([tapped, far, near])["LINZ_NZ_Primary_Parcels"]
+    asked: list[str] = []
+    addresses = _addresses([(9, [X0 + 95, Y0 + 5]), (8, [X0 + 35, Y0 + 5])], asked)
+    assert address_on_section(addresses, parcels, 1) == 8
+    assert len(asked) == 2  # the tapped block, then the near one: never the far one
+
+
+def test_a_title_in_more_blocks_than_a_sections_parcels_is_refused_past_its_own() -> None:
+    tapped = parcel(1, _sq(X0, Y0, 10), "354613")
+    rest = [parcel(2 + i, _sq(X0 + 30 * (i + 1), Y0, 10), "354613") for i in range(MAX_PARCELS + 1)]
+    parcels = layers([tapped, *rest])["LINZ_NZ_Primary_Parcels"]
+    asked: list[str] = []
     with pytest.raises(NotASection, match="more than a section"):
-        address_on_section(_addresses([(8, [X0 + 50, Y0 + 15])]), parcels, 1)
+        address_on_section(_addresses([], asked), parcels, 1)
+    assert len(asked) == 1  # only its own block
