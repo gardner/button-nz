@@ -32,8 +32,10 @@ owner to them, and doesn't yet serve them directly ([product.md](product.md)).
    keep, the vegetable garden) or **Ignore**.
 4. They tick **Every building on the site is listed**. The box can't be
    ticked while anything that might be a building is undecided.
-5. The team fixes the survey as the owner decided it. From then on every
-   design is checked against it, and visitors see who decided it.
+5. The team fixes the survey as the owner decided it. From then on the app
+   can't change it, every design is checked against it, and visitors see who
+   decided it. (The lock is on the app's edits: replacing the survey file on
+   the server would start an undecided survey, #91.)
 
 **What can go wrong:** the photo (2024–25) and the LiDAR (2020–24) are older
 than the site. The owner's word is what counts. A feature left undecided
@@ -140,7 +142,8 @@ one of their own.
 2. They read the site panel: real parcels, real LiDAR, sources and,
    where recorded, capture dates. They see the survey as the owner decided it, and who decided it.
 3. They write their own brief and press **Design**, and watch it run live:
-   Muse's LiDAR views, a failed check and its repair, the accepted design.
+   the LiDAR views Muse asks for (by name), a failed check and its repair,
+   the accepted design.
 4. They ask which prefabs fit, and place one.
 5. For depth they turn to the [README](../README.md) (how it works, the Meta
    models) and [docs/results](results/README.md):
@@ -175,7 +178,8 @@ from real runs.
 4. **Package the sample:** `python -m button_nz.sample` packs a design and
    the designs it revises (so pass the final take's latest revision), with
    the survey they were checked against. It refuses an accepted attempt missing
-   any of its files, and a survey that doesn't match what the designs were
+   any required file (trace, scene, script, Blender file, measurements, GLB,
+   render), and a survey that doesn't match what the designs were
    checked against. The
    placed prefab is a separate design, with no parent, so it is packed on its
    own.

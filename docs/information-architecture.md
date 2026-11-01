@@ -37,7 +37,8 @@ checked against the measured site.
         ├── Status line: queued, running, accepted, no attempt passed, or failed
         ├── Before and after (a revision only)
         ├── Attempt 1…n: verdict, each check's plain detail (the full
-        │   measurements stay in the trace), the LiDAR views asked for, and, if it produced a
+        │   measurements stay in the trace), the LiDAR views asked for (by name;
+        │   the images are in the run's files), and, if it produced a
         │   model, its render and View in 3D; the accepted attempt also gets
         │   the AI illustration, when its check passes
         ├── 3D model (ModelViewer)
@@ -64,7 +65,7 @@ Each object, what it holds, and where it comes from.
 
 | Object | Holds | Source | Kept in |
 |---|---|---|---|
-| **Site** | Name, title, parcels, extent, rasters and vectors with licences and capture dates, open items | LINZ and Buller District Council open data, pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
+| **Site** | Name, title, parcels, extent, rasters and vectors with licences and capture dates, open items | LINZ open data (CC BY 4.0) and Buller District Council's public parcels (no licence stated), pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
 | **Survey** | What SAM 3.1 found on the aerial photo, plus raised ground on the LiDAR that no label covers (concept "unlabelled", no score). Each is a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
