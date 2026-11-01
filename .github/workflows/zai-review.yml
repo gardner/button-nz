@@ -46,16 +46,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The script as it is on the base branch, never the PR's own copy: this
+      # The script as it is on the base branch, never the PR's own copy (HEAD^1:
+      # the merge commit's first parent, the base commit this workflow file
+      # itself comes from, so YAML and scripts always match). This
       # step runs outside the sandbox, and a PR's script could write to
       # GITHUB_ENV (BASH_ENV, say) and take over the review step that holds
       # the key.
       - name: Collect earlier review threads
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          git show "$BASE_SHA:scripts/pr-review-threads.sh" > "$RUNNER_TEMP/pr-review-threads.sh"
+          git show "HEAD^1:scripts/pr-review-threads.sh" > "$RUNNER_TEMP/pr-review-threads.sh"
           bash "$RUNNER_TEMP/pr-review-threads.sh" \
             "$GITHUB_REPOSITORY" "${{ github.event.pull_request.number }}" > review-threads.md
 
@@ -71,15 +72,13 @@ jobs:
       # it use copies taken now, in runner temp, which it cannot write to, and
       # the job ends by deleting the workspace.
       - name: Keep trusted copies of the post-review files
-        # From the base branch, like the threads script: a PR's own copy
-        # would run outside the sandbox after the review.
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # From the base branch (HEAD^1), like the threads script: a PR's own
+        # copy would run outside the sandbox after the review.
         run: |
           mkdir "$RUNNER_TEMP/trusted"
-          git show "$BASE_SHA:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
+          git show "HEAD^1:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
           chmod +x "$RUNNER_TEMP/trusted/review-metrics.sh"
-          git show "$BASE_SHA:.github/review-trace-key.asc" > "$RUNNER_TEMP/trusted/review-trace-key.asc"
+          git show "HEAD^1:.github/review-trace-key.asc" > "$RUNNER_TEMP/trusted/review-trace-key.asc"
 
       - name: Review the pull request
         id: review
