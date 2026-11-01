@@ -74,6 +74,8 @@ def test_a_site_is_built_then_served_ready(tmp_path: Path) -> None:
     server.builder.run_next()
     site = server.client.get("/sites/1-test-street-reefton").json()
     assert site["status"] == "ready" and site["valuation_number"] is None
+    assert site["address"] == "1 Test Street, Reefton"  # the same while building and ready
+    assert len(site["address_nztm"]) == 2
     west, south, east, north = site["bounds"]
     assert 171 < west < east < 172 and -43 < south < north < -42
     assert site["aerial"]["url"] == "/sites/1-test-street-reefton/aerial.png"
@@ -109,6 +111,7 @@ def test_a_built_sites_survey_is_open_to_its_visitor(tmp_path: Path) -> None:
     site_id = server.build()["id"]
     features = server.client.get(f"/sites/{site_id}/features").json()
     assert features["fixed"] is False and features["features"] == []
+    assert all(url.startswith("https://") for url in features["lidar"])  # LINZ's, not ours
     body = {"buildings_complete": True, "survey_id": features["survey_id"]}
     assert server.client.put(f"/sites/{site_id}/survey", json=body).status_code == 200
 
