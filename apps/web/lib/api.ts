@@ -10,7 +10,6 @@ import {
   asPoint,
   asText,
   flag,
-  isRecord,
   list,
   number,
   numbers,
@@ -26,11 +25,12 @@ import {
   parseFeature,
   parseSurvey,
 } from "./features";
+import { API, request, send } from "./http";
 import { type Products, parseProducts } from "./products";
 
 export { ApiError };
 
-export const API = "/api";
+export { API };
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type Verdict = "pass" | "fail" | "unknown" | "error";
@@ -88,7 +88,7 @@ export interface Source {
 export interface Site {
   name: string;
   title: string;
-  valuationNumber: string;
+  valuationNumber: string | null; // null where the council has none
   address: Point;
   extent: [number, number, number, number]; // west, south, east, north
   parcels: Parcel[];
@@ -192,37 +192,6 @@ export async function setBuildingsComplete(
   return flag(survey, "buildings_complete");
 }
 
-function send(
-  method: "POST" | "PUT",
-  path: string,
-  body: object,
-): Promise<unknown> {
-  return request(path, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-async function request(path: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(`${API}${path}`, init);
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new ApiError(
-      reason(body) ?? `${response.status} ${response.statusText}`,
-      response.status,
-    );
-  }
-  return body;
-}
-
-function reason(body: unknown): string | null {
-  if (!isRecord(body) || body.detail === undefined) return null;
-  return typeof body.detail === "string"
-    ? body.detail
-    : JSON.stringify(body.detail);
-}
-
 export function parseJob(raw: unknown): Job {
   const job = record(raw, "job");
   return {
@@ -282,7 +251,7 @@ export function parseSite(raw: unknown): Site {
   return {
     name: text(site, "name"),
     title: text(site, "title"),
-    valuationNumber: text(site, "valuation_number"),
+    valuationNumber: optional(site, "valuation_number", text),
     address: asPoint(site.address),
     extent: numbers(site.extent, 4) as Site["extent"],
     parcels: list(parcels, "features").map(parseParcel),
