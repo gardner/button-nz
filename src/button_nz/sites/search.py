@@ -114,7 +114,9 @@ def address_on_section(
     if not found:
         raise NoSuchSection(parcel_id)
     section = _shape(found[0])
-    title = [_shape(p) for p in title_parcels(parcels, found[0])] or [section]
+    title = [_shape(p) for p in title_parcels(parcels, found[0])]
+    if not title:  # a road, a reserve: find_title would refuse its address too
+        raise NotASection(f"parcel {parcel_id} has no record of title: it isn't a property")
     land = unary_union([section, *title])
     west, south, east, north = land.bounds
     if len(title) > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:

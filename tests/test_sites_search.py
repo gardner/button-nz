@@ -234,3 +234,12 @@ def test_a_sections_titles_parcels_are_asked_for_in_one_query() -> None:
 
 def _id(feature: Any) -> int:
     return int(feature["properties"]["id"])
+
+
+def test_a_parcel_with_no_record_of_title_is_refused_not_built() -> None:
+    lot = parcel(5, A_RING, None)  # holds the address, but no title: never a site
+    asked: list[str] = []
+    addresses, parcels = _section_layers([lot], asked)
+    with pytest.raises(NotASection, match="record of title"):
+        address_on_section(addresses, parcels, 5)
+    assert asked == []
