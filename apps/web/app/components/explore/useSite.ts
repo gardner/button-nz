@@ -63,12 +63,15 @@ export function useSite(pollMs: number) {
   const [linkTries, setLinkTries] = useState(0);
   useEffect(() => {
     if (linked === null) return;
+    const ask = picked.current;
     const timer = setTimeout(
-      () =>
+      () => {
+        if (ask !== picked.current) return; // the person has picked since
         pick(
           () => getSite(linked),
           (e) => passing(e) && setLinkTries((n) => n + 1),
-        ),
+        );
+      },
       linkTries === 0 ? 0 : pollMs,
     );
     return () => clearTimeout(timer);
