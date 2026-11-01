@@ -269,6 +269,21 @@ def test_a_tapped_block_is_measured_not_the_whole_title_a_road_cuts() -> None:
     assert address_on_section(addresses, parcels, 1) == 7  # the fake's address, on A
 
 
+def test_a_titles_blocks_far_apart_are_each_asked_for_addresses_not_the_land_between() -> None:
+    """Blocks of one title kilometres apart: one envelope over both would page
+    through a town's addresses. Each block's own envelope is asked instead."""
+    near = parcel(1, A_RING, "354613")
+    far = parcel(2, _sq(X0 + 5000, Y0, 20), "354613")
+    asked: list[str] = []
+    addresses, parcels = _section_layers([near, far], asked)
+    assert address_on_section(addresses, parcels, 1) == 7
+    for url in asked:
+        west, south, east, north = map(
+            float, parse_qs(urlsplit(url).query)["geometry"][0].split(",")
+        )
+        assert max(east - west, north - south) <= MAX_SIDE_M
+
+
 def _addresses(points: list[tuple[int, list[float]]]) -> FeatureLayer:
     """An address layer serving these addresses, whatever envelope is asked."""
     features = [

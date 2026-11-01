@@ -53,6 +53,13 @@ def block(parcels: Sequence[Feature], point: Point) -> tuple[list[Feature], floa
     return [parts[i] for i in sorted(blocks[chosen])], sum(area) - area[chosen]
 
 
+def blocks_of(parcels: Sequence[Feature]) -> list[list[Feature]]:
+    """Every block of the title's land, each as its pieces."""
+    parts = pieces(parcels)
+    shapes = [shape(cast("dict[str, Any]", p["geometry"])) for p in parts]
+    return [[parts[i] for i in sorted(b)] for b in _touching(shapes)]
+
+
 def _touching(shapes: Sequence[BaseGeometry]) -> list[list[int]]:
     """``shapes``' indices grouped into blocks that touch, each a chain of
     pieces within ``TOUCH_M`` of the next."""

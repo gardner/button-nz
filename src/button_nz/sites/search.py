@@ -20,7 +20,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.arcgis import Feature, FeatureLayer
-from button_nz.sites.blocks import block, parcels_in
+from button_nz.sites.blocks import block, blocks_of, parcels_in
 from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels, titles_of
 
 MAX_RESULTS = 8
@@ -113,7 +113,7 @@ def address_on_section(
     comes before one across the road. A block too big for a site
     (``MAX_PARCELS``, ``MAX_SIDE_M``, as ``find_title`` refuses) is refused
     before any address is asked for, and the title's addresses are asked for
-    once, over its whole extent. An address across the road, which builds
+    once per block, over that block's extent. An address across the road, which builds
     the block it is on, is refused if that block is too big."""
     found = parcels.where(f"id = {int(parcel_id)}").features
     if not found:
@@ -126,10 +126,9 @@ def address_on_section(
     own = unary_union([_shape(p) for p in mine])  # the block alone: not the section's far pieces
     here = section.intersection(own)
     _refuse_more_than_a_section(parcel_id, mine)
-    land = unary_union([section, *(_shape(p) for p in on_title)])
     on = [
         (not own.covers(point), not here.covers(point), here.centroid.distance(point), a, point)
-        for point, a in _addresses_in(addresses, land)
+        for point, a in _addresses_on(addresses, on_title)
     ]
     if not on:
         return None
@@ -185,11 +184,14 @@ def _props_of(feature: Feature) -> dict[str, Any]:
     return cast("dict[str, Any]", feature["properties"])
 
 
-def _addresses_in(addresses: FeatureLayer, land: BaseGeometry) -> list[tuple[Point, int]]:
-    """The addresses on ``land``, each at its point."""
-    on: list[tuple[Point, int]] = []
-    for feature in addresses.in_envelope(land.bounds).features:
-        x, y = (float(v) for v in cast("dict[str, Any]", feature["geometry"])["coordinates"][:2])
-        if land.covers(point := Point(x, y)):
-            on.append((point, int(cast("dict[str, Any]", feature["properties"])["address_id"])))
-    return on
+def _addresses_on(addresses: FeatureLayer, on_title: list[Feature]) -> list[tuple[Point, int]]:
+    """The addresses on the title's land, each at its point, asked for block
+    by block: one envelope over blocks far apart would hold the land between."""
+    on: dict[int, Point] = {}
+    for found in blocks_of(on_title):
+        land = unary_union([_shape(p) for p in found])
+        for feature in addresses.in_envelope(land.bounds).features:
+            xy = cast("dict[str, Any]", feature["geometry"])["coordinates"][:2]
+            if land.covers(point := Point(float(xy[0]), float(xy[1]))):
+                on[int(_props_of(feature)["address_id"])] = point
+    return [(point, a) for a, point in on.items()]
