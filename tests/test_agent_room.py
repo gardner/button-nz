@@ -55,9 +55,9 @@ def test_every_rectangle_lies_inside_the_room_even_off_the_grid() -> None:
 
 
 def test_a_halo_is_at_least_2_m_everywhere() -> None:
-    house = box(8, 18, 14, 24)
-    room = room_of([TITLE], buildings=[], keep_clear=[], standing=[house])
-    assert room.distance(house) >= 2.0 - 1e-9
+    house = ((8.0, 18.0), (14.0, 18.0), (14.0, 24.0), (8.0, 24.0), (8.0, 18.0))
+    room = room_of([TITLE], buildings=[house], keep_clear=[])
+    assert room.distance(Polygon(house)) >= 2.0 - 1e-9
 
 
 def test_no_rectangle_crosses_a_line_between_two_sections_of_the_title() -> None:

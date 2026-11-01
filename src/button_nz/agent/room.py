@@ -21,7 +21,6 @@ from shapely.geometry.base import BaseGeometry
 from button_nz.evaluation.checks import MIN_SEPARATION_M
 from button_nz.evaluation.model import SiteContext
 from button_nz.geo.geometry import Point, Ring
-from button_nz.sites.heights import canopy
 
 STEP_M = 0.25  # the grid the rectangles are found on
 QUAD_SEGS = 16
@@ -37,20 +36,16 @@ class Rectangle:
 
 
 def room_of(
-    title: Sequence[Ring],
-    buildings: Sequence[Ring],
-    keep_clear: Sequence[Ring],
-    standing: Sequence[BaseGeometry] = (),
+    title: Sequence[Ring], buildings: Sequence[Ring], keep_clear: Sequence[Ring]
 ) -> BaseGeometry:
-    """Where a dwelling's outline may stand under the evaluator's rules, and
-    clear of what the LiDAR shows ``standing`` (a house nobody listed, a tree):
-    the evaluator can't pass separation beside those, so they get the same
-    room round them as a listed building."""
+    """Where a dwelling's outline may stand under the evaluator's rules, on the
+    owner's decisions: inside the setbacks, 2 m from the buildings they listed,
+    off the areas they keep clear. What they chose to ignore doesn't count;
+    nothing the survey found constrains a design until someone confirms it."""
     # Each parcel on its own: a dwelling keeps 2 m from the lines between a
     # title's sections too, and is never built across one (s 42B).
     inner = union_all([_buffer(Polygon(ring), -MIN_SEPARATION_M) for ring in title])
     taken = [_buffer(Polygon(r), MIN_SEPARATION_M) for r in buildings]
-    taken += [_buffer(g, MIN_SEPARATION_M) for g in standing]
     taken += [Polygon(r) for r in keep_clear]
     return inner.difference(union_all(taken)) if taken else inner
 
@@ -137,17 +132,15 @@ def _largest(grid: NDArray[np.bool_], least: int) -> tuple[int, int, int, int] |
 def describe_room(site: SiteContext, local: Callable[[Point], Point]) -> str:
     """The room on ``site`` and its largest rectangles for the design agent, in
     its local coordinates, with what to do with them."""
-    standing = [polygon for polygon, _ in canopy(site.terrain, [])]
     title = site.parcels
-    room = room_of(title, site.confirmed_buildings, site.preservation_areas, standing)
+    room = room_of(title, site.confirmed_buildings, site.preservation_areas)
     found = largest_rectangles(room, longest_edge_angle(title))
     if not found:
         return "- room for a dwelling: none left inside the rules.\n"
     lines = [
-        f"- room for a dwelling ({room.area:.0f} m²: inside the setbacks, clear of listed "
-        "buildings, kept areas, and anything the LiDAR shows standing over 2 m, with 2 m "
-        "round each). Its largest rectangles, for the whole outline seen from above "
-        "(eaves included), local x, y corners:"
+        f"- room for a dwelling ({room.area:.0f} m²: inside the setbacks, 2 m from the "
+        "listed buildings, off the kept areas). Its largest rectangles, for the whole "
+        "outline seen from above (eaves included), local x, y corners:"
     ]
     lines.append(rectangles_text(found, local))
     lines.append(
