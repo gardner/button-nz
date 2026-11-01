@@ -2,20 +2,27 @@
 layer only as words it can't break out of."""
 
 import json
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
 
 from button_nz.geo.arcgis import FeatureLayer
+from button_nz.sites.build import MAX_PARCELS, SiteError, title_parcels
 from button_nz.sites.search import (
     LOCAL_CANDIDATES,
     MAX_RESULTS,
+    NotASection,
     QueryError,
+    address_on_section,
     ground_distance,
     search_addresses,
     where_clause,
 )
+from test_sites_build import PARCELS, X0, Y0, layers, parcel  # noqa: E402
+from test_sites_build import A as A_RING
+from test_sites_build import B as B_RING
 
 URL = "https://example.test/arcgis/rest/services/LINZ_NZ_Addresses/FeatureServer/0"
 
@@ -154,3 +161,85 @@ def test_more_local_candidates_are_asked_for_than_are_shown() -> None:
     seen: list[dict[str, str]] = []
     search_addresses(places_layer(seen), "12 st", near=REEFTON)
     assert int(seen[0]["resultRecordCount"]) == LOCAL_CANDIDATES > MAX_RESULTS
+
+
+def _section_layers(
+    parcels: list[dict[str, Any]], asked: list[str]
+) -> tuple[FeatureLayer, FeatureLayer]:
+    """LINZ's parcels (from test_sites_build's fake) and an address layer that
+    counts what it is asked."""
+    found = layers(parcels)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        asked.append(str(request.url))
+        return found["LINZ_NZ_Addresses"].client.get(str(request.url))
+
+    counted = FeatureLayer(
+        URL, "CC-BY-4.0", "LINZ", httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    return counted, found["LINZ_NZ_Primary_Parcels"]
+
+
+def test_a_section_without_an_address_asks_for_its_titles_addresses_once() -> None:
+    asked: list[str] = []
+    addresses, parcels = _section_layers(PARCELS, asked)
+    assert address_on_section(addresses, parcels, 2) == 7  # B, by A's address on its title
+    assert len(asked) == 1  # one envelope for the title, not one per parcel
+
+
+def test_a_title_bigger_than_a_section_is_refused_before_any_address_is_asked() -> None:
+    def lot(i: int) -> list[list[float]]:
+        x = X0 + 100 + 10 * i  # none of them holds the address
+        return [[x, Y0], [x + 10, Y0], [x + 10, Y0 + 10], [x, Y0 + 10], [x, Y0]]
+
+    big = [parcel(100 + i, lot(i), "999") for i in range(MAX_PARCELS + 1)]
+    asked: list[str] = []
+    addresses, parcels = _section_layers(big, asked)
+    with pytest.raises(NotASection, match="more than a section"):
+        address_on_section(addresses, parcels, 100)
+    assert asked == []
+
+
+def test_a_parcel_on_more_titles_than_a_section_has_is_refused_before_asking_for_them() -> None:
+    many = ", ".join(str(500000 + n) for n in range(MAX_PARCELS + 1))  # a unit-title base
+    base = parcel(100, [[X0, Y0], [X0 + 9, Y0], [X0 + 9, Y0 + 9], [X0, Y0 + 9], [X0, Y0]], many)
+    asked: list[str] = []
+    addresses, parcels = _section_layers([base], asked)
+    with pytest.raises(SiteError, match="more than a section"):
+        address_on_section(addresses, parcels, 100)
+    assert asked == []
+
+
+def test_a_sections_titles_parcels_are_asked_for_in_one_query() -> None:
+    two = ", ".join(("354613", "354614"))
+    lots = [
+        parcel(1, A_RING, two),
+        parcel(2, B_RING, "354614"),
+    ]
+    queries: list[str] = []
+    layer = layers(lots)["LINZ_NZ_Primary_Parcels"]
+    counted = FeatureLayer(
+        layer.url,
+        "CC-BY-4.0",
+        "LINZ",
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda r: (queries.append(str(r.url)), layer.client.get(str(r.url)))[1]
+            )
+        ),
+    )
+    assert [_id(p) for p in title_parcels(counted, lots[0])] == [1, 2]
+    assert len(queries) == 1
+
+
+def _id(feature: Any) -> int:
+    return int(feature["properties"]["id"])
+
+
+def test_a_parcel_with_no_record_of_title_is_refused_not_built() -> None:
+    lot = parcel(5, A_RING, None)  # holds the address, but no title: never a site
+    asked: list[str] = []
+    addresses, parcels = _section_layers([lot], asked)
+    with pytest.raises(NotASection, match="record of title"):
+        address_on_section(addresses, parcels, 5)
+    assert asked == []

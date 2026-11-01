@@ -58,7 +58,7 @@ class Server:
         daily = (
             None if cap is None else DailyCap(self.sites_store.created_since, cap, "site builds")
         )
-        service = SiteService(sites, self.builder, found.addresses, daily)
+        service = SiteService(sites, self.builder, found.addresses, daily, parcels=found.parcels)
         self.sites = sites
         self.worker = Worker(
             self.store, synthetic_site, model, tmp_path / "runs", runner, site_for=sites.design_site
@@ -296,3 +296,33 @@ def test_the_demo_sites_replaced_fixed_survey_is_refused_on_its_map(tmp_path: Pa
     for path in ("features", "map"):
         refused = server.client.get(f"/sites/{DEMO_SITE_ID}/{path}")
         assert refused.status_code == 409 and "fixed" in refused.json()["detail"]
+
+
+def test_a_clicked_section_starts_the_site_of_the_address_on_it(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    started = server.client.post("/sites", json={"parcel_id": 1})  # parcel A holds address 7
+    assert started.status_code == 202
+    again = server.client.post("/sites", json={"address_id": 7}).json()
+    assert started.json()["id"] == again["id"]  # the same site as searching its address
+
+
+def test_a_section_with_no_address_is_refused_with_what_to_do(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    refused = server.client.post("/sites", json={"parcel_id": 3})  # parcel C: no address on it
+    assert refused.status_code == 422
+    assert "address" in refused.json()["detail"]
+    assert server.client.post("/sites", json={"parcel_id": 999}).status_code == 404
+
+
+def test_a_site_request_names_one_address_or_one_section(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    assert server.client.post("/sites", json={}).status_code == 422
+    both = {"address_id": 7, "parcel_id": 1}
+    assert server.client.post("/sites", json=both).status_code == 422
+
+
+def test_a_section_without_an_address_uses_the_address_on_its_title(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    started = server.client.post("/sites", json={"parcel_id": 2})  # B: same title as A
+    assert started.status_code == 202
+    assert started.json()["id"] == server.client.post("/sites", json={"address_id": 7}).json()["id"]

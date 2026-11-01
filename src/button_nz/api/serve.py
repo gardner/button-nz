@@ -114,7 +114,7 @@ def _sites(
     builder = SiteBuilder(store, data / "sites", live_sources(layers, client, data / "stac"))
     sites = Sites(store, data / "sites", demo, survey, demo_aerial(demo), fixed, layers.outlines)
     cap = None if daily is None else DailyCap(store.created_since, daily, "site builds")
-    return SiteService(sites, builder, layers.addresses, cap)
+    return SiteService(sites, builder, layers.addresses, cap, parcels=layers.parcels)
 
 
 def _add_maps(app: FastAPI, data: Path) -> None:

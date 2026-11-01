@@ -15,7 +15,12 @@ import re
 from collections.abc import Sequence
 from typing import Any, cast
 
-from button_nz.geo.arcgis import FeatureLayer
+from shapely import Point, unary_union
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
+
+from button_nz.geo.arcgis import Feature, FeatureLayer
+from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels
 
 MAX_RESULTS = 8
 NEAR_DEG = 0.25  # about 25 km each way: the town the map shows, and its neighbours
@@ -84,3 +89,57 @@ def _addresses(features: Any) -> list[dict[str, Any]]:
             }
         )
     return results
+
+
+class NoSuchSection(LookupError):
+    """LINZ has no primary parcel with that id."""
+
+
+class NotASection(SiteError):
+    """The parcel's title is more than a section: no site is built for it."""
+
+
+def address_on_section(
+    addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: int
+) -> int | None:
+    """The LINZ address on primary parcel ``parcel_id``, so a section clicked on
+    the map starts the same site as searching for it. A section with no address
+    of its own takes one on another parcel of its title (one property), nearest
+    the section's middle. None when the whole title has none.
+
+    A title too big for a site (``MAX_PARCELS``, ``MAX_SIDE_M``, as
+    ``find_title`` refuses) is refused before any address is asked for, and
+    the title's addresses are asked for once, over its whole extent."""
+    found = parcels.where(f"id = {int(parcel_id)}").features
+    if not found:
+        raise NoSuchSection(parcel_id)
+    section = _shape(found[0])
+    title = [_shape(p) for p in title_parcels(parcels, found[0])]
+    if not title:  # a road, a reserve: find_title would refuse its address too
+        raise NotASection(f"parcel {parcel_id} has no record of title: it isn't a property")
+    land = unary_union([section, *title])
+    west, south, east, north = land.bounds
+    if len(title) > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
+        raise NotASection(
+            f"parcel {parcel_id}'s title is {len(title)} parcels over "
+            f"{east - west:.0f} x {north - south:.0f} m: more than a section"
+        )
+    on = [
+        (not section.covers(point), section.centroid.distance(point), address)
+        for point, address in _addresses_in(addresses, land)
+    ]
+    return min(on)[2] if on else None  # its own first, then the nearest
+
+
+def _shape(feature: Feature) -> BaseGeometry:
+    return shape(cast("dict[str, Any]", feature["geometry"]))
+
+
+def _addresses_in(addresses: FeatureLayer, land: BaseGeometry) -> list[tuple[Point, int]]:
+    """The addresses on ``land``, each at its point."""
+    on: list[tuple[Point, int]] = []
+    for feature in addresses.in_envelope(land.bounds).features:
+        x, y = (float(v) for v in cast("dict[str, Any]", feature["geometry"])["coordinates"][:2])
+        if land.covers(point := Point(x, y)):
+            on.append((point, int(cast("dict[str, Any]", feature["properties"])["address_id"])))
+    return on
