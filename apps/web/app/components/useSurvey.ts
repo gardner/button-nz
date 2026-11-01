@@ -75,7 +75,15 @@ export function useSurvey(
     setComplete: (complete) =>
       save(
         (surveyId) => setBuildingsComplete(surveyId, complete, siteId),
-        (s, buildingsComplete) => ({ ...s, buildingsComplete }),
+        // Confirming the list stores what it showed, the survey's suggestions
+        // too, as the owner's own (the server does the same).
+        (s, buildingsComplete) => ({
+          ...s,
+          buildingsComplete,
+          features: buildingsComplete
+            ? s.features.map((f) => ({ ...f, suggested: false }))
+            : s.features,
+        }),
       ),
   };
 }
