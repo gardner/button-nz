@@ -69,8 +69,18 @@ From live runs on the demo site ([docs/results](results/README.md)):
   - the aerial photo alone: 49% correct;
   - every fixed map: 66%;
   - the agent choosing its own views and querying elevations: 83%.
-- **Town scale:** **pending** (#72), the Reefton sections with room for a
-  real prefab under the exemption's siting rules.
+- **Town scale** ([report](results/town-screen/report.md)): the same fit
+  code was run over all 1,320 residential sections in Reefton, each checked
+  on its own, 2 m from its boundaries and from every building. With 0.6 m
+  eaves allowed for, a real prefab fits on:
+  - **762 (58%)**, judged against LINZ's 2015–16 building outlines;
+  - **409 (31%)**, also clear of everything over 2 m on the 2020–24 LiDAR,
+    trees included: room without removing anything that tall. Lower things,
+    and anything added since the LiDAR, aren't seen.
+
+  Of the 986 that already have a building on them, 488 and 258. It's a
+  screen, not a verdict: hazards, slope, the district plan and services
+  aren't checked.
 
 ## How it's built
 
