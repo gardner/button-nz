@@ -137,16 +137,19 @@ function PrefabCard({
           {name}
         </a>
         <span className="text-lg font-semibold text-emerald-300">
-          {p.priceNzd === null ? "Price on request" : PRICE.format(p.priceNzd)}
+          {p.priceNzd === null
+            ? "Price not published"
+            : PRICE.format(p.priceNzd)}
         </span>
       </div>
       <p className="text-sm text-zinc-300">
-        {p.lengthM} × {p.widthM} m · {p.floorAreaM2} m² · {p.bedrooms} bed,{" "}
-        {p.bathrooms} bath
+        {p.lengthM} × {p.widthM} m · {p.floorAreaM2} m² ({p.areaBasis}) ·{" "}
+        {p.bedrooms} bed, {p.bathrooms} bath
       </p>
       <p className="text-xs text-zinc-500">
         {p.priceBasis}. Excludes {p.excludes}.
       </p>
+      <p className="text-xs text-zinc-500">West Coast: {p.westCoast}</p>
       {p.placeable ? (
         <button
           type="button"

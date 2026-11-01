@@ -39,6 +39,14 @@ describe("a product's place in the walls", () => {
     expect(parseProducts(PRODUCTS).fits[0].placedFootprint).toBeNull();
   });
 
+  it("has none where the API sends null (a product it couldn't check)", () => {
+    const raw = {
+      ...PRODUCTS,
+      fits: [{ ...PRODUCTS.fits[0], placed_footprint: null }],
+    };
+    expect(parseProducts(raw).fits[0].placedFootprint).toBeNull();
+  });
+
   it("refuses a footprint it can't draw", () => {
     const raw = {
       ...PRODUCTS,

@@ -45,6 +45,20 @@ describe("PrefabPanel", () => {
     expect(props.onAsked).toHaveBeenCalled();
   });
 
+  it("says a price isn't published, the area's basis, and what the supplier says of the West Coast", async () => {
+    serve(PRODUCTS);
+    panel();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(await screen.findByText("Price not published")).toBeTruthy();
+    expect(screen.queryByText("Price on request")).toBeNull();
+    expect(screen.getAllByText(/48 m² \(not stated\)/)).toHaveLength(1);
+    expect(
+      screen.getByText(/West Coast: West Coast is on its region list/),
+    ).toBeTruthy();
+  });
+
   it("shows where a product would stand while it is pointed at", async () => {
     serve(PRODUCTS);
     const props = panel();

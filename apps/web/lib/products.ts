@@ -75,7 +75,7 @@ function parseProduct(raw: unknown): Product {
     sources: list(product, "sources").map(link),
     placeable: flag(product, "placeable"),
     placedFootprint:
-      product.placed_footprint === undefined
+      product.placed_footprint == null // absent today; null where none was placed
         ? null
         : parseCollection(
             product.placed_footprint,
