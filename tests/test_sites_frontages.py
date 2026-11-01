@@ -117,3 +117,13 @@ def test_a_street_far_beyond_reach_is_still_found_by_its_id() -> None:
 def test_a_street_linz_doesnt_have_is_an_error_not_a_site_without_one() -> None:
     with pytest.raises(LookupError, match="road 1"):
         fetch_frontages(FakeLayer([], []), FakeLayer([], []), [TITLE], street_road_id=1)
+
+
+def test_an_unnamed_lane_beside_the_title_isnt_named_after_the_street_in_front() -> None:
+    # Coal Street in front (south); a lane with no addressing road along the east side.
+    lane = Polygon([(20, 0), (26, 0), (26, 50), (20, 50)])  # from the street's edge north
+    south = Polygon([(-20, -15), (20, -15), (20, 0), (-20, 0)])
+    found = frontages([TITLE], [south, lane], [COAL], street_road_id=1)
+    by_road = {f.road: f for f in found}
+    assert by_road["Coal Street"].edges == (((0.0, 0.0), (20.0, 0.0)),)  # only the front
+    assert by_road[None].edges == (((20.0, 0.0), (20.0, 30.0)),)  # the lane: unnamed

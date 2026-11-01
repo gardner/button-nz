@@ -63,8 +63,8 @@ def frontages(
         along = union_all(list(road_parcels)).buffer(TOUCH_M)
         for edge in edges:
             line = LineString(edge)
-            if line.length > 0 and line.intersection(along).length / line.length >= ALONG:
-                found.setdefault(_road_of(line, roads), []).append(edge)
+            if _along(line, along):
+                found.setdefault(_road_of(line, roads, road_parcels), []).append(edge)
     names = {road.road_id: road.name for road in roads}
     fronting = [
         Frontage(None if rid is None else names[rid], rid == street_road_id, tuple(on))
@@ -100,10 +100,25 @@ def _middle(edge: Edge) -> BaseGeometry:
     return LineString(edge).interpolate(0.5, normalized=True)
 
 
-def _road_of(edge: LineString, roads: Sequence[Road]) -> int | None:
-    """The named road nearest the edge's middle, if one is within reach."""
+def _along(edge: LineString, area: BaseGeometry) -> bool:
+    """Whether most of the edge runs within ``area``."""
+    return edge.length > 0 and edge.intersection(area).length / edge.length >= ALONG
+
+
+def _road_of(
+    edge: LineString, roads: Sequence[Road], road_parcels: Sequence[BaseGeometry]
+) -> int | None:
+    """The named road whose centreline runs through a road parcel the edge
+    lies along, nearest the edge's middle and within reach. A road parcel no
+    named road runs through (a paper road, a lane) is unnamed, never named
+    after a road nearby."""
+    beside = [p for p in road_parcels if _along(edge, p.buffer(TOUCH_M))]
     middle = edge.interpolate(0.5, normalized=True)
-    near = [(road.centreline.distance(middle), road.road_id) for road in roads]
+    near = [
+        (road.centreline.distance(middle), road.road_id)
+        for road in roads
+        if any(road.centreline.intersects(p) for p in beside)
+    ]
     near = [(d, rid) for d, rid in near if d <= REACH_M]
     return min(near)[1] if near else None
 
