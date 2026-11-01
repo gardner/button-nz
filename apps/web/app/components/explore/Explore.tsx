@@ -9,9 +9,9 @@ import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
 import { BuildProgress } from "./BuildProgress";
-import { ReadySite } from "./ReadySite";
+import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
-import { type JourneyState, Stepper, stepOf } from "./Stepper";
+import { Stepper, stepOf } from "./Stepper";
 import { TOWN_COLOURS, TownOverview } from "./TownOverview";
 import { useSite } from "./useSite";
 
@@ -43,8 +43,8 @@ const TOWN_LINE: Paint<"line"> = {
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, fromAddress, fromParcel } = useSite(pollMs);
   const town = useTown("reefton");
-  const [design, setDesign] = useState<JourneyState["design"]>();
-  const step = stepOf({ site: site?.status, design });
+  const [progress, setProgress] = useState<Progress>({});
+  const step = stepOf({ site: site?.status, ...progress });
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
@@ -77,7 +77,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
           town={town}
           pollMs={pollMs}
           onAddress={fromAddress}
-          onDesign={setDesign}
+          onProgress={setProgress}
         />
       </BaseMap>
     </main>
@@ -92,14 +92,14 @@ function SidePanel({
   town,
   pollMs,
   onAddress,
-  onDesign,
+  onProgress,
 }: {
   site: SiteState | null;
   problem: string | null;
   town: ReturnType<typeof useTown>;
   pollMs: number;
   onAddress: (addressId: number) => void;
-  onDesign: (design: JourneyState["design"]) => void;
+  onProgress: (progress: Progress) => void;
 }) {
   return (
     <aside className="absolute bottom-4 left-4 top-20 flex w-[min(440px,calc(100%-2rem))] flex-col gap-4 overflow-y-auto pb-4 pr-1">
@@ -128,7 +128,7 @@ function SidePanel({
           key={site.id}
           site={site}
           pollMs={pollMs}
-          onDesign={onDesign}
+          onProgress={onProgress}
         />
       )}
       {town.problem && (

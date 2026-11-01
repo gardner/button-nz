@@ -14,6 +14,7 @@ import {
   record,
   text,
 } from "./fields";
+import { type FeatureCollection, parseCollection } from "./geo";
 
 export interface Product {
   id: string;
@@ -33,6 +34,7 @@ export interface Product {
   westCoast: string; // what the supplier says about delivering to the West Coast
   sources: string[];
   placeable: boolean; // its footprint is a known rectangle: it can be placed on a site
+  placedFootprint: FeatureCollection<null> | null; // where it would stand in the walls, if sent
 }
 
 export interface Products {
@@ -72,6 +74,14 @@ function parseProduct(raw: unknown): Product {
     westCoast: text(product, "west_coast"),
     sources: list(product, "sources").map(link),
     placeable: flag(product, "placeable"),
+    placedFootprint:
+      product.placed_footprint === undefined
+        ? null
+        : parseCollection(
+            product.placed_footprint,
+            "placed footprint",
+            () => null,
+          ),
   };
 }
 

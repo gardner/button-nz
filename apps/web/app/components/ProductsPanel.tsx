@@ -97,7 +97,7 @@ const SUPPLIERS =
 
 /** What the granny-flat exemption asks of the owner next, from the council's
  * page and the sourced research on who serves Reefton. */
-function NextSteps() {
+export function NextSteps() {
   return (
     <section className="flex flex-col gap-1 text-sm">
       <h3 className="font-medium">Next steps</h3>

@@ -13,10 +13,14 @@ import { FitTo } from "../map/FitTo";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
+import { PrefabSection } from "./PrefabSection";
 import { SurveyPanel } from "./SurveyPanel";
 import { DesignLayers, SiteLayers } from "./SiteLayers";
 import type { JourneyState } from "./Stepper";
 import { useDesignMap, useSiteMap } from "./useMapLayers";
+
+/** How far the journey has got past finding the site, for the stepper. */
+export type Progress = Omit<JourneyState, "site">;
 
 /** A site that is ready: the rules drawn on it, its survey to decide, the
  * design dock, and the accepted design on the map and as a hero. It tells
@@ -24,11 +28,11 @@ import { useDesignMap, useSiteMap } from "./useMapLayers";
 export function ReadySite({
   site,
   pollMs,
-  onDesign,
+  onProgress,
 }: {
   site: SiteState;
   pollMs: number;
-  onDesign: (design: JourneyState["design"]) => void;
+  onProgress: (progress: Progress) => void;
 }) {
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -40,8 +44,7 @@ export function ReadySite({
   const designMap = useDesignMap(shown);
   const accepted = shown?.status === "done" && shown.acceptedAttempt !== null;
 
-  const design = designState(shown);
-  useEffect(() => onDesign(design), [design, onDesign]);
+  const askedPrefabs = useProgress(shown, onProgress);
 
   return (
     <>
@@ -71,12 +74,7 @@ export function ReadySite({
       />
       <DesignDock chain={chain} />
       {accepted && shown && (
-        <div className="fixed bottom-4 right-4 z-10">
-          <HeroMedia
-            job={shown}
-            parent={chain.chain.find((j) => j.id === shown.parentId)}
-          />
-        </div>
+        <Accepted job={shown} chain={chain} onAsked={askedPrefabs} />
       )}
     </>
   );
@@ -121,6 +119,45 @@ function designBounds(map: DesignMap): Bounds | null {
   if (!b) return null;
   const pad = 0.0002; // about 20 m: the boundary it is measured from shows too
   return [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+}
+
+/** What an accepted design adds: the prefabs that fit it, and the hero. */
+function Accepted({
+  job,
+  chain,
+  onAsked,
+}: {
+  job: Job;
+  chain: ReturnType<typeof useDesignChain>;
+  onAsked: (jobId: string) => void;
+}) {
+  return (
+    <>
+      <PrefabSection job={job} chain={chain} onAsked={() => onAsked(job.id)} />
+      <div className="fixed bottom-4 right-4 z-10">
+        <HeroMedia
+          job={job}
+          parent={chain.chain.find((j) => j.id === job.parentId)}
+        />
+      </div>
+    </>
+  );
+}
+
+/** Tells the page how far the shown design has got, and whether its prefabs
+ * were asked for; returns what to call when they are. */
+function useProgress(
+  shown: Job | undefined,
+  onProgress: (progress: Progress) => void,
+): (jobId: string) => void {
+  const design = designState(shown);
+  const [askedFor, setAskedFor] = useState<string | null>(null);
+  const prefabs = askedFor !== null && askedFor === shown?.id;
+  useEffect(
+    () => onProgress({ design, prefabs }),
+    [design, prefabs, onProgress],
+  );
+  return setAskedFor;
 }
 
 /** How far the shown design has got, for the stepper. */
