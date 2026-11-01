@@ -47,7 +47,8 @@ def products_router(
     store: Store, runs_dir: Path, products: Sequence[Product], frame_for: FrameFor | None = None
 ) -> APIRouter:
     """With ``frame_for``, each fitting product says where it would stand inside
-    the walls (``placed_footprint``, lon/lat)."""
+    the walls (``placed_footprint``, lon/lat): wholly inside where it has room,
+    else over each wall by half of ``catalogue.fit.TOLERANCE_M`` at most."""
     router = APIRouter()
 
     @router.get("/designs/{job_id}/products")
