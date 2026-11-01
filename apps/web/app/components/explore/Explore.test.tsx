@@ -121,19 +121,18 @@ describe("Explore", () => {
     });
   });
 
-  it("builds the site of a section clicked on the town map", async () => {
-    const fetch = serve({
-      "GET /api/town/reefton": [TOWN],
-      "POST /api/sites": [SITE_READY],
-    });
+  it("doesn't build a site from a section clicked on the town map", async () => {
+    // POST /sites takes an address only (#88): a section isn't a link yet.
+    const fetch = serve({ "GET /api/town/reefton": [TOWN] });
     render(<Explore pollMs={5} />);
     await vi.waitFor(() =>
       expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
     );
     act(() => FakeMap.last?.click("town-fill", 1));
-    expect(await screen.findByText("Your site")).toBeTruthy();
-    const posted = fetch.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(String(posted?.[1]?.body))).toEqual({ parcel_id: 2 });
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(0);
+    expect(screen.queryByText(/Tap one/)).toBeNull();
   });
 
   it("leaves cleanly, after the map itself is gone", async () => {

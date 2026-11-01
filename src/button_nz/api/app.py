@@ -23,17 +23,19 @@ from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from button_nz.api.aerial import SiteAerial, aerial_router, aerial_view
-from button_nz.api.features import features_router
+from button_nz.api.features import features_router, site_features_router
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
+from button_nz.api.site_view import site_view as view_of
+from button_nz.api.sites import SiteService, sites_router
 from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
@@ -95,21 +97,18 @@ def create_app(
     products: Sequence[Product] | None = None,
     cap: DailyCap | None = None,
     survey_decided_by: str | None = None,
+    sites: SiteService | None = None,
 ) -> FastAPI:
     """The API. ``cap`` limits the design runs started a day; with
     ``survey_decided_by``, the survey is fixed as that person decided it."""
 
-    @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        store.recover()
-        worker.start()
-        yield
-        worker.stop()
-
-    app = FastAPI(title="button-nz", lifespan=lifespan)
-    site_view = _site(site) | {"aerial": aerial_view(aerial)}
+    threads, routers = _with_sites(sites, store, worker)
+    app = FastAPI(title="button-nz", lifespan=_lifespan(store, threads))
+    site_view = view_of(site) | {"aerial": aerial_view(aerial)}
     app.include_router(features_router(store, survey, survey_decided_by))
     app.include_router(aerial_router(aerial))
+    for router in routers:
+        app.include_router(router)
     catalogue = load_products() if products is None else products
     app.include_router(products_router(store, worker.runs_dir, catalogue))
     placeable = {p.id: p for p in catalogue if p.placeable}
@@ -154,6 +153,34 @@ def create_app(
         return FileResponse(path)
 
     return app
+
+
+class _Thread(Protocol):
+    def start(self) -> None: ...
+    def stop(self, timeout_s: float = 5.0) -> None: ...
+
+
+def _with_sites(
+    sites: SiteService | None, store: Store, worker: Worker
+) -> tuple[list[_Thread], list[APIRouter]]:
+    """The threads to run and the extra routes, with or without any-address sites."""
+    if sites is None:
+        return [worker], []
+    routers = [sites_router(sites, store), site_features_router(store, sites.sites.survey)]
+    return [worker, sites.builder], routers
+
+
+def _lifespan(store: Store, threads: Sequence[_Thread]) -> Any:
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
+        store.recover()
+        for thread in threads:
+            thread.start()
+        yield
+        for thread in threads:
+            thread.stop()
+
+    return lifespan
 
 
 def _admit(cap: DailyCap | None) -> AbstractContextManager[None]:
@@ -233,27 +260,3 @@ def _artifact(directory: Path, name: str) -> Path | None:
     if not ARTIFACT.fullmatch(name) or path.is_symlink() or not path.is_file():
         return None
     return path if path.resolve().parent == directory.resolve() else None
-
-
-def _site(site: DemoSite) -> dict[str, Any]:
-    features = [
-        {
-            "type": "Feature",
-            "id": parcel.parcel_id,
-            "properties": {"appellation": parcel.appellation},
-            "geometry": {"type": "Polygon", "coordinates": [[list(p) for p in parcel.ring]]},
-        }
-        for parcel in site.parcels
-    ]
-    sources = {name: asdict(source) for name, source in {**site.rasters, **site.vectors}.items()}
-    return {
-        "name": site.name,
-        "title": site.title,
-        "valuation_number": site.valuation_number,
-        "crs": "EPSG:2193",
-        "address": list(site.address_nztm),
-        "extent": list(site.extent_nztm),
-        "parcels": {"type": "FeatureCollection", "features": features},
-        "sources": sources,
-        "open_items": list(site.open_items),
-    }

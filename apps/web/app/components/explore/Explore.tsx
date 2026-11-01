@@ -42,7 +42,7 @@ const TOWN_LINE: Paint<"line"> = {
  * found and its site built live, then surveyed, designed and checked on the
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
-  const { site, problem, fromAddress, fromParcel } = useSite(pollMs);
+  const { site, problem, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
   const [progress, setProgress] = useState<Progress>({});
   const step = stepOf({ site: site?.status, ...progress });
@@ -55,7 +55,6 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             data={town.data}
             fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
             line={TOWN_LINE}
-            onClick={site ? undefined : (section) => fromParcel(section.id)}
           />
         )}
         <FitTo bounds={site?.bounds ?? null} />

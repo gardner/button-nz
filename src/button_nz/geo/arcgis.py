@@ -78,6 +78,23 @@ class FeatureLayer:
             }
         )
 
+    def first(self, clause: str, count: int, out_sr: str = NZTM) -> FeatureSet:
+        """At most ``count`` features matching ``clause``, in ``out_sr``: one
+        page, never paged through."""
+        query = {
+            "where": clause,
+            "outFields": "*",
+            "outSR": out_sr,
+            "orderByFields": self.order_by,
+            "resultRecordCount": str(count),
+            "f": "geojson",
+        }
+        retrieved_at = datetime.now(UTC)
+        page = self._get(query)
+        features = tuple(cast("list[Feature]", page.get("features", []))[:count])
+        provenance = Provenance(self.url, query, retrieved_at, self.licence, self.attribution)
+        return FeatureSet(features, provenance)
+
     def _query(self, criteria: Mapping[str, str]) -> FeatureSet:
         query = {
             "where": "1=1",

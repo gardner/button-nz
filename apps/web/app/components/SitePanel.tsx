@@ -28,7 +28,8 @@ export function SitePanel({
       <header>
         <h2 className="text-xl font-semibold">{site.name}</h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Record of title {site.title} · valuation {site.valuationNumber}
+          Record of title {site.title}
+          {site.valuationNumber && ` · valuation ${site.valuationNumber}`}
         </p>
       </header>
       <svg
