@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { Job } from "@/lib/api";
 import { type Bounds, boundsOf } from "@/lib/geo";
-import type { DesignMap, SiteMap } from "@/lib/siteMap";
+import { type DesignMap, EMPTY_SITE_MAP, type SiteMap } from "@/lib/siteMap";
 import type { SiteState } from "@/lib/sites";
 
 import { useDesignChain } from "../useDesignChain";
@@ -99,13 +99,14 @@ function SiteOverlays({
 }) {
   return (
     <>
-      {siteMap && (
-        <SiteLayers
-          map={siteMap}
-          selected={selected}
-          onFeature={(f) => onFeature(f.id)}
-        />
-      )}
+      {/* Always there, empty until its data comes, so its layers are
+          added first and stay under the design's (MapLibre stacks layers
+          in the order they are added). */}
+      <SiteLayers
+        map={siteMap ?? EMPTY_SITE_MAP}
+        selected={selected}
+        onFeature={(f) => onFeature(f.id)}
+      />
       {designMap && (
         <>
           <DesignLayers map={designMap} />

@@ -74,6 +74,13 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+/** How many features source `id` holds on the map. */
+function drawn(id: string): number {
+  const data = FakeMap.last?.sources.get(id)?.data as
+    { features: unknown[] } | undefined;
+  return data?.features.length ?? 0;
+}
+
 function open() {
   window.history.replaceState(null, "", `/?site=${SITE}`);
 }
@@ -201,7 +208,7 @@ describe("a ready site", () => {
       await screen.findByText(/survey changed after this design/),
     ).toBeTruthy();
     expect(await screen.findByText(/site's map couldn't load/)).toBeTruthy();
-    expect(FakeMap.last?.layers.has("site-features-fill")).toBe(false);
+    expect(drawn("site-features")).toBe(0); // its layers stay, empty
   });
 
   it("keeps a newer design's link when a slow link to another site's design answers", async () => {
@@ -346,8 +353,8 @@ describe("a ready site", () => {
         { name: "Existing building" },
       ),
     );
-    await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(false),
+    await vi.waitFor(
+      () => expect(drawn("site-features")).toBe(0), // its layers stay, empty
     );
     answerLink(respond(ACCEPTED));
     expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
@@ -401,6 +408,62 @@ describe("a ready site", () => {
     answerDesign(respond(ACCEPTED));
     expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
     expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
+  });
+
+  it("keeps the site's layers under the design, whichever answers first and after a survey save", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    let maps = 0;
+    let answerMap: (r: Response) => void = () => {};
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const route = `${init?.method ?? "GET"} ${url.split("?")[0]}`;
+      if (route === `GET /api/sites/${SITE}/map`) {
+        maps++;
+        return new Promise<Response>((r) => (answerMap = r));
+      }
+      const body = {
+        "GET /api/town/reefton": TOWN,
+        [`GET /api/sites/${SITE}`]: SITE_READY,
+        [`GET /api/sites/${SITE}/features`]: SURVEY,
+        [`PUT /api/sites/${SITE}/features/2`]: {
+          ...SURVEY.features[1],
+          properties: {
+            ...SURVEY.features[1].properties,
+            decision: "building",
+          },
+        },
+        "GET /api/designs/abc123": ACCEPTED,
+        "GET /api/designs/abc123/map": DESIGN_MAP,
+      }[route];
+      return body === undefined
+        ? new Promise<Response>(() => {})
+        : Promise.resolve(respond(body));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    // The design's map answers first.
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("design-walls-fill")).toBe(true),
+    );
+    answerMap(respond(SITE_MAP));
+    const under = () => {
+      const order = FakeMap.last?.order ?? [];
+      return (
+        order.indexOf("site-features-fill") < order.indexOf("design-walls-fill")
+      );
+    };
+    await vi.waitFor(() => expect(under()).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: /#2 tree/ }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /#2 tree/ })).getByRole(
+        "button",
+        { name: "Existing building" },
+      ),
+    );
+    await vi.waitFor(() => expect(maps).toBe(2));
+    answerMap(respond(SITE_MAP));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(under()).toBe(true);
   });
 
   it("doesn't open a design linked from another site", async () => {
