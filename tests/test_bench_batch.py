@@ -172,3 +172,22 @@ def test_only_a_sections_own_missing_data_is_recorded_as_its_outcome() -> None:
         _lookup(network)
     with pytest.raises(KeyError):  # a changed response is a bug, not data
         _lookup(changed)
+
+
+def test_a_section_the_server_failed_on_is_retried_and_reported_by_its_last_row() -> None:
+    from button_nz.bench.batch_run import _latest, _retry  # pyright: ignore[reportPrivateUsage]
+
+    rows = [
+        {"parcel_id": 7, "outcome": "site failed: interrupted by a restart"},
+        {"parcel_id": 8, "outcome": "not accepted"},
+        {"parcel_id": 9, "outcome": "site no_lidar: no LINZ 1 m LiDAR"},
+        {"parcel_id": 7, "outcome": "accepted"},  # the retry
+    ]
+    assert [r["outcome"] for r in _latest(rows)] == [
+        "not accepted",
+        "site no_lidar: no LINZ 1 m LiDAR",
+        "accepted",
+    ]
+    assert _retry({"outcome": "site failed: ArcGISError: timeout"})
+    assert _retry({"outcome": "failed: interrupted by a restart"})
+    assert not _retry({"outcome": "not accepted"}) and not _retry({"outcome": "site no_lidar: x"})

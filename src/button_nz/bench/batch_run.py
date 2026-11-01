@@ -69,7 +69,7 @@ def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = 
         designs = planned(sections, count)
     else:
         designs = repeat_of(repeat)
-    done = {r["parcel_id"] for r in _results(out)}
+    done = {r["parcel_id"] for r in _latest(_results(out)) if not _retry(r)}
     for parcel_id, brief in designs:
         if parcel_id in done:
             continue
@@ -202,6 +202,25 @@ def _poll(client: httpx.Client, url: str, done: set[str], timeout_s: float) -> d
         time.sleep(POLL_S)
 
 
+RETRIED = ("site failed", "failed:")  # the server's failures: often a restart or a fetch
+
+
+def _retry(row: dict[str, Any]) -> bool:
+    """Whether a section's row is worth another try: the server failed to build
+    its site or run its design (a restart, a tile fetch), not "not accepted",
+    no LiDAR, or the section's own missing data."""
+    return str(row.get("outcome", "")).startswith(RETRIED)
+
+
+def _latest(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each section's last row: a retry's result replaces the failure before it."""
+    last: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        last.pop(row["parcel_id"], None)
+        last[row["parcel_id"]] = row
+    return list(last.values())
+
+
 def _results(out: Path) -> list[dict[str, Any]]:
     path = out / "results.jsonl"
     if not path.exists():
@@ -216,7 +235,7 @@ def _write(out: Path, result: dict[str, Any]) -> None:
 
 
 def _report(out: Path) -> None:
-    rows = _results(out)
+    rows = _latest(_results(out))
     designed = [r for r in rows if "attempts" in r]
     accepted = [r for r in designed if r["outcome"] == "accepted"]
     first = [r for r in designed if r.get("accepted_attempt") == 1]
