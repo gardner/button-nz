@@ -22,23 +22,42 @@ LiDAR of the ground and everything on it, and 7.5 cm aerial photographs.
 
 ## What it does
 
-An owner opens their property and, in one session:
+Anyone opens https://button.nz and, in one session:
 
-1. **Sees what is there.** SAM 3.1 picks out the sheds, trees and garden beds
+1. **Finds their property by its address**, anywhere in New Zealand where
+   LINZ has 1 m LiDAR, a recent aerial photo (0.3 m or finer) and the title's
+   parcels. The site is built live, once, from open data; where one of those
+   is missing, it says which rather than guessing:
+   - the title's parcels and the neighbouring building outlines;
+   - the newest LiDAR ground and surface models that cover it;
+   - the regional aerial photo.
+
+   The landing map shows the idea at town scale: every residential section in
+   Reefton, coloured by whether a real prefab fits.
+2. **Sees what is there.** SAM 3.1 picks out the buildings, sheds and trees
    on the aerial photo, and each is checked against the LiDAR heights. Where
-   they disagree, the owner is asked, not guessed for.
-2. **Describes what they want**, in their own words: "a small one-bedroom
+   they disagree, the owner is asked, not guessed for. The rules are drawn on
+   the land: the 2 m setback band, and halos around buildings.
+3. **Describes what they want**, in their own words: "a small one-bedroom
    studio that gets the afternoon sun."
-3. **Gets a checked concept.** Muse Spark looks at the site through LiDAR
-   views it chooses itself (contours, slope, cross-sections, exact
-   elevations), then designs the dwelling by writing a Blender program. Blender
-   runs it in a sandbox. An independent evaluator measures the geometry
-   against the exemption's rules. If a check fails, Muse sees the
-   measurements and its own render, and fixes the design.
-4. **Changes it in plain words**, "move it 3 m further from the street", and
+4. **Gets a checked concept.**
+   - Muse Spark looks at the site through LiDAR views it chooses itself
+     (contours, slope, cross-sections, exact elevations).
+   - It then designs the dwelling by writing a Blender program, which runs in
+     a sandbox.
+   - An independent evaluator measures the geometry against the exemption's
+     rules. If a check fails, Muse sees the measurements and its own render,
+     and fixes the design.
+   - The accepted design stands in 3D on the map, among the neighbours and
+     trees the LiDAR measured, with each check as a ✓/✗/? badge and the
+     distances labelled on the land.
+5. **Changes it in plain words**, "move it 3 m further from the street", and
    every revision is checked again.
-5. **Sees which real prefabs fit**, with prices where published, what they
-   leave out, and who to call next.
+6. **Places a real prefab.** The panel shows which real New Zealand prefabs
+   fit, with published prices and what they leave out. "Place it on the
+   site" has Muse design again to that product's exact footprint, and the
+   evaluator checks the walls really are that footprint. Live, the AirHome
+   Vista was accepted on its first attempt at 12.2 × 4.0 m.
 
 ## How we use Meta's models
 
@@ -94,8 +113,13 @@ From live runs on the demo site ([docs/results](results/README.md)):
 - **Evaluator:** ordinary code that measures the triangles actually rendered.
   A failed check stays failed whatever the model says. A check it can't
   decide is "unknown", never a pass.
-- **Web:** Next.js. The 3D model, every check with its measurement and rule,
-  the revision history, and the prefab panel.
+- **Web:** Next.js with MapLibre:
+  - LINZ's aerial basemap, with the rules and the survey drawn on it;
+  - a 2D/3D view whose buildings and trees stand on the LiDAR's heights;
+  - the design's checks, revisions and prefabs beside the map.
+- **Any address:** LINZ's address register, NZ Primary Parcels and building
+  outlines, and its national elevation catalogue (the newest 1 m DEM and DSM
+  covering the point). Each site is built once and cached.
 
 ## Honest limits
 
@@ -108,14 +132,16 @@ From live runs on the demo site ([docs/results](results/README.md)):
 
 ## What's next
 
-- **More of the country:** wherever LiDAR and parcel data exist, the pipeline
-  already works.
-- **Designing to a chosen prefab's footprint**, so Muse places a real product
-  on the site.
-- **A handover pack** for the designer and the council.
+- **More rules:** the district plan's rules for each zone, and the natural
+  hazards in the project information memorandum (PIM) a council issues.
+  Today it checks only the building exemption's measurable conditions.
+- **Supplier quotes** for the ten catalogue products with no published
+  price, and more suppliers.
+- **A handover pack** for the designer and the council: the site, the
+  accepted design, its checks and the open questions.
 
 ## Links
 
 - Source: https://github.com/gardner/button-nz (GNU GPL)
-- Live demo: **pending** (docs/deploy.md: a public hostname)
+- Live demo: https://button.nz (open; at most 30 design runs a day)
 - Video: **pending** (the final take)
