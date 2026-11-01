@@ -18,6 +18,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES
 from button_nz.catalogue.products import Appearance
 
 SCHEMA = """
@@ -346,4 +347,13 @@ def _placed_json(product: Placed) -> str:
 
 def _placed(raw: dict[str, Any]) -> Placed:
     look = raw.pop("appearance", None)
-    return Placed(**raw, appearance=None if look is None else Appearance.parse(look))
+    return Placed(**raw, appearance=None if look is None else Appearance.parse(_textured(look)))
+
+
+def _textured(look: dict[str, Any]) -> dict[str, Any]:
+    """A look snapshotted before products had textures (#100) keeps its colours
+    and takes a bespoke design's textures."""
+    return {
+        "walls_texture": DEFAULT_FINISHES["walls"]["texture"],
+        "roof_texture": DEFAULT_FINISHES["roof"]["texture"],
+    } | look

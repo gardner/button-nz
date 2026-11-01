@@ -3,13 +3,16 @@ inside an accepted design's footprint."""
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
+from PIL import Image
 from shapely import Point, Polygon
 from shapely.affinity import rotate, translate
 from shapely.geometry import shape
 
+from button_nz import blender_worker
+from button_nz.blender_worker.scene_input import TextureName
 from button_nz.catalogue import (
     CATALOGUE,
     CatalogueError,
@@ -26,6 +29,8 @@ APPEARANCE: dict[str, Any] = {
     "roof_pitch_deg": 20,
     "walls": "#eee8da",
     "roof": "#3c3f41",
+    "walls_texture": "white_planks_clean",
+    "roof_texture": "box_profile_metal_sheet",
     "basis": "illustrative, from the supplier's render",
 }
 
@@ -269,14 +274,46 @@ def test_the_roof_is_described_as_its_supplier_builds_it() -> None:
     assert gable.model_copy(update={"roof_forms": ()}).roof_description() is None
 
 
-def test_colours_go_to_blender_as_linear_rgba() -> None:
-    colours = Appearance.parse(APPEARANCE | {"walls": "#ffffff", "roof": "#000000"})
-    assert colours.colours() == {"walls": [1.0, 1.0, 1.0, 1.0], "roof": [0.0, 0.0, 0.0, 1.0]}
-    mid = Appearance.parse(APPEARANCE | {"walls": "#808080"}).colours()["walls"]
+def test_finishes_go_to_blender_as_linear_rgba_over_their_textures() -> None:
+    look = Appearance.parse(APPEARANCE | {"walls": "#ffffff", "roof": "#000000"})
+    assert look.finishes() == {
+        "walls": {"rgba": [1.0, 1.0, 1.0, 1.0], "texture": "white_planks_clean"},
+        "roof": {"rgba": [0.0, 0.0, 0.0, 1.0], "texture": "box_profile_metal_sheet"},
+    }
+    mid = Appearance.parse(APPEARANCE | {"walls": "#808080"}).finishes()["walls"]["rgba"]
     assert mid[0] == pytest.approx(0.2158, abs=1e-3)  # sRGB 128 is about 0.216 linear
 
 
-@pytest.mark.parametrize("bad", [{"walls": "white"}, {"roof": "#12345"}, {"roof_forms": ["dome"]}])
+def test_every_texture_a_product_can_name_is_committed_and_credited() -> None:
+    folder = Path(blender_worker.__file__).with_name("textures")
+    sets = json.loads((folder / "textures.json").read_text())["sets"]
+    assert set(sets) == set(get_args(TextureName))
+    for name, spec in sets.items():
+        for kind in ("detail", "normal"):
+            with Image.open(folder / f"{name}_{kind}.jpg") as image:
+                assert image.size == (1024, 1024)
+        assert spec["page"].startswith("https://polyhaven.com/a/") and spec["tile_m"] > 0
+    assert "CC0" in (folder / "README.md").read_text()
+
+
+def test_each_product_is_textured_as_its_brief_says() -> None:
+    by_id = {p.id: p.appearance for p in load_products()}
+    assert by_id["airhome-vista"].walls_texture == "concrete_panels"  # Cemintel sheet
+    assert by_id["keith-hay-nook-60"].walls_texture == "white_planks_clean"  # weatherboard
+    assert by_id["keith-hay-nook-60"].roof_texture == "box_profile_metal_sheet"  # 5-rib
+    assert by_id["lockwood-haven"].walls_texture == "japanese_cedar_planks"  # solid timber
+    assert by_id["south-peak-okari"].roof_texture == "corrugated_iron"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"walls": "white"},
+        {"roof": "#12345"},
+        {"roof_forms": ["dome"]},
+        {"walls_texture": "supplier_photo"},
+    ],
+)
 def test_an_appearance_that_isnt_a_colour_or_a_roof_is_refused(bad: dict[str, Any]) -> None:
     with pytest.raises(CatalogueError):
         Product.parse(product(appearance=APPEARANCE | bad))

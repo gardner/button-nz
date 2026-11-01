@@ -1,6 +1,6 @@
 {
   "researched": "2026-10-30",
-  "about": "Prefab homes of 70 m² or less, from the suppliers' own pages: see docs/suppliers.md. length_m x width_m is the published outside footprint; dimensions_labelled is false where the page doesn't say what the figures measure; bounding_box is true where the plan isn't a rectangle, so length x width only bounds it. A null price_nzd means the supplier doesn't publish one. appearance gives each product's roof forms and pitch from its supplier's material (empty where not published) and wall and roof colours, with their basis: a published palette, or illustrative from a render.",
+  "about": "Prefab homes of 70 m² or less, from the suppliers' own pages: see docs/suppliers.md. length_m x width_m is the published outside footprint; dimensions_labelled is false where the page doesn't say what the figures measure; bounding_box is true where the plan isn't a rectangle, so length x width only bounds it. A null price_nzd means the supplier doesn't publish one. appearance gives each product's roof forms and pitch from its supplier's material (empty where not published) and wall and roof colours, with their basis: a published palette, or illustrative from a render. walls_texture and roof_texture name the CC0 texture closest to its cladding and roofing (src/button_nz/blender_worker/textures); where the roofing isn't published, metal roofing is assumed.",
   "products": [
     {
       "id": "south-peak-okari",
@@ -33,6 +33,8 @@
         "roof_pitch_deg": null,
         "walls": "#f2f1ec",
         "roof": "#4a4f52",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable or mono variants, apex heights published, pitch not): colours are the buyer's choice; hex approximate"
       }
     },
@@ -67,6 +69,8 @@
         "roof_pitch_deg": null,
         "walls": "#f2f1ec",
         "roof": "#4a4f52",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable or mono variants): colours are the buyer's choice; hex approximate"
       }
     },
@@ -102,6 +106,8 @@
         "roof_pitch_deg": null,
         "walls": "#f2f1ec",
         "roof": "#4a4f52",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable, mono or hip variants): colours are the buyer's choice; hex approximate"
       }
     },
@@ -137,6 +143,8 @@
         "roof_pitch_deg": null,
         "walls": "#f2f1ec",
         "roof": "#4a4f52",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; mono, gable or hip rooflines): colours are the buyer's choice; hex approximate"
       }
     },
@@ -170,6 +178,8 @@
         "roof_pitch_deg": 20,
         "walls": "#eee8da",
         "roof": "#3c3f41",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
       }
     },
@@ -203,6 +213,8 @@
         "roof_pitch_deg": 20,
         "walls": "#eee8da",
         "roof": "#3c3f41",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
       }
     },
@@ -236,6 +248,8 @@
         "roof_pitch_deg": 20,
         "walls": "#eee8da",
         "roof": "#3c3f41",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
       }
     },
@@ -268,6 +282,8 @@
         "roof_pitch_deg": null,
         "walls": "#b98a5e",
         "roof": "#3d3d3d",
+        "walls_texture": "japanese_cedar_planks",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative, from the supplier's render (107 mm VG pine solid timber, or aluminium in Misty White on ReadyBuilt stock; roof colour not published): colours are the buyer's choice; hex approximate"
       }
     },
@@ -301,6 +317,8 @@
         "roof_pitch_deg": null,
         "walls": "#e6e3d8",
         "roof": "#3d3d3d",
+        "walls_texture": "white_planks_clean",
+        "roof_texture": "corrugated_iron",
         "basis": "aluminium walls in Misty White, from the ReadyBuilt stock-house colour schedule (VG pine is the alternative); roof colour not published; hex approximate. Mono standard, gable trussed offered"
       }
     },
@@ -331,6 +349,8 @@
         "roof_pitch_deg": null,
         "walls": "#b98a5e",
         "roof": "#3d3d3d",
+        "walls_texture": "japanese_cedar_planks",
+        "roof_texture": "corrugated_iron",
         "basis": "illustrative: the Lockwood solid-timber system assumed, not stated for the Ara; roof form and colours not published; hex approximate"
       }
     },
@@ -363,6 +383,8 @@
         "roof_pitch_deg": null,
         "walls": "#d3d5d2",
         "roof": "#36383a",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
       }
     },
@@ -395,6 +417,8 @@
         "roof_pitch_deg": null,
         "walls": "#d3d5d2",
         "roof": "#36383a",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
       }
     },
@@ -427,6 +451,8 @@
         "roof_pitch_deg": null,
         "walls": "#e8e6df",
         "roof": "#3b3e36",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
       }
     },
@@ -459,6 +485,8 @@
         "roof_pitch_deg": null,
         "walls": "#e8e6df",
         "roof": "#3b3e36",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
       }
     },
@@ -491,6 +519,8 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }
     },
@@ -523,6 +553,8 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }
     },
@@ -555,6 +587,8 @@
         "roof_pitch_deg": null,
         "walls": "#d8c9ae",
         "roof": "#3a3a3a",
+        "walls_texture": "concrete_panels",
+        "roof_texture": "box_profile_metal_sheet",
         "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
       }
     }

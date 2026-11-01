@@ -12,7 +12,7 @@ import pytest
 
 from button_nz.agent.conversation import Turn
 from button_nz.agent.loop import DesignSite, design
-from button_nz.blender_worker.scene_input import DwellingColours, scene_input
+from button_nz.blender_worker.scene_input import DwellingFinishes, scene_input
 from button_nz.evaluation import SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -93,7 +93,7 @@ class PlacingModel:
         return MOVED
 
 
-def test_the_render_colours_the_roof_and_walls_as_the_host_says(tmp_path: Path) -> None:
+def test_the_render_finishes_the_roof_and_walls_as_the_host_says(tmp_path: Path) -> None:
     dem = np.full((20, 40), 100.0)
     grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
     parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
@@ -101,22 +101,33 @@ def test_the_render_colours_the_roof_and_walls_as_the_host_says(tmp_path: Path) 
     site = DesignSite(
         scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
     )
-    colours: DwellingColours = {"walls": [0.9, 0.1, 0.1, 1.0], "roof": [0.1, 0.1, 0.9, 1.0]}
+    finishes: DwellingFinishes = {
+        "walls": {"rgba": [0.9, 0.1, 0.1, 1.0], "texture": "white_planks_clean"},
+        "roof": {"rgba": [0.1, 0.1, 0.9, 1.0], "texture": "corrugated_iron"},
+    }
 
-    result = design("A studio.", site, PlacingModel(), tmp_path, colours=colours)
+    result = design("A studio.", site, PlacingModel(), tmp_path, finishes=finishes)
 
     assert result.accepted is not None
-    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    glb = tmp_path / "attempt-1" / "design.glb"
+    assert glb.stat().st_size < 10_000_000
+    gltf = glb_json(glb)
     node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
-    used = {p["material"] for p in gltf["meshes"][node["mesh"]]["primitives"]}
-    base = {
-        gltf["materials"][m]["name"]: gltf["materials"][m]["pbrMetallicRoughness"][
-            "baseColorFactor"
-        ]
-        for m in used
+    primitives = gltf["meshes"][node["mesh"]]["primitives"]
+    assert all("TEXCOORD_0" in p["attributes"] for p in primitives)
+    materials = {
+        gltf["materials"][p["material"]]["name"]: gltf["materials"][p["material"]]
+        for p in primitives
     }
-    assert base["Dwelling roof"] == pytest.approx(colours["roof"], abs=1e-3)
-    assert base["Dwelling walls"] == pytest.approx(colours["walls"], abs=1e-3)
+    for name, part, tile_m in (("Dwelling walls", "walls", 5.4), ("Dwelling roof", "roof", 1.12)):
+        pbr = materials[name]["pbrMetallicRoughness"]
+        assert pbr["baseColorFactor"] == pytest.approx(finishes[part]["rgba"], abs=1e-3)
+        colour = pbr["baseColorTexture"]
+        image = gltf["images"][gltf["textures"][colour["index"]]["source"]]
+        assert finishes[part]["texture"] in image["name"]
+        assert "normalTexture" in materials[name]
+        scale = colour["extensions"]["KHR_texture_transform"]["scale"]
+        assert [abs(s) for s in scale] == pytest.approx([1 / tile_m, 1 / tile_m], rel=1e-3)
 
 
 class MirroringModel:

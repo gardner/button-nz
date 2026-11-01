@@ -19,6 +19,7 @@ from pydantic import (
     model_validator,
 )
 
+from button_nz.blender_worker.scene_input import DwellingFinishes, TextureName
 from button_nz.evaluation import Footprint
 
 CATALOGUE = Path(__file__).resolve().parents[3] / "data" / "catalogue" / "products.json"
@@ -37,7 +38,8 @@ class Appearance(BaseModel):
     """How a product looks, from its supplier's material: the roof forms it is
     built with (more than one: the buyer chooses; none: not published), the
     pitch where stated, and wall and roof colours. ``basis`` says whether the
-    colours are a published palette or illustrative from a render."""
+    colours are a published palette or illustrative from a render. The
+    textures are the CC0 sets closest to its cladding and roofing."""
 
     model_config = ConfigDict(frozen=True, strict=True, extra="forbid")
 
@@ -45,6 +47,8 @@ class Appearance(BaseModel):
     roof_pitch_deg: float | None
     walls: str = Field(pattern=HEX)
     roof: str = Field(pattern=HEX)
+    walls_texture: TextureName
+    roof_texture: TextureName
     basis: str = Field(min_length=1)
 
     @classmethod
@@ -63,9 +67,12 @@ class Appearance(BaseModel):
             case forms:
                 return f"a {' or '.join(forms)} roof (the buyer chooses)"
 
-    def colours(self) -> dict[str, list[float]]:
-        """Wall and roof colours as Blender takes them: linear RGBA."""
-        return {"walls": _linear(self.walls), "roof": _linear(self.roof)}
+    def finishes(self) -> DwellingFinishes:
+        """Walls and roof for the render: linear RGBA colours over textures."""
+        return {
+            "walls": {"rgba": _linear(self.walls), "texture": self.walls_texture},
+            "roof": {"rgba": _linear(self.roof), "texture": self.roof_texture},
+        }
 
 
 def _linear(hex_colour: str) -> list[float]:

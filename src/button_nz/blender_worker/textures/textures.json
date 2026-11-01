@@ -1,0 +1,46 @@
+{
+  "about": "The finishes the trusted render gives the Dwelling, chosen by the host. tile_m is the width in metres one tile covers on the building; boards_across turns the texture a quarter turn so its boards run horizontally, as weatherboards do; roughness is the finish's, uniform. Made by scripts/prepare_textures.py from Poly Haven's 2K maps (CC0 1.0).",
+  "licence": "CC0 1.0",
+  "sets": {
+    "white_planks_clean": {
+      "page": "https://polyhaven.com/a/white_planks_clean",
+      "use": "painted weatherboard",
+      "tile_m": 5.4,
+      "tile_note": "the source covers 1.8 m in 50 mm boards; shown at 150 mm boards, a weatherboard's width",
+      "boards_across": true,
+      "roughness": 0.6
+    },
+    "japanese_cedar_planks": {
+      "page": "https://polyhaven.com/a/japanese_cedar_planks",
+      "use": "solid timber boards",
+      "tile_m": 1.13,
+      "tile_note": "true scale",
+      "boards_across": true,
+      "roughness": 0.65
+    },
+    "concrete_panels": {
+      "page": "https://polyhaven.com/a/concrete_panels",
+      "use": "fibre-cement or clad sheet panels",
+      "tile_m": 8.0,
+      "tile_note": "true scale",
+      "boards_across": false,
+      "roughness": 0.7
+    },
+    "box_profile_metal_sheet": {
+      "page": "https://polyhaven.com/a/box_profile_metal_sheet",
+      "use": "5-rib trapezoidal metal roofing, ribs down the slope",
+      "tile_m": 2.0,
+      "tile_note": "true scale",
+      "boards_across": false,
+      "roughness": 0.4
+    },
+    "corrugated_iron": {
+      "page": "https://polyhaven.com/a/corrugated_iron",
+      "use": "corrugated metal roofing, corrugations down the slope",
+      "tile_m": 1.12,
+      "tile_note": "true scale",
+      "boards_across": false,
+      "roughness": 0.4
+    }
+  }
+}

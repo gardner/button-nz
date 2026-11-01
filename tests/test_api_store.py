@@ -1,11 +1,13 @@
 """Tests for button_nz.api.store: durable design jobs and their attempts."""
 
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from button_nz.api.store import AttemptRecord, JobStatus, Store
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES
 
 
 @pytest.fixture
@@ -114,3 +116,30 @@ def test_a_database_from_before_revisions_is_migrated(tmp_path: Path) -> None:
     assert store.get_job("old").parent_id is None
     child = store.create_job("A studio.", True, parent_id="old", instruction="Face north.")
     assert store.get_job(child.id).instruction == "Face north."
+
+
+def test_a_placed_look_from_before_textures_keeps_its_colours_on_the_default_textures(
+    store: Store,
+) -> None:
+    job = store.create_job("A studio.", allow_observations=True)
+    look = {
+        "roof_forms": ["mono"],
+        "roof_pitch_deg": None,
+        "walls": "#e8e6df",
+        "roof": "#3b3e36",
+        "basis": "published palette",
+    }
+    placed = {"id": "vista", "name": "AirHome Vista", "length_m": 12.2, "width_m": 4.0}
+    with sqlite3.connect(store.path) as db:
+        db.execute(
+            "UPDATE jobs SET product = ? WHERE id = ?",
+            (json.dumps(placed | {"appearance": look}), job.id),
+        )
+
+    product = store.get_job(job.id).product
+
+    assert product is not None and product.appearance is not None
+    assert product.appearance.walls == "#e8e6df"
+    finishes = product.appearance.finishes()
+    assert finishes["walls"]["texture"] == DEFAULT_FINISHES["walls"]["texture"]
+    assert finishes["roof"]["texture"] == DEFAULT_FINISHES["roof"]["texture"]
