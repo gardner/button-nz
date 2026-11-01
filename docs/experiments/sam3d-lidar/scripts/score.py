@@ -221,11 +221,12 @@ TOP_CELLS_ACROSS = 40  # the top surface's cells across the model, whatever its 
 
 def top_points(model: Array) -> Array:
     """The model's highest point in each cell: its roof, seen from above. The
-    cell is a fortieth of the model's width (at least FOOT_CELL_M), so a model
-    at the wrong scale still has enough points per cell for its top to be roof,
-    not a floor or wall point alone in a cell."""
+    cell is a fortieth of the model's width, whatever its scale (about 0.5 m
+    for a house at true size), so a model 20x too big or too small still gives
+    the same number of top points, each roof, not a floor or wall point alone
+    in a cell."""
     width = float(np.max(np.percentile(model[:, :2], 98, axis=0) - np.percentile(model[:, :2], 2, axis=0)))
-    cell = max(FOOT_CELL_M, width / TOP_CELLS_ACROSS)
+    cell = width / TOP_CELLS_ACROSS
     cells = np.floor(model[:, :2] / cell).astype(np.int64)
     order = np.lexsort((-model[:, 2], cells[:, 1], cells[:, 0]))
     c = cells[order]

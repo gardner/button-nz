@@ -20,9 +20,9 @@
   1.052,
   1.015
  ],
- "fitted_scale": 1.016,
- "shape_roof_rmse_m": 0.21,
- "shape_roof_median_m": 0.196,
- "shape_roof_bias_m": 0.196,
+ "fitted_scale": 1.009,
+ "shape_roof_rmse_m": 0.215,
+ "shape_roof_median_m": 0.2,
+ "shape_roof_bias_m": 0.2,
  "shape_roof_coverage": 0.982
 }

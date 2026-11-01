@@ -204,10 +204,11 @@ it measures shape alone:
 
 | Distortion | Roof median, no alignment | Footprint IoU | Fitted scale | Roof median, after alignment |
 |---|---|---|---|---|
-| None | 0.07 m | 0.90 | 0.95 | 0.15 m |
-| Moved 3 m east, 1 m up | 0.87 m | 0.54 | 0.95 | 0.15 m |
+| None | 0.07 m | 0.90 | 0.96 | 0.15 m |
+| Moved 3 m east, 1 m up | 0.87 m | 0.54 | 0.96 | 0.15 m |
 | Turned 10°, 1.2× | 0.49 m | 0.64 | 0.78 | 0.15 m |
-| 20× too big (as MoGe's depth is) | 37.4 m | 0.02 | 0.048 | 0.15 m |
+| 20× too big | 37.4 m | 0.02 | 0.048 | 0.15 m |
+| 20× too small (as MoGe's raw depth is) | no model over any point | 0.01 | 18.8 | 0.15 m |
 
 **The alignment has a floor, and it differs by building:** Roofer's own
 model, which no alignment should improve, scores 0.15 m after it on the house
@@ -217,7 +218,7 @@ Roofer's roofs sit a median 0.15 m and 0.20 m above the held-out points
 (`shape_roof_bias_m`), against 0.07 and 0.11 m before (`roof_bias_m`). The
 likely cause is the target: the highest training point in each 1 m cell, set
 at the cell's centre, sits above the roof there when the roof slopes. The fit
-shrinks the house to scale 0.95 but not the other building (1.02), so the
+shrinks the house to scale 0.96 but not the other building (1.01), so the
 shrinkage isn't the cause. Compare each building's shape numbers with its own
 floor and with each other, not with the layout numbers.
 
@@ -244,7 +245,7 @@ training points and the LINZ outlines
 | Roof height, model less held-out | +0.09 m | −0.09 m |
 | Footprint IoU with the outline | 0.90 | 0.84 |
 | Roof error read straight above each held-out point, median | 0.03 m | 0.05 m |
-| Roof error after alignment (the alignment's floor), median / RMSE | 0.15 / 0.25 m | 0.20 / 0.21 m |
+| Roof error after alignment (the alignment's floor), median / RMSE | 0.15 / 0.25 m | 0.20 / 0.22 m |
 | Valid closed solid | yes (24 triangles) | yes (36 triangles) |
 
 A conventional method, given the same training points, gets roofs within
