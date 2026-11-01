@@ -19,6 +19,18 @@ export const OWN_HEIGHT: ExpressionSpecification = [
   ["get", "baseM"],
 ];
 
+/** Neighbouring buildings and trees are drawn at half their measured height,
+ * the team lead's call: at full height they crowd the proposed dwelling in
+ * the tilted view. Only the context is scaled. The design and a placed
+ * prefab stand at their own height (`OWN_HEIGHT`), and the API's figures are
+ * unchanged. */
+export const CONTEXT_SCALE = 0.5;
+export const CONTEXT_HEIGHT: ExpressionSpecification = [
+  "*",
+  OWN_HEIGHT,
+  CONTEXT_SCALE,
+];
+
 const STOP = ["mousedown", "touchstart", "wheel", "dragstart"] as const;
 
 /** Flies to `bounds`, tilted, then turns slowly round them until the map is

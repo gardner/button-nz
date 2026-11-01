@@ -1,5 +1,7 @@
 """Tests for button_nz.agent.model.ChatModel against a mocked Meta Model API."""
 
+import base64
+import io
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -8,6 +10,7 @@ from typing import Any
 import httpx2  # the HTTP client the openai SDK is built on
 import pytest
 from openai import DefaultHttpxClient, OpenAI
+from PIL import Image
 
 from button_nz.agent.conversation import Observe, Turn
 from button_nz.agent.model import META_BASE_URL, ChatModel, ModelReplyError
@@ -60,8 +63,7 @@ def test_returns_the_script_from_the_tool_call() -> None:
 
 
 def test_attempts_become_tool_calls_and_results_with_the_render(tmp_path: Path) -> None:
-    render = tmp_path / "design.png"
-    render.write_bytes(b"\x89PNG")
+    render = png(tmp_path / "design.png", (64, 48))
     model, sent = _model(_tool_call("x"))
     model.propose(
         [
@@ -119,8 +121,7 @@ def test_an_observation_call_becomes_a_request() -> None:
 
 
 def test_requests_and_observations_become_tool_calls_and_results(tmp_path: Path) -> None:
-    view = tmp_path / "observation-1.png"
-    view.write_bytes(b"\x89PNG")
+    view = png(tmp_path / "observation-1.png", (64, 64))
     model, sent = _model(_tool_call("x"))
     request = json.dumps({"tool": "render_contours", "arguments": {"interval_m": 0.5}})
     model.propose(
@@ -160,3 +161,30 @@ def test_a_reasoning_effort_is_sent_only_when_chosen() -> None:
     effortful = replace(model, reasoning_effort="max")
     effortful.propose([Turn("user", "brief")], False)
     assert sent[1]["reasoning_effort"] == "max"
+
+
+def png(path: Path, size: tuple[int, int]) -> Path:
+    Image.new("RGB", size, (120, 160, 90)).save(path)
+    return path
+
+
+def sent_image(tmp_path: Path, image: Path) -> tuple[Image.Image, bytes]:
+    model, sent = _model(_tool_call("x"))
+    model.propose(
+        [Turn("system", "c"), Turn("user", "b"), Turn("design", "s"), Turn("feedback", "f", image)],
+        False,
+    )
+    url = sent[0]["messages"][4]["content"][1]["image_url"]["url"]
+    data = base64.b64decode(url.split(",", 1)[1])
+    return Image.open(io.BytesIO(data)), data
+
+
+def test_a_large_render_is_sent_smaller_keeping_its_shape(tmp_path: Path) -> None:
+    sent, _ = sent_image(tmp_path, png(tmp_path / "design.png", (1280, 960)))
+    assert sent.size == (800, 600)  # about 600 tokens, not 1,530 (measured on the API)
+
+
+def test_an_image_already_small_enough_is_sent_as_it_is(tmp_path: Path) -> None:
+    view = png(tmp_path / "observation-1.png", (672, 688))
+    sent, data = sent_image(tmp_path, view)
+    assert sent.size == (672, 688) and data == view.read_bytes()

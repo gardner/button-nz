@@ -62,12 +62,25 @@ export interface TownSection {
 
 export const MIN_QUERY = 3;
 
-/** Addresses that start with `query`; none asked for under three letters. */
-export async function searchAddresses(query: string): Promise<Address[]> {
+/** A longitude in [-180, 180). */
+export function wrapLon(lon: number): number {
+  return ((((lon + 180) % 360) + 360) % 360) - 180;
+}
+
+/** Addresses that start with `query`; none asked for under three letters.
+ * With `near` (lon, lat: where the map looks), those near it come first. */
+export async function searchAddresses(
+  query: string,
+  near?: [number, number],
+): Promise<Address[]> {
   const q = query.trim();
   if (q.length < MIN_QUERY) return [];
+  // A map that panned across the antimeridian reports lng past 180: wrap it.
+  const place = near
+    ? `&near=${encodeURIComponent([wrapLon(near[0]), near[1]].map((v) => v.toFixed(4)).join(","))}`
+    : "";
   const body = record(
-    await request(`/addresses?q=${encodeURIComponent(q)}`),
+    await request(`/addresses?q=${encodeURIComponent(q)}${place}`),
     "addresses",
   );
   return list(body, "addresses").map(parseAddress);

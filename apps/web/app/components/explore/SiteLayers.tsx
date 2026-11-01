@@ -9,7 +9,7 @@ import {
 } from "@/lib/siteMap";
 
 import { GeoLayer, type Paint } from "../map/GeoLayer";
-import { OWN_HEIGHT } from "../map/View3D";
+import { CONTEXT_HEIGHT, OWN_HEIGHT } from "../map/View3D";
 
 /** How each layer of the site is drawn: the rules as colour on the land. */
 export const SITE_COLOURS = {
@@ -38,19 +38,20 @@ const DECIDED: Paint<"fill"> = {
   "fill-opacity": ["match", ["get", "decision"], "ignore", 0.15, 0.5],
 };
 
-/** In 3D the site's buildings and trees stand as tall as the LiDAR says:
+/** In 3D the site's buildings and trees stand at half what the LiDAR says
+ * (`CONTEXT_SCALE`), so the proposed dwelling isn't crowded:
  * buildings in stone, trees in green, a little see-through so the rules on
  * the ground show between them. */
 const BUILDINGS_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": "#d6d3d1",
   "fill-extrusion-base": 0,
-  "fill-extrusion-height": OWN_HEIGHT,
+  "fill-extrusion-height": CONTEXT_HEIGHT,
   "fill-extrusion-opacity": 0.85,
 };
 const CANOPY_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": "#4d7c0f",
   "fill-extrusion-base": 0,
-  "fill-extrusion-height": OWN_HEIGHT,
+  "fill-extrusion-height": CONTEXT_HEIGHT,
   "fill-extrusion-opacity": 0.75,
 };
 

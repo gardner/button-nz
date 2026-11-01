@@ -181,7 +181,12 @@ describe("Explore", () => {
       type: "fill-extrusion",
       paint: {
         "fill-extrusion-base": 0,
-        "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+        // half the measured height: context, not the design (CONTEXT_SCALE)
+        "fill-extrusion-height": [
+          "*",
+          ["-", ["get", "heightM"], ["get", "baseM"]],
+          0.5,
+        ],
       },
     });
     // Only the buildings the LiDAR measured stand.
@@ -216,6 +221,25 @@ describe("Explore", () => {
     ).toBeTruthy();
     await new Promise((r) => setTimeout(r, 20));
     expect(FakeMap.last?.pitch).toBe(60);
+  });
+
+  it("asks for addresses near where the map looks first", async () => {
+    const fetch = serve({
+      "GET /api/town/reefton": [TOWN],
+      "GET /api/addresses": [ADDRESSES],
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(FakeMap.last).not.toBeNull());
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    await screen.findByRole("option", { name: /35 Victory Street, Reefton/ });
+    const asked = fetch.mock.calls
+      .map((c) => String(c[0]))
+      .find((u) => u.startsWith("/api/addresses"));
+    expect(asked).toBe(
+      "/api/addresses?q=35%20Victory&near=171.8622%2C-42.1153",
+    );
   });
 
   it("goes back to the town while a newly picked site builds", async () => {

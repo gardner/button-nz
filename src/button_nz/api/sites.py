@@ -1,6 +1,6 @@
 """Any address, over HTTP: find it, build a site there, and serve the site.
 
-    GET  /addresses?q=<text>             at most 8 LINZ addresses, in lon/lat
+    GET  /addresses?q=<text>[&near=lon,lat]  at most 8 LINZ addresses, in lon/lat; near first
     POST /sites {address_id}             build the site at an address (202); one per address
     GET  /sites/{id}                     its status, step and error; once ready, the site
     GET  /sites/{id}/aerial.png          its aerial photo
@@ -152,9 +152,12 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
     router = APIRouter()
 
     @router.get("/addresses")
-    def get_addresses(q: str = Query(...)) -> dict[str, Any]:
+    def get_addresses(
+        q: str = Query(...),
+        near: str | None = Query(None, description="lon,lat to rank nearby addresses first"),
+    ) -> dict[str, Any]:
         try:
-            return {"addresses": search_addresses(addresses, q)}
+            return {"addresses": search_addresses(addresses, q, _lonlat(near))}
         except QueryError as error:
             raise HTTPException(422, str(error)) from None
         except ArcGISError as error:
@@ -264,3 +267,16 @@ def _address(addresses: FeatureLayer, address_id: int) -> str:
 
 def _admit(cap: DailyCap | None) -> AbstractContextManager[None]:
     return nullcontext() if cap is None else cap.admit()
+
+
+def _lonlat(near: str | None) -> tuple[float, float] | None:
+    """``near`` as (lon, lat), or a 422 for anything that isn't a place."""
+    if near is None:
+        return None
+    try:
+        lon, lat = (float(v) for v in near.split(","))
+    except ValueError:
+        raise HTTPException(422, "near is lon,lat") from None
+    if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+        raise HTTPException(422, "near is outside the world")
+    return lon, lat
