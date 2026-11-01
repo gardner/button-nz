@@ -154,6 +154,55 @@ describe("a ready site", () => {
     ).toContain("Check");
   });
 
+  it("says a design's checks may not hold once the survey changes, and drops a site map that can't refresh", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    let maps = 0;
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const route = `${init?.method ?? "GET"} ${url.split("?")[0]}`;
+      const body: Record<string, unknown> = {
+        "GET /api/town/reefton": TOWN,
+        [`GET /api/sites/${SITE}`]: SITE_READY,
+        [`GET /api/sites/${SITE}/features`]: SURVEY,
+        [`PUT /api/sites/${SITE}/features/2`]: {
+          ...SURVEY.features[1],
+          properties: {
+            ...SURVEY.features[1].properties,
+            decision: "building",
+          },
+        },
+        "GET /api/designs/abc123": ACCEPTED,
+        "GET /api/designs/abc123/map": DESIGN_MAP,
+      };
+      if (route === `GET /api/sites/${SITE}/map`)
+        return Promise.resolve(
+          ++maps === 1 ? respond(SITE_MAP) : respond({ detail: "down" }, 503),
+        );
+      return body[route] === undefined
+        ? new Promise<Response>(() => {})
+        : Promise.resolve(respond(body[route]));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(true),
+    );
+    expect(screen.queryByText(/survey changed/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: /#2 tree/ }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /#2 tree/ })).getByRole(
+        "button",
+        { name: "Existing building" },
+      ),
+    );
+    expect(
+      await screen.findByText(/survey changed after this design/),
+    ).toBeTruthy();
+    expect(await screen.findByText(/site's map couldn't load/)).toBeTruthy();
+    expect(FakeMap.last?.layers.has("site-features-fill")).toBe(false);
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

@@ -20,7 +20,10 @@ function serve(body: unknown): ReturnType<typeof vi.fn> {
   return fetch;
 }
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => {
+  vi.useFakeTimers();
+  Element.prototype.scrollIntoView = vi.fn(); // jsdom doesn't lay out
+});
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
@@ -73,6 +76,18 @@ describe("SearchBox", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onPick).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1907459 }),
+    );
+  });
+
+  it("keeps the highlighted address in sight as the keys move it", async () => {
+    serve(ADDRESSES);
+    const scrolled = vi.mocked(Element.prototype.scrollIntoView);
+    render(<SearchBox onPick={vi.fn()} />);
+    await type("35 Victory");
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+    expect(scrolled.mock.contexts.at(-1)).toBe(
+      screen.getAllByRole("option")[0],
     );
   });
 

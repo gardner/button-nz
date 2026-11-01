@@ -38,6 +38,16 @@ describe("AttemptRow", () => {
     ]);
   });
 
+  it("doesn't call an attempt with unknown checks a pass", () => {
+    const unknown = {
+      ...attempt(CHECKS.slice(0, 2)),
+      status: "unknown" as const,
+    };
+    render(<AttemptRow attempt={unknown} />);
+    expect(screen.getByText("No failures; some checks unknown")).toBeTruthy();
+    expect(screen.queryByText(/Passed/)).toBeNull();
+  });
+
   it("opens to each check's measurement and the rule it comes from", () => {
     render(<AttemptRow attempt={attempt(CHECKS)} />);
     expect(screen.queryByText(/72.0 m²: over 70/)).toBeNull();

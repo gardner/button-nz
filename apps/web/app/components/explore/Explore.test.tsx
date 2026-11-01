@@ -82,7 +82,10 @@ describe("Explore", () => {
       "Reading the LiDAR",
     );
     expect(await screen.findByText("Your site")).toBeTruthy();
-    expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds);
+    // The map loads on its own time; the panel doesn't wait for it.
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds),
+    );
     expect(window.location.search).toBe("?site=35-victory-street-reefton");
     expect(
       screen.getByRole("listitem", { current: "step" }).textContent,
