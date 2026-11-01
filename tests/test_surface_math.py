@@ -1,6 +1,7 @@
 """Tests for button_nz.blender_worker.surface_math (pure Python, used inside Blender)."""
 
 import math
+import random
 from itertools import combinations
 
 import pytest
@@ -64,6 +65,20 @@ def test_coplanar_faces_wound_opposite_ways_share_the_mapping(
     first = dict(zip((a, b, c), face_uvs(a, b, c), strict=True))
     second = dict(zip((a, d, c), face_uvs(a, d, c), strict=True))  # the other winding
     assert second[a] == pytest.approx(first[a]) and second[c] == pytest.approx(first[c])
+
+
+@pytest.mark.parametrize("turn_deg", [45, 135, 225, 315])
+def test_a_slope_turned_diagonally_is_seamless(turn_deg: int) -> None:
+    c, s = math.cos(math.radians(turn_deg)), math.sin(math.radians(turn_deg))
+    rng = random.Random(turn_deg)
+    for _ in range(200):  # gable slopes of many sizes and places, turned to face a diagonal
+        length, run, rise = rng.uniform(3, 15), rng.uniform(1, 4), rng.uniform(0.3, 2)
+        x0, y0, eaves = rng.uniform(-20, 20), rng.uniform(-20, 20), rng.uniform(2, 3)
+        slope = [(0, 0, 0), (length, 0, 0), (length, run, rise), (0, run, rise)]
+        a, b, top, d = ((x0 + x * c - y * s, y0 + x * s + y * c, eaves + z) for x, y, z in slope)
+        first = dict(zip((a, b, top), face_uvs(a, b, top), strict=True))
+        second = dict(zip((a, top, d), face_uvs(a, top, d), strict=True))
+        assert second[a] == pytest.approx(first[a]) and second[top] == pytest.approx(first[top])
 
 
 def test_a_degenerate_face_maps_without_failing() -> None:
