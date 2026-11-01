@@ -1,7 +1,8 @@
 # Results
 
-Every number here comes from a live run against the Meta Model API on the
-demo site, 35 Victory Street, Reefton. Each folder holds the run's
+Every number here comes from a live run. The experiments call the Meta Model
+API on the demo site, 35 Victory Street, Reefton; the town screen calls no
+model and screens all of Reefton from open data. Each folder holds the run's
 `report.md`, written by the benchmark from its own `results.jsonl` (one line
 per question or design run), and that log. Each section names the commit
 the run's code was at. Samples are small: read the differences as
@@ -96,3 +97,30 @@ still didn't, and count as wrong.
 2f1eeec): the agent scored 70% against 53–60% for the fixed views, with 14
 replies that weren't tool calls scored wrong at once, which is what #60
 fixed. It is kept for the record; the run above replaces it.
+
+## Town screen: room for a real prefab in Reefton (`button_nz.bench.town_screen`)
+
+**Reefton** ([report](town-screen/report.md), [map](town-screen/map.png),
+code 98cdd48, #72). Every BDC title whose point lies in one of Reefton's
+Residential zones is screened on its own against Schedule 1A's siting rules:
+the outline at least 2 m inside the boundary and 2 m from every LINZ building
+outline. A section counts if at least one of the catalogue's 14 prefabs with
+labelled dimensions fits. The LINZ outlines date from 2015–16, so a second
+count also keeps 2 m from everything over 2 m on the 2020–24 LiDAR, trees
+included: room without removing anything.
+
+| Count, with 0.6 m eaves | All 1,320 sections | 986 with a building (backyards) |
+|---|---|---|
+| Room under the LINZ outlines | 762 (58%) | 488 (49%) |
+| Room clear of everything over 2 m on the LiDAR | 409 (31%) | 258 (26%) |
+
+Without the eave allowance the counts are 859 and 525. It's a screen, not a
+verdict. It doesn't check:
+
+- hazards (Reefton sits beside the Inangahua River);
+- slope and floor level;
+- the district plan and the NES-DMRU;
+- services;
+- lines between parcels on one title.
+
+The report lists every limit.

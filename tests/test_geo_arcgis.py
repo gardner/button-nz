@@ -66,6 +66,14 @@ def test_envelope_query_sends_an_nztm_envelope() -> None:
     assert seen[0]["spatialRel"] == "esriSpatialRelIntersects"
 
 
+def test_envelope_query_can_also_filter_by_attributes() -> None:
+    layer, seen = _layer(lambda _: _ok(_collection(0)))
+    result = layer.in_envelope((1.0, 2.0, 3.0, 4.0), where="ZONING='re'")
+    assert seen[0]["where"] == "ZONING='re'"
+    assert seen[0]["geometry"] == "1.0,2.0,3.0,4.0"
+    assert result.provenance.query["where"] == "ZONING='re'"
+
+
 def test_near_query_sends_a_point_and_distance_in_metres() -> None:
     layer, seen = _layer(lambda _: _ok(_collection(0)))
     layer.near((10.5, 20.5), 60.0)

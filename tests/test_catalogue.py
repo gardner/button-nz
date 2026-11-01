@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from shapely import Point, Polygon
 from shapely.affinity import rotate, translate
+from shapely.geometry import shape
 
 from button_nz.catalogue import (
     CATALOGUE,
@@ -161,6 +162,41 @@ def test_a_curved_footprint_with_no_long_walls_is_still_tried() -> None:
     round_house = Point(0, 0).buffer(5, quad_segs=32)  # 128 edges of about 0.25 m
     assert fits(round_house, 9, 3.5)
     assert not fits(round_house, 9, 5)
+
+
+ROOM_3594468 = Path(__file__).parent / "data" / "room-3594468.json"
+
+
+def _room_3594468() -> Polygon:
+    found = shape(json.loads(ROOM_3594468.read_text("utf-8"))["room"])
+    assert isinstance(found, Polygon)
+    return found
+
+
+def test_no_fit_is_invented_at_nztm_magnitudes() -> None:
+    # A real 73.9 m² room in NZTM: these were reported to fit while Nile didn't.
+    room = _room_3594468()
+    assert not fits(room, 13.45, 5.4)  # Kurow
+    assert not fits(room, 12.0, 5.4)  # Frazer
+    assert fits(room, 9.0, 3.5)  # Okari
+
+
+def test_where_a_footprint_is_does_not_change_what_fits() -> None:
+    room = _room_3594468()
+    x0, y0, *_ = room.bounds
+    near_origin = translate(room, -x0, -y0)
+    for p in load_products():
+        assert fits(room, p.length_m, p.width_m) == fits(near_origin, p.length_m, p.width_m), p.id
+
+
+def test_whatever_fits_so_does_anything_no_bigger_either_way() -> None:
+    room = _room_3594468()
+    sizes = sorted({(p.length_m, p.width_m) for p in load_products()})
+    fitting = {s for s in sizes if fits(room, *s)}
+    for big in fitting:
+        for small in sizes:
+            if small[0] <= big[0] and small[1] <= big[1]:
+                assert small in fitting, (small, big)
 
 
 def test_only_a_labelled_rectangle_can_be_placed() -> None:

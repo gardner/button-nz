@@ -11,19 +11,25 @@ A product's rectangle is tried square to each of the footprint's walls, and to
 its minimum rotated rectangle (so a curved footprint is tried too), both ways
 round. It fits if it lies inside the footprint to within ``TOLERANCE_M``. Other
 orientations aren't tried: a fit can be missed, never invented.
+
+The footprint is moved to the origin before it is turned: at NZTM magnitudes
+(millions of metres) the overlay can leave zero-area slivers that look like
+room. And every fit is confirmed by placing the rectangle and checking that
+the footprint covers it, so an overlay artefact can't report a fit.
 """
 
 import math
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 
-from shapely import MultiPoint, Polygon, union_all
-from shapely.affinity import rotate
+from shapely import MultiPoint, Polygon, box, union_all
+from shapely.affinity import rotate, translate
 
 from button_nz.catalogue.products import Product
 
 TOLERANCE_M = 0.01  # a product this much longer and wider than its room still fits
 MIN_WALL_M = 0.5  # shorter edges are corners and openings, not walls to line up with
+SLACK_M = 1e-6  # float noise a confirmed placement may cross the footprint by
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,8 @@ def matches(footprint: Polygon, products: Iterable[Product]) -> Matches:
 def fits(footprint: Polygon, length: float, width: float) -> bool:
     """Whether a ``length`` x ``width`` rectangle fits inside ``footprint``,
     square to one of its walls."""
+    x0, y0, *_ = footprint.bounds
+    footprint = translate(footprint, -x0, -y0)
     for angle in _wall_angles(footprint):
         turned = rotate(footprint, -angle, origin=(0, 0), use_radians=True)
         for along, across in ((length, width), (width, length)):
@@ -72,7 +80,8 @@ def _wall_angles(footprint: Polygon) -> list[float]:
 def _room_for(footprint: Polygon, length: float, width: float) -> bool:
     """Whether an axis-aligned ``length`` x ``width`` rectangle fits in ``footprint``:
     somewhere for its corner inside the footprint where it meets no wall. Where it
-    would meet one is each edge swept by the rectangle, held by that corner."""
+    would meet one is each edge swept by the rectangle, held by that corner. A
+    corner found there counts only once the rectangle placed at it is confirmed."""
     corners = ((0.0, 0.0), (length, 0.0), (length, width), (0.0, width))
     walls = union_all(
         [
@@ -80,7 +89,16 @@ def _room_for(footprint: Polygon, length: float, width: float) -> bool:
             for edge in _edges(footprint)
         ]
     )
-    return not footprint.difference(walls).is_empty
+    leftover = footprint.difference(walls)
+    candidates = getattr(leftover, "geoms", (leftover,))
+    holder = footprint.buffer(SLACK_M)
+    for part in sorted(candidates, key=lambda g: -g.area):
+        if part.area <= 0:
+            break  # lines and points: overlay artefacts, never room
+        corner = part.representative_point()
+        if holder.covers(box(corner.x, corner.y, corner.x + length, corner.y + width)):
+            return True
+    return False
 
 
 def _edges(polygon: Polygon) -> Iterator[Sequence[tuple[float, float]]]:
