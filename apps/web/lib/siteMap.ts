@@ -29,11 +29,22 @@ export interface SurveyedFeature {
   concept: string;
   status: FeatureStatus;
   decision: Decision | null; // null until a person decides
+  heightM: number | null; // its top above the site's datum, where the LiDAR covers it
+  baseM: number | null; // its bottom, the same way
+}
+
+/** A thing that can be stood up on the map: its bottom (`baseM`) and top
+ * (`heightM`), in metres above the site's datum (#86 v1.1, #95); null beyond
+ * the LiDAR, or where they weren't measured. */
+export interface Raised {
+  baseM: number | null;
+  heightM: number | null;
 }
 
 export interface SiteMap {
   parcels: FeatureCollection<null>;
-  buildings: FeatureCollection<null>; // LINZ outlines
+  buildings: FeatureCollection<Raised>; // LINZ outlines, as tall as the LiDAR says
+  canopy: FeatureCollection<Raised>; // trees: the LiDAR over 2 m, outside the buildings
   features: FeatureCollection<SurveyedFeature>;
   setback: FeatureCollection<null>; // the 2 m band inside the title boundary
   halos: FeatureCollection<null>; // 2 m around confirmed buildings
@@ -54,20 +65,13 @@ export interface Undrawn {
 }
 
 export interface DesignMap {
-  outline: FeatureCollection<null>; // all it covers from above, eaves too
-  walls: FeatureCollection<null>;
+  outline: FeatureCollection<Raised>; // all it covers from above, eaves too
+  walls: FeatureCollection<Raised>; // from its floor to its roof
   distances: FeatureCollection<Distance>;
   unknown: Undrawn[];
 }
 
-const PLAIN = [
-  "parcels",
-  "buildings",
-  "setback",
-  "halos",
-  "keep_clear",
-  "room",
-] as const;
+const PLAIN = ["parcels", "setback", "halos", "keep_clear", "room"] as const;
 
 export async function getSiteMap(siteId: string): Promise<SiteMap> {
   return parseSiteMap(
@@ -83,6 +87,8 @@ export function parseSiteMap(raw: unknown): SiteMap {
   const features = parseCollection(map.features, "features", (p) => p);
   return {
     ...plain,
+    buildings: parseCollection(map.buildings, "buildings", raised),
+    canopy: parseCollection(map.canopy, "canopy", raised),
     features: {
       type: "FeatureCollection",
       features: features.features.map((f) => ({
@@ -94,6 +100,7 @@ export function parseSiteMap(raw: unknown): SiteMap {
           decision: optional(f.properties, "decision", (p, k) =>
             oneOf(p, k, DECISIONS),
           ),
+          ...raised(f.properties),
         },
       })),
     },
@@ -105,8 +112,8 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
     `/designs/${encodeURIComponent(jobId)}/map`,
   )) as Fields;
   return {
-    outline: parseCollection(map.outline, "outline", () => null),
-    walls: parseCollection(map.walls, "walls", () => null),
+    outline: parseCollection(map.outline, "outline", raised),
+    walls: parseCollection(map.walls, "walls", raised),
     distances: parseCollection(map.distances, "distances", (p) => ({
       check: text(p, "check"),
       metres: number(p, "metres"),
@@ -119,6 +126,26 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
   };
 }
 
+/** Bottom and top; absent or null where not measured. */
+export function raised(p: Fields): Raised {
+  return {
+    heightM: p.height_m === undefined ? null : optional(p, "height_m", number),
+    baseM: p.base_m === undefined ? null : optional(p, "base_m", number),
+  };
+}
+
+/** The features that can be stood up: those with every height measured. */
+export function measured<P extends Raised>(
+  data: FeatureCollection<P>,
+): FeatureCollection<P> {
+  return {
+    ...data,
+    features: data.features.filter(
+      (f) => f.properties.baseM !== null && f.properties.heightM !== null,
+    ),
+  };
+}
+
 const NONE = { type: "FeatureCollection" as const, features: [] };
 
 /** A site map with nothing in it, to draw while the real one is on its way:
@@ -126,6 +153,7 @@ const NONE = { type: "FeatureCollection" as const, features: [] };
 export const EMPTY_SITE_MAP: SiteMap = {
   parcels: NONE,
   buildings: NONE,
+  canopy: NONE,
   features: NONE,
   setback: NONE,
   halos: NONE,

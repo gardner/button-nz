@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { passing } from "@/lib/fields";
+import { measured } from "@/lib/siteMap";
 import { type SiteState, type Town, getTown } from "@/lib/sites";
 
-import { BaseMap, REEFTON } from "../map/BaseMap";
-import { FitTo } from "../map/FitTo";
+import { BaseMap, REEFTON, framing, unpad, useMap } from "../map/BaseMap";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
+import { OWN_HEIGHT, PITCH_3D, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -37,51 +38,188 @@ const TOWN_LINE: Paint<"line"> = {
   "line-width": 0.6,
 };
 
+/** How close the town comes in 3D, for its buildings to show. */
+const TOWN_ZOOM_3D = 15.8;
+
+/** The town's buildings stood up in 3D, as tall as the LiDAR says, light so
+ * they stand out from the sections' colours, warmer the taller. */
+const TOWN_BUILDINGS_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": [
+    "interpolate",
+    ["linear"],
+    OWN_HEIGHT,
+    2,
+    "#fafaf9",
+    8,
+    "#fef3c7",
+    16,
+    "#fdba74",
+  ],
+  "fill-extrusion-height": OWN_HEIGHT,
+  "fill-extrusion-base": 0,
+  "fill-extrusion-opacity": 0.9,
+};
+
 /** Map-first: Reefton's sections coloured by the town screen, any address
  * found and its site built live, then surveyed, designed and checked on the
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, opening, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
-  const [progress, setProgress] = useState<Progress>({});
-  const step = stepOf({ site: site?.status, ...progress });
+  const { progress, three, setThree, onProgress } = useJourney();
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
         {town.data && (
-          <GeoLayer
-            id="town"
-            data={town.data.sections}
-            fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
-            line={TOWN_LINE}
+          <TownLayers
+            town={town.data}
+            behind={site !== null}
+            standing={three && site?.status !== "ready"}
           />
         )}
-        {/* The town is framed again once its headline fills the panel. */}
-        <FitTo bounds={site?.bounds ?? (town.data ? REEFTON : null)} />
+        <Camera site={site} town={town.data} three={three} />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"
         />
-        <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-4">
-          <p className="hidden rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur md:block">
-            Button <span className="text-emerald-400">NZ</span>
-          </p>
-          <div className="pointer-events-auto">
-            <Stepper current={step} />
-          </div>
-          <span className="hidden w-32 md:block" aria-hidden />
-        </header>
+        <Header
+          step={stepOf({ site: site?.status, ...progress })}
+          three={three}
+          onThree={setThree}
+        />
         <SidePanel
           site={site}
           problem={problem}
           opening={opening}
           town={town}
           pollMs={pollMs}
+          three={three}
           onAddress={fromAddress}
-          onProgress={setProgress}
+          onProgress={onProgress}
         />
       </BaseMap>
     </main>
+  );
+}
+
+/** Where the map looks until a site is ready (and while a new one builds):
+ * the town. A ready site moves the camera itself (ReadySite: its fit and
+ * orbit), so no two moves start at once and stop each other. */
+function Camera({
+  site,
+  town,
+  three,
+}: {
+  site: SiteState | null;
+  town: Town | null;
+  three: boolean;
+}) {
+  if (site?.status === "ready") return null;
+  return <TownView three={three} loaded={town !== null} />;
+}
+
+/** The town, framed flat in 2D, or tilted and closer in for 3D (its
+ * buildings are a few metres tall): one move each time the view changes,
+ * the town arrives (its headline changes the panel) or the map resizes. */
+function TownView({ three, loaded }: { three: boolean; loaded: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    const look = (duration: number) => {
+      const padding = framing();
+      unpad(map); // an earlier ease's padding would be added to this one
+      if (!three)
+        return map.fitBounds(REEFTON, {
+          padding,
+          pitch: 0,
+          bearing: 0,
+          duration,
+        });
+      const [w, s, e, n] = REEFTON;
+      map.easeTo({
+        center: [(w + e) / 2, (s + n) / 2],
+        zoom: TOWN_ZOOM_3D, // the town's own, not a site's close-up
+        pitch: PITCH_3D,
+        padding,
+        duration,
+      });
+    };
+    look(1500);
+    const again = () => look(0);
+    map.on("resize", again);
+    return () => {
+      map.off("resize", again);
+    };
+  }, [map, three, loaded]);
+  return null;
+}
+
+/** How far the journey has got, for the stepper, and whether the map is in
+ * 3D: it goes 3D when a design is accepted, to see it stand there. */
+function useJourney() {
+  const [progress, setProgress] = useState<Progress>({});
+  const [three, setThree] = useState(false);
+  const wasAccepted = useRef(false);
+  const onProgress = useCallback((now: Progress) => {
+    setProgress(now);
+    const accepted = now.design === "accepted";
+    if (accepted && !wasAccepted.current) setThree(true);
+    wasAccepted.current = accepted;
+  }, []);
+  return { progress, three, setThree, onProgress };
+}
+
+/** The town's sections, stepped back once a site is chosen, and in 3D its
+ * buildings standing, until a ready site stands its own. */
+function TownLayers({
+  town,
+  behind,
+  standing,
+}: {
+  town: Town;
+  behind: boolean;
+  standing: boolean; // 3D, with no ready site's own buildings to show
+}) {
+  return (
+    <>
+      <GeoLayer
+        id="town"
+        data={town.sections}
+        fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
+        line={TOWN_LINE}
+      />
+      {standing && (
+        <GeoLayer
+          id="town-buildings"
+          data={measured(town.buildings)}
+          extrusion={TOWN_BUILDINGS_3D}
+        />
+      )}
+    </>
+  );
+}
+
+function Header({
+  step,
+  three,
+  onThree,
+}: {
+  step: ReturnType<typeof stepOf>;
+  three: boolean;
+  onThree: (three: boolean) => void;
+}) {
+  return (
+    <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-4">
+      <p className="hidden rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur md:block">
+        Button <span className="text-emerald-400">NZ</span>
+      </p>
+      <div className="pointer-events-auto">
+        <Stepper current={step} />
+      </div>
+      <div className="pointer-events-auto">
+        <ViewToggle three={three} onChange={onThree} />
+      </div>
+    </header>
   );
 }
 
@@ -93,6 +231,7 @@ function SidePanel({
   opening,
   town,
   pollMs,
+  three,
   onAddress,
   onProgress,
 }: {
@@ -101,6 +240,7 @@ function SidePanel({
   opening: string | null;
   town: ReturnType<typeof useTown>;
   pollMs: number;
+  three: boolean;
   onAddress: (addressId: number, address: string) => void;
   onProgress: (progress: Progress) => void;
 }) {
@@ -134,6 +274,7 @@ function SidePanel({
           site={site}
           held={opening !== null}
           pollMs={pollMs}
+          three={three}
           onProgress={onProgress}
         />
       )}
@@ -153,11 +294,13 @@ function SiteSection({
   site,
   held,
   pollMs,
+  three,
   onProgress,
 }: {
   site: SiteState;
   held: boolean;
   pollMs: number;
+  three: boolean;
   onProgress: (progress: Progress) => void;
 }) {
   if (site.status !== "ready")
@@ -175,6 +318,7 @@ function SiteSection({
         key={site.id}
         site={site}
         pollMs={pollMs}
+        three={three}
         onProgress={onProgress}
       />
     </fieldset>

@@ -20,9 +20,31 @@ describe("getSiteMap", () => {
       "/api/sites/35-victory-street-reefton/map",
     );
     expect(map.features.features.map((f) => f.properties)).toEqual([
-      { id: "1", concept: "shed", status: "agrees", decision: "ignore" },
-      { id: "3", concept: "tree", status: "agrees", decision: "keep_clear" },
+      {
+        id: "1",
+        concept: "shed",
+        status: "agrees",
+        decision: "ignore",
+        heightM: null,
+        baseM: null,
+      },
+      {
+        id: "3",
+        concept: "tree",
+        status: "agrees",
+        decision: "keep_clear",
+        heightM: 7.2,
+        baseM: null, // absent: not measured
+      },
     ]);
+    expect(map.buildings.features.map((f) => f.properties)).toEqual([
+      { heightM: 6.2, baseM: 2.2 },
+      { heightM: null, baseM: null }, // the LiDAR has no cell inside it
+    ]);
+    expect(map.canopy.features[0].properties).toEqual({
+      baseM: 1.2,
+      heightM: 9.3,
+    });
     expect(map.room.features).toHaveLength(1);
     expect(map.halos.features).toHaveLength(0);
   });
@@ -40,6 +62,7 @@ describe("getSiteMap", () => {
               concept: "shed",
               status: "conflict",
               decision: null,
+              height_m: null,
             },
           },
         ],
@@ -50,11 +73,28 @@ describe("getSiteMap", () => {
       concept: "shed",
       status: "conflict",
       decision: null,
+      heightM: null,
+      baseM: null,
     });
   });
 
   it.each([
     [{ ...SITE_MAP, room: undefined }],
+    [{ ...SITE_MAP, canopy: undefined }],
+    [
+      {
+        ...SITE_MAP,
+        buildings: {
+          ...SITE_MAP.buildings,
+          features: [
+            {
+              ...SITE_MAP.buildings.features[0],
+              properties: { id: 25, height_m: "tall", base_m: 0 },
+            },
+          ],
+        },
+      },
+    ],
     [
       {
         ...SITE_MAP,
@@ -80,6 +120,22 @@ describe("getSiteMap", () => {
 });
 
 describe("getDesignMap", () => {
+  it("reads a design whose heights weren't measured", async () => {
+    const unmeasured = {
+      ...DESIGN_MAP,
+      walls: {
+        ...DESIGN_MAP.walls,
+        features: [{ ...DESIGN_MAP.walls.features[0], properties: {} }],
+      },
+    };
+    serve(unmeasured);
+    const map = await getDesignMap("abc123");
+    expect(map.walls.features[0].properties).toEqual({
+      baseM: null,
+      heightM: null,
+    });
+  });
+
   it("reads the checks it couldn't draw, and why, and refuses a map without them", async () => {
     serve({
       ...DESIGN_MAP,
@@ -104,7 +160,14 @@ describe("getDesignMap", () => {
     const fetch = serve(DESIGN_MAP);
     const map = await getDesignMap("abc123");
     expect(fetch.mock.calls[0][0]).toBe("/api/designs/abc123/map");
-    expect(map.walls.features).toHaveLength(1);
+    expect(map.walls.features[0].properties).toEqual({
+      baseM: 0.3,
+      heightM: 3.9,
+    });
+    expect(map.outline.features[0].properties).toEqual({
+      baseM: 0.3,
+      heightM: 3.9,
+    });
     expect(map.distances.features[0].properties).toEqual({
       check: "title_boundary_setback",
       metres: 3.2,

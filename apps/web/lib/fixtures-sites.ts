@@ -96,6 +96,29 @@ export const TOWN = {
     },
   ],
   missing: { ids: [], reason: "not in LINZ's NZ Primary Parcels" },
+  buildings: {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        id: 11,
+        properties: { base_m: null, height_m: null }, // beyond the LiDAR
+        geometry: {
+          type: "Polygon",
+          coordinates: square(171.8603, -42.1159, 0.00002),
+        },
+      },
+      {
+        type: "Feature",
+        id: 10,
+        properties: { base_m: 0, height_m: 6.5 },
+        geometry: {
+          type: "Polygon",
+          coordinates: square(171.8601, -42.1159, 0.00005),
+        },
+      },
+    ],
+  },
 };
 
 function collection(...features: object[]) {
@@ -134,14 +157,44 @@ export const SITE_MAP = {
       square(171.8619, -42.1161, 0.0003),
     ),
   ),
-  buildings: collection(),
+  buildings: collection(
+    polygon(
+      25,
+      { id: 25, height_m: 6.2, base_m: 2.2 },
+      square(171.8623, -42.1158, 0.00006),
+    ),
+    polygon(
+      26,
+      { id: 26, height_m: null, base_m: null },
+      square(171.8625, -42.1158, 0.00002),
+    ),
+  ),
+  canopy: collection(
+    polygon(
+      "c0",
+      { base_m: 1.2, height_m: 9.3 },
+      square(171.8618, -42.1157, 0.00004),
+    ),
+  ),
   features: collection(
     unnamed(
-      { id: "1", concept: "shed", status: "agrees", decision: "ignore" },
+      {
+        id: "1",
+        concept: "shed",
+        status: "agrees",
+        decision: "ignore",
+        height_m: null,
+      },
       square(171.862, -42.116, 0.00004),
     ),
     unnamed(
-      { id: "3", concept: "tree", status: "agrees", decision: "keep_clear" },
+      {
+        id: "3",
+        concept: "tree",
+        status: "agrees",
+        decision: "keep_clear",
+        height_m: 7.2,
+      },
       square(171.8621, -42.1159, 0.00005),
     ),
   ),
@@ -181,10 +234,18 @@ export const CHECKS = [
 /** GET /designs/{id}/map */
 export const DESIGN_MAP = {
   outline: collection(
-    polygon("outline", {}, square(171.862, -42.1159, 0.00009)),
+    polygon(
+      "outline",
+      { base_m: 0.3, height_m: 3.9 },
+      square(171.862, -42.1159, 0.00009),
+    ),
   ),
   walls: collection(
-    polygon("walls", {}, square(171.86201, -42.11589, 0.00007)),
+    polygon(
+      "walls",
+      { base_m: 0.3, height_m: 3.9 },
+      square(171.86201, -42.11589, 0.00007),
+    ),
   ),
   distances: collection({
     type: "Feature",

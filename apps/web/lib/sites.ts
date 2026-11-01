@@ -22,6 +22,7 @@ import {
   parseCollection,
 } from "./geo";
 import { request, send } from "./http";
+import { type Raised, raised } from "./siteMap";
 
 export interface Address {
   id: number; // LINZ address_id
@@ -118,6 +119,7 @@ export function parseSiteState(raw: unknown): SiteState {
 /** A town's screened sections, and the ones that can't be drawn. */
 export interface Town {
   sections: FeatureCollection<TownSection>;
+  buildings: FeatureCollection<Raised>; // LINZ outlines, base 0 and top as the LiDAR says
   missing: { ids: number[]; reason: string }; // screened, but with no outline
 }
 
@@ -130,6 +132,11 @@ export async function getTown(slug: string): Promise<Town> {
       id: number(p, "id"),
       category: oneOf(p, "category", CATEGORIES),
     })),
+    buildings: parseCollection(
+      record(raw, "town").buildings,
+      "town buildings",
+      raised,
+    ),
     missing: {
       ids: list(missing, "ids").map((id) =>
         number({ "missing id": id }, "missing id"),

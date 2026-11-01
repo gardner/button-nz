@@ -132,10 +132,20 @@ function MapCanvas({
                 },
               },
               layers: [{ id: "aerial", type: "raster", source: "aerial" }],
+              // What shows over the horizon when the map is tilted for 3D.
+              sky: {
+                "sky-color": "#0b1222",
+                "horizon-color": "#3b4a63",
+                "fog-color": "#1e293b",
+                "sky-horizon-blend": 0.6,
+                "horizon-fog-blend": 0.4,
+                "fog-ground-blend": 0.85,
+              },
             },
             bounds: initial.current,
             fitBoundsOptions: { padding: framing() },
             maxZoom: 21,
+            maxPitch: 70,
           });
         } catch (error) {
           setProblem(error instanceof Error ? error.message : String(error));
@@ -186,4 +196,12 @@ class MapBoundary extends Component<
       this.props.children
     );
   }
+}
+
+const NO_PADDING = { top: 0, bottom: 0, left: 0, right: 0 };
+
+/** Takes off the padding an ease left on the map: MapLibre adds it to the
+ * padding of the next fit or camera, which would count it twice. */
+export function unpad(map: MapLibreMap): void {
+  map.setPadding(NO_PADDING);
 }

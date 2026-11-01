@@ -142,8 +142,9 @@ describe("a ready site", () => {
       "✓ 2 m from the boundary",
       "? 2 m from buildings",
     ]);
+    // Accepted, the map goes 3D: the walls stand in place.
     await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("design-walls-fill")).toBe(true),
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
     );
     await vi.waitFor(() =>
       expect(
@@ -387,6 +388,58 @@ describe("a ready site", () => {
     ).toBeTruthy();
   });
 
+  it("goes 3D on acceptance: the buildings, trees and design standing, and an orbit until touched", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
+    );
+    const map = FakeMap.last!;
+    // The map resizes while the orbit's fly-in is on its way: still tilted.
+    act(() => map.fire("resize"));
+    // Each stands its own height, top less base, on the aerial: no terrain,
+    // whose DSM would stand the buildings and trees a second time.
+    const own = {
+      "fill-extrusion-base": 0,
+      "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+    };
+    expect(map.terrain).toBeNull();
+    for (const layer of [
+      "design-walls-extrusion",
+      "site-standing-buildings-extrusion",
+      "site-canopy-extrusion",
+    ])
+      expect(map.layers.get(layer)).toMatchObject({ paint: own });
+    await vi.waitFor(() => expect(map.pitch).toBe(60));
+    // The orbit reframes when the map changes shape, with the padding its
+    // fly-in left counted once.
+    act(() => map.fire("resize"));
+    expect(map.jumps.at(-1)).toMatchObject({ zoom: 19.5 });
+    const start = map.bearing;
+    await vi.waitFor(() => expect(map.bearing).not.toBe(start));
+    act(() => map.fire("mousedown"));
+    const held = map.bearing;
+    await new Promise((r) => setTimeout(r, 60));
+    expect(map.bearing).toBe(held);
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+    // Flat again, though the 2D framing starts in the same moment.
+    await vi.waitFor(() => expect(map.pitch).toBe(0));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(map.pitch).toBe(0);
+    expect(map.layers.has("design-walls-extrusion")).toBe(false);
+    // The standing layers stay, empty, so they keep their place.
+    expect(drawn("site-canopy")).toBe(0);
+    expect(drawn("site-standing-buildings")).toBe(0);
+  });
+
   it("calls a design asked for before a survey change outdated, even if it answers after", async () => {
     open();
     let answerDesign: (r: Response) => void = () => {};
@@ -468,13 +521,14 @@ describe("a ready site", () => {
     render(<Explore pollMs={5} />);
     // The design's map answers first.
     await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("design-walls-fill")).toBe(true),
+      expect(FakeMap.last?.layers.has("design-distances-line")).toBe(true),
     );
     answerMap(respond(SITE_MAP));
     const under = () => {
       const order = FakeMap.last?.order ?? [];
       return (
-        order.indexOf("site-features-fill") < order.indexOf("design-walls-fill")
+        order.indexOf("site-features-fill") <
+        order.indexOf("design-distances-line")
       );
     };
     await vi.waitFor(() => expect(under()).toBe(true));
@@ -490,6 +544,48 @@ describe("a ready site", () => {
     answerMap(respond(SITE_MAP));
     await new Promise((r) => setTimeout(r, 20));
     expect(under()).toBe(true);
+  });
+
+  it("tilts for 3D even while an accepted design's map is on its way", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      // GET /api/designs/abc123/map never answers.
+    });
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    await vi.waitFor(() => expect(FakeMap.last?.pitch).toBe(60));
+  });
+
+  it("keeps the picked feature's outline above the buildings and trees standing in 3D", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    const order = FakeMap.last?.order ?? [];
+    expect(order.indexOf("site-canopy-extrusion")).toBeGreaterThan(-1);
+    // The design's distance line stays above its walls in either view.
+    expect(order.indexOf("design-distances-line")).toBeGreaterThan(
+      order.indexOf("design-walls-extrusion"),
+    );
+    expect(order.indexOf("site-selected-line")).toBeGreaterThan(
+      order.indexOf("site-canopy-extrusion"),
+    );
   });
 
   it("doesn't blame a design asked for for an older link that fails before it answers", async () => {
@@ -551,6 +647,36 @@ describe("a ready site", () => {
         "2 m from buildings isn't drawn: the design has no record of the survey it was checked against.",
       ),
     ).toBeTruthy();
+  });
+
+  it("stands a building the owner confirmed, as tall as the LiDAR says", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: {
+        ...SITE_MAP,
+        features: {
+          ...SITE_MAP.features,
+          features: SITE_MAP.features.features.map((f, i) => ({
+            ...f,
+            properties: {
+              ...(f as { properties: Record<string, unknown> }).properties,
+              ...(i === 0 ? { decision: "building" } : {}),
+              base_m: i === 0 ? 1 : null,
+              height_m: i === 0 ? 3.6 : null,
+            },
+          })),
+        },
+      },
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    await vi.waitFor(() => expect(drawn("site-confirmed")).toBe(1));
   });
 
   it("doesn't open a design linked from another site", async () => {

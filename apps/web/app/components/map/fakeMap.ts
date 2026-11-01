@@ -5,9 +5,15 @@ type Handler = (event: unknown) => void;
 
 export class FakeMap {
   static last: FakeMap | null = null;
-  sources = new Map<string, { data: unknown; setData: (d: unknown) => void }>();
+  sources = new Map<
+    string,
+    { data?: unknown; setData: (d: unknown) => void; [key: string]: unknown }
+  >();
   layers = new Map<string, object>();
   fitted: unknown[] = [];
+  pitch = 0;
+  bearing = 0;
+  terrain: object | null = null; // never set: the 3D view has no terrain
   private handlers: { type: string; layer?: string; handler: Handler }[] = [];
 
   constructor(public options: object) {
@@ -34,6 +40,14 @@ export class FakeMap {
     return this;
   }
 
+  once(type: string, handler: Handler) {
+    const one: Handler = (event) => {
+      this.off(type, one);
+      handler(event);
+    };
+    return this.on(type, one);
+  }
+
   fire(type: string, layer?: string, event: unknown = {}) {
     for (const h of this.handlers)
       if (h.type === type && h.layer === layer) h.handler(event);
@@ -47,9 +61,9 @@ export class FakeMap {
     });
   }
 
-  addSource(id: string, source: { data: unknown }) {
+  addSource(id: string, source: { data?: unknown }) {
     const entry = {
-      data: source.data,
+      ...source,
       setData: (d: unknown) => (entry.data = d),
     };
     this.sources.set(id, entry);
@@ -84,9 +98,82 @@ export class FakeMap {
     return { style: { cursor: "" } };
   }
   fitOptions: unknown[] = [];
-  fitBounds(bounds: unknown, options?: unknown) {
+  /** The fits that landed, not stopped by a later move. */
+  landed: unknown[] = [];
+  zoom = 14;
+  private moving: object | null = null;
+  /** As MapLibre's camera: a move lands a moment later, unless another move
+   * (an ease or a fit) starts first and stops it where it is. */
+  private move(
+    target: { pitch?: number; bearing?: number; zoom?: number },
+    landed?: () => void,
+  ) {
+    const move = { ...target };
+    this.moving = move;
+    queueMicrotask(() => {
+      if (this.moving !== move) return; // stopped by a later move
+      this.moving = null;
+      if (move.pitch !== undefined) this.pitch = move.pitch;
+      if (move.bearing !== undefined) this.bearing = move.bearing;
+      if (move.zoom !== undefined) this.zoom = move.zoom;
+      landed?.();
+      this.fire("moveend");
+    });
+  }
+  fitBounds(bounds: unknown, options?: { pitch?: number; bearing?: number }) {
+    // As MapLibre's: the map's own padding is added to the one asked for.
+    if (this.padding !== 0) throw new Error("fit with padding left on the map");
     this.fitted.push(bounds);
     this.fitOptions.push(options);
+    this.move({ ...options, zoom: 14 }, () => this.landed.push(bounds));
+  }
+  easeTo(options: {
+    pitch?: number;
+    bearing?: number;
+    zoom?: number;
+    padding?: { left: number };
+  }) {
+    if (options.padding) this.padding = options.padding.left;
+    this.move(options);
+  }
+  /** Jumps, at once: what each jump asked for. */
+  jumps: unknown[] = [];
+  jumpTo(options: {
+    zoom?: number;
+    pitch?: number;
+    padding?: { left: number };
+  }) {
+    this.jumps.push(options);
+    if (options.padding) this.padding = options.padding.left;
+    this.moving = null; // as MapLibre's: a jump stops a move on its way
+    if (options.zoom !== undefined) this.zoom = options.zoom;
+    if (options.pitch !== undefined) this.pitch = options.pitch;
+    queueMicrotask(() => this.fire("moveend"));
+  }
+  getPitch() {
+    return this.pitch;
+  }
+  getZoom() {
+    return this.zoom;
+  }
+  getBearing() {
+    return this.bearing;
+  }
+  setBearing(bearing: number) {
+    this.bearing = bearing;
+  }
+  /** The padding a move left on the map, as MapLibre keeps it. */
+  padding = 0;
+  setPadding(padding: { left: number }) {
+    this.padding = padding.left;
+  }
+  /** As MapLibre's: the map's own padding is added to the one asked for,
+   * so a camera worked out with padding left on the map comes out wrong. */
+  cameraForBounds() {
+    return {
+      center: [171.862, -42.1159],
+      zoom: this.padding === 0 ? 19.5 : 18,
+    };
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

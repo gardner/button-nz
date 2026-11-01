@@ -10,6 +10,7 @@ import type { SiteState } from "@/lib/sites";
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
+import { Orbit, PITCH_3D } from "../map/View3D";
 import { checkLabel } from "./AttemptRow";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
@@ -29,10 +30,12 @@ export type Progress = Omit<JourneyState, "site">;
 export function ReadySite({
   site,
   pollMs,
+  three,
   onProgress,
 }: {
   site: SiteState;
   pollMs: number;
+  three: boolean; // the map tilted: the LiDAR surface, the design standing
   onProgress: (progress: Progress) => void;
 }) {
   const [version, setVersion] = useState(0);
@@ -56,6 +59,8 @@ export function ReadySite({
   return (
     <>
       <SiteOverlays
+        siteBounds={site.bounds}
+        three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
         selected={selected}
@@ -89,31 +94,44 @@ export function ReadySite({
 /** What a ready site draws on the map: its rules and survey, and the
  * accepted design with its distances. */
 function SiteOverlays({
+  siteBounds,
+  three,
   siteMap,
   designMap,
   selected,
   onFeature,
 }: {
+  siteBounds: Bounds | null;
+  three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
   selected: string | null;
   onFeature: (id: string) => void;
 }) {
+  const framed = designMap && designBounds(designMap);
   return (
     <>
+      {/* The site framed, tilted as the switch says, until there is a
+          design to frame (below). */}
+      {!framed && <FitTo bounds={siteBounds} pitch={three ? PITCH_3D : 0} />}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}
       <SiteLayers
         map={siteMap ?? EMPTY_SITE_MAP}
         selected={selected}
+        three={three}
         onFeature={(f) => onFeature(f.id)}
       />
       {designMap && (
         <>
-          <DesignLayers map={designMap} />
+          <DesignLayers map={designMap} three={three} />
           <DistanceLabels data={designMap.distances} />
-          <FitTo bounds={designBounds(designMap)} right={HERO_WIDTH + 40} />
+          {three && framed ? (
+            <Orbit bounds={framed} right={HERO_WIDTH + 40} />
+          ) : (
+            <FitTo bounds={framed} right={HERO_WIDTH + 40} pitch={0} />
+          )}
         </>
       )}
     </>
