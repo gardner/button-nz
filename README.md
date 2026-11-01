@@ -267,17 +267,28 @@ Pre-commit enforces:
 CI runs the same Python checks with the test suite, and ESLint, Prettier and
 Vitest for the web app.
 
-Pull requests are reviewed in CI by `.github/workflows/claude-review.yml`
-(`anthropics/claude-code-action` on Opus, authenticated with the
-`CLAUDE_CODE_OAUTH_TOKEN` secret; the code is sent to Anthropic):
+Pull requests are reviewed in CI by two AI reviewers, each through
+`anthropics/claude-code-action`:
+
+- **`.github/workflows/claude-review.yml`:** Claude Opus, authenticated with
+  the `CLAUDE_CODE_OAUTH_TOKEN` secret. The code is sent to Anthropic. It's a
+  required check.
+- **`.github/workflows/zai-review.yml`:** Z.ai's GLM, through Z.ai's
+  Anthropic-compatible endpoint, with the `ZAI_API_KEY` secret. The code is
+  sent to Z.ai. It's not a required check, but its threads are handled the
+  same way.
+
+How the reviews work:
 
 - **Threads:** findings arrive as review threads, and every thread must be
   resolved before merge. Either fix it, or reply with why not and resolve it.
   The next review reads those replies.
 - **Fork and Dependabot PRs** skip the review (forks get no secrets, and the
   token must never reach a freshly bumped action), so review those by hand.
-- **Isolation:** the reviewer runs in Claude Code's Bash sandbox, with no
-  network and no tokens in reach.
-- **Records:** each run's metrics are in its job summary. Its transcript is
-  kept for 90 days as an encrypted artifact. `scripts/review-traces.sh`
-  downloads and summarises the latest ones.
+- **Isolation:** each reviewer runs in Claude Code's Bash sandbox, with no
+  network and no tokens in reach. The keys reach the workflows only on
+  same-repository PRs, which need push access.
+- **Records:** each run's metrics are in its job summary. GLM's cost there is
+  Claude Code's estimate at Anthropic prices. Each transcript is kept for 90
+  days as an encrypted artifact. `scripts/review-traces.sh` downloads and
+  summarises the latest of both.
