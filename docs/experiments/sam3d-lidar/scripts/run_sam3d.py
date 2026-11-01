@@ -3,7 +3,7 @@
 usage (from the sam-3d-objects checkout, so its relative config paths resolve):
   CUDA_VISIBLE_DEVICES=1 python run_sam3d.py REPO_DIR SCENE_DIR [SEED]
 Writes SCENE_DIR/{moge,lidar}/: splat.ply (object frame), scene_points.npy (gaussian centres in
-the local site frame), pose.json, and run stats.
+the local site frame, with each one's opacity), pose.json, and run stats.
 """
 
 import json
@@ -52,7 +52,9 @@ def main() -> None:
         scene_gs = make_scene(output)
         pts = scene_gs.get_xyz.detach().cpu().numpy()
         np.save(out_dir / "scene_points_p3d.npy", pts)
-        np.save(out_dir / "scene_points.npy", to_site_frame(pts, rc["cam_to_world"]))
+        opacity = scene_gs.get_opacity.detach().cpu().numpy().reshape(-1, 1)
+        # x, y, z, opacity: score.py keeps the active Gaussians (opacity > 0.9, SAM 3D's own cut)
+        np.save(out_dir / "scene_points.npy", np.c_[to_site_frame(pts, rc["cam_to_world"]), opacity])
         np.save(out_dir / "pointmap_used.npy", output["pointmap"].numpy())
         stats = {
             "seed": seed,

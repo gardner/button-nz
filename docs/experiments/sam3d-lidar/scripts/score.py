@@ -3,7 +3,10 @@
 usage: score.py SPIKE_DIR BUILDING MODEL
   BUILDING: b6 or b3 (SPIKE_DIR/train-BUILDING/outline.json gives the local frame)
   MODEL:    a Roofer CityJSONSeq (.city.jsonl, NZTM) or SAM 3D's scene_points.npy
-            (Gaussian centres, local site frame)
+            (Gaussian centres, local site frame; a fourth column, if present,
+            is each Gaussian's opacity, and only the active ones count: opacity
+            above ACTIVE_OPACITY, SAM 3D's own cut in notebook/inference.py,
+            normalized_gaussian; faint floaters are not the model's surface)
 
 Every model is reduced to the same thing, points on its surface (a mesh is
 sampled at SAMPLE_PER_M2), in the local frame: metres east and north of the
@@ -25,7 +28,8 @@ Metric layout, no alignment:
   FOOT_CELL_M cells, 2nd to 98th percentile).
 
 Shape, after the best similarity alignment (scale, rotation, translation)
-of the model's top surface (its highest point per FOOT_CELL_M cell) to the
+of the model's top surface (its highest point per cell, a TOP_CELLS_ACROSS-th
+of the model's width, about 0.5 m for a house at true size) to the
 training-points DSM inside the outline (a whole roof, from training points only):
 - shape_roof_rmse_m, shape_roof_median_m, shape_roof_bias_m: as above, after
   alignment.
@@ -55,6 +59,7 @@ SAMPLE_PER_M2 = 25.0
 TOP_RADIUS_M = 0.5
 FOOT_CELL_M = 0.5
 BUILDING = 6
+ACTIVE_OPACITY = 0.9  # SAM 3D's "active" Gaussians (notebook/inference.py, normalized_gaussian)
 
 Array = NDArray[np.float64]
 
@@ -121,6 +126,11 @@ def sample(verts: Array, faces: NDArray[np.int64], per_m2: float, seed: int = 0)
     r1, r2 = rng.random(len(which)), rng.random(len(which))
     s = np.sqrt(r1)
     return (1 - s)[:, None] * a[which] + (s * (1 - r2))[:, None] * b[which] + (s * r2)[:, None] * c[which]
+
+
+def active_points(model: Array) -> Array:
+    """Gaussian centres (x, y, z[, opacity]) -> the active ones' x, y, z."""
+    return model[model[:, 3] > ACTIVE_OPACITY, :3] if model.shape[1] == 4 else model
 
 
 def validity(verts: Array, faces: NDArray[np.int64]) -> dict[str, Any]:
@@ -283,7 +293,7 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     held_roof = held[(held[:, 3] == BUILDING) & contains_xy(outline, held[:, 0], held[:, 1])][:, :3]
     result: dict[str, Any] = {"building": building, "model": str(model_path), "held_out_roof_points": len(held_roof)}
     if model_path.suffix == ".npy":
-        model = np.load(model_path).astype(float)
+        model = active_points(np.load(model_path).astype(float))
     else:
         verts, faces = cityjson_mesh(model_path, (ox, oy))
         model = sample(verts, faces, SAMPLE_PER_M2)

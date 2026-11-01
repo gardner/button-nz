@@ -182,8 +182,9 @@ rest are as reported, not yet checked.
 ## The scorer
 
 [`scripts/score.py`](scripts/score.py) reduces every model to points on its
-surface (a mesh sampled at 25 per m²; SAM 3D's Gaussian centres as they
-are), in the site's local frame, then measures:
+surface (a mesh sampled at 25 per m²; the centres of SAM 3D's active
+Gaussians, opacity above 0.9, the cut SAM 3D's own code uses, so faint
+floaters don't count), in the site's local frame, then measures:
 
 - **Layout, with no alignment:** the roof's vertical error at each held-out
   roof point (RMSE, median, and coverage: the share with model above them);
