@@ -24,7 +24,7 @@ LiDAR of the ground and everything on it, and 7.5 cm aerial photographs.
 
 Anyone opens https://button.nz and, in one session:
 
-1. **Finds their property by its address, or taps it on the map**, anywhere in New Zealand where
+1. **Finds their property by its address** (or, in Reefton, taps it on the map), anywhere in New Zealand where
    LINZ has 1 m LiDAR, a recent aerial photo (0.3 m or finer) and the title's
    parcels. The site is built live, once, from open data; where one of those
    is missing, it says which rather than guessing:
