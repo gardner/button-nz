@@ -17,6 +17,9 @@ rewrite.
 
 Run locally, as in the README, none of these is on.
 
+An empty `BUTTON_ACCESS_CODE` serves the app to anyone, as button.nz is served
+for judging: the daily cap then bounds what all visitors can spend together.
+
 ## Install
 
 ```bash
