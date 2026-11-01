@@ -145,7 +145,7 @@ def map_view(run: Run, label: str) -> None:
 def open_town(run: Run, base_url: str) -> None:
     page = run.page
     page.goto(base_url, wait_until="networkidle")
-    page.get_by_text(re.compile(r"sections in Reefton have")).wait_for(timeout=60_000)
+    page.get_by_text(re.compile(r"have room for a real prefab")).wait_for(timeout=60_000)
     page.wait_for_timeout(3000)  # the aerial's tiles
     run.cast.mark("Reefton's residential sections, screened: which have room for a real prefab")
     page.wait_for_timeout(5000)
@@ -267,6 +267,9 @@ def before_and_after(run: Run) -> None:
 def show_products(run: Run) -> None:
     """The real prefabs that fit the design on show, drawn where they'd stand."""
     page = run.page
+    ask = page.get_by_role("button", name="Which real prefabs fit?")
+    centre(ask)
+    ask.click()  # the panel asks the API only when this is pressed
     heading = page.get_by_role("heading", name=re.compile(r"real prefabs? fits?"))
     heading.wait_for(timeout=60_000)
     centre(heading)
