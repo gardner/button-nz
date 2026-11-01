@@ -12,7 +12,8 @@ waiting for model access.
   - **The scorer**, shape and layout, self-tested on known distortions
     ([below](#the-scorer)).
   - **Condition 4, Roofer**, run and scored: its roofs sit 7–11 cm (median)
-    from the held-out points ([below](#condition-4-roofer)).
+    from the held-out points by the scorer's measure, 3–5 cm read straight
+    above each point ([below](#condition-4-roofer)).
   - **Condition 3, the fitted model**, is the scorer's alignment (fitted to
     the training points), so it's scored with condition 2.
 - **Blocked:** SAM 3D's weights on Hugging Face (`facebook/sam-3d-objects`)
@@ -208,10 +209,25 @@ it measures shape alone:
 | Turned 10°, 1.2× | 0.49 m | 0.64 | 0.78 | 0.15 m |
 | 20× too big (as MoGe's depth is) | 37.4 m | 0.02 | 0.048 | 0.15 m |
 
-**The alignment's floor is 0.15 m:** an undistorted model loses 8 cm to it,
-because the 1 m roof cells it fits to sit just inside the outline (fitted
-scale 0.95). Compare shape numbers with each other and with that floor, not
-with the layout numbers. Footprint and scale carry about one 0.5 m cell of
+**The alignment has a floor, and it differs by building:** Roofer's own
+model, which no alignment should improve, scores 0.15 m after it on the house
+and 0.20 m on the building behind trees, against 0.07 and 0.11 m without it
+([outputs/scores/](outputs/scores/)). The fit lifts the model: after it,
+Roofer's roofs sit a median 0.15 m and 0.20 m above the held-out points
+(`shape_roof_bias_m`), against 0.07 and 0.11 m before (`roof_bias_m`). The
+likely cause is the target: the highest training point in each 1 m cell, set
+at the cell's centre, sits above the roof there when the roof slopes. The fit
+shrinks the house to scale 0.95 but not the other building (1.02), so the
+shrinkage isn't the cause. Compare each building's shape numbers with its own
+floor and with each other, not with the layout numbers.
+
+**The roof measure leans upward too:** on a sloping roof, the highest model
+point within 0.5 m of a held-out point is upslope of it. Read straight above
+each held-out point instead (possible for meshes only, `roof_exact_*`),
+Roofer's roofs are a median 3 cm (house) and 5 cm (behind trees) from the
+held-out points, with no lean (−0.004 and −0.03 m). Every model gets the same
+measure, so comparisons between them stand, but part of each roof error is
+the measure's. Footprint and scale carry about one 0.5 m cell of
 resolution (a perfect footprint scores about 1.05 in scale).
 
 ## Condition 4: Roofer
@@ -227,12 +243,20 @@ training points and the LINZ outlines
 | Held-out roof points with model above them | 100% | 94% |
 | Roof height, model less held-out | +0.09 m | −0.09 m |
 | Footprint IoU with the outline | 0.90 | 0.84 |
-| Roof error after alignment, median / RMSE | 0.15 / 0.25 m | 0.20 / 0.21 m |
+| Roof error read straight above each held-out point, median | 0.03 m | 0.05 m |
+| Roof error after alignment (the alignment's floor), median / RMSE | 0.15 / 0.25 m | 0.20 / 0.21 m |
 | Valid closed solid | yes (24 triangles) | yes (36 triangles) |
 
 A conventional method, given the same training points, gets roofs within
-about 10 cm. Roofer reported 42% of each roof as no-data: the held-out
-blocks. That's the bar for SAM 3D with the LiDAR pointmap.
+about 10 cm by the scorer's measure (3–5 cm read straight above each point).
+That's the bar for SAM 3D with the LiDAR pointmap.
+
+Roofer counted 42% of the house's roof and 51% of the other building's as
+no-data, and flagged both point clouds as insufficient coverage
+(`rf_nodata_frac`, `rf_pc_select`). That is more than the 20% held out:
+Roofer counts empty 0.5 m cells (its default), four to a square metre, and
+with about 5.5 training points per m² (`rf_pt_density`) many cells are empty
+outside the held-out blocks too.
 
 ## The depth input: MoGe against the LiDAR pointmap
 

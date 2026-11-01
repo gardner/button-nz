@@ -6,9 +6,12 @@
   "watertight": true,
   "triangles": 24
  },
+ "roof_exact_median_m": 0.033,
+ "roof_exact_bias_m": -0.004,
  "model_points": 13730,
  "roof_rmse_m": 0.193,
  "roof_median_m": 0.074,
+ "roof_bias_m": 0.073,
  "roof_coverage": 1.0,
  "height_err_m": 0.089,
  "ground_m": 186.26,
@@ -20,5 +23,6 @@
  "fitted_scale": 0.951,
  "shape_roof_rmse_m": 0.247,
  "shape_roof_median_m": 0.149,
+ "shape_roof_bias_m": 0.149,
  "shape_roof_coverage": 1.0
 }

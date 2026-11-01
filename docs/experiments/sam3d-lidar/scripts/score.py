@@ -13,7 +13,8 @@ Metric layout, no alignment:
 - roof_rmse_m, roof_median_m: for each held-out building point inside the
   outline, its vertical distance to the model's top surface there (the
   highest model point within TOP_RADIUS_M horizontally); points with no model
-  above them count as misses (roof_coverage).
+  above them count as misses (roof_coverage). roof_bias_m: the signed median
+  (positive: the model sits above the points).
 - height_err_m: the model's roof height above ground (98th percentile) less
   the held-out points' (ground: the training-points DEM, median under the
   outline).
@@ -26,10 +27,16 @@ Metric layout, no alignment:
 Shape, after the best similarity alignment (scale, rotation, translation)
 of the model's top surface (its highest point per FOOT_CELL_M cell) to the
 training-points DSM inside the outline (a whole roof, from training points only):
-- shape_roof_rmse_m, shape_roof_median_m: as roof_rmse_m, after alignment.
+- shape_roof_rmse_m, shape_roof_median_m, shape_roof_bias_m: as above, after
+  alignment.
 - fitted_scale: the scale the alignment needed.
 
-Validity (meshes only): watertight (every edge shared by exactly two faces).
+Meshes only:
+- roof_exact_median_m, roof_exact_bias_m: the mesh's own top surface straight
+  above each held-out roof point, with no radius. The highest point within
+  TOP_RADIUS_M leans upward on a pitched roof (it is the upslope point), so
+  this shows how much of roof_median_m is the measure, not the model.
+- validity: watertight (every edge shared by exactly two faces).
 """
 
 import json
@@ -137,6 +144,25 @@ def top_errors(model: Array, truth: Array) -> tuple[Array, float]:
     for i, idx in enumerate(near):
         if idx:
             err[i] = model[idx, 2].max() - truth[i, 2]
+    covered = np.isfinite(err)
+    return err[covered], float(covered.mean())
+
+
+def mesh_top_errors(verts: Array, faces: NDArray[np.int64], truth: Array) -> tuple[Array, float]:
+    """Vertical error of a mesh's top surface straight above each truth point
+    (the highest triangle there); coverage. Walls, edge-on from above, are skipped."""
+    top = np.full(len(truth), np.nan)
+    px, py = truth[:, 0], truth[:, 1]
+    for (x1, y1, z1), (x2, y2, z2), (x3, y3, z3) in verts[faces]:
+        det = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)
+        if abs(det) < 1e-9:
+            continue
+        l1 = ((y2 - y3) * (px - x3) + (x3 - x2) * (py - y3)) / det
+        l2 = ((y3 - y1) * (px - x3) + (x1 - x3) * (py - y3)) / det
+        l3 = 1 - l1 - l2
+        inside = (l1 >= 0) & (l2 >= 0) & (l3 >= 0)
+        top = np.where(inside, np.fmax(top, l1 * z1 + l2 * z2 + l3 * z3), top)
+    err = top - truth[:, 2]
     covered = np.isfinite(err)
     return err[covered], float(covered.mean())
 
@@ -252,10 +278,8 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     ox, oy = meta["origin_nztm"]
     outline = translate(shape(meta["target"]), -ox, -oy)
     pts = np.load(spike / "split" / "points.npz")
-    local = lambda a: np.c_[a[:, 0] - ox, a[:, 1] - oy, a[:, 2]]  # noqa: E731
-    held, train = local(pts["held_out"]), local(pts["train"])
-    on_roof = lambda a: a[(a[:, 3] == BUILDING) & contains_xy(outline, a[:, 0], a[:, 1])]  # noqa: E731
-    held_roof, train_roof = on_roof(np.c_[held, pts["held_out"][:, 3]])[:, :3], on_roof(np.c_[train, pts["train"][:, 3]])[:, :3]
+    held = pts["held_out"] - [ox, oy, 0, 0]  # local frame; column 3 is the class
+    held_roof = held[(held[:, 3] == BUILDING) & contains_xy(outline, held[:, 0], held[:, 1])][:, :3]
     result: dict[str, Any] = {"building": building, "model": str(model_path), "held_out_roof_points": len(held_roof)}
     if model_path.suffix == ".npy":
         model = np.load(model_path).astype(float)
@@ -263,6 +287,8 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
         verts, faces = cityjson_mesh(model_path, (ox, oy))
         model = sample(verts, faces, SAMPLE_PER_M2)
         result["validity"] = validity(verts, faces)
+        exact, _ = mesh_top_errors(verts, faces, held_roof)
+        result |= {"roof_exact_median_m": round(float(np.median(np.abs(exact))), 3), "roof_exact_bias_m": round(float(np.median(exact)), 3)}
     result["model_points"] = len(model)
 
     import rasterio
@@ -275,6 +301,7 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     result |= {
         "roof_rmse_m": round(rmse, 3),
         "roof_median_m": round(med, 3),
+        "roof_bias_m": round(float(np.median(err)), 3),
         "roof_coverage": round(cover, 3),
         "height_err_m": round(float(np.percentile(model[:, 2], 98) - np.percentile(held_roof[:, 2], 98)), 3),
         "ground_m": round(ground, 2),
@@ -285,7 +312,8 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     aligned = s * model @ rot.T + t
     err2, cover2 = top_errors(aligned, held_roof)
     rmse2, med2 = stats(err2)
-    result |= {"fitted_scale": round(s, 3), "shape_roof_rmse_m": round(rmse2, 3), "shape_roof_median_m": round(med2, 3), "shape_roof_coverage": round(cover2, 3)}
+    result |= {"fitted_scale": round(s, 3), "shape_roof_rmse_m": round(rmse2, 3), "shape_roof_median_m": round(med2, 3),
+               "shape_roof_bias_m": round(float(np.median(err2)), 3), "shape_roof_coverage": round(cover2, 3)}
     return result
 
 
