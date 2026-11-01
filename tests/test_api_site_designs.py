@@ -80,6 +80,13 @@ def test_a_design_without_a_site_is_on_the_demo_site(tmp_path: Path) -> None:
     assert created["site_id"] == DEMO_SITE_ID
 
 
+def test_an_empty_site_id_is_refused_not_taken_for_the_demo(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    refused = server.client.post("/designs", json={"brief": "A studio.", "site_id": ""})
+    assert refused.status_code == 422
+    assert server.store.next_queued() is None
+
+
 def test_a_design_on_a_site_that_isnt_ready_or_doesnt_exist_is_refused(tmp_path: Path) -> None:
     server = Server(tmp_path)
     building = server.client.post("/sites", json={"address_id": 7}).json()["id"]

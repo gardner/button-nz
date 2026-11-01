@@ -14,7 +14,7 @@ const REFUSED = `<!doctype html>
 </body></html>`;
 
 /** Whether a request may reach the app when it is served with access `code`.
- * With no code, everything may: the app is running only for its team. A link
+ * With no code, everything may: the app is open to anyone. A link
  * with `?code=` sets the cookie and goes on to the same page without it. Every
  * page and API request needs the cookie; anything else gets a 401 page. */
 export function admit(request: NextRequest, code: string | undefined) {
