@@ -39,13 +39,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The script as it is on the base branch, never the PR's own copy: this
+      # step runs outside the sandbox, and a PR's script could write to
+      # GITHUB_ENV (BASH_ENV, say) and take over the review step that holds
+      # the key.
       - name: Collect earlier review threads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          scripts/pr-review-threads.sh
-          "$GITHUB_REPOSITORY" "${{ github.event.pull_request.number }}"
-          > review-threads.md
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git show "$BASE_SHA:scripts/pr-review-threads.sh" > "$RUNNER_TEMP/pr-review-threads.sh"
+          bash "$RUNNER_TEMP/pr-review-threads.sh" \
+            "$GITHUB_REPOSITORY" "${{ github.event.pull_request.number }}" > review-threads.md
 
       # Claude Code sandboxes Bash with bubblewrap and socat. Ubuntu 24.04's
       # AppArmor blocks the unprivileged user namespaces bubblewrap needs.
@@ -59,9 +64,15 @@ jobs:
       # it use copies taken now, in runner temp, which it cannot write to, and
       # the job ends by deleting the workspace.
       - name: Keep trusted copies of the post-review files
+        # From the base branch, like the threads script: a PR's own copy
+        # would run outside the sandbox after the review.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           mkdir "$RUNNER_TEMP/trusted"
-          cp scripts/review-metrics.sh .github/review-trace-key.asc "$RUNNER_TEMP/trusted/"
+          git show "$BASE_SHA:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
+          chmod +x "$RUNNER_TEMP/trusted/review-metrics.sh"
+          git show "$BASE_SHA:.github/review-trace-key.asc" > "$RUNNER_TEMP/trusted/review-trace-key.asc"
 
       - name: Review the pull request
         id: review
