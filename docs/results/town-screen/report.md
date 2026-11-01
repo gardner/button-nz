@@ -1,6 +1,6 @@
 # Town screen: room for a real prefab in Reefton
 
-Code `98cdd48`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
+Code `cfde155`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
 
 | Count | Sections | Share |
 |---|---|---|
@@ -71,7 +71,7 @@ Schedule 1A's siting rules that need no site visit: the outline stands at least 
 
 ## Sources
 
-- **Buller District Council property parcels** (CC-BY-4.0 as recorded in data/demo-site/site.json; the layer's ArcGIS item states no licence; Buller District Council; LINZ, Crown copyright reserved). Retrieved 2026-10-31. https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Property_Master_Public_View/FeatureServer/1
-- **Buller District Council zones (Residential)** (no licence stated on the layer's ArcGIS item; Buller District Council; LINZ, Crown copyright reserved). Retrieved 2026-10-31. https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Planning_Data_Public_View/FeatureServer/29
+- **Buller District Council property parcels** (not stated (the layer's ArcGIS item states none); Buller District Council). Retrieved 2026-11-01. https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Property_Master_Public_View/FeatureServer/1
+- **Buller District Council zones (Residential)** (not stated (the layer's ArcGIS item states none); Buller District Council). Retrieved 2026-11-01. https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Planning_Data_Public_View/FeatureServer/29
 - **LINZ NZ Building Outlines** (CC-BY-4.0; Toitū Te Whenua Land Information New Zealand). Captured from aerial photos of 2015-12-26 to 2016-06-01. https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0
 - **West Coast LiDAR 1m DEM and DSM (2020-2024)** (CC-BY-4.0; Toitū Te Whenua Land Information New Zealand, Aerial Surveys, West Coast Regional Council). Captured 2020-05-15 to 2024-07-10. https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0503.tiff, https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dem_1m/2193/BS21_10000_0504.tiff, https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/BS21_10000_0503.tiff, https://nz-elevation.s3.ap-southeast-2.amazonaws.com/west-coast/west-coast_2020-2022/dsm_1m/2193/BS21_10000_0504.tiff
