@@ -49,7 +49,7 @@ export interface Survey {
   features: SiteFeature[];
 }
 
-const STATUSES: readonly FeatureStatus[] = [
+export const STATUSES: readonly FeatureStatus[] = [
   "agrees",
   "conflict",
   "transient",

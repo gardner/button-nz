@@ -20,8 +20,9 @@ import { useVisuals } from "./useVisuals";
  * visuals still being made are followed separately (`useVisuals`), and the
  * forms don't wait for them. A page opened with `?design=<id>` starts with
  * that design and the designs it revises, and the address bar keeps the id of
- * the design on show, so it can be shared. */
-export function useDesignChain(pollMs: number) {
+ * the design on show, so it can be shared. With `siteId`, new designs are
+ * made on that site (else the demo site). */
+export function useDesignChain(pollMs: number, siteId?: string) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export function useDesignChain(pollMs: number) {
    * (say, the daily cap) keeps the chain on show. */
   function design(brief: string, observe: boolean, productId?: string) {
     begin(
-      () => createDesign(brief, observe, productId),
+      () => createDesign(brief, observe, productId, siteId),
       (job) => setChain([job]),
     );
   }
