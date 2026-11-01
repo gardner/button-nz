@@ -27,10 +27,10 @@ behind a Cloudflare tunnel. It adds:
 - the owner's survey, fixed;
 - links that open a finished design at once.
 
-`META_API_KEY` stays on the server, read by the API's service only. Plan §15
-requires a deployed demonstration, so it stays a **required gap** until the
-tunnel has a public hostname: that needs the team's Cloudflare account and a
-domain (deploy.md, "Tunnel").
+`META_API_KEY` stays on the server, read by the API's service only. Plan §15's
+deployed demonstration is live at https://button.nz, through the team's
+Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it.
+Its survey is fixed once the owner has decided it (open item 2).
 
 ## 2. Demo video
 
@@ -102,4 +102,3 @@ aren't buildings.
    An accepted design shows the catalogue products that fit and the next
    steps; ten of the 17 have no published price, which only a quote from
    the supplier can give.
-4. **Deployment:** a tunnel token for a hostname on the team's Cloudflare domain (see 1 above).
