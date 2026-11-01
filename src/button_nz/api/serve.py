@@ -40,6 +40,7 @@ from button_nz.perception.survey import SURVEY_FILE
 from button_nz.perception.visual import illustrate_from_env
 from button_nz.sites.live import LiveLayers, live_sources
 from button_nz.sites.registry import SiteBuilder, SiteStore
+from button_nz.town.lidar import west_coast_lidar
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -105,7 +106,10 @@ def _add_maps(app: FastAPI, data: Path) -> None:
     """The town map (cached under ``DATA/town``) and the aerial basemap."""
     client = httpx.Client(timeout=60.0, follow_redirects=True)
     parcels = FeatureLayer(LINZ_PRIMARY_PARCELS, "CC-BY-4.0", LINZ, client)
-    app.include_router(town_router(TownMaps(TOWNS, parcels, data / "town")))
+    town = data / "town"
+    lidar = west_coast_lidar(town / "lidar")  # every town screened so far is on the West Coast
+    maps = TownMaps(TOWNS, parcels, town, LiveLayers(client).outlines, lidar)
+    app.include_router(town_router(maps))
     base = ServiceEndpoints.from_env().basemaps_tiles_base_url
     app.include_router(tiles_router(client, load_basemap_api_key, base))
 

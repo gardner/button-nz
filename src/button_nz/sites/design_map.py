@@ -43,6 +43,14 @@ def _scene(attempt: Path) -> dict[str, Any]:
 
 def walls_and_outline(attempt: Path) -> tuple[Polygon, Polygon]:
     """The attempt's walls and outline, in NZTM: measured in its scene's frame."""
+    walls, outline, _ = _measured(attempt)
+    return walls, outline
+
+
+def _measured(attempt: Path) -> tuple[Polygon, Polygon, dict[str, float]]:
+    """Walls, outline, and the Dwelling's lowest and highest points above the
+    scene's datum (``base_m``, ``height_m``): the site's terrain tiles count
+    from the same datum, so it stands in place on them."""
     raw = json.loads((attempt / "measurements.json").read_text(encoding="utf-8"))
     measured = parse_measurements(raw)
     if measured.footprint is None:
@@ -50,7 +58,10 @@ def walls_and_outline(attempt: Path) -> tuple[Polygon, Polygon]:
     frame = scene_frame(attempt)
     walls = Polygon([frame.to_nztm(p) for p in measured.footprint])
     plan: Ring = measured.outline or measured.footprint
-    return walls, Polygon([frame.to_nztm(p) for p in plan])
+    heights: dict[str, float] = {}
+    if measured.z_min is not None and measured.z_max is not None:
+        heights = {"base_m": round(measured.z_min, 2), "height_m": round(measured.z_max, 2)}
+    return walls, Polygon([frame.to_nztm(p) for p in plan]), heights
 
 
 def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str, Any]:
@@ -58,7 +69,7 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
     holds the frame and parcels it was made and checked in, and its run folder
     the buildings, so the site as it is now isn't needed: ``survey`` (the site's
     survey file) is read only for an older record that kept no buildings."""
-    walls, outline = walls_and_outline(attempt)
+    walls, outline, heights = _measured(attempt)
     frame = scene_frame(attempt)
     parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in _scene(attempt)["parcels"]]
     title = union_all(parcels)
@@ -82,8 +93,8 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
         if not target.is_empty
     ]
     return {
-        "walls": collection([(walls, {})]),
-        "outline": collection([(outline, {})]),
+        "walls": collection([(walls, heights)]),
+        "outline": collection([(outline, heights)]),
         "distances": collection(lines),
         # a check whose line can't be drawn now, and why: never left out silently
         "unknown": [{"check": "building_separation", "reason": buildings}]

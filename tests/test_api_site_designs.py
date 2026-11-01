@@ -111,6 +111,8 @@ def test_a_designs_map_draws_its_walls_and_distances_in_lon_lat(tmp_path: Path) 
     layers = server.client.get(f"/designs/{job['id']}/map").json()
     (walls,) = layers["walls"]["features"]
     (outline,) = layers["outline"]["features"]
+    # INSIDE's box runs from 0.3 m to 3.9 m above the scene's datum: floor and roof
+    assert walls["properties"] == {"base_m": 0.3, "height_m": 3.9} == outline["properties"]
     lon, lat = walls["geometry"]["coordinates"][0][0]
     assert 171 < lon < 172 and -43 < lat < -42
     assert shape(outline["geometry"]).covers(shape(walls["geometry"]).buffer(-1e-9))

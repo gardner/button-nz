@@ -1,6 +1,7 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+import json
 import threading
 import time
 from collections.abc import Callable
@@ -11,8 +12,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 from httpx2 import Response  # what TestClient returns
-from shapely import Point
-from shapely.geometry import shape
+from shapely import Point, box
+from shapely.geometry import mapping, shape
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Runner
@@ -151,6 +152,7 @@ def test_the_map_draws_the_rules_on_the_title_in_lon_lat(tmp_path: Path) -> None
         "halos",
         "keep_clear",
         "room",
+        "canopy",
     }
     assert len(layers["parcels"]["features"]) == 2
     (room,) = layers["room"]["features"]
@@ -238,3 +240,40 @@ def test_a_site_asked_for_while_the_builder_settles_is_still_built(tmp_path: Pat
         assert server.client.get("/sites/1-test-street-reefton").json()["status"] == "ready"
     finally:
         builder.stop()
+
+
+def test_the_maps_buildings_carry_their_heights_and_the_surface_is_served_as_tiles(
+    tmp_path: Path,
+) -> None:
+    import math
+
+    server = Server(tmp_path)
+    site_id = server.build()["id"]
+    layers = server.client.get(f"/sites/{site_id}/map").json()
+    (building,) = layers["buildings"]["features"]  # the fake courtyard building
+    # It spans x0+50 to x0+70 and the grid stops at x0+60 (the title plus 20 m):
+    # half off the LiDAR, it isn't measured from its half (test_sites_extrusion).
+    assert building["properties"]["height_m"] is None
+    assert building["properties"]["base_m"] is None
+    assert layers["canopy"]["features"] == []
+    west, south, east, north = server.client.get(f"/sites/{site_id}").json()["bounds"]
+    lon, lat, z = (west + east) / 2, (south + north) / 2, 19
+    x = int((lon + 180) / 360 * 2**z)
+    y = int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * 2**z)
+    tile = server.client.get(f"/sites/{site_id}/terrain/{z}/{x}/{y}.png")
+    assert tile.status_code == 200 and tile.headers["content-type"] == "image/png"
+    assert server.client.get(f"/sites/{site_id}/terrain/{z}/{x + 50}/{y}.png").status_code == 404
+
+
+def test_a_building_beyond_the_sites_lidar_says_its_height_is_unknown(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    site_id = server.build()["id"]
+    kept = server.sites.buildings(site_id)
+    x, y, _, _ = shape(kept["features"][0]["geometry"]).bounds
+    far = mapping(box(x + 900, y, x + 910, y + 10))  # well past the site's LiDAR grid
+    beyond: dict[str, Any] = {"type": "Feature", "id": "far", "properties": {}, "geometry": far}
+    path = tmp_path / "sites" / site_id / "buildings.geojson"
+    path.write_text(json.dumps({**kept, "features": [*kept["features"], beyond]}))
+    layers = server.client.get(f"/sites/{site_id}/map").json()
+    found = {b["properties"]["id"]: b["properties"] for b in layers["buildings"]["features"]}
+    assert found["far"] == {"id": "far", "height_m": None, "base_m": None, "above_ground_m": None}
