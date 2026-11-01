@@ -37,7 +37,7 @@ def add_frontages(
         raise ValueError(f"LINZ gives no road for {address.full_address}")
     rings = [parcel.ring for parcel in site.parcels]
     found = fetch_frontages(parcels, roads, rings, address.road_id)
-    (directory / FRONTAGES_FILE).write_text(json.dumps(to_collection(found)), encoding="utf-8")
+    _replace(directory / FRONTAGES_FILE, json.dumps(to_collection(found)))
     manifest["frontages_file"] = FRONTAGES_FILE
     manifest["vectors"]["roads"] = {
         "title": ROADS_TITLE,
@@ -45,12 +45,20 @@ def add_frontages(
         "licence": roads.licence,
         "attribution": roads.attribution,
     }
-    record.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    _replace(record, json.dumps(manifest, indent=2) + "\n")
     try:
         load_demo_site(directory)
     except ValueError, KeyError:
-        record.write_text(before, encoding="utf-8")
+        _replace(record, before)
         raise
+
+
+def _replace(path: Path, text: str) -> None:
+    """Write ``path`` whole or not at all: a live site's record is never left
+    half-written, whatever stops the write."""
+    partial = path.with_suffix(path.suffix + ".tmp")
+    partial.write_text(text, encoding="utf-8")
+    partial.replace(path)
 
 
 def main(argv: list[str] | None = None) -> None:
