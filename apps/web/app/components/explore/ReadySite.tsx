@@ -34,17 +34,21 @@ export function ReadySite({
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState(false); // the survey, opened again
   const chain = useDesignChain(pollMs, site.id);
-  const [checkedBefore, setCheckedBefore] = useState<readonly string[]>([]);
+  // Once the survey changes, only designs started here after it are checked
+  // on it: `fresh` counts the designs made before the latest change.
+  const [fresh, setFresh] = useState<number | null>(null);
   const survey = useSurvey(site.id, () => {
     setVersion((v) => v + 1);
-    // Every design so far was checked on the survey as it was.
-    setCheckedBefore(chain.chain.map((j) => j.id));
+    setFresh(chain.made.length);
   });
   const siteMap = useSiteMap(site.id, version);
   const shown = chain.shown;
   const designMap = useDesignMap(shown);
   const accepted = shown?.status === "done" && shown.acceptedAttempt !== null;
-  const outdated = shown !== undefined && checkedBefore.includes(shown.id);
+  const outdated =
+    fresh !== null &&
+    shown !== undefined &&
+    !chain.made.slice(fresh).includes(shown.id);
 
   const design = designState(shown);
   useEffect(() => onDesign(design), [design, onDesign]);

@@ -305,6 +305,55 @@ describe("a ready site", () => {
     expect(screen.queryByText(/Could not open design gone1/)).toBeNull();
   });
 
+  it("calls a linked design that arrives after a survey change outdated, and hides the old layers while the map refreshes", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    let maps = 0;
+    let answerLink: (r: Response) => void = () => {};
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const route = `${init?.method ?? "GET"} ${url.split("?")[0]}`;
+      if (route === "GET /api/designs/abc123")
+        return new Promise<Response>((r) => (answerLink = r));
+      if (route === `GET /api/sites/${SITE}/map`)
+        return ++maps === 1
+          ? Promise.resolve(respond(SITE_MAP))
+          : new Promise<Response>(() => {}); // the refresh, still on its way
+      const body = {
+        "GET /api/town/reefton": TOWN,
+        [`GET /api/sites/${SITE}`]: SITE_READY,
+        [`GET /api/sites/${SITE}/features`]: SURVEY,
+        [`PUT /api/sites/${SITE}/features/2`]: {
+          ...SURVEY.features[1],
+          properties: {
+            ...SURVEY.features[1].properties,
+            decision: "building",
+          },
+        },
+        "GET /api/designs/abc123/map": DESIGN_MAP,
+      }[route];
+      return body === undefined
+        ? new Promise<Response>(() => {})
+        : Promise.resolve(respond(body));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /#2 tree/ }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /#2 tree/ })).getByRole(
+        "button",
+        { name: "Existing building" },
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-fill")).toBe(false),
+    );
+    answerLink(respond(ACCEPTED));
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

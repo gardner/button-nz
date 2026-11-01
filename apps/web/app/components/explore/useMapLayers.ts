@@ -13,21 +13,25 @@ import {
 /** A ready site's map layers, fetched again whenever `version` moves on (a
  * survey decision changes what is kept clear, and so the room left). */
 export function useSiteMap(siteId: string | null, version: number) {
-  const [map, setMap] = useState<SiteMap | null>(null);
+  const key = `${siteId}@${version}`;
+  const [found, setFound] = useState<{ key: string; map: SiteMap } | null>(
+    null,
+  );
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     if (siteId === null) return;
     let gone = false;
     getSiteMap(siteId).then(
-      (m) => !gone && (setMap(m), setProblem(null)),
-      // The old layers would show rules the server no longer holds.
-      (e: Error) => !gone && (setMap(null), setProblem(e.message)),
+      (map) => !gone && (setFound({ key, map }), setProblem(null)),
+      (e: Error) => !gone && setProblem(e.message),
     );
     return () => {
       gone = true;
     };
-  }, [siteId, version]);
-  return { map: siteId === null ? null : map, problem };
+  }, [siteId, version, key]);
+  // Only the layers for this version: older ones would show rules the
+  // server no longer holds, while the new ones are on their way or failed.
+  return { map: found?.key === key ? found.map : null, problem };
 }
 
 /** The accepted design's outline, walls and distances, once there is one,
