@@ -58,6 +58,15 @@ describe("AttemptRow", () => {
     );
   });
 
+  it("shows no badges when the API can't tell the checks (null)", () => {
+    const unknown = attempt(null);
+    expect(unknown.checks).toBeNull();
+    render(<AttemptRow attempt={unknown} />);
+    expect(screen.queryByRole("list", { name: "Checks" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Details/ }));
+    expect(screen.getByText(/0.50 m from the boundary/)).toBeTruthy();
+  });
+
   it("shows the evaluator's words when the API sends no checks", () => {
     render(<AttemptRow attempt={attempt(undefined)} />);
     expect(screen.queryByRole("list", { name: "Checks" })).toBeNull();
