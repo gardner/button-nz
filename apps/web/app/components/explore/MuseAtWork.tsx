@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 
 import type { Attempt, Job, Phase } from "@/lib/api";
 
+import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
+
 /** The steps of one attempt, in the order a run takes them (Muse decides,
  * then reads a view or has its script built, as many times as it asks). */
 const STEPS: { phase: Phase; label: string }[] = [
@@ -58,6 +60,7 @@ export function MuseAtWork({ job }: { job: Job }) {
         </p>
       )}
       <Filmstrip attempts={job.attempts} views={live?.observations ?? []} />
+      <PrefabsMeanwhile />
     </section>
   );
 }

@@ -1,5 +1,6 @@
 """The real prefab products that fit inside an accepted design.
 
+    GET /products                 the catalogue, to browse
     GET /designs/{id}/products    {footprint_m2, fits, unchecked, basis}
 
 The footprint is the walls Blender measured of the accepted attempt
@@ -50,6 +51,12 @@ def products_router(
     the walls (``placed_footprint``, lon/lat): wholly inside where it has room,
     else over each wall by half of ``catalogue.fit.TOLERANCE_M`` at most."""
     router = APIRouter()
+
+    @router.get("/products")
+    def get_catalogue() -> list[Product]:
+        """Every product in the catalogue, as catalogued: to browse while a
+        design is made, before there are walls to fit."""
+        return list(products)
 
     @router.get("/designs/{job_id}/products")
     def get_products(job_id: str) -> ProductsView:

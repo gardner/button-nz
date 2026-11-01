@@ -6,6 +6,7 @@
 
 import {
   ApiError,
+  asList,
   asText,
   flag,
   list,
@@ -52,6 +53,11 @@ export function parseProducts(raw: unknown): Products {
     unchecked: list(products, "unchecked").map(parseProduct),
     basis: text(products, "basis"),
   };
+}
+
+/** The whole catalogue (GET /products), as catalogued. */
+export function parseCatalogue(raw: unknown): Product[] {
+  return asList(raw, "catalogue").map(parseProduct);
 }
 
 function parseProduct(raw: unknown): Product {

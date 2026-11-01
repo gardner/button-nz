@@ -62,3 +62,10 @@ def test_the_walls_are_measured_once_per_accepted_attempt(tmp_path: Path) -> Non
     first = service.client.get(f"/designs/{job_id}/products").json()
     (tmp_path / "runs" / job_id / "attempt-2" / "measurements.json").unlink()
     assert service.client.get(f"/designs/{job_id}/products").json() == first
+
+
+def test_the_whole_catalogue_can_be_browsed_before_any_design(tmp_path: Path) -> None:
+    service = with_products(tmp_path, TOO_LONG, FITS, UNLABELLED)
+    listed = service.client.get("/products").json()
+    assert [p["id"] for p in listed] == ["too-long", "fits", "unlabelled"]  # as catalogued
+    assert listed[1]["length_m"] == 5.9 and "price_nzd" in listed[1]
