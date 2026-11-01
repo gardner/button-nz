@@ -83,6 +83,7 @@ export function SearchBox({
           asked.current++; // an answer still on its way is for other text
           setQuery(e.target.value);
           setFound(null); // and so are the suggestions shown
+          setProblem(null); // and why the last search failed
         }}
         onKeyDown={keyDown}
         placeholder="Type any New Zealand address…"

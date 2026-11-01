@@ -112,6 +112,24 @@ describe("SearchBox", () => {
     expect(screen.queryByRole("option")).toBeNull();
   });
 
+  it("forgets why a search failed once the text changes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ detail: "LINZ is down" }), {
+            status: 502,
+          }),
+        ),
+      ),
+    );
+    render(<SearchBox onPick={vi.fn()} />);
+    await type("35 Victory");
+    expect(screen.getByText(/LINZ is down/)).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "35" } });
+    expect(screen.queryByText(/LINZ is down/)).toBeNull();
+  });
+
   it("says when nothing matches", async () => {
     serve({ addresses: [] });
     render(<SearchBox onPick={vi.fn()} />);
