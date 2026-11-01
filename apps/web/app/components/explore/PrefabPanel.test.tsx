@@ -48,7 +48,8 @@ describe("PrefabPanel", () => {
     expect(await screen.findByText("AirHome Vista")).toBeTruthy();
     expect(screen.getByText(/12.2 × 4 m · 48 m²/)).toBeTruthy();
     expect(screen.getByText("$190,000")).toBeTruthy();
-    expect(props.onShown).toHaveBeenCalledWith(true);
+    // Reported once the list is on the page (an effect after it renders).
+    await vi.waitFor(() => expect(props.onShown).toHaveBeenCalledWith(true));
   });
 
   it("says a price isn't published, the area's basis, and what the supplier says of the West Coast", async () => {
@@ -87,7 +88,7 @@ describe("PrefabPanel", () => {
     expect(onShown).not.toHaveBeenCalledWith(true);
     answer(new Response(JSON.stringify(PRODUCTS)));
     expect(await screen.findByText("AirHome Vista")).toBeTruthy();
-    expect(onShown).toHaveBeenLastCalledWith(true);
+    await vi.waitFor(() => expect(onShown).toHaveBeenLastCalledWith(true));
     unmount();
     expect(onShown).toHaveBeenLastCalledWith(false);
   });
