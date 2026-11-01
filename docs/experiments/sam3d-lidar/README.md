@@ -165,9 +165,12 @@ rest are as reported, not yet checked.
   its outline: 130 for the house, 165 for the building behind the trees.
 - **Surfaces from the training points alone:** a 1 m DSM (highest point per
   cell) and DEM (lowest ground point), held-out blocks interpolated from the
-  training cells around them. Against LINZ's own rasters, the DEM differs by
-  2 cm (median) and the DSM by 5 cm (median; 1.2 m at the 90th percentile,
-  at trees and edges, where LINZ's DSM carries the held-out points).
+  training cells around them. Against LINZ's own rasters
+  ([`check_surfaces.py`](scripts/check_surfaces.py), output in
+  [outputs/surfaces-vs-linz.json](outputs/surfaces-vs-linz.json)), the DEM
+  differs by 2 cm (median) and the DSM by 5 cm (median; 1.2 m at the 90th
+  percentile, at trees and edges, where LINZ's DSM carries the held-out
+  points).
 - **Every input is made from these:** the photos, pointmaps and masks
   ([`prep.py`](scripts/prep.py) with the training surfaces, then
   [`render_oblique.py`](scripts/render_oblique.py) and
