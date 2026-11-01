@@ -155,9 +155,9 @@ it (code 6c5c1aa):
   would pass about 9 in 10; they aren't. Three designs failed every time
   (14e33e79, 1f3ae911, c5832e90): failure sticks to the design.
 - **SAM finds the right building.** In every failure the best-matching mask
-  is the new dwelling: Muse Image drew it bigger (14e33e79: 1.3x and once
-  13x its area; c5832e90: 2.3x) or a little off where it is (IoU 0.2–0.5
-  at about the right size). The smallest dwelling in frame (14e33e79, 0.3%
+  is the new dwelling: Muse Image drew it bigger (14e33e79: 1.3 to 2.3
+  times its area; c5832e90: 2.2 to 2.3 times) or a little off where it is
+  (IoU 0.2–0.5 at about the right size). The smallest dwelling in frame (14e33e79, 0.3%
   of the picture) fails most.
 - **A prompt describing today's render did worse.** The prompt still calls
   the dwelling "plain light-coloured" and the sky "the black area", from an
