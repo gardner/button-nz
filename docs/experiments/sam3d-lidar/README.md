@@ -1,8 +1,18 @@
 # Experiment: SAM 3D Objects conditioned on LiDAR
 
-**Status:** ready to run, waiting for model access. SAM 3D's weights on
-Hugging Face (`facebook/sam-3d-objects`) are gated, and Meta approves access
-by hand. Everything else is installed and tested on this machine's RTX 5090.
+**Status:** partly built, waiting for model access.
+
+- **Done:** SAM 3D's environment is installed and tested on this machine's
+  RTX 5090. The virtual oblique photos, pointmaps and masks are made for two
+  buildings. The MoGe-vs-LiDAR check on the depth input is measured.
+- **Blocked:** SAM 3D's weights on Hugging Face (`facebook/sam-3d-objects`)
+  are gated, and Meta approves access by hand.
+- **Still to build:**
+  - the held-out truth: LINZ's LAS/LAZ points, with an input surface made
+    without the held-out ones (step 6);
+  - the fitting step (condition 3);
+  - Roofer (condition 4);
+  - the shape and layout scoring (step 5).
 
 ## The question
 
@@ -66,10 +76,15 @@ photographs. So we make an ordinary-looking photo from our data:
    reporting the two apart keeps one from hiding the other.
 
 6. **Measure against truth the model wasn't given.**
-   - The pointmap comes from the 1 m DSM. Scoring the model against that
-     same DSM only tests how faithfully it follows its input.
-   - Independent truth: LINZ's original LAS/LAZ point cloud, its points (not
-     the 1 m grid) held out.
+   - The pointmap comes from the 1 m DSM, and LINZ makes that DSM from its
+     LAS/LAZ points. So scoring against the DSM, or against all those
+     points, only tests how faithfully the model follows its input:
+     **source-data fidelity**, reported as such.
+   - For held-out truth, we build our own surface:
+     - from LINZ's LAS/LAZ points less a held-out share (whole spatial
+       blocks, so neighbouring points can't stand in for them);
+     - the pointmap and Roofer use that surface;
+     - each model is scored against the held-out points it never saw.
    - Footprint IoU against the LINZ outline mostly tests adherence to the
      mask, which is drawn from that outline. It's reported as such, not as
      footprint discovery.
@@ -152,9 +167,9 @@ To be added after the run:
 
 - [`inputs/`](inputs/): for each building, the virtual oblique photo, its
   mask over it, the LiDAR pointmap (as a depth image), and MoGe's depth error.
-- [`outputs/`](outputs/): for each building, SAM 3D's model with and without
-  LiDAR (rendered views, plus the mesh or splat), and the measurements beside
-  the truth.
+- [`outputs/`](outputs/): for each building, the four conditions' models
+  (rendered views, plus the mesh or splat), with the shape and layout
+  measurements beside the held-out truth.
 
 All imagery comes from LINZ open data (aerial photos and LiDAR, CC BY 4.0).
 No supplier or third-party imagery is used.
@@ -168,7 +183,10 @@ third-party code are untrusted downloads, kept apart from the project.
    owner, with a Hugging Face account).
 2. Once approved: `~/src/sam3d-spike/env/bin/hf auth login`.
 3. `~/src/sam3d-spike/scripts/get_weights_and_run.sh`. It downloads the
-   weights, then runs both conditions for both buildings on GPU 1.
+   weights, then runs the first two conditions (MoGe depth, and the LiDAR
+   pointmap) for both buildings on GPU 1. It doesn't yet make the held-out
+   surface, the fitted condition, Roofer or the scoring: those are still to
+   build (see Status).
 
 **The environment, and why it isn't upstream's:**
 - Upstream's setup pins torch 2.5.1/cu121, which has no kernels for the
