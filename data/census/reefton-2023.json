@@ -1,0 +1,29 @@
+{
+  "geography": "Reefton, statistical area 2 (Buller District)",
+  "source": "Stats NZ, 2023 Census place summary, https://tools.summaries.stats.govt.nz/places/SA2/reefton",
+  "retrieved": "2026-11-01",
+  "licence": "CC BY 4.0 (Stats NZ)",
+  "note": "Stats NZ randomly rounds counts to protect confidentiality, so parts may not sum to totals.",
+  "census_year": 2023,
+  "usually_resident_population": 1026,
+  "households": 489,
+  "private_dwellings": {
+    "total": 603,
+    "occupied": 501,
+    "unoccupied": 105,
+    "under_construction": 0
+  },
+  "household_size": {
+    "note": "Households in occupied private dwellings by number of usual residents (the place summary's table); 'eight or more' is 0 here, so the mean is exact.",
+    "counts": {
+      "1": 195,
+      "2": 177,
+      "3": 39,
+      "4": 30,
+      "5": 15,
+      "6": 3,
+      "7": 3,
+      "8+": 0
+    }
+  }
+}
