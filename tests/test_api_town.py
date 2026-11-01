@@ -81,13 +81,32 @@ def test_the_town_is_read_once_and_kept(tmp_path: Path) -> None:
     client.get("/town/reefton")
     client.get("/town/reefton")
     assert len(seen) == 1
-    assert (tmp_path / "town" / "reefton.geojson").is_file()
+    assert len(list((tmp_path / "town").glob("reefton-*.geojson"))) == 1
 
 
 def test_a_section_linz_has_no_parcel_for_is_named_not_drawn(tmp_path: Path) -> None:
     town = town_app(tmp_path, [], held=(1, 3)).get("/town/reefton").json()
     assert [f["properties"]["id"] for f in town["features"]] == [1, 3]
     assert town["missing"] == {"ids": [2], "reason": "not in LINZ's NZ Primary Parcels"}
+
+
+def test_new_screen_results_are_shown_not_the_old_layer(tmp_path: Path) -> None:
+    seen: list[str] = []
+    client = town_app(tmp_path, seen)
+    client.get("/town/reefton")
+    rescreened = [{"parcel_id": 3, "fits_eaves": ["airhome-vista"], "clear_eaves": []}]
+    (tmp_path / "results.jsonl").write_text(json.dumps(rescreened[0]), encoding="utf-8")
+    town = client.get("/town/reefton").json()
+    assert [(f["properties"]["id"], f["properties"]["category"]) for f in town["features"]] == [
+        (3, "outlines")
+    ]
+
+
+def test_a_broken_screen_is_an_error_not_a_missing_town(tmp_path: Path) -> None:
+    client = town_app(tmp_path, [])
+    (tmp_path / "results.jsonl").write_text('{"fits_eaves": []}', encoding="utf-8")
+    with pytest.raises(KeyError):
+        client.get("/town/reefton")
 
 
 def test_an_unknown_town_is_not_found(tmp_path: Path) -> None:

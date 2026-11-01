@@ -15,6 +15,7 @@ Tiles are fetched with the server's ``LINZ_BASEMAP_API_KEY``, which never
 leaves it; only real WebMercatorQuad tiles are asked for.
 """
 
+import hashlib
 import json
 import threading
 from collections.abc import Callable, Mapping
@@ -52,9 +53,12 @@ class TownMaps:
         self._lock = threading.Lock()
 
     def layer(self, slug: str) -> dict[str, Any]:
-        """The town's sections, coloured, in lon/lat; ``KeyError`` if it has no screen."""
+        """The town's sections, coloured, in lon/lat. The layer is kept under the
+        hash of the screen's results, so new results are never coloured by an
+        old layer."""
         results = self.towns[slug]
-        path = self.cache / f"{slug}.geojson"
+        version = hashlib.sha256(results.read_bytes()).hexdigest()[:12]
+        path = self.cache / f"{slug}-{version}.geojson"
         with self._lock:
             if not path.is_file():
                 self.cache.mkdir(parents=True, exist_ok=True)
@@ -91,10 +95,10 @@ def town_router(maps: TownMaps) -> APIRouter:
 
     @router.get("/town/{slug}")
     def get_town(slug: str) -> dict[str, Any]:
+        if slug not in maps.towns:
+            raise HTTPException(404, f"no town screen for {slug}")
         try:
             return maps.layer(slug)
-        except KeyError:
-            raise HTTPException(404, f"no town screen for {slug}") from None
         except ArcGISError as error:
             raise HTTPException(502, f"LINZ's parcels failed: {error}") from None
 
