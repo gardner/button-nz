@@ -84,3 +84,18 @@ export class FakeMap {
     this.style = undefined;
   }
 }
+
+/** A stand-in for MapLibre's Marker: its element goes into the document. */
+export class FakeMarker {
+  constructor(public options: { element: HTMLElement }) {}
+  setLngLat() {
+    return this;
+  }
+  addTo() {
+    document.body.appendChild(this.options.element);
+    return this;
+  }
+  remove() {
+    this.options.element.remove();
+  }
+}

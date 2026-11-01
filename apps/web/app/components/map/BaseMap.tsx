@@ -25,7 +25,7 @@ export const ATTRIBUTION =
   "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
 
 /** Room for the panel on the left of the map, so what is framed isn't under it. */
-export function framing(): {
+export function framing(right = 40): {
   top: number;
   bottom: number;
   left: number;
@@ -33,7 +33,7 @@ export function framing(): {
 } {
   const width = typeof window === "undefined" ? 1440 : window.innerWidth;
   const left = width < 768 ? 24 : Math.min(500, width * 0.38);
-  return { top: 90, bottom: 40, left, right: 40 };
+  return { top: 90, bottom: 40, left, right: width < 768 ? 24 : right };
 }
 
 /** Reefton, the town the screen covers, framed. */
@@ -51,9 +51,10 @@ export function useMap(): MapLibreMap | null {
   return useContext(MapContext);
 }
 
-/** A full-bleed aerial map, framed on `bounds`, that its children draw on.
- * MapLibre is loaded in the browser only, and needs WebGL: without it the
- * page says so instead of the map, and everything else still works. */
+/** A full-bleed aerial map, framed on `bounds`, with its children over it.
+ * They always render; those that draw on the map (`useMap()`) wait for it to
+ * load. MapLibre is loaded in the browser only, and needs WebGL: without it
+ * the map says so, and everything over it still works. */
 export function BaseMap({
   bounds,
   children,
@@ -61,22 +62,26 @@ export function BaseMap({
   bounds: Bounds;
   children?: ReactNode;
 }) {
+  const [map, setMap] = useState<MapLibreMap | null>(null);
   return (
-    <MapBoundary>
-      <MapCanvas bounds={bounds}>{children}</MapCanvas>
-    </MapBoundary>
+    <div className="relative h-full w-full">
+      <MapBoundary>
+        <MapCanvas bounds={bounds} onLoad={setMap} />
+      </MapBoundary>
+      <MapContext.Provider value={map}>{children}</MapContext.Provider>
+    </div>
   );
 }
 
 function MapCanvas({
   bounds,
-  children,
+  onLoad,
 }: {
   bounds: Bounds;
-  children?: ReactNode;
+  onLoad: (map: MapLibreMap) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<MapLibreMap | null>(null);
+  const loaded = useRef(onLoad);
   const [problem, setProblem] = useState<string | null>(null);
   const initial = useRef(bounds);
   useEffect(() => {
@@ -111,7 +116,7 @@ function MapCanvas({
           setProblem(error instanceof Error ? error.message : String(error));
           return;
         }
-        made.on("load", () => setMap(made ?? null));
+        made.on("load", () => made && loaded.current(made));
       },
       (error: Error) => setProblem(error.message),
     );
@@ -121,10 +126,9 @@ function MapCanvas({
     };
   }, []);
   return (
-    <div className="relative h-full w-full">
+    <div className="absolute inset-0">
       <div ref={container} data-testid="map" className="h-full w-full" />
       {problem && <NoMap reason={problem} />}
-      <MapContext.Provider value={map}>{map && children}</MapContext.Provider>
     </div>
   );
 }

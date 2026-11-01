@@ -81,7 +81,7 @@ describe("Explore", () => {
     expect((await screen.findByRole("status")).textContent).toContain(
       "Reading the LiDAR",
     );
-    expect(await screen.findByText("Site ready")).toBeTruthy();
+    expect(await screen.findByText("Your site")).toBeTruthy();
     expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds);
     expect(window.location.search).toBe("?site=35-victory-street-reefton");
     expect(
@@ -103,7 +103,7 @@ describe("Explore", () => {
       expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
     );
     act(() => FakeMap.last?.click("town-fill", 1));
-    expect(await screen.findByText("Site ready")).toBeTruthy();
+    expect(await screen.findByText("Your site")).toBeTruthy();
     const posted = fetch.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(posted?.[1]?.body))).toEqual({ parcel_id: 2 });
   });
@@ -124,6 +124,6 @@ describe("Explore", () => {
       "GET /api/sites/35-victory-street-reefton": [SITE_READY],
     });
     render(<Explore pollMs={5} />);
-    expect(await screen.findByText("Site ready")).toBeTruthy();
+    expect(await screen.findByText("Your site")).toBeTruthy();
   });
 });
