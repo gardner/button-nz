@@ -41,7 +41,7 @@ from button_nz.perception.visual import (
 
 TREES = (Path(__file__).parent / "data" / "sam-tree.txt").read_text(encoding="utf-8")
 SHAPE = (900, 1200)  # the render's rows x columns
-GRASS, HOUSE = (90, 120, 60), (250, 250, 250)
+GRASS, HOUSE, NEIGHBOUR = (90, 120, 60), (250, 250, 250), (200, 60, 60)
 Draw = Callable[[Image.Image], Image.Image | None]  # what Muse Image makes of a picture
 
 
@@ -82,10 +82,10 @@ def _sent(content: bytes) -> Image.Image:
         return image.convert("RGB")
 
 
-def _house(image: Image.Image) -> NDArray[np.bool_]:
-    """The pixels near the dwelling's colour."""
+def _house(image: Image.Image, colour: tuple[int, int, int] = HOUSE) -> NDArray[np.bool_]:
+    """The pixels near the dwelling's colour, or another house's."""
     rgb = np.asarray(image.convert("RGB")).astype(np.int16)
-    return (np.abs(rgb - np.array(HOUSE)) < 40).all(axis=2)
+    return (np.abs(rgb - np.array(colour)) < 40).all(axis=2)
 
 
 def echo(image: Image.Image) -> Image.Image:
@@ -95,6 +95,24 @@ def echo(image: Image.Image) -> Image.Image:
 def moved(image: Image.Image) -> Image.Image:
     """The house moved half its width east, at the close-up's scale."""
     return Image.fromarray(np.roll(np.asarray(image), image.width // 6, axis=1), "RGB")
+
+
+def enlarged(image: Image.Image) -> Image.Image:
+    """The house drawn twice as big each way, about its centre."""
+    house = _house(image)
+    rows, cols = np.nonzero(house)
+    height, width = int(np.ptp(rows)) + 1, int(np.ptp(cols)) + 1
+    pixels = np.array(image)
+    top, left = int(rows.min()) - height // 2, int(cols.min()) - width // 2
+    pixels[top : top + 2 * height, left : left + 2 * width] = HOUSE
+    return Image.fromarray(pixels, "RGB")
+
+
+def neighboured(image: Image.Image) -> Image.Image:
+    """Another house drawn in a corner, away from the dwelling."""
+    pixels = np.array(image)
+    pixels[20:120, 20:160] = NEIGHBOUR
+    return Image.fromarray(pixels, "RGB")
 
 
 def halved(image: Image.Image) -> Image.Image:
@@ -111,12 +129,13 @@ def nothing(image: Image.Image) -> None:
 
 
 class ColourSam(Segmenter):
-    """SAM 3.1, standing in: the house is whatever is near the dwelling's colour."""
+    """SAM 3.1, standing in: one house of each colour a house is drawn in."""
 
     def masks(self, rgb: NDArray[np.uint8], concept: str) -> list[Mask]:
         assert concept == "house"
-        pixels = _house(Image.fromarray(rgb, "RGB"))
-        return [Mask(concept, 0.9, pixels)] if pixels.any() else []
+        image = Image.fromarray(rgb, "RGB")
+        houses = (_house(image, colour) for colour in (NEIGHBOUR, HOUSE))
+        return [Mask(concept, 0.9, pixels) for pixels in houses if pixels.any()]
 
 
 def _sam_reply(text: str) -> dict[str, Any]:
@@ -329,6 +348,20 @@ def test_an_illustration_that_moves_the_building_is_rejected(tmp_path: Path) -> 
     assert not visual.accepted and visual.png is None
     assert visual.iou is not None and visual.iou < MIN_IOU
     assert visual.reason is not None and f"{MIN_IOU:.2f}" in visual.reason
+
+
+def test_an_illustration_that_enlarges_the_building_is_rejected(tmp_path: Path) -> None:
+    """Muse Image drew the persistent failures 1.3 to 2.3 times too big (#133)."""
+    visual = Api(enlarged).illustrate(*_files(tmp_path, DWELLING))
+    assert not visual.accepted and visual.iou is not None and visual.iou < MIN_IOU
+
+
+def test_the_best_matching_mask_is_the_one_compared(tmp_path: Path) -> None:
+    """Other buildings in the illustration don't count against it: the first mask
+    SAM gives here is the neighbour's."""
+    api = Api(neighboured)
+    visual = api.illustrate(*_files(tmp_path, DWELLING))
+    assert visual.accepted and visual.iou == pytest.approx(1.0, abs=0.02)
 
 
 def test_no_house_in_the_illustration_is_rejected(tmp_path: Path) -> None:
