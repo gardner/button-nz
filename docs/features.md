@@ -58,8 +58,8 @@ https://button.nz. How they fit together on the page is in
 
 | Feature | What it does | Where |
 |---|---|---|
-| **Muse Image illustration** | Muse Image 1.0 turns the trusted render into a photograph-like illustration of the dwelling; the surroundings are imagined, and the page says so | `perception/visual.py` |
-| **Checked before it is shown** | SAM 3.1 finds the house in the illustration. It is shown only if it overlaps the design's silhouette from the same camera (IoU ≥ 0.6), labelled AI-illustrated | `perception/visual.py` |
+| **Muse Image illustration** | Muse Image 1.0 turns a close-up of the trusted render, three times the dwelling's size, into a photograph-like illustration of the dwelling; the surroundings are imagined, and the page says so | `perception/visual.py` |
+| **Checked before it is shown** | SAM 3.1 finds the house in the illustration. It is shown only if it overlaps the design's silhouette from the same camera, cut to the same close-up (IoU ≥ 0.6), labelled AI-illustrated | `perception/visual.py` |
 
 ## Real prefabs
 

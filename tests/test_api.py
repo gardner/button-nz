@@ -77,7 +77,7 @@ class FakeIllustrator:
         return self.visual
 
 
-ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual", 1)
+ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual", 1, (40, 30, 340, 255))
 
 
 def broken_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
@@ -310,6 +310,7 @@ def test_an_accepted_design_gets_an_ai_visual(tmp_path: Path) -> None:
         "min_iou": 0.6,
         "reason": None,
         "edits": 1,
+        "window": [40, 30, 340, 255],
     }
 
 

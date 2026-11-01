@@ -1,12 +1,15 @@
 """An AI illustration of an accepted design, made with Muse Image on the Meta
 Model API, and shown only if the building in it is still the design.
 
-The edit starts from the trusted render, ``design.png``, and asks for a
-photograph of the same scene. Image models move, shrink and invent things, so
-the result is checked before anyone sees it: SAM 3.1 finds the houses in the
-illustration, resized to the render's size, and the one that best overlaps
-the Dwelling's silhouette from the render camera (``dwelling-mask.png``, from
-the trusted pass) must overlap it with an IoU of at least ``MIN_IOU``. A
+The edit starts from a close-up of the trusted render, ``design.png``: a
+window around the dwelling, ``CONTEXT`` times its box, scaled up to the
+render's size. It asks for a photograph of the same scene. Image models move,
+shrink and invent things, so the result is checked before anyone sees it: SAM
+3.1 finds the houses in the illustration, resized to the render's size, and
+the one that best overlaps the Dwelling's silhouette from the render camera
+(``dwelling-mask.png``, from the trusted pass), cut and scaled as the render
+was, must overlap it with an IoU of at least ``MIN_IOU``. The close-up is what
+is checked and what is shown: nothing is pasted back into a wider picture. A
 rejected edit is made again, up to ``EDITS`` in all, each checked the same way.
 Even then it is an illustration, not the design: show it labelled AI-illustrated.
 
@@ -31,11 +34,13 @@ from button_nz.agent.model import META_BASE_URL
 from button_nz.perception.sam import SegmentationError, Segmenter
 
 __all__ = [
+    "CONTEXT",
     "EDITS",
     "MIN_IOU",
     "VISUAL_MODEL",
     "Visual",
     "VisualError",
+    "close_up",
     "illustrate",
     "illustrate_from_env",
     "iou",
@@ -58,6 +63,13 @@ MIN_IOU = 0.6
 # the same design, so a third would buy little; it costs an edit (about 25 s) and
 # a SAM call, only when the first is rejected.
 EDITS = 2
+# In the 12 recorded renders the dwelling's box is 50 to 161 px of 1280 (0.25% to
+# 0.9% of the picture), and Muse Image redrew it loosely: bigger, or a little off
+# (#133). The close-up is this many times the box, so the dwelling spans about a
+# third of it and the section around it stays in view. Measured on those 12
+# (docs/results): 10 passed, all on the first edit (IoU 0.83-0.98), against 8
+# of the whole render in a run just before (6 on the first edit).
+CONTEXT = 3
 EDIT_TIMEOUT_S = 180.0  # an edit took about 24 s in the feasibility test
 VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"
 # Told only to keep the dwelling, Muse Image reframed the shot and drew the small
@@ -68,8 +80,7 @@ PROMPT = (
     "Edit this image in place. It is a 3D massing render seen from a drone; make it look "
     "like a real drone photograph of the same place without changing the composition at "
     "all. Do not zoom, crop, pan, rotate or reframe: every object must stay at exactly the "
-    "same position and size in the frame, including the black area at the top, which "
-    "becomes distant landscape and sky. The plain light-coloured building is a new small "
+    "same position and size in the frame. The plain light-coloured building is a new small "
     "dwelling. It must stay exactly as big as it is in this picture: it fills only the box "
     "from {left}% to {right}% of the image width and from {top}% to {bottom}% of its "
     "height. Keep exactly its position, footprint, size, proportions, roofline and gable "
@@ -88,6 +99,9 @@ MOVED = (
 )
 
 
+Box = tuple[int, int, int, int]  # left, top, right, bottom, in pixels
+
+
 class VisualError(RuntimeError):
     """The illustration couldn't be made or checked."""
 
@@ -100,6 +114,7 @@ class Visual:
     reason: str | None  # why it isn't shown
     png: bytes | None  # the illustration at the render's size: accepted ones only
     edits: int  # how many edits were made and checked: the last is the one recorded here
+    window: Box | None = None  # the render's pixels illustrated; None if none were
 
     def __post_init__(self) -> None:
         if self.accepted != (self.png is not None):
@@ -117,6 +132,7 @@ class Visual:
             "min_iou": MIN_IOU,
             "reason": self.reason,
             "edits": self.edits,
+            "window": None if self.window is None else list(self.window),
         }
 
 
@@ -127,18 +143,54 @@ def illustrate(
     segmenter: Segmenter,
     model: str = VISUAL_MODEL,
 ) -> Visual:
-    """Illustrate the render and check the building in it against the silhouette,
-    up to ``EDITS`` times: the first illustration that passes, or the last rejection."""
+    """Illustrate a close-up of the render and check the building in it against
+    the silhouette, up to ``EDITS`` times: the first illustration that passes, or
+    the last rejection."""
     with Image.open(render_png) as render:
         size = render.size
-    silhouette = _silhouette(mask_png, size)
-    if not silhouette.any():
-        return Visual(model, False, None, NOT_VISIBLE, None, 0)
+        silhouette = _silhouette(mask_png, size)
+        if not silhouette.any():
+            return Visual(model, False, None, NOT_VISIBLE, None, 0)
+        window = close_up(silhouette)
+        scene = _png(render.convert("RGB").crop(window).resize(size, LANCZOS))
+    shown = _scaled(silhouette, window, size)
+    visual = _edits(scene, shown, image_client, segmenter, model)
+    return replace(visual, window=window)
+
+
+def close_up(silhouette: NDArray[np.bool_]) -> Box:
+    """The window of the render to illustrate: the render's shape, ``CONTEXT``
+    times the dwelling's box (on whichever side is longer relative to the
+    render), centred on it and moved inside the render. The whole render if the
+    window would be as big."""
+    rows, cols = np.nonzero(silhouette)
+    height, width = int(silhouette.shape[0]), int(silhouette.shape[1])
+    box_width = int(cols.max()) + 1 - int(cols.min())
+    box_height = int(rows.max()) + 1 - int(rows.min())
+    scale = min(1.0, CONTEXT * max(box_width / width, box_height / height))
+    w, h = round(width * scale), round(height * scale)
+    middle_x = (int(cols.min()) + int(cols.max()) + 1) / 2
+    middle_y = (int(rows.min()) + int(rows.max()) + 1) / 2
+    left = min(max(round(middle_x - w / 2), 0), width - w)
+    top = min(max(round(middle_y - h / 2), 0), height - h)
+    return (left, top, left + w, top + h)
+
+
+def _edits(
+    scene: bytes,
+    silhouette: NDArray[np.bool_],
+    image_client: OpenAI,
+    segmenter: Segmenter,
+    model: str,
+) -> Visual:
+    """Up to ``EDITS`` illustrations of ``scene``, each checked against
+    ``silhouette``, of the same size."""
+    size = (int(silhouette.shape[1]), int(silhouette.shape[0]))
     prompt = _prompt(silhouette)
     visual = Visual.failed(NO_HOUSE)  # replaced by the first edit's check
     for edits in range(1, EDITS + 1):
         try:
-            illustration = _edit(render_png, prompt, image_client, model)
+            illustration = _edit(scene, prompt, image_client, model)
             visual = _check(illustration.resize(size, LANCZOS), silhouette, segmenter, model, edits)
         except (APIError, VisualError, SegmentationError) as error:
             if edits == 1:  # nothing measured yet: the failure is the record
@@ -206,6 +258,12 @@ def _silhouette(mask_png: Path, size: tuple[int, int]) -> NDArray[np.bool_]:
         return np.asarray(mask.convert("L")) > 127
 
 
+def _scaled(silhouette: NDArray[np.bool_], window: Box, size: tuple[int, int]) -> NDArray[np.bool_]:
+    """``silhouette`` cut to ``window`` and scaled to ``size``, as the render was."""
+    mask = Image.fromarray(silhouette.astype(np.uint8) * 255, "L")
+    return np.asarray(mask.crop(window).resize(size, Image.Resampling.BILINEAR)) > 127
+
+
 def _prompt(silhouette: NDArray[np.bool_]) -> str:
     """``PROMPT`` with the silhouette's bounding box, in whole percent of the
     image, rounded outwards."""
@@ -221,10 +279,10 @@ def _prompt(silhouette: NDArray[np.bool_]) -> str:
     )
 
 
-def _edit(render_png: Path, prompt: str, client: OpenAI, model: str) -> Image.Image:
+def _edit(scene: bytes, prompt: str, client: OpenAI, model: str) -> Image.Image:
     response = client.images.edit(
         model=model,
-        image=("design.png", render_png.read_bytes(), "image/png"),
+        image=("design.png", scene, "image/png"),
         prompt=prompt,
     )
     data = response.data or []
