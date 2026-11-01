@@ -2,15 +2,17 @@
 scripted model that revises after a failed check. Run with `pytest -m blender`."""
 
 import json
+import struct
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 from button_nz.agent.conversation import Turn
 from button_nz.agent.loop import DesignSite, design
-from button_nz.blender_worker.scene_input import scene_input
+from button_nz.blender_worker.scene_input import DwellingColours, scene_input
 from button_nz.evaluation import SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -82,3 +84,44 @@ def test_the_demo_site_runs_through_the_loop(tmp_path: Path) -> None:
     assert result.attempts[0].report is not None
     by_name = {c.name: c for c in result.attempts[0].report.checks}
     assert 189.0 < by_name["floor_level"].measured["lowest_ground_m"] < 191.5
+
+
+class PlacingModel:
+    """Places the dwelling well inside the title, once."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return MOVED
+
+
+def test_the_render_colours_the_roof_and_walls_as_the_host_says(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+    colours: DwellingColours = {"walls": [0.9, 0.1, 0.1, 1.0], "roof": [0.1, 0.1, 0.9, 1.0]}
+
+    result = design("A studio.", site, PlacingModel(), tmp_path, colours=colours)
+
+    assert result.accepted is not None
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    used = {p["material"] for p in gltf["meshes"][node["mesh"]]["primitives"]}
+    base = {
+        gltf["materials"][m]["name"]: gltf["materials"][m]["pbrMetallicRoughness"][
+            "baseColorFactor"
+        ]
+        for m in used
+    }
+    assert base["Dwelling roof"] == pytest.approx(colours["roof"], abs=1e-3)
+    assert base["Dwelling walls"] == pytest.approx(colours["walls"], abs=1e-3)
+
+
+def glb_json(glb: Path) -> dict[str, Any]:
+    """The JSON chunk of a GLB file."""
+    data = glb.read_bytes()
+    (chunk_length,) = struct.unpack_from("<I", data, 12)
+    found: dict[str, Any] = json.loads(data[20 : 20 + chunk_length])
+    return found

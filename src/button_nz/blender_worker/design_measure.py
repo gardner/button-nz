@@ -36,7 +36,13 @@ build_scene: Any = _build_scene
 design_io: Any = _design_io
 MAX_TRIANGLES = 200_000
 NOT_FINITE = "Some of the Dwelling's vertices aren't finite numbers (NaN or inf)."
-DWELLING_RGBA = (0.82, 0.74, 0.6, 1.0)  # rendered opaque, whatever material the script gave
+# The Dwelling is rendered opaque in the host's colours (the scene's
+# ``dwelling_colours``), whatever material the script gave: faces that point up
+# take the roof's, the rest the walls'. These are for a scene written before
+# the host set them (button_nz.blender_worker.scene_input.DEFAULT_COLOURS).
+DWELLING_RGBA = (0.8, 0.75, 0.65, 1.0)
+ROOF_RGBA = (0.06, 0.07, 0.08, 1.0)
+ROOF_NORMAL_Z = 0.5  # a face this far upward is roof
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
     "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
@@ -67,7 +73,10 @@ def main(argv: list[str]) -> None:
     if measurements["error"] is not None:  # e.g. too detailed: don't render it either
         design_io.write_json(path, measurements)
         return
-    _bake(dwelling, measurements["triangles"])  # render and export exactly what was measured
+    colours: dict[str, list[float]] = scene.get("dwelling_colours") or {}
+    walls = tuple(colours.get("walls", DWELLING_RGBA))
+    roof = tuple(colours.get("roof", ROOF_RGBA))
+    _bake(dwelling, measurements["triangles"], walls, roof)  # exactly what was measured
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)  # the design is done: the silhouette is extra
@@ -182,10 +191,16 @@ def _add_triangles(obj: Any, world: Any, triangles: list[list[list[float]]]) -> 
     return None
 
 
-def _bake(dwelling: Any, triangles: list[list[list[float]]]) -> None:
+def _bake(
+    dwelling: Any,
+    triangles: list[list[list[float]]],
+    walls: tuple[float, ...],
+    roof: tuple[float, ...],
+) -> None:
     """Replace the model's Dwelling in the scene with a plain mesh of exactly the
-    measured triangles and an opaque material: no modifier, instancer setting or
-    material can make the render differ from what was checked."""
+    measured triangles in the host's opaque colours, roof faces apart from walls:
+    no modifier, instancer setting or material can make the render differ from
+    what was checked."""
     b.context.scene.collection.objects.unlink(dwelling)
     dwelling.name = "Dwelling.model"
     vertices = [tuple(point) for triangle in triangles for point in triangle]
@@ -193,7 +208,10 @@ def _bake(dwelling: Any, triangles: list[list[list[float]]]) -> None:
     mesh = b.data.meshes.new("Dwelling")
     mesh.from_pydata(vertices, [], faces)
     mesh.update()
-    mesh.materials.append(build_scene.material("Dwelling", DWELLING_RGBA))
+    mesh.materials.append(build_scene.material("Dwelling walls", walls))
+    mesh.materials.append(build_scene.material("Dwelling roof", roof))
+    for polygon in mesh.polygons:
+        polygon.material_index = 1 if polygon.normal.z > ROOF_NORMAL_Z else 0
     b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 

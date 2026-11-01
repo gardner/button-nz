@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
+from button_nz.blender_worker.run import DesignOutputs
+from button_nz.blender_worker.scene_input import DEFAULT_COLOURS, SceneInput
 from button_nz.catalogue import Product
 from button_nz.demo_site import load_demo_site
 from test_api import ScriptedModel, fake_runner, synthetic_site
@@ -38,6 +40,13 @@ def product(
             "excludes": "site works",
             "west_coast": "not stated",
             "sources": ["https://example.nz/cabin"],
+            "appearance": {
+                "roof_forms": ["gable"],
+                "roof_pitch_deg": 20,
+                "walls": "#ffffff",
+                "roof": "#000000",
+                "basis": "illustrative",
+            },
         }
     )
 
@@ -56,16 +65,21 @@ class Placing:
         self, tmp_path: Path, *replies: str, catalogue: tuple[Product, ...] = CATALOGUE
     ) -> None:
         self.model = ScriptedModel(*replies)
+        self.scenes: list[SceneInput] = []
         self.store = Store(tmp_path / "button.db")
         self.worker = Worker(
             self.store,
             site=synthetic_site,
             model=lambda: self.model,
             runs_dir=tmp_path / "runs",
-            runner=fake_runner,
+            runner=self.run,
         )
         app = create_app(self.store, self.worker, load_demo_site(), products=catalogue)
         self.client = TestClient(app)
+
+    def run(self, scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+        self.scenes.append(scene)
+        return fake_runner(scene, script, out_dir)
 
     def place(self, product_id: str) -> Any:
         return self.client.post("/designs", json={"brief": "A studio.", "product_id": product_id})
@@ -135,3 +149,24 @@ def test_a_design_keeps_its_product_as_it_was_when_placed(tmp_path: Path) -> Non
     assert placing.worker.run_next()
     job = placing.client.get(f"/designs/{job_id}").json()
     assert "product_footprint: pass" in job["attempts"][0]["feedback"]  # checked as placed
+
+
+def test_a_placed_product_brings_its_roof_to_the_brief_and_its_colours_to_the_render(
+    tmp_path: Path,
+) -> None:
+    placing = Placing(tmp_path, "good")
+    job_id = placing.place("cabin").json()["id"]
+    assert placing.worker.run_next()
+    assert "a gable roof at 20°" in placing.model.seen[0][1].text
+    colours = placing.scenes[0].get("dwelling_colours")
+    assert colours == {"walls": [1.0, 1.0, 1.0, 1.0], "roof": [0.0, 0.0, 0.0, 1.0]}
+    placed = placing.store.get_job(job_id).product
+    assert placed is not None and placed.appearance is not None
+    assert placed.appearance.roof == "#000000"  # the snapshot keeps how it looked
+
+
+def test_a_bespoke_design_renders_in_the_neutral_colours(tmp_path: Path) -> None:
+    placing = Placing(tmp_path, "good")
+    placing.client.post("/designs", json={"brief": "A studio."})
+    assert placing.worker.run_next()
+    assert placing.scenes[0].get("dwelling_colours") == DEFAULT_COLOURS
