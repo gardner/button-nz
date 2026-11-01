@@ -3,8 +3,10 @@
 Where the building comes (site, setbacks, separation, preservation areas) is
 measured from its outline, eaves included. Floor area and floor level are
 measured from the outside of its external walls, as the exemption measures
-them (MBIE guidance pp. 26 and 28). A placed product is checked first: its
-walls must be the product's published footprint.
+them (MBIE guidance pp. 26 and 28). Floor area leaves out the open courtyards
+those walls enclose; floor level keeps the ground under them (the stricter
+reading). A placed product is checked first: its walls must be the product's
+published footprint.
 """
 
 from shapely import Polygon
@@ -27,9 +29,10 @@ def evaluate(proposal: Proposal, site: SiteContext, product: Footprint | None = 
     """Raises InvalidProposal for a proposal that can't be evaluated. With
     ``product``, the walls are checked to be that product's footprint too."""
     validate(proposal)
-    walls = _polygon(proposal.footprint, "footprint")
-    outline = walls if proposal.outline is None else _polygon(proposal.outline, "outline")
-    if not outline.buffer(_TOLERANCE_M).contains(walls):
+    outer = _polygon(proposal.footprint, "footprint")
+    walls = _with_courtyards(outer, proposal.courtyards)
+    outline = outer if proposal.outline is None else _polygon(proposal.outline, "outline")
+    if not outline.buffer(_TOLERANCE_M).contains(outer):
         raise InvalidProposal("the outline does not contain the wall footprint")
     title, internal_lines = checks.title_and_internal_lines(site)
     placed = () if product is None else (checks.product_footprint(walls, product),)
@@ -43,10 +46,20 @@ def evaluate(proposal: Proposal, site: SiteContext, product: Footprint | None = 
             checks.floor_area(walls, proposal),
             checks.single_storey(proposal),
             checks.height(proposal),
-            checks.floor_level(walls, proposal, site),
+            checks.floor_level(outer, proposal, site),
             checks.preservation_areas(outline, site),
         )
     )
+
+
+def _with_courtyards(outer: Polygon, courtyards: tuple[Ring, ...]) -> Polygon:
+    """The walls' plan: ``outer`` with each open courtyard a hole in it."""
+    if not courtyards:
+        return outer
+    walls = Polygon(outer.exterior, courtyards)
+    if not walls.is_valid or any(Polygon(c).area <= 0 for c in courtyards):
+        raise InvalidProposal("a courtyard is not a polygon inside the wall footprint")
+    return walls
 
 
 def _polygon(ring: Ring, name: str) -> Polygon:

@@ -1,6 +1,7 @@
 """An accepted design on its site's map, as GeoJSON in EPSG:4326:
 
-- ``walls``: the outside of its walls, as the trusted pass measured them;
+- ``walls``: the outside of its walls, as the trusted pass measured them,
+  with any open courtyard inside them a hole;
 - ``outline``: all it covers from above, eaves included (or the walls);
 - ``distances``: the shortest line from the outline to what the evaluator
   measures it against, each with its check, metres and the 2 m required: the
@@ -56,7 +57,8 @@ def _measured(attempt: Path) -> tuple[Polygon, Polygon, dict[str, float]]:
     if measured.footprint is None:
         raise ValueError(f"{attempt} has no measured footprint")
     frame = scene_frame(attempt)
-    walls = Polygon([frame.to_nztm(p) for p in measured.footprint])
+    courtyards = [[frame.to_nztm(p) for p in court] for court in measured.courtyards]
+    walls = Polygon([frame.to_nztm(p) for p in measured.footprint], courtyards)
     plan: Ring = measured.outline or measured.footprint
     heights: dict[str, float] = {}
     if measured.z_min is not None and measured.z_max is not None:

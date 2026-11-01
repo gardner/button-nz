@@ -199,7 +199,9 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
     """Internal floor area <= 70 m², bounded by the measured footprint: the
     inside can't exceed the outside of the walls, and no realistic wall is more
     than ``MAX_WALL_M`` thick. Geometry decides where it can; a stated area that
-    only unusually thick walls explain is unknown, not failed."""
+    only unusually thick walls explain is unknown, not failed. An open courtyard
+    is a hole in the footprint, not floor; the walls round it are not credited
+    with any thickness (the stricter reading)."""
     outside, perimeter = footprint.area, footprint.exterior.length
     typical_inside = outside - perimeter * TYPICAL_WALL_M
     least_inside = outside - perimeter * MAX_WALL_M
@@ -208,7 +210,7 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
         "footprint_area_m2": outside,
         "least_internal_area_m2": least_inside,
         "maximum": MAX_FLOOR_AREA_M2,
-    }
+    } | _courtyard_area(footprint)
     if stated is not None:
         measured["value"] = stated
     rule = f"{SCHEDULE_1A}; walls at most {MAX_WALL_M:g} m thick"
@@ -241,6 +243,13 @@ def floor_area(footprint: Polygon, proposal: Proposal) -> Check:
         return Check("floor_area", Status.UNKNOWN, detail, measured, rule)
     status, detail = _stated_area(stated, outside, typical_inside, least_inside)
     return Check("floor_area", status, detail, measured, rule)
+
+
+def _courtyard_area(footprint: Polygon) -> dict[str, float]:
+    """The open courtyards' area, to report beside the footprint's (if it has any)."""
+    if not footprint.interiors:
+        return {}
+    return {"courtyard_area_m2": sum(Polygon(ring).area for ring in footprint.interiors)}
 
 
 def _stated_area(

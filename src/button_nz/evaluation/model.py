@@ -54,6 +54,7 @@ class Proposal:
     height_above_floor_m: float | None = None
     floor_area_m2: float | None = None  # internal, as the exemption measures it
     storeys: int | None = None
+    courtyards: tuple[Ring, ...] = ()  # NZTM, open to the sky inside the walls: not floor
 
 
 @dataclass(frozen=True)
