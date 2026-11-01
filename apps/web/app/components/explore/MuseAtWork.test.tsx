@@ -49,6 +49,26 @@ describe("MuseAtWork", () => {
     expect(current.textContent).toMatch(/Blender/);
   });
 
+  it("keeps a finished attempt's LiDAR views in the filmstrip, before its render", () => {
+    const job = running("thinking");
+    job.attempts[0] = {
+      ...job.attempts[0],
+      files: {
+        "design.png": "/api/designs/j/attempts/1/design.png",
+        "observation-2.png": "/api/designs/j/attempts/1/observation-2.png",
+        "observation-1.png": "/api/designs/j/attempts/1/observation-1.png",
+      },
+    };
+    render(<MuseAtWork job={job} />);
+    const srcs = screen.getAllByRole("img").map((i) => i.getAttribute("src"));
+    expect(srcs).toEqual([
+      "/api/designs/j/attempts/1/observation-1.png",
+      "/api/designs/j/attempts/1/observation-2.png",
+      "/api/designs/j/attempts/1/design.png",
+      "/api/designs/j/attempts/2/observation-1.png",
+    ]);
+  });
+
   it("says a queued design is waiting its turn", () => {
     const job = {
       ...parseJob(JOB),

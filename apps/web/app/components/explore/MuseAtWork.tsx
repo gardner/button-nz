@@ -85,7 +85,8 @@ function Steps({ phase, detail }: { phase: Phase; detail: string }) {
   );
 }
 
-/** Each attempt's render with its verdict, then the views of this one. */
+/** The run so far, oldest first: each finished attempt's LiDAR views and
+ * its render with its verdict, then the views of the attempt under way. */
 function Filmstrip({
   attempts,
   views,
@@ -93,38 +94,70 @@ function Filmstrip({
   attempts: Attempt[];
   views: string[];
 }) {
-  const renders = attempts.filter((a) => a.files["design.png"]);
-  if (renders.length === 0 && views.length === 0) return null;
+  const frames = numbered([
+    ...attempts.flatMap(framesOf),
+    ...views.map((src) => ({ src, alt: "" })),
+  ]);
+  if (frames.length === 0) return null;
   return (
     <ul className="flex gap-2 overflow-x-auto pb-1">
-      {renders.map((a) => (
-        <li key={`a${a.number}`} className="relative shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element -- the API's own render */}
+      {frames.map((frame) => (
+        <li key={frame.src} className="relative shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element -- the API's own image */}
           <img
-            src={a.files["design.png"]}
-            alt={`Attempt ${a.number}'s render: ${VERDICTS[a.status]}`}
-            className="h-24 w-32 rounded-lg object-cover"
+            src={frame.src}
+            alt={frame.alt}
+            className={`h-24 rounded-lg object-cover ${frame.badge ? "w-32" : "w-24"}`}
           />
-          <span
-            aria-hidden
-            className={`absolute right-1 top-1 rounded-full px-1.5 text-xs font-bold ${a.status === "fail" || a.status === "error" ? "bg-red-500" : "bg-emerald-500"}`}
-          >
-            {a.status === "fail" || a.status === "error" ? "✗" : "✓"}
-          </span>
-        </li>
-      ))}
-      {views.map((url, i) => (
-        <li key={url} className="shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element -- the API's own view */}
-          <img
-            src={url}
-            alt={`LiDAR view ${i + 1} Muse asked for`}
-            className="h-24 w-24 rounded-lg object-cover"
-          />
+          {frame.badge && (
+            <span
+              aria-hidden
+              className={`absolute right-1 top-1 rounded-full px-1.5 text-xs font-bold ${frame.badge === "✗" ? "bg-red-500" : "bg-emerald-500"}`}
+            >
+              {frame.badge}
+            </span>
+          )}
         </li>
       ))}
     </ul>
   );
+}
+
+interface Frame {
+  src: string;
+  alt: string;
+  badge?: "✓" | "✗"; // a render's verdict
+}
+
+/** The views (frames with no verdict) named in the order they were made. */
+function numbered(frames: Frame[]): Frame[] {
+  let views = 0;
+  return frames.map((f) =>
+    f.badge ? f : { ...f, alt: `LiDAR view ${++views} Muse asked for` },
+  );
+}
+
+/** A finished attempt's views, in the order made, then its render. */
+function framesOf(attempt: Attempt): Frame[] {
+  const views = Object.keys(attempt.files)
+    .filter((name) => name.startsWith("observation-"))
+    .sort((a, b) => viewNumber(a) - viewNumber(b))
+    .map((name): Frame => ({ src: attempt.files[name], alt: "" }));
+  const render = attempt.files["design.png"];
+  if (!render) return views;
+  const failed = attempt.status === "fail" || attempt.status === "error";
+  return [
+    ...views,
+    {
+      src: render,
+      alt: `Attempt ${attempt.number}'s render: ${VERDICTS[attempt.status]}`,
+      badge: failed ? "✗" : "✓",
+    },
+  ];
+}
+
+function viewNumber(name: string): number {
+  return Number(name.slice("observation-".length, -".png".length));
 }
 
 /** Minutes and seconds since the run started, ticking. */
