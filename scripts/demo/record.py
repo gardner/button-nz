@@ -1,9 +1,14 @@
 """Record the live demo run in a headless browser.
 
-Confirm the survey, enter a brief, design, wait for the AI visual, view the
-design in 3D, revise it in plain words, and show before and after. Everything
-is live: the design and the revision call the paid model APIs. Each phase is
+Show the survey as the owner decided it, enter a brief, design, wait for the
+AI visual, view the design in 3D, revise it in plain words, show before and
+after, then the real prefabs that fit, and place one. Everything is live: the
+designs, the revision and the placing call the paid model APIs. Each phase is
 marked, so ``cut.py`` can caption it and speed up the waits.
+
+The take records the owner's decisions, so it needs a server that serves the
+survey fixed as the owner decided it (``serve --survey-decided-by``); any other
+fails the take before a paid call.
 """
 
 import argparse
@@ -15,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Locator, Page, expect, sync_playwright
+from playwright.sync_api import Locator, Page, sync_playwright
 
 from screencast import Screencast, find_chromium, find_ffmpeg
 
@@ -24,14 +29,8 @@ BRIEF = (
     " and keeps the trees."
 )
 CHANGE = "Move it as close to the street as the rules allow, keeping the trees."
-# The owner's answer for each feature SAM 3.1 found on the demo site.
-CHOICES = {
-    "#1 shed": "Existing building",
-    "#2 shed": "Existing building",
-    "#3 tree": "Keep clear",
-    "#4 tree": "Keep clear",
-    "#5 tree": "Keep clear",
-}
+FIXED = re.compile(r"This survey is fixed on this server, as (.+?) decided it\.")
+PLACE = re.compile(r"^Place the (.+) on the site$")
 DESIGN_LIMIT_S = 1200
 VISUAL_LIMIT_S = 180
 
@@ -101,6 +100,18 @@ def outcome(text: str) -> str | None:
     return None
 
 
+def fixed_by(text: str) -> str | None:
+    """Who decided the survey the page shows fixed, or None if it isn't."""
+    found = FIXED.search(text)
+    return None if found is None else found.group(1)
+
+
+def placed_name(label: str) -> str | None:
+    """The product a "Place the ... on the site" button places."""
+    found = PLACE.match(label)
+    return None if found is None else found.group(1)
+
+
 def partial_path(out: Path) -> Path:
     """Where a failed take's footage goes: paid calls aren't thrown away."""
     return out.with_name(f"{out.stem}-partial{out.suffix}")
@@ -129,20 +140,20 @@ def open_site(run: Run, base_url: str) -> None:
     run.page.wait_for_timeout(1500)
 
 
-def confirm_survey(run: Run) -> None:
+def show_survey(run: Run) -> None:
+    """Show the survey as the owner decided it, feature by feature."""
     page = run.page
-    run.cast.mark("SAM 3.1 survey: the team answers for the owner (pending their confirmation)")
-    for name, choice in CHOICES.items():
-        item = page.locator("li, article, section > div").filter(has_text=name).last
-        item.scroll_into_view_if_needed()
-        item.get_by_role("button", name=choice).click()
-        expect(item.get_by_role("button", name=choice)).to_have_attribute("aria-pressed", "true")
-        page.wait_for_timeout(900)
-    box = page.get_by_label("Every building on the site is listed")
-    box.scroll_into_view_if_needed()
-    box.click()
-    expect(box).to_be_checked(timeout=10000)
-    page.wait_for_timeout(1500)
+    note = page.get_by_text(FIXED)
+    note.wait_for(timeout=30_000)
+    who = fixed_by(body_text(page))
+    if who is None:
+        raise RuntimeError("the survey isn't fixed: serve it as the owner decided it")
+    run.cast.mark(f"SAM 3.1 survey, as {who} decided it")
+    centre(note)
+    page.wait_for_timeout(3000)
+    for card in page.get_by_role("article").all():
+        centre(card)
+        page.wait_for_timeout(1200)
 
 
 def design(run: Run, brief: str) -> None:
@@ -216,6 +227,36 @@ def before_and_after(run: Run) -> None:
     run.page.wait_for_timeout(6000)
 
 
+def show_products(run: Run) -> None:
+    """Ask which real prefabs fit the design on show, and show them."""
+    page = run.page
+    ask = page.get_by_role("button", name="Which real prefabs fit?").last
+    centre(ask)
+    ask.click()
+    page.get_by_role("heading", name="Next steps").wait_for(timeout=30_000)
+    run.cast.mark("real prefabs that fit, with their published prices, and the next steps")
+    centre(page.get_by_role("listitem").filter(has=page.get_by_role("link")).first)
+    page.wait_for_timeout(6000)
+
+
+def place_product(run: Run) -> None:
+    """Place the largest prefab that fits, and wait for it to be checked."""
+    page = run.page
+    place = page.get_by_role("button", name=PLACE).first
+    name = placed_name(place.get_attribute("aria-label") or "")
+    if name is None:
+        raise RuntimeError("no prefab fits the design, so there is none to place")
+    centre(place)
+    place.click()
+    page.get_by_text(f"Placing the {name}").wait_for(timeout=30_000)
+    run.cast.mark(f"placing the {name} on the site (live)")
+    print("placing took", until_accepted(page), "s", flush=True)
+    page.wait_for_timeout(2000)
+    run.cast.mark(f"the {name}, placed: its walls checked against its footprint")
+    centre(page.get_by_text("product_footprint").last)
+    page.wait_for_timeout(6000)
+
+
 def record(args: Options) -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)  # before any paid call
     with sync_playwright() as p:
@@ -239,7 +280,7 @@ def record(args: Options) -> None:
 
 def take(run: Run, args: Options) -> None:
     open_site(run, args.base_url)
-    confirm_survey(run)
+    show_survey(run)
     design(run, args.brief)
     show_visual(run)
     view_3d(run)
@@ -248,6 +289,8 @@ def take(run: Run, args: Options) -> None:
         run.page.screenshot(path=args.screenshot, full_page=True)
     show_visual(run)
     before_and_after(run)
+    show_products(run)
+    place_product(run)
     print(run.page.inner_text("body")[-3500:])
 
 

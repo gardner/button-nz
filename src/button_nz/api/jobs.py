@@ -24,10 +24,12 @@ from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
+from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
 
 INTERRUPTED = "interrupted by a restart"
+SURVEY_USED = "survey.json"  # in each job's run folder: what its design was checked against
 log = logging.getLogger(__name__)
 NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
 
@@ -151,7 +153,7 @@ class Worker:
 
         result = design(
             job.brief,
-            self._confirmed_site(),
+            self._confirmed_site(self.runs_dir / job.id),
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
@@ -159,16 +161,33 @@ class Worker:
             allow_observations=job.allow_observations,
             on_attempt=record,
             revising=self._revising(job),
+            product=self._placing(job),
         )
         return result.accepted
 
-    def _confirmed_site(self) -> DesignSite:
-        """The site with what a person has confirmed on the survey, if any."""
+    def _placing(self, job: Job) -> Footprint | None:
+        """The footprint of the product ``job`` places, as it was when placed."""
+        if job.product is None:
+            return None
+        return Footprint(job.product.name, job.product.length_m, job.product.width_m)
+
+    def _confirmed_site(self, run: Path) -> DesignSite:
+        """The site with what a person has confirmed on the survey, if any,
+        recorded in ``run`` as the survey and decisions this design is checked
+        against: they can change after it runs."""
         survey = None if self.survey is None else Survey.read(self.survey)
+        decided = {} if survey is None else self.store.decisions(survey.id)
+        complete = survey is not None and self.store.buildings_complete(survey.id)
+        run.mkdir(parents=True, exist_ok=True)
+        used = {
+            "survey_id": None if survey is None else survey.id,
+            "decisions": decided,
+            "buildings_complete": complete,
+        }
+        (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
         if survey is None:
             return self.site()
-        decisions = {k: Decision(v) for k, v in self.store.decisions(survey.id).items()}
-        complete = self.store.buildings_complete(survey.id)
+        decisions = {k: Decision(v) for k, v in decided.items()}
         return confirmed(self.site(), survey, decisions, complete)
 
 

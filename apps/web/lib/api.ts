@@ -55,8 +55,18 @@ export interface Job {
   acceptedAttempt: number | null;
   parentId: string | null; // the design this one revises, if it is a revision
   instruction: string | null; // the owner's change to that design
+  product: PlacedProduct | null; // the catalogue product it places, if any
   attempts: Attempt[];
   illustrating: boolean; // done, and its AI visual is still being made
+}
+
+/** A catalogue product a design places, as it was when placed: its walls are
+ * its outside footprint. */
+export interface PlacedProduct {
+  id: string;
+  name: string;
+  lengthM: number;
+  widthM: number;
 }
 
 export type Point = [number, number]; // NZTM (EPSG:2193) metres
@@ -104,14 +114,18 @@ export async function getSite(): Promise<Site> {
   return parseSite(await request("/site"));
 }
 
+/** Queue a design for `brief`; with `productId`, it places that product. */
 export async function createDesign(
   brief: string,
   allowObservations: boolean,
+  productId?: string,
 ): Promise<Job> {
+  const placing = productId === undefined ? {} : { product_id: productId };
   return parseJob(
     await send("POST", "/designs", {
       brief,
       allow_observations: allowObservations,
+      ...placing,
     }),
   );
 }
@@ -223,8 +237,19 @@ export function parseJob(raw: unknown): Job {
     acceptedAttempt: optional(job, "accepted_attempt", number),
     parentId: optional(job, "parent_id", text),
     instruction: optional(job, "instruction", text),
+    product: optional(job, "product", (f, k) => parsePlaced(f[k])),
     attempts: list(job, "attempts").map(parseAttempt),
     illustrating: flag(job, "illustrating"),
+  };
+}
+
+function parsePlaced(raw: unknown): PlacedProduct {
+  const product = record(raw, "product");
+  return {
+    id: text(product, "id"),
+    name: text(product, "name"),
+    lengthM: number(product, "length_m"),
+    widthM: number(product, "width_m"),
   };
 }
 

@@ -10,7 +10,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, computed_field, model_validator
+
+from button_nz.evaluation import Footprint
 
 CATALOGUE = Path(__file__).resolve().parents[3] / "data" / "catalogue" / "products.json"
 MAX_FLOOR_AREA_M2 = 70.0  # the granny-flat exemption's limit
@@ -31,6 +33,7 @@ class Product(BaseModel):
     length_m: float  # the published outside footprint
     width_m: float
     dimensions_labelled: bool  # False: the page doesn't say what the figures measure
+    bounding_box: bool  # True: the plan isn't a rectangle (its source shows steps)
     floor_area_m2: float  # as the supplier states it
     area_basis: str  # internal, or "not stated"
     bedrooms: int
@@ -48,6 +51,19 @@ class Product(BaseModel):
             return cls.model_validate_json(json.dumps(raw), strict=True)
         except ValidationError as error:
             raise CatalogueError(f"{raw.get('id', '?')}: {error}") from error
+
+    @computed_field  # sent with the product, so the app offers only what can be placed
+    @property
+    def placeable(self) -> bool:
+        """Whether it can be placed on a site: its figures are its outside
+        footprint, and that footprint is a rectangle, not a plan they only bound."""
+        return self.dimensions_labelled and not self.bounding_box
+
+    def footprint(self) -> Footprint:
+        """Its published outside footprint, to design to and check against."""
+        if not self.placeable:
+            raise CatalogueError(f"{self.id}: its footprint isn't a known rectangle")
+        return Footprint(f"{self.supplier} {self.model}", self.length_m, self.width_m)
 
     @model_validator(mode="after")
     def _follows_the_rules(self) -> Self:

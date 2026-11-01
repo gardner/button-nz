@@ -4,9 +4,11 @@ The demo video is one real, live run of the app, recorded in a headless
 browser and then cut for length. Nothing is staged. Long waits are sped up,
 and the video says so on screen.
 
-- **`record.py`:** drives the app live and writes the raw recording. It
-  confirms the survey, enters a brief, designs, waits for the AI visual, views
-  the design in 3D, revises it, and shows before and after.
+- **`record.py`:** drives the app live and writes the raw recording. It:
+  - shows the survey as the owner decided it;
+  - enters a brief, designs, and waits for the AI visual;
+  - views the design in 3D, revises it, and shows before and after;
+  - shows the real prefabs that fit, and places the largest on the site.
 - **`screencast.py`:** the recorder `record.py` uses. It captures frames
   through Chrome's CDP screencast, because Playwright's own video recorder
   needs an ffmpeg build this OS lacks. It encodes with the ffmpeg build cached
@@ -17,12 +19,16 @@ and the video says so on screen.
 
 ## Prerequisites
 
-1. **The API and the production web build**, as in the top-level README. The
-   recorder expects the web app at `http://localhost:3100/` by default:
+1. **The app as judges see it**, served by `scripts/deploy/install.sh`
+   ([docs/deploy.md](../../docs/deploy.md)), with the survey fixed as the owner
+   decided it. The take records the owner's decisions, so a survey that isn't
+   fixed fails it before any paid call. Give the recorder the access code's
+   link, which sets the cookie:
 
    ```bash
-   uv run --env-file .env python -m button_nz.api.serve --port 8000
-   cd apps/web && pnpm build && pnpm start --port 3100
+   source <(grep ACCESS_CODE ~/.config/button-nz/deploy.env)
+   uv run python scripts/demo/record.py out/demo-raw.webm \
+     --base-url "http://127.0.0.1:3000/?code=$BUTTON_ACCESS_CODE"
    ```
 
 2. **Playwright's headless shell and ffmpeg.** `record.py` finds the newest
@@ -65,16 +71,16 @@ and the video says so on screen.
 
 ## Record
 
-The run is live: the design and the revision call the paid model APIs, and it
-takes about eight minutes.
+The run is live: the design, the revision and the placed prefab call the paid
+model APIs, and it takes about a quarter of an hour.
 
 ```bash
-uv run python scripts/demo/record.py out/demo-raw.webm --screenshot out/revised.png
+uv run python scripts/demo/record.py out/demo-raw.webm --screenshot out/revised.png \
+  --base-url "http://127.0.0.1:3000/?code=$BUTTON_ACCESS_CODE"
 ```
 
 `--brief` and `--change` replace the brief and the revision instruction.
-`--base-url` points it at another web app. The survey answers (`CHOICES`)
-match the demo site's survey.
+`--base-url` points it at another web app.
 
 This writes `demo-raw.webm` (VP9, 15 frames a second) and
 `demo-raw.webm.marks.json`.

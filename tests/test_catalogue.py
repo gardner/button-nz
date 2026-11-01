@@ -30,6 +30,7 @@ def product(**overrides: Any) -> dict[str, Any]:
         "length_m": 12.0,
         "width_m": 4.0,
         "dimensions_labelled": True,
+        "bounding_box": False,
         "floor_area_m2": 48.0,
         "area_basis": "not stated",
         "bedrooms": 2,
@@ -196,3 +197,16 @@ def test_whatever_fits_so_does_anything_no_bigger_either_way() -> None:
         for small in sizes:
             if small[0] <= big[0] and small[1] <= big[1]:
                 assert small in fitting, (small, big)
+
+
+def test_only_a_labelled_rectangle_can_be_placed() -> None:
+    by_id = {p.id: p for p in load_products()}
+    assert by_id["airhome-vista"].placeable
+    assert not by_id["lockwood-ara"].placeable  # a stepped plan: its figures bound it
+    assert not by_id["keith-hay-haven-70"].placeable  # what its figures measure isn't said
+
+
+def test_a_product_says_whether_it_can_be_placed_when_sent() -> None:
+    by_id = {p.id: p for p in load_products()}
+    assert by_id["airhome-vista"].model_dump()["placeable"] is True
+    assert by_id["lockwood-ara"].model_dump()["placeable"] is False

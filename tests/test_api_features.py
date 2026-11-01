@@ -295,3 +295,30 @@ def test_kept_decisions_about_another_site_are_refused(tmp_path: Path) -> None:
     kept = SiteDecisions.read(tmp_path / "decisions.json")
     with pytest.raises(ValueError, match="not on this site's title"):
         kept.apply(synthetic_site())
+
+
+def test_each_design_records_the_survey_and_decisions_it_was_checked_against(
+    tmp_path: Path,
+) -> None:
+    surveyed = Surveyed(tmp_path)
+    write_survey(surveyed.survey, "shed", "tree")
+    decide(surveyed, "1", {"decision": "building"})
+    job_id = surveyed.queue()
+    assert surveyed.worker.run_next()
+    decide(surveyed, "1", {"decision": "ignore"})  # after the design ran
+    used = json.loads((tmp_path / "runs" / job_id / "survey.json").read_text())
+    survey = Survey.read(surveyed.survey)
+    assert survey is not None
+    assert used == {
+        "survey_id": survey.id,
+        "decisions": {"1": "building"},
+        "buildings_complete": False,
+    }
+
+
+def test_a_design_on_a_site_without_a_survey_records_that(tmp_path: Path) -> None:
+    surveyed = Surveyed(tmp_path)  # no survey file written
+    job_id = surveyed.queue()
+    assert surveyed.worker.run_next()
+    used = json.loads((tmp_path / "runs" / job_id / "survey.json").read_text())
+    assert used == {"survey_id": None, "decisions": {}, "buildings_complete": False}

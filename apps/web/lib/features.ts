@@ -45,6 +45,7 @@ export interface SiteFeature {
 export interface Survey {
   id: string;
   buildingsComplete: boolean; // the owner says every building is listed
+  decidedBy: string | null; // the server fixed the survey as this person decided it
   features: SiteFeature[];
 }
 
@@ -72,6 +73,7 @@ export function parseSurvey(raw: unknown): Survey {
   return {
     id: text(survey, "survey_id"),
     buildingsComplete: flag(survey, "buildings_complete"),
+    decidedBy: flag(survey, "fixed") ? text(survey, "decided_by") : null,
     features: list(survey, "features").map(parseFeature),
   };
 }
