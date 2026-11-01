@@ -24,3 +24,11 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* The map's credits (MapLibre's bottom-right controls) sit under the 2D/3D
+   switch: the bottom-right corner is where the design's 3D view stands, and
+   the credits' ⓘ button must stay in reach (CC BY). */
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+  top: 4.5rem;
+  bottom: auto;
+}
