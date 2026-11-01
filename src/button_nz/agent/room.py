@@ -24,6 +24,7 @@ from button_nz.geo.geometry import Point, Ring
 from button_nz.sites.heights import canopy
 
 STEP_M = 0.25  # the grid the rectangles are found on
+QUAD_SEGS = 16
 MIN_WIDTH_M = 3.0  # narrower than this, no dwelling fits: not offered
 
 
@@ -44,11 +45,21 @@ def room_of(
     clear of what the LiDAR shows ``standing`` (a house nobody listed, a tree):
     the evaluator can't pass separation beside those, so they get the same
     room round them as a listed building."""
-    inner = union_all([Polygon(ring) for ring in title]).buffer(-MIN_SEPARATION_M)
-    taken = [Polygon(r).buffer(MIN_SEPARATION_M) for r in buildings]
-    taken += [g.buffer(MIN_SEPARATION_M) for g in standing]
+    # Each parcel on its own: a dwelling keeps 2 m from the lines between a
+    # title's sections too, and is never built across one (s 42B).
+    inner = union_all([_buffer(Polygon(ring), -MIN_SEPARATION_M) for ring in title])
+    taken = [_buffer(Polygon(r), MIN_SEPARATION_M) for r in buildings]
+    taken += [_buffer(g, MIN_SEPARATION_M) for g in standing]
     taken += [Polygon(r) for r in keep_clear]
     return inner.difference(union_all(taken)) if taken else inner
+
+
+def _buffer(geometry: BaseGeometry, distance: float) -> BaseGeometry:
+    """``geometry`` buffered by at least ``distance`` everywhere: a buffer's arcs
+    are chords inside the true circle, so their vertices are pushed out to
+    circumscribe it (as ``town.screen`` does)."""
+    widened = distance / math.cos(math.pi / (4 * QUAD_SEGS))
+    return geometry.buffer(widened, quad_segs=QUAD_SEGS)
 
 
 def longest_edge_angle(title: Sequence[Ring]) -> float:
@@ -68,25 +79,43 @@ def largest_rectangles(room: BaseGeometry, angle_deg: float, count: int = 2) -> 
     west, south, east, north = turned.bounds
     xs = np.arange(west + STEP_M / 2, east, STEP_M)
     ys = np.arange(south + STEP_M / 2, north, STEP_M)
-    inside = shapely.contains_xy(turned, *np.meshgrid(xs, ys))
+    edged = turned.buffer(1e-6)  # a corner on the room's edge is in it
+    inside = _whole_cells(edged, xs, ys)
+    least = math.ceil(MIN_WIDTH_M / STEP_M - 1e-9)
     found: list[Rectangle] = []
     for _ in range(count):
-        cells = _largest(inside)
-        if cells is None or min(cells[2], cells[3]) * STEP_M < MIN_WIDTH_M:
+        cells = _largest(inside, least)
+        if cells is None:
             break
         row0, col0, rows, cols = cells
         inside[row0 : row0 + rows, col0 : col0 + cols] = False
         x0, y0 = west + col0 * STEP_M, south + row0 * STEP_M
         flat = box(x0, y0, x0 + cols * STEP_M, y0 + rows * STEP_M)
+        if not flat.within(edged):  # a notch narrower than a cell: never offered
+            continue
         polygon = rotate(flat, angle_deg, origin=centre)
         sides = sorted((cols * STEP_M, rows * STEP_M))
         found.append(Rectangle(polygon, sides[1], sides[0]))
     return found
 
 
-def _largest(grid: NDArray[np.bool_]) -> tuple[int, int, int, int] | None:
-    """The largest all-true rectangle of cells: (row, column, rows, columns),
-    by the histogram method, row by row."""
+def _whole_cells(
+    room: BaseGeometry, xs: NDArray[np.float64], ys: NDArray[np.float64]
+) -> NDArray[np.bool_]:
+    """The cells (centred at ``xs`` x ``ys``) with all four corners in ``room``."""
+    half = STEP_M / 2
+    cx, cy = np.meshgrid(xs, ys)
+    inside: NDArray[np.bool_] = np.ones(cx.shape, dtype=bool)
+    for dx, dy in ((-half, -half), (half, -half), (half, half), (-half, half)):
+        inside &= shapely.contains_xy(room, cx + dx, cy + dy)
+    return inside
+
+
+def _largest(grid: NDArray[np.bool_], least: int) -> tuple[int, int, int, int] | None:
+    """The largest all-true rectangle of cells at least ``least`` cells each
+    way: (row, column, rows, columns), by the histogram method, row by row.
+    It visits every maximal rectangle, so a larger narrow one never hides a
+    smaller one wide enough."""
     best: tuple[int, int, int, int] | None = None
     best_area = 0
     heights = np.zeros(grid.shape[1], dtype=int)
@@ -98,7 +127,7 @@ def _largest(grid: NDArray[np.bool_]) -> tuple[int, int, int, int] | None:
             while stack and heights[stack[-1]] >= height:
                 top = int(heights[stack.pop()])
                 left = stack[-1] + 1 if stack else 0
-                if top * (col - left) > best_area:
+                if top >= least and col - left >= least and top * (col - left) > best_area:
                     best_area = top * (col - left)
                     best = (row - top + 1, left, top, col - left)
             stack.append(col)
