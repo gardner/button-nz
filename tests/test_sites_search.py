@@ -318,3 +318,20 @@ def test_a_title_site_is_keyed_by_a_parcel_on_the_tapped_block() -> None:
     parcels = layers([small, large])["LINZ_NZ_Primary_Parcels"]
     assert title_key(parcels, 2) == 2
     assert title_key(parcels, 1) == 1
+
+
+def test_a_parcel_in_touching_pieces_counts_once_toward_a_tapped_blocks_parcels() -> None:
+    lots = [parcel(i, _sq(X0 + 10 * i, Y0, 10), "354613") for i in range(1, MAX_PARCELS)]
+    wrapped = _multi(MAX_PARCELS, [_sq(X0, Y0, 10), _sq(X0, Y0 + 10, 10)], "354613")
+    parcels = layers([*lots, wrapped])["LINZ_NZ_Primary_Parcels"]
+    assert address_on_section(_addresses([(8, [X0 + 15, Y0 + 5])]), parcels, 1) == 8
+
+
+def test_an_address_across_the_gap_on_a_block_too_big_is_refused_before_it_is_queued() -> None:
+    """A small block of the title with no address; the title's address is on a
+    block across a road wider than a section: tapping the small one is refused."""
+    small = parcel(1, _sq(X0, Y0, 10), "354613")
+    farm = parcel(2, _sq(X0 + 30, Y0, MAX_SIDE_M + 50), "354613")
+    parcels = layers([small, farm])["LINZ_NZ_Primary_Parcels"]
+    with pytest.raises(NotASection, match="more than a section"):
+        address_on_section(_addresses([(8, [X0 + 50, Y0 + 15])]), parcels, 1)

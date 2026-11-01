@@ -20,7 +20,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.arcgis import Feature, FeatureLayer
-from button_nz.sites.blocks import block
+from button_nz.sites.blocks import block, parcels_in
 from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels, titles_of
 
 MAX_RESULTS = 8
@@ -113,7 +113,8 @@ def address_on_section(
     comes before one across the road. A block too big for a site
     (``MAX_PARCELS``, ``MAX_SIDE_M``, as ``find_title`` refuses) is refused
     before any address is asked for, and the title's addresses are asked for
-    once, over its whole extent."""
+    once, over its whole extent. An address across the road, which builds
+    the block it is on, is refused if that block is too big."""
     found = parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise NoSuchSection(parcel_id)
@@ -124,18 +125,31 @@ def address_on_section(
     mine = _block_of(section, on_title)
     own = unary_union([_shape(p) for p in mine])  # the block alone: not the section's far pieces
     here = section.intersection(own)
-    west, south, east, north = own.bounds
-    if len(mine) > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
-        raise NotASection(
-            f"parcel {parcel_id}'s title is {len(mine)} parcels over "
-            f"{east - west:.0f} x {north - south:.0f} m: more than a section"
-        )
+    _refuse_more_than_a_section(parcel_id, mine)
     land = unary_union([section, *(_shape(p) for p in on_title)])
     on = [
-        (not own.covers(point), not here.covers(point), here.centroid.distance(point), a)
+        (not own.covers(point), not here.covers(point), here.centroid.distance(point), a, point)
         for point, a in _addresses_in(addresses, land)
     ]
-    return min(on)[3] if on else None  # on its block (its own first), then the nearest
+    if not on:
+        return None
+    across, _, _, address, point = min(on, key=lambda o: o[:4])  # its block (its own first)
+    if across:  # the site is built on the address's block: measure that one too
+        _refuse_more_than_a_section(parcel_id, block(on_title, (point.x, point.y))[0])
+    return address
+
+
+def _refuse_more_than_a_section(parcel_id: int, found: list[Feature]) -> None:
+    """Refuse a block of ``parcel_id``'s title too big for a site, as
+    ``find_title`` would: more than ``MAX_PARCELS`` parcels, or wider or
+    taller than ``MAX_SIDE_M``."""
+    west, south, east, north = unary_union([_shape(p) for p in found]).bounds
+    count = parcels_in(found)  # parcels, not their pieces
+    if count > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
+        raise NotASection(
+            f"parcel {parcel_id}'s title is {count} parcels over "
+            f"{east - west:.0f} x {north - south:.0f} m: more than a section"
+        )
 
 
 def _shape(feature: Feature) -> BaseGeometry:

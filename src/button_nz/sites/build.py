@@ -38,7 +38,7 @@ from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
 from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
-from button_nz.sites.blocks import block, pieces
+from button_nz.sites.blocks import block, parcels_in, pieces
 from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
@@ -207,9 +207,10 @@ def _title_parcels(
     section refused."""
     parcels, left_out = block(_on_titles(sources.parcels, titles), point)
     extent = bounds([pt for f in parcels for pt in _ring(f)])
-    if len(parcels) > MAX_PARCELS or max(extent[2] - extent[0], extent[3] - extent[1]) > MAX_SIDE_M:
+    count = parcels_in(parcels)  # parcels, not their pieces
+    if count > MAX_PARCELS or max(extent[2] - extent[0], extent[3] - extent[1]) > MAX_SIDE_M:
         raise SiteError(
-            f"title {', '.join(titles)} is {len(parcels)} parcels over "
+            f"title {', '.join(titles)} is {count} parcels over "
             f"{extent[2] - extent[0]:.0f} x {extent[3] - extent[1]:.0f} m: more than a section "
             f"(at most {MAX_PARCELS} parcels within {MAX_SIDE_M:g} m)"
         )

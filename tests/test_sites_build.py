@@ -21,12 +21,14 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.tiles import tiles_covering
 from button_nz.perception.features import Mask
 from button_nz.sites.build import (
+    MAX_PARCELS,
     MAX_SIDE_M,
     NoLidar,
     SiteError,
     Sources,
     build_site,
     build_title_site,
+    find_title,
     title_site_name,
 )
 from button_nz.sites.stac import ELEVATION, IMAGERY, Catalogues, Collection
@@ -434,3 +436,17 @@ def test_a_split_parcel_with_land_within_it_is_refused_before_it_is_named() -> N
     found = sources([holed])
     with pytest.raises(SiteError, match="isn't its own"):
         title_site_name(found.addresses, found.parcels, 1)
+
+
+def test_a_parcel_in_touching_pieces_counts_once_toward_a_sections_parcels() -> None:
+    """A section's most parcels, one of them a MultiPolygon whose parts both
+    touch the rest (land wrapping a right-of-way): a section, not one more."""
+    lots = [
+        parcel(i, _box(X0 + 10 * i, Y0, X0 + 10 * i + 10, Y0 + 30), "354613")
+        for i in range(1, MAX_PARCELS)
+    ]
+    wrapped = parcel(MAX_PARCELS, _box(X0, Y0, X0 + 10, Y0 + 15), "354613")
+    halves = [[_box(X0, Y0, X0 + 10, Y0 + 15)], [_box(X0, Y0 + 15, X0 + 10, Y0 + 30)]]
+    wrapped["geometry"] = {"type": "MultiPolygon", "coordinates": halves}
+    title = find_title(sources([*lots, wrapped], point=[X0 + 15, Y0 + 15]), 7)
+    assert len({p["properties"]["id"] for p in title.parcels}) == MAX_PARCELS

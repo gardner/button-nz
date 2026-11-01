@@ -34,6 +34,11 @@ def pieces(parcels: Sequence[Feature]) -> list[Feature]:
     return found
 
 
+def parcels_in(found: Sequence[Feature]) -> int:
+    """How many parcels the pieces ``found`` are of: a MultiPolygon's parts count once."""
+    return len({cast("dict[str, Any]", f["properties"])["id"] for f in found})
+
+
 def block(parcels: Sequence[Feature], point: Point) -> tuple[list[Feature], float]:
     """The pieces of the title's block of land holding ``point`` (the nearest
     if none does), and the area, in m², of the title's land left out."""
