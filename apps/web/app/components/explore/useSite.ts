@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { passing } from "@/lib/fields";
+import { ApiError, passing } from "@/lib/fields";
 import { type SiteState, createSite, getSite } from "@/lib/sites";
 
 /** A site asked for and not yet answered: the request (safe to repeat: one
@@ -66,7 +66,7 @@ export function useSite(pollMs: number) {
             setPickProblem(e.message);
             setRetries((n) => n + 1); // keep following the site still on show
             setAsking(
-              passing(e) ? { request, ask, tries: tries + 1, label } : null,
+              again(e) ? { request, ask, tries: tries + 1, label } : null,
             );
           },
         ),
@@ -87,7 +87,8 @@ export function useSite(pollMs: number) {
         (state) => {
           if (ask !== picked.current) return;
           setPollProblem(null);
-          setSite(state);
+          // Only the site it polled: a pick may have answered meanwhile.
+          setSite((shown) => (shown?.id === state.id ? state : shown));
         },
         (e: Error) => {
           if (ask !== picked.current) return;
@@ -117,4 +118,10 @@ export function useSite(pollMs: number) {
     fromAddress: (addressId: number, address: string) =>
       pick(() => createSite(addressId), address),
   };
+}
+
+/** Whether a failed pick is worth asking again: a failure that passes, but
+ * not the daily cap's 429, which frees up in hours, not moments. */
+function again(e: Error): boolean {
+  return passing(e) && !(e instanceof ApiError && e.status === 429);
 }

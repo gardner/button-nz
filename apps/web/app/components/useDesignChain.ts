@@ -22,14 +22,19 @@ import { useVisuals } from "./useVisuals";
  * that design and the designs it revises, and the address bar keeps the id of
  * the design on show, so it can be shared. With `siteId`, new designs are
  * made on that site (else the demo site). */
-export function useDesignChain(pollMs: number, siteId?: string) {
+export function useDesignChain(
+  pollMs: number,
+  siteId?: string,
+  survey = 0, // the survey's revision: each design started records it
+) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  // The designs started here, oldest first (not those opened from a link).
-  const [made, setMade] = useState<readonly string[]>([]);
+  // The designs started here (not those opened from a link), each with the
+  // survey revision it was asked for on.
+  const [made, setMade] = useState<ReadonlyMap<string, number>>(new Map());
   const starting = useRef(false); // guards clicks before the re-render disables the forms
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
   const newest = chain.at(-1);
@@ -82,6 +87,7 @@ export function useDesignChain(pollMs: number, siteId?: string) {
    * it returns to the chain. */
   function begin(request: () => Promise<Job>, follow: (job: Job) => void) {
     if (starting.current) return;
+    const asked = survey; // the survey as it is now, not when the job comes
     starting.current = true;
     setSubmitting(true);
     setProblem(null);
@@ -90,7 +96,7 @@ export function useDesignChain(pollMs: number, siteId?: string) {
         (job) => {
           setLost(false);
           setSelected(null); // show the new design
-          setMade((ids) => [...ids, job.id]);
+          setMade((jobs) => new Map(jobs).set(job.id, asked));
           follow(job);
         },
         (e: Error) => setProblem(e.message),
