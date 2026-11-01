@@ -44,7 +44,7 @@ def client(
         runner=fake_runner,
         survey=survey,
     )
-    daily = None if cap is None else DailyCap(store, cap, clock or Clock())
+    daily = None if cap is None else DailyCap(store.created_since, cap, clock=clock or Clock())
     app = create_app(
         store, worker, load_demo_site(), survey=survey, cap=daily, survey_decided_by=decided_by
     )

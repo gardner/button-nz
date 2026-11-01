@@ -4,6 +4,9 @@
     PUT  /site/features/{id} {decision, survey_id}     building, keep_clear or ignore
     PUT  /site/survey {buildings_complete, survey_id}  every building is listed
 
+The same, for any site, under ``/sites/{site_id}`` (``site_features_router``);
+``/site`` is the demo site.
+
 A public server can fix the survey as someone decided it (``decided_by``): it
 is served with who that was, and changes to it are refused (403).
 
@@ -13,6 +16,7 @@ starts undecided. A decision names the survey it was made on: one made on an
 older survey is refused (409), since its feature ids may mean other things now.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -33,15 +37,30 @@ class SurveyRequest(BaseModel):
     survey_id: str
 
 
+type Resolve = Callable[[str], tuple[Path | None, str | None]]
+"""A site id to its survey file and who fixed it (None: open to decisions)."""
+
+
 def features_router(store: Store, survey: Path | None, decided_by: str | None = None) -> APIRouter:
+    """The demo site's survey, at ``/site``."""
+    return _router(store, "/site", lambda _: (survey, decided_by))
+
+
+def site_features_router(store: Store, resolve: Resolve) -> APIRouter:
+    """Any site's survey, at ``/sites/{site_id}``."""
+    return _router(store, "/sites/{site_id}", resolve)
+
+
+def _router(store: Store, prefix: str, resolve: Resolve) -> APIRouter:
     router = APIRouter()
 
-    def unless_fixed() -> None:
+    def unless_fixed(decided_by: str | None) -> None:
         if decided_by is not None:
             raise HTTPException(403, f"This server's survey is fixed, as {decided_by} decided it.")
 
-    @router.get("/site/features")
-    def get_features() -> dict[str, Any]:
+    @router.get(f"{prefix}/features")
+    def get_features(site_id: str = "") -> dict[str, Any]:
+        survey, decided_by = resolve(site_id)
         found = _survey(survey)
         decisions = store.decisions(found.id)
         return {
@@ -53,9 +72,10 @@ def features_router(store: Store, survey: Path | None, decided_by: str | None = 
             "features": [_decided(f, decisions.get(f["id"])) for f in found.collection["features"]],
         }
 
-    @router.put("/site/features/{feature_id}")
-    def put_feature(feature_id: str, request: DecisionRequest) -> dict[str, Any]:
-        unless_fixed()
+    @router.put(f"{prefix}/features/{{feature_id}}")
+    def put_feature(feature_id: str, request: DecisionRequest, site_id: str = "") -> dict[str, Any]:
+        survey, decided_by = resolve(site_id)
+        unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
         feature = found.feature(feature_id)
         if feature is None:
@@ -63,9 +83,10 @@ def features_router(store: Store, survey: Path | None, decided_by: str | None = 
         store.decide(found.id, feature_id, request.decision)
         return _decided(feature, request.decision)
 
-    @router.put("/site/survey")
-    def put_survey(request: SurveyRequest) -> dict[str, Any]:
-        unless_fixed()
+    @router.put(f"{prefix}/survey")
+    def put_survey(request: SurveyRequest, site_id: str = "") -> dict[str, Any]:
+        survey, decided_by = resolve(site_id)
+        unless_fixed(decided_by)
         found = _survey(survey, request.survey_id)
         undecided = undecided_buildings(found, store.decisions(found.id))
         if request.buildings_complete and undecided:
