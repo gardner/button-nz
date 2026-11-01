@@ -8,7 +8,7 @@ import { framing, useMap } from "./BaseMap";
 
 /** Flies the surrounding map to `bounds` whenever they change, leaving
  * `right` pixels clear on the right (for a panel there), and frames them
- * again, at once, when the window changes shape (the panel's place changes
+ * again, at once, when the map changes shape (the panel's place changes
  * with it). */
 export function FitTo({
   bounds,
@@ -28,9 +28,13 @@ export function FitTo({
         maxZoom: 20,
       });
     fit(2500);
+    // On MapLibre's own resize, once the canvas has its new size: the
+    // window's event comes before it, and would fit the old canvas.
     const refit = () => fit(0);
-    window.addEventListener("resize", refit);
-    return () => window.removeEventListener("resize", refit);
+    map.on("resize", refit);
+    return () => {
+      map.off("resize", refit);
+    };
     // Fly again only when the bounds really change, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key, right]);

@@ -23,9 +23,13 @@ export class FakeMap {
     return this;
   }
 
-  off(type: string, layer: string, handler: Handler) {
+  off(type: string, layerOrHandler: string | Handler, handler?: Handler) {
+    const [layer, fn] =
+      typeof layerOrHandler === "function"
+        ? [undefined, layerOrHandler]
+        : [layerOrHandler, handler];
     this.handlers = this.handlers.filter(
-      (h) => !(h.type === type && h.layer === layer && h.handler === handler),
+      (h) => !(h.type === type && h.layer === layer && h.handler === fn),
     );
     return this;
   }

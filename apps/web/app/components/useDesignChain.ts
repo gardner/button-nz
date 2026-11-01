@@ -28,6 +28,8 @@ export function useDesignChain(pollMs: number, siteId?: string) {
   const [problem, setProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // The designs started here, oldest first (not those opened from a link).
+  const [made, setMade] = useState<readonly string[]>([]);
   const starting = useRef(false); // guards clicks before the re-render disables the forms
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
   const newest = chain.at(-1);
@@ -88,6 +90,7 @@ export function useDesignChain(pollMs: number, siteId?: string) {
         (job) => {
           setLost(false);
           setSelected(null); // show the new design
+          setMade((ids) => [...ids, job.id]);
           follow(job);
         },
         (e: Error) => setProblem(e.message),
@@ -128,6 +131,7 @@ export function useDesignChain(pollMs: number, siteId?: string) {
   return {
     chain,
     shown,
+    made,
     select: setSelected,
     problem,
     busy: submitting || working,
