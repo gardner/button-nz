@@ -105,7 +105,7 @@ From live runs on the demo site ([docs/results](results/README.md)):
 - **What it could mean** ([report](results/impact/report.md)): if a quarter
   of the 439 backyards with room added a flat, Reefton would have 109 more
   homes, 18% more than its 603 private dwellings in the 2023 Census,
-  housing 109 to 212 people. 42% of Reefton's households are one person:
+  housing 109 to 212 people. 42% of Reefton's households (with a stated size) are one person:
   small homes fit. That's a scenario, not a forecast.
 
 ## How it's built

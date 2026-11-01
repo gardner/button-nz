@@ -5,14 +5,17 @@ import subprocess
 RESULT_INPUTS = ("src", "data", "pyproject.toml", "uv.lock")  # what results depend on
 
 
-def code_commit() -> str:
-    """HEAD, marked if anything the results depend on differs from it, so a
-    result is never credited to a commit that wouldn't make it. Old results
-    deleted to make way for a run's don't count."""
+def code_commit(*inputs: str) -> str:
+    """HEAD, marked if anything the results depend on (``RESULT_INPUTS``, and
+    ``inputs``: other results read) differs from it, so a result is never
+    credited to a commit that wouldn't make it. Old results deleted to make
+    way for a run's don't count."""
 
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
 
     commit = git("rev-parse", "--short", "HEAD").strip()
-    changed = git("status", "--porcelain", "--untracked-files=no", "--", *RESULT_INPUTS).strip()
+    changed = git(
+        "status", "--porcelain", "--untracked-files=no", "--", *RESULT_INPUTS, *inputs
+    ).strip()
     return commit + (" with uncommitted changes" if changed else "")

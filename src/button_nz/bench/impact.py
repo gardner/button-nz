@@ -121,7 +121,8 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             for s in scenarios(count, census)
         ]
 
-    single = raw["household_size"]["counts"]["1"] / sum(raw["household_size"]["counts"].values())
+    sized = sum(raw["household_size"]["counts"].values())  # households with a stated size
+    single = raw["household_size"]["counts"]["1"] / sized
     return "\n".join(
         [
             "# Impact: what the town screen would mean for Reefton's housing",
@@ -131,7 +132,8 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             f"{raw['source']} (retrieved {raw['retrieved']}, {raw['licence']}): "
             f"{census.dwellings} private dwellings, {census.households:,} households and "
             f"{census.population:,} people in {census.year}; households average "
-            f"{census.household_size:.2f} people, and {single:.0%} are one person.",
+            f"{census.household_size:.2f} people, and {single:.0%} are one person (of the "
+            f"{sized} households whose size Stats NZ gives).",
             "",
             f"Of Reefton's {counts['properties']} residential properties, {counts['backyards']} "
             "have a LINZ building outline on them. Of those **backyards**, "
@@ -183,7 +185,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         json.loads(line) for line in TOWN_RESULTS.read_text(encoding="utf-8").splitlines() if line
     ]
     census, raw = Census.read(CENSUS_FILE)
-    commit = code_commit()
+    commit = code_commit(str(TOWN_RESULTS.relative_to(ROOT)))  # the screen's results too
     args.out_dir.mkdir(parents=True, exist_ok=True)
     text = report(property_counts(rows), census, raw, commit)
     (args.out_dir / "report.md").write_text(text, encoding="utf-8")

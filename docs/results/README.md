@@ -141,7 +141,8 @@ The report lists every limit.
 added one flat each: 439 of Reefton's 745 backyards (town screen, by
 title). Today's housing, from Stats NZ's 2023 Census for Reefton: 603
 private dwellings, 489 households, 1,026 people; households average 1.95
-people, and 42% are one person.
+people, and 42% are one person (both of the 462 households whose size
+Stats NZ gives).
 
 | Backyards adding a flat | Homes | More homes than today | People housed |
 |---|---|---|---|

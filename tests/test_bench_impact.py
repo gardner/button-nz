@@ -66,3 +66,11 @@ def test_backyards_are_said_to_be_properties_with_a_linz_outline() -> None:
     text = report(counts | {"empty_room": 1}, census, raw, "abc1234")
     assert "LINZ building outline" in text and "shed" in text
     assert "{" not in text  # every figure filled in
+
+
+def test_the_one_person_share_says_which_households_it_is_of() -> None:
+    """The size table covers 462 of the 489 households: 195/462 is 42%."""
+    census, raw = Census.read(CENSUS_FILE)
+    counts = {"properties": 4, "backyards": 3, "backyard_room": 2, "backyard_clear": 1}
+    text = report(counts | {"empty_room": 1}, census, raw, "abc1234")
+    assert "42% are one person (of the 462 households whose size Stats NZ gives)" in text
