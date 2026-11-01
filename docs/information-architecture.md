@@ -24,7 +24,8 @@ checked against the measured site.
 │   └── What is on the site (FeaturesPanel)
 │       ├── Fixed-survey note: who decided it, when the server has fixed it
 │       ├── One card per surveyed feature (#1 shed, #3 tree, …)
-│       │   ├── What SAM 3.1 found, its area, its height where the LiDAR has one,
+│       │   ├── What it is (SAM 3.1's concept, or "only the LiDAR saw it"), its area,
+│       │   │   its height where the LiDAR has one,
 │       │   │   and whether the LiDAR agrees
 │       │   └── Decision: Existing building · Keep clear · Ignore
 │       └── Every building on the site is listed (checkbox)
@@ -64,7 +65,7 @@ Each object, what it holds, and where it comes from.
 | Object | Holds | Source | Kept in |
 |---|---|---|---|
 | **Site** | Name, title, parcels, extent, rasters and vectors with licences and capture dates, open items | LINZ and Buller District Council open data, pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
-| **Survey** | Features SAM 3.1 found on the aerial photo, each a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
+| **Survey** | What SAM 3.1 found on the aerial photo, plus raised ground on the LiDAR that no label covers (concept "unlabelled", no score). Each is a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
 | **Attempt** | Verdict, feedback, LiDAR views asked for, the model's script and its measured result | The design loop | `DATA/button.db` (attempts), `DATA/runs/<job>/attempt-<n>/` |
@@ -80,10 +81,10 @@ The page and the docs use these words consistently:
 | Word | Means |
 |---|---|
 | Section | One parcel of land. A title can hold several |
-| Survey | What SAM 3.1 found on the site, before anyone decides what it is |
+| Survey | What SAM 3.1 found on the photo, and raised ground only the LiDAR saw, before anyone decides what it is |
 | Keep clear | An area no design may build on (a tree, a garden) |
 | Brief | What the owner wants, in their own words |
-| Attempt | One script Muse wrote, built and measured |
+| Attempt | One turn of the design loop: Muse writes a script, Blender builds it, the pass measures it. It can end at any of those steps |
 | Accepted | No check failed on the attempt. An "unknown" check doesn't stop acceptance, but is shown |
 | Revision | A change to an accepted design, in plain words |
 | Fits | A product's published outside footprint lies inside the accepted design's walls |

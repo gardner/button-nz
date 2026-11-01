@@ -21,7 +21,7 @@ https://button.nz. How they fit together on the page is in
 | **SAM 3.1 survey** | Segments the aerial photo one concept at a time (building, shed, tree, hedge, garden bed, driveway, path, car). Each mask becomes a polygon on the national grid | `perception/sam.py`, `perception/survey.py` |
 | **Checked against the LiDAR** | Where the LiDAR can see it, each feature's height is read from the nDSM, and its status says whether the photo and the LiDAR agree: "agrees", "conflict" (the owner decides), "unlabelled" (raised ground no label covers), "transient" (a parked car, not part of the site) or "unchecked" (no rule for the concept, or too small for 1 m cells, so no height). Nothing is guessed | `perception/features.py`, `perception/survey.py` |
 | **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `FeaturesPanel.tsx`, `api/features.py` |
-| **Buildings complete** | The owner says every building is listed. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `FeaturesPanel.tsx`, `perception/confirm.py` |
+| **Buildings complete** | The owner says every building is listed; the box can't be ticked while a possible building is undecided. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `FeaturesPanel.tsx`, `perception/confirm.py` |
 | **A fixed survey** | A public server can fix the survey as the owner decided it: shown with who decided, and closed to changes | `serve --survey-decided-by` |
 
 ## Designing
@@ -90,7 +90,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **Experiments from live runs** | Experiment A (does Muse understand LiDAR: 49% from the photo alone, 83% choosing its own views) and C (what feedback buys: 56% accepted one shot, 100% with the evaluator), and the design-model comparison | `bench/`, [results](results/README.md) |
-| **Sample artifacts** | Packs a design and the designs it revises (pass the latest revision), with the survey they were checked against and every verdict, and refuses partial or inconsistent samples | `button_nz.sample` |
+| **Sample artifacts** | Packs a design and the designs it revises (pass the latest revision), with the survey they were checked against and every verdict. It refuses an accepted attempt missing any of its files, a link, and a survey that doesn't match what the designs were checked against; failed attempts are packed as they are | `button_nz.sample` |
 | **Demo recording** | Records the live app in a headless browser and cuts it, with the speed shown wherever it's sped up | `scripts/demo/` |
 
 ## What it doesn't do
