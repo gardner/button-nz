@@ -17,6 +17,7 @@ from button_nz.catalogue import (
     fits,
     load_products,
     matches,
+    placement,
 )
 
 
@@ -130,6 +131,21 @@ def test_an_l_shaped_footprint_only_fits_what_its_arms_hold() -> None:
     corner = Polygon([(0, 0), (10, 0), (10, 4), (4, 4), (4, 10), (0, 10)])
     assert fits(corner, 9.9, 3.9)  # along one arm
     assert not fits(corner, 6, 6)  # its convex hull would take this
+
+
+def test_a_placement_is_the_product_standing_inside_the_footprint() -> None:
+    footprint = box(15, 5, angle=33, at=(1505940, 5336790))
+    placed = placement(footprint, 14.4, 4.2)
+    assert placed is not None
+    assert placed.area == pytest.approx(14.4 * 4.2, rel=1e-6)
+    assert footprint.buffer(0.02).covers(placed)  # inside, to the fit's tolerance
+    assert placement(footprint, 16.6, 4.2) is None
+
+
+def test_an_l_shaped_footprint_places_the_product_along_an_arm() -> None:
+    corner = Polygon([(0, 0), (10, 0), (10, 4), (4, 4), (4, 10), (0, 10)])
+    placed = placement(corner, 9.9, 3.9)
+    assert placed is not None and corner.buffer(0.02).covers(placed)
 
 
 def test_matches_are_the_fitting_products_largest_first() -> None:

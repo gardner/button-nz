@@ -53,14 +53,25 @@ def matches(footprint: Polygon, products: Iterable[Product]) -> Matches:
 def fits(footprint: Polygon, length: float, width: float) -> bool:
     """Whether a ``length`` x ``width`` rectangle fits inside ``footprint``,
     square to one of its walls."""
+    return placement(footprint, length, width) is not None
+
+
+def placement(footprint: Polygon, length: float, width: float) -> Polygon | None:
+    """Where a ``length`` x ``width`` rectangle stands inside ``footprint``,
+    square to one of its walls, in the footprint's own coordinates; None if it
+    doesn't fit. Footprints are moved to the origin first: rotating national
+    grid coordinates about (0, 0) loses precision."""
     x0, y0, *_ = footprint.bounds
-    footprint = translate(footprint, -x0, -y0)
-    for angle in _wall_angles(footprint):
-        turned = rotate(footprint, -angle, origin=(0, 0), use_radians=True)
+    moved = translate(footprint, -x0, -y0)
+    for angle in _wall_angles(moved):
+        turned = rotate(moved, -angle, origin=(0, 0), use_radians=True)
         for along, across in ((length, width), (width, length)):
-            if _room_for(turned, along - TOLERANCE_M, across - TOLERANCE_M):
-                return True
-    return False
+            corner = _room_for(turned, along - TOLERANCE_M, across - TOLERANCE_M)
+            if corner is not None:
+                placed = box(corner[0], corner[1], corner[0] + along, corner[1] + across)
+                back = rotate(placed, angle, origin=(0, 0), use_radians=True)
+                return translate(back, x0, y0)
+    return None
 
 
 def _wall_angles(footprint: Polygon) -> list[float]:
@@ -77,11 +88,12 @@ def _wall_angles(footprint: Polygon) -> list[float]:
     return list(angles.values())
 
 
-def _room_for(footprint: Polygon, length: float, width: float) -> bool:
+def _room_for(footprint: Polygon, length: float, width: float) -> tuple[float, float] | None:
     """Whether an axis-aligned ``length`` x ``width`` rectangle fits in ``footprint``:
     somewhere for its corner inside the footprint where it meets no wall. Where it
     would meet one is each edge swept by the rectangle, held by that corner. A
-    corner found there counts only once the rectangle placed at it is confirmed."""
+    corner found there counts only once the rectangle placed at it is confirmed.
+    Returns that corner, or None."""
     corners = ((0.0, 0.0), (length, 0.0), (length, width), (0.0, width))
     walls = union_all(
         [
@@ -97,8 +109,8 @@ def _room_for(footprint: Polygon, length: float, width: float) -> bool:
             break  # lines and points: overlay artefacts, never room
         corner = part.representative_point()
         if holder.covers(box(corner.x, corner.y, corner.x + length, corner.y + width)):
-            return True
-    return False
+            return (float(corner.x), float(corner.y))
+    return None
 
 
 def _edges(polygon: Polygon) -> Iterator[Sequence[tuple[float, float]]]:
