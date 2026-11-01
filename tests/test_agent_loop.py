@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from button_nz.agent.conversation import ModelReplyError, Observe
-from button_nz.agent.loop import DesignResult, DesignSite, Revision, Turn, design
+from button_nz.agent.loop import DesignResult, DesignSite, Phase, Revision, Step, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.evaluation import SiteContext, Status
@@ -346,3 +346,28 @@ def test_earlier_changes_are_already_built_and_only_the_latest_is_asked_for() ->
     assert "already includes" in already and "Move it 3 m further back." in already
     assert "Make it bigger." in now and "Move it" not in now
     assert Revision("s", "f", ("Make it bigger.",)).request == "Make it bigger."
+
+
+def test_each_step_is_reported_as_it_starts(site: DesignSite, tmp_path: Path) -> None:
+    steps: list[Step] = []
+    model = ScriptedModel(SLOPE, "near", "good")
+    design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        3,
+        runner=fake_runner,
+        max_observations=2,
+        on_step=steps.append,
+    )
+    assert [(s.attempt, s.phase, s.detail) for s in steps] == [
+        (1, Phase.THINKING, ""),
+        (1, Phase.OBSERVING, "render_height_map"),
+        (1, Phase.THINKING, ""),
+        (1, Phase.RENDERING, ""),
+        (1, Phase.CHECKING, ""),
+        (2, Phase.THINKING, ""),
+        (2, Phase.RENDERING, ""),
+        (2, Phase.CHECKING, ""),
+    ]
