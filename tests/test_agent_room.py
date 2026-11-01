@@ -1,8 +1,10 @@
 """Tests for button_nz.agent.room: where a dwelling fits, as rectangles."""
 
-from shapely import LineString, Polygon, box
+import re
 
-from button_nz.agent.room import MIN_WIDTH_M, largest_rectangles, room_of
+from shapely import LineString, Point, Polygon, box
+
+from button_nz.agent.room import MIN_WIDTH_M, largest_rectangles, rectangles_text, room_of
 
 TITLE = ((0.0, 0.0), (20.0, 0.0), (20.0, 30.0), (0.0, 30.0), (0.0, 0.0))
 
@@ -72,3 +74,23 @@ def test_a_long_narrow_strip_doesnt_hide_a_usable_block() -> None:
     block = box(10, 0, 19, 10)  # 90 m²
     found = largest_rectangles(strip.union(block), angle_deg=0.0, count=2)
     assert found and found[0].width_m >= 8.5
+
+
+def test_a_kept_corner_poking_into_a_cell_never_spoils_the_largest_rectangle() -> None:
+    # A diamond kept area whose lowest vertex pokes 0.01 m into the open room
+    # inside one grid cell, missing all of its corners.
+    room = box(2, 2, 18, 28)
+    diamond = Polygon([(10.1, 14.99), (12, 17), (10.1, 19), (8, 17)])
+    found = largest_rectangles(room.difference(diamond), angle_deg=0.0, count=2)
+    assert found, "the room is mostly open: something fits"
+    for rect in found:
+        assert rect.polygon.within(room.difference(diamond))
+    assert found[0].polygon.area >= 16 * 12 - 16  # the open part below it, about 16 x 12.9
+
+
+def test_printed_corners_lie_in_the_room_after_rounding() -> None:
+    room = box(2.0024, 2.0024, 17.9976, 27.9976)  # a real setback's 2.4 mm of slack
+    text = rectangles_text(largest_rectangles(room, angle_deg=0.0, count=1), lambda p: p)
+    pairs = re.findall(r"\(([-\d.]+), ([-\d.]+)\)", text)
+    corners = [(float(x), float(y)) for x, y in pairs]
+    assert corners and all(room.covers(Point(x, y)) for x, y in corners)

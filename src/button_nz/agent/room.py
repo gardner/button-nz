@@ -25,6 +25,7 @@ from button_nz.sites.heights import canopy
 
 STEP_M = 0.25  # the grid the rectangles are found on
 QUAD_SEGS = 16
+INSET_M = 0.01  # printed corners are drawn in this far: rounding never takes them out
 MIN_WIDTH_M = 3.0  # narrower than this, no dwelling fits: not offered
 
 
@@ -91,8 +92,6 @@ def largest_rectangles(room: BaseGeometry, angle_deg: float, count: int = 2) -> 
         inside[row0 : row0 + rows, col0 : col0 + cols] = False
         x0, y0 = west + col0 * STEP_M, south + row0 * STEP_M
         flat = box(x0, y0, x0 + cols * STEP_M, y0 + rows * STEP_M)
-        if not flat.within(edged):  # a notch narrower than a cell: never offered
-            continue
         polygon = rotate(flat, angle_deg, origin=centre)
         sides = sorted((cols * STEP_M, rows * STEP_M))
         found.append(Rectangle(polygon, sides[1], sides[0]))
@@ -102,13 +101,14 @@ def largest_rectangles(room: BaseGeometry, angle_deg: float, count: int = 2) -> 
 def _whole_cells(
     room: BaseGeometry, xs: NDArray[np.float64], ys: NDArray[np.float64]
 ) -> NDArray[np.bool_]:
-    """The cells (centred at ``xs`` x ``ys``) with all four corners in ``room``."""
+    """The cells (centred at ``xs`` x ``ys``) lying wholly in ``room``: a kept
+    area's corner poking into a cell between its corners rules it out too."""
     half = STEP_M / 2
     cx, cy = np.meshgrid(xs, ys)
-    inside: NDArray[np.bool_] = np.ones(cx.shape, dtype=bool)
-    for dx, dy in ((-half, -half), (half, -half), (half, half), (-half, half)):
-        inside &= shapely.contains_xy(room, cx + dx, cy + dy)
-    return inside
+    cells = shapely.box(cx - half, cy - half, cx + half, cy + half)
+    shapely.prepare(room)
+    covered: NDArray[np.bool_] = shapely.covers(room, cells)
+    return covered
 
 
 def _largest(grid: NDArray[np.bool_], least: int) -> tuple[int, int, int, int] | None:
@@ -149,14 +149,23 @@ def describe_room(site: SiteContext, local: Callable[[Point], Point]) -> str:
         "round each). Its largest rectangles, for the whole outline seen from above "
         "(eaves included), local x, y corners:"
     ]
-    for i, rect in enumerate(found, 1):
-        corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in _corners(rect.polygon, local))
-        lines.append(f"  - {i}: {rect.length_m:.1f} x {rect.width_m:.1f} m: {corners}")
+    lines.append(rectangles_text(found, local))
     lines.append(
         "  Prefer a simple rectangular plan placed in this room; move the dwelling rather "
         "than cut a corner off it to fit, unless the brief asks for another shape."
     )
     return "\n".join(lines) + "\n"
+
+
+def rectangles_text(found: Sequence[Rectangle], local: Callable[[Point], Point]) -> str:
+    """Each rectangle's size and local corners, drawn in by ``INSET_M`` so a
+    corner rounded to the centimetre still lies in the room."""
+    lines: list[str] = []
+    for i, rect in enumerate(found, 1):
+        drawn = rect.polygon.buffer(-INSET_M, join_style="mitre")
+        corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in _corners(drawn, local))
+        lines.append(f"  - {i}: {rect.length_m:.1f} x {rect.width_m:.1f} m: {corners}")
+    return "\n".join(lines)
 
 
 def _corners(polygon: Polygon, local: Callable[[Point], Point]) -> list[Point]:
