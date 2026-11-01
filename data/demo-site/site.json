@@ -54,10 +54,10 @@
   },
   "vectors": {
     "parcels": {
-      "title": "Buller District Council property parcels",
+      "title": "Buller District Council property parcels: LINZ NZ Primary Parcels, which they match to 7 mm",
       "service": "https://services6.arcgis.com/Whb8vGWSmNkavSpL/arcgis/rest/services/BDC_Property_Master_Public_View/FeatureServer/1",
       "licence": "CC-BY-4.0",
-      "attribution": "Buller District Council; LINZ, Crown copyright reserved"
+      "attribution": "Toitū Te Whenua Land Information New Zealand, NZ Primary Parcels (Crown copyright); republished by Buller District Council, whose layer states no licence of its own"
     },
     "building_outlines": {
       "title": "LINZ NZ Building Outlines",

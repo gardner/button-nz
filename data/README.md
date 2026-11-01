@@ -37,6 +37,17 @@ Elevation is NZTM2000 horizontally and NZVD2016 vertically (EPSG:7839). The
 vertical datum is not recorded in the GeoTIFFs; LINZ's elevation specification
 states it.
 
+## Parcel licence
+
+The parcels come from Buller District Council's property layer, which states
+no licence on its ArcGIS item. They are LINZ's NZ Primary Parcels: the four
+demo parcels have the same ids and match LINZ's
+[`LINZ_NZ_Primary_Parcels`](https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer)
+to within 7 mm (checked 1 November 2026). LINZ publishes them under CC BY 4.0.
+BDC's zone layer, which the town screen uses to choose residential sections,
+states no licence either; the screen publishes counts and parcel outlines,
+not the zones.
+
 ## Still open
 
 - The owner's own survey of the site. The owner says nothing is built on it,
