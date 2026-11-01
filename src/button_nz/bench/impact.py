@@ -13,11 +13,12 @@ in ``data/census/``. The shares are scenarios, not forecasts.
 import argparse
 import json
 import math
-import subprocess
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from button_nz.bench.provenance import code_commit
 
 ROOT = Path(__file__).resolve().parents[3]
 TOWN_RESULTS = ROOT / "docs" / "results" / "town-screen" / "results.jsonl"
@@ -53,7 +54,7 @@ def _mean_size(counts: Mapping[str, int]) -> float:
     if counts.get("8+", 0):
         raise ValueError("households of eight or more: their size isn't known")
     sized = {int(k): v for k, v in counts.items() if k != "8+"}
-    return round(sum(k * v for k, v in sized.items()) / sum(sized.values()), 2)
+    return sum(k * v for k, v in sized.items()) / sum(sized.values())  # rounded when shown
 
 
 @dataclass(frozen=True)
@@ -67,9 +68,10 @@ class Scenario:
 
 def property_counts(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:
     """Properties counted once each (a title of one or more parcels):
-    - backyards: properties with a building, where a flat would be a second
-      home; with room on LINZ's outlines (eaves allowed), and room also clear
-      on the LiDAR;
+    - backyards: properties with a LINZ building outline, taken to hold a home
+      a flat would be a second one beside (the outlines don't say which
+      building is a home, so the report says so); with room on LINZ's
+      outlines (eaves allowed), and room also clear on the LiDAR;
     - empty sections with room, where a dwelling would be a first home, which
       was allowed before the exemption: reported apart, never as flats."""
     built: dict[int, bool] = {}
@@ -129,11 +131,12 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             f"{raw['source']} (retrieved {raw['retrieved']}, {raw['licence']}): "
             f"{census.dwellings} private dwellings, {census.households:,} households and "
             f"{census.population:,} people in {census.year}; households average "
-            f"{census.household_size:.1f} people, and {single:.0%} are one person.",
+            f"{census.household_size:.2f} people, and {single:.0%} are one person.",
             "",
             f"Of Reefton's {counts['properties']} residential properties, {counts['backyards']} "
-            f"have a building on them. Of those **backyards**, {counts['backyard_room']} have "
-            "room for a real prefab on LINZ's building outlines (with 0.6 m eaves), and "
+            "have a LINZ building outline on them. Of those **backyards**, "
+            f"{counts['backyard_room']} have room for a real prefab on LINZ's building "
+            "outlines (with 0.6 m eaves), and "
             f"{counts['backyard_clear']} also clear of everything over 2 m on the LiDAR. A flat "
             "there is a second home beside the first: what the exemption adds.",
             "",
@@ -156,7 +159,11 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             "- **The shares are scenarios, not forecasts.** Nothing here says how many "
             "owners would build.",
             "- **People housed** runs from one person a flat to Reefton's average household "
-            f"of {census.household_size:.1f} (from Stats NZ's households by size).",
+            f"of {census.household_size:.2f} (from Stats NZ's households by size).",
+            "- **A backyard is a property with a LINZ building outline**, taken to hold a "
+            "home. The outlines don't say which building is a home: a property whose only "
+            "outline is a garage or shed counts as a backyard, and a house built since the "
+            "2015–16 aerial photos is missing, so its property counts as an empty section.",
             "- **The areas differ.** The census's Reefton (a statistical area) and the town "
             "screen's Residential zones aren't the same boundary, so the increase is "
             "indicative.",
@@ -176,9 +183,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         json.loads(line) for line in TOWN_RESULTS.read_text(encoding="utf-8").splitlines() if line
     ]
     census, raw = Census.read(CENSUS_FILE)
-    commit = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
-    ).stdout.strip()
+    commit = code_commit()
     args.out_dir.mkdir(parents=True, exist_ok=True)
     text = report(property_counts(rows), census, raw, commit)
     (args.out_dir / "report.md").write_text(text, encoding="utf-8")
