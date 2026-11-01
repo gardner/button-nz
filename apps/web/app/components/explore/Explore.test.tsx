@@ -15,6 +15,7 @@ import {
 } from "@/lib/fixtures-sites";
 
 import { FakeMap } from "../map/fakeMap";
+import { REEFTON } from "../map/BaseMap";
 import { Explore } from "./Explore";
 
 vi.mock("maplibre-gl", async () => ({
@@ -129,6 +130,15 @@ describe("Explore", () => {
     panel(440, 294);
     expect(await fly()).toMatchObject({ left: 16 + 440 + 24 });
     vi.restoreAllMocks();
+  });
+
+  it("frames the town again once its headline is in the panel", async () => {
+    serve({ "GET /api/town/reefton": [TOWN] });
+    render(<Explore pollMs={5} />);
+    expect(
+      await screen.findByText(/sections have room for a real prefab/),
+    ).toBeTruthy();
+    await vi.waitFor(() => expect(FakeMap.last?.fitted).toEqual([REEFTON]));
   });
 
   it("frames the site again when the map changes shape", async () => {
