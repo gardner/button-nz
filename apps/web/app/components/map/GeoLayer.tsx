@@ -29,6 +29,21 @@ export interface GeoLayerProps<P> {
   extrusion?: Paint<"fill-extrusion">;
   /** A click on one of its features, with that feature's properties. */
   onClick?: (properties: P, lngLat: [number, number]) => void;
+  /** The credit for its data, shown in the map's attribution while it is. */
+  attribution?: string;
+}
+
+const NOTHING: FeatureCollection<null> = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+/** A credit in the map's attribution while this is mounted, for what the
+ * map shows that no layer of ours draws (a town's photos in the basemap):
+ * MapLibre credits only sources with a layer on the map, so it is one,
+ * empty. */
+export function Credit({ id, text }: { id: string; text: string }) {
+  return <GeoLayer id={id} data={NOTHING} line={{}} attribution={text} />;
 }
 
 /** One GeoJSON layer on the surrounding map: added once, its data replaced
@@ -40,6 +55,7 @@ export function GeoLayer<P>({
   line,
   extrusion,
   onClick,
+  attribution,
 }: GeoLayerProps<P>) {
   const map = useMap();
   const click = useRef(onClick);
@@ -55,6 +71,7 @@ export function GeoLayer<P>({
       type: "geojson",
       data: toGeoJSON(data),
       promoteId: "key",
+      ...(attribution && { attribution }),
     });
     if (fill)
       map.addLayer({ id: `${id}-fill`, type: "fill", source: id, paint: fill });
@@ -98,7 +115,7 @@ export function GeoLayer<P>({
     };
     // Added once; its data and look follow in the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id]);
+  }, [map, id, attribution]);
 
   useEffect(() => {
     (map?.getSource(id) as GeoJSONSource | undefined)?.setData(toGeoJSON(data));

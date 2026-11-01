@@ -15,7 +15,7 @@ import {
 } from "@/lib/fixtures-sites";
 
 import { FakeMap } from "../map/fakeMap";
-import { REEFTON } from "../map/BaseMap";
+import { ATTRIBUTION, REEFTON } from "../map/BaseMap";
 import { Explore } from "./Explore";
 
 vi.mock("maplibre-gl", async () => ({
@@ -409,6 +409,44 @@ describe("Explore", () => {
     expect(
       fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
     ).toHaveLength(0);
+  });
+
+  it("credits Reefton's aerial photos throughout, a ready site or not", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      "GET /api/addresses": [ADDRESSES],
+      "POST /api/sites": [SITE_BUILDING],
+      "GET /api/sites/35-victory-street-reefton": [SITE_BUILDING, SITE_READY],
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.sources.get("town-credit")?.attribution).toContain(
+        "Buller District Council",
+      ),
+    );
+    expect(ATTRIBUTION).not.toContain("Reefton");
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /35 Victory Street, Reefton/ }),
+    );
+    // While it builds, the map still shows the town's photos.
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Reading the LiDAR",
+    );
+    expect(FakeMap.last?.sources.has("town-credit")).toBe(true);
+    expect(await screen.findByText("Your site")).toBeTruthy();
+    // The map can be panned back to Reefton from any site.
+    expect(FakeMap.last?.sources.has("town-credit")).toBe(true);
+  });
+
+  it("credits Reefton's photos before the town's sections have come", async () => {
+    serve({}); // the town never answers
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.sources.has("town-credit")).toBe(true),
+    );
   });
 
   it("leaves cleanly, after the map itself is gone", async () => {

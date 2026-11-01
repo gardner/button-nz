@@ -12,7 +12,7 @@ import {
 } from "@/lib/sites";
 
 import { BaseMap, REEFTON, framing, unpad, useMap } from "../map/BaseMap";
-import { GeoLayer, type Paint } from "../map/GeoLayer";
+import { Credit, GeoLayer, type Paint } from "../map/GeoLayer";
 import {
   CONTEXT_HEIGHT,
   OWN_HEIGHT,
@@ -38,6 +38,11 @@ const TOWN_FILL: Paint<"fill"> = {
   ],
   "fill-opacity": ["match", ["get", "category"], "none", 0.2, 0.55],
 };
+
+/** Reefton's urban aerial photos, under the town's sections. */
+const TOWN_CREDIT =
+  "Reefton: Buller 0.075m Urban Aerial Photos (2024-2025): Toitū Te Whenua " +
+  "Land Information New Zealand, Aerial Surveys, Buller District Council, CC BY 4.0";
 
 /** Once a site is chosen, the town steps back behind it. */
 const TOWN_FILL_BEHIND: Paint<"fill"> = { ...TOWN_FILL, "fill-opacity": 0.12 };
@@ -91,6 +96,10 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
           />
         )}
         <Camera site={site} town={town.data} three={three} />
+        {/* Reefton's photos are credited always: the map can be panned
+            back to the town from any site, and naming a provider whose
+            photos are off screen is no harm. A ready site adds its own. */}
+        <Credit id="town-credit" text={TOWN_CREDIT} />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"

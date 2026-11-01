@@ -52,7 +52,22 @@ export const SITE_READY = {
   address_nztm: [1505941.6, 5336793.7],
   extent: [1505926.13, 5336777.48, 1505969.74, 5336822.22],
   parcels: { type: "FeatureCollection", features: [] },
-  sources: {},
+  sources: {
+    dem: {
+      title: "West Coast LiDAR 1m DEM (2020-2024)",
+      licence: "CC-BY-4.0",
+      attribution:
+        "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, West Coast Regional Council",
+      capture: null,
+    },
+    aerial: {
+      title: "Buller 0.075m Urban Aerial Photos (2024-2025)",
+      licence: "CC-BY-4.0",
+      attribution:
+        "Toitū Te Whenua Land Information New Zealand, Aerial Surveys, Buller District Council",
+      capture: null,
+    },
+  },
   open_items: [],
   id: "35-victory-street-reefton",
   address: "35 Victory Street, Reefton",

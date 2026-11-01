@@ -91,11 +91,13 @@ export function SiteLayers({
   map,
   selected,
   three = false,
+  credit,
   onFeature,
 }: {
   map: SiteMap;
   selected: string | null;
   three?: boolean;
+  credit?: string; // the site's own data's providers
   onFeature: (feature: SurveyedFeature) => void;
 }) {
   const picked = {
@@ -107,6 +109,7 @@ export function SiteLayers({
       <GeoLayer
         id="site-setback"
         data={map.setback}
+        attribution={credit}
         fill={{ "fill-color": SITE_COLOURS.setback, "fill-opacity": 0.3 }}
       />
       <GeoLayer
