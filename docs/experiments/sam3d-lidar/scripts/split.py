@@ -10,6 +10,8 @@ usage: split.py LAZ SITE_JSON OUT_DIR
   lowest ground (class 2) training point. Empty cells (held-out blocks, gaps)
   are interpolated linearly from the training cells around them, never from
   held-out points. The grid matches LINZ's 1 m rasters (whole metres).
+- Both rasters carry the compound CRS NZTM2000 + NZVD2016 height, so their
+  values read as orthometric heights, not an unspecified Z.
 """
 
 import json
@@ -24,6 +26,7 @@ from scipy.interpolate import griddata
 
 BLOCK_M, HELD_OUT, SEED = 2.0, 0.20, 125
 NOISE = (7, 18)
+CRS = "EPSG:2193+7839"  # NZTM2000 + NZVD2016 height, LINZ's own
 
 
 def grid(x, y, z, bbox, reduce):
@@ -56,7 +59,7 @@ def grid(x, y, z, bbox, reduce):
 def write(path, data, bbox):
     west, _, _, north = bbox
     with rasterio.open(path, "w", driver="GTiff", width=data.shape[1], height=data.shape[0],
-                       count=1, dtype="float32", crs="EPSG:2193",
+                       count=1, dtype="float32", crs=CRS,
                        transform=from_origin(west, north, 1.0, 1.0), nodata=np.nan) as dst:
         dst.write(data, 1)
 
