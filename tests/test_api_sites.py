@@ -1,6 +1,7 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -11,6 +12,8 @@ from httpx2 import Response  # what TestClient returns
 from shapely import Point
 from shapely.geometry import shape
 
+from button_nz.agent.conversation import Model
+from button_nz.agent.loop import Runner
 from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
@@ -24,7 +27,14 @@ from test_sites_build import sources
 
 
 class Server:
-    def __init__(self, tmp_path: Path, lidar: bool = True, cap: int | None = None) -> None:
+    def __init__(
+        self,
+        tmp_path: Path,
+        lidar: bool = True,
+        cap: int | None = None,
+        model: Callable[[], Model] = scripted,
+        runner: Runner = fake_runner,
+    ) -> None:
         self.store = Store(tmp_path / "button.db")
         self.sites_store = SiteStore(tmp_path / "button.db")
         found = sources(lidar=lidar)
@@ -44,8 +54,11 @@ class Server:
             None if cap is None else DailyCap(self.sites_store.created_since, cap, "site builds")
         )
         service = SiteService(sites, self.builder, found.addresses, daily)
-        worker = Worker(self.store, synthetic_site, scripted, tmp_path / "runs", fake_runner)
-        self.client = TestClient(create_app(self.store, worker, load_demo_site(), sites=service))
+        self.worker = Worker(
+            self.store, synthetic_site, model, tmp_path / "runs", runner, site_for=sites.design_site
+        )
+        app = create_app(self.store, self.worker, load_demo_site(), sites=service)
+        self.client = TestClient(app)
 
     def build(self, address_id: int = 7) -> dict[str, Any]:
         created = self.client.post("/sites", json={"address_id": address_id})

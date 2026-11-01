@@ -22,6 +22,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
+from button_nz.agent.demo import design_site
+from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
@@ -64,6 +66,7 @@ class Sites:
         self.demo, self.demo_survey, self.demo_aerial = demo, demo_survey, demo_aerial
         self.demo_decided_by = demo_decided_by
         self._load = lru_cache(maxsize=64)(load_demo_site)
+        self._designs: dict[str, DesignSite] = {}  # read once each: the worker's thread only
 
     def record(self, site_id: str) -> SiteRecord:
         try:
@@ -76,6 +79,13 @@ class Sites:
         if record.status is not SiteStatus.READY:
             raise HTTPException(409, f"site {site_id} is {record.status}, not ready")
         return self.demo if site_id == DEMO_SITE_ID else self._load(self.sites_dir / site_id)
+
+    def design_site(self, site_id: str) -> tuple[DesignSite, Path | None]:
+        """Where a design on the site is made, and its survey file (``Worker.site_for``)."""
+        path, _ = self.survey(site_id)
+        if site_id not in self._designs:
+            self._designs[site_id] = design_site(self.site(site_id))
+        return self._designs[site_id], path
 
     def survey(self, site_id: str) -> tuple[Path | None, str | None]:
         """The site's survey file, and who fixed it (None: open)."""
