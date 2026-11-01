@@ -121,9 +121,9 @@ def address_on_section(
     on_title = title_parcels(parcels, found[0])
     if not on_title:  # a road, a reserve: find_title would refuse its address too
         raise NotASection(f"parcel {parcel_id} has no record of title: it isn't a property")
-    middle = section.representative_point()
-    mine, _ = block(on_title, (float(middle.x), float(middle.y)))
-    own = unary_union([section, *(_shape(p) for p in mine)])
+    mine = _block_of(section, on_title)
+    own = unary_union([_shape(p) for p in mine])  # the block alone: not the section's far pieces
+    here = section.intersection(own)
     west, south, east, north = own.bounds
     if len(mine) > MAX_PARCELS or max(east - west, north - south) > MAX_SIDE_M:
         raise NotASection(
@@ -132,10 +132,10 @@ def address_on_section(
         )
     land = unary_union([section, *(_shape(p) for p in on_title)])
     on = [
-        (not section.covers(point), not own.covers(point), section.centroid.distance(point), a)
+        (not own.covers(point), not here.covers(point), here.centroid.distance(point), a)
         for point, a in _addresses_in(addresses, land)
     ]
-    return min(on)[3] if on else None  # its own, its block's, then the nearest
+    return min(on)[3] if on else None  # on its block (its own first), then the nearest
 
 
 def _shape(feature: Feature) -> BaseGeometry:
@@ -143,16 +143,28 @@ def _shape(feature: Feature) -> BaseGeometry:
 
 
 def title_key(parcels: FeatureLayer, parcel_id: int) -> int:
-    """The smallest id of a parcel on exactly parcel ``parcel_id``'s titles:
-    what a title site with no address is kept by, whichever of them was
-    tapped. A parcel on other titles too (a shared access lot) would read
-    back more titles when the site is built, so it can't be the key."""
+    """The smallest id of a parcel on exactly parcel ``parcel_id``'s titles, in
+    its block of the title (``blocks.block``): what a title site with no
+    address is kept by, whichever of them was tapped. A parcel on other
+    titles too (a shared access lot) would read back more titles when the
+    site is built, so it can't be the key; nor can one on a block across a
+    gap, which the site wouldn't hold.
+
+    Known limit: a key parcel cut into pieces on both blocks (a lane through
+    it) builds the block its own middle falls in."""
     found = parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise NoSuchSection(parcel_id)
     titles = set(titles_of(found[0]))
-    same = [p for p in title_parcels(parcels, found[0]) if set(titles_of(p)) == titles]
+    mine = _block_of(_shape(found[0]), title_parcels(parcels, found[0]))
+    same = [p for p in mine if set(titles_of(p)) == titles]
     return min([int(parcel_id), *(int(_props_of(p)["id"]) for p in same)])
+
+
+def _block_of(section: BaseGeometry, on_title: list[Feature]) -> list[Feature]:
+    """The pieces of the title's block that holds the section's middle."""
+    middle = section.representative_point()
+    return block(on_title, (float(middle.x), float(middle.y)))[0]
 
 
 def _props_of(feature: Feature) -> dict[str, Any]:

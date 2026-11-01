@@ -267,3 +267,54 @@ def test_a_tapped_block_is_measured_not_the_whole_title_a_road_cuts() -> None:
     asked: list[str] = []
     addresses, parcels = _section_layers([near, far], asked)
     assert address_on_section(addresses, parcels, 1) == 7  # the fake's address, on A
+
+
+def _addresses(points: list[tuple[int, list[float]]]) -> FeatureLayer:
+    """An address layer serving these addresses, whatever envelope is asked."""
+    features = [
+        {
+            "type": "Feature",
+            "properties": {"address_id": aid, "full_address": f"{aid} Test Street"},
+            "geometry": {"type": "Point", "coordinates": xy},
+        }
+        for aid, xy in points
+    ]
+    body = json.dumps({"type": "FeatureCollection", "features": features})
+    client = httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200, text=body)))
+    return FeatureLayer(URL, "CC-BY-4.0", "LINZ", client)
+
+
+def _multi(pid: int, rings: list[list[list[float]]], titles: str) -> dict[str, Any]:
+    found = parcel(pid, rings[0], titles)
+    found["geometry"] = {"type": "MultiPolygon", "coordinates": [[r] for r in rings]}
+    return found
+
+
+def _sq(x: float, y: float, side: float) -> list[list[float]]:
+    return [[x, y], [x + side, y], [x + side, y + side], [x, y + side], [x, y]]
+
+
+def test_an_address_on_the_tapped_block_beats_one_on_the_sections_far_piece() -> None:
+    """Parcel 1: a big piece here and a small one across a lane. Its block here
+    holds parcel 2's address (8); the far piece holds 9. The site is built here."""
+    one = _multi(1, [_sq(X0, Y0, 30), _sq(X0, Y0 + 40, 10)], "354613")
+    two = parcel(2, _sq(X0 + 30, Y0, 30), "354613")
+    parcels = layers([one, two])["LINZ_NZ_Primary_Parcels"]
+    addresses = _addresses([(9, [X0 + 5, Y0 + 45]), (8, [X0 + 45, Y0 + 15])])
+    assert address_on_section(addresses, parcels, 1) == 8
+
+
+def test_a_far_piece_of_the_tapped_section_doesnt_make_its_block_too_big() -> None:
+    one = _multi(1, [_sq(X0, Y0, 30), _sq(X0 + MAX_SIDE_M + 100, Y0, 10)], "354613")
+    parcels = layers([one])["LINZ_NZ_Primary_Parcels"]
+    assert address_on_section(_addresses([(8, [X0 + 15, Y0 + 15])]), parcels, 1) == 8
+
+
+def test_a_title_site_is_keyed_by_a_parcel_on_the_tapped_block() -> None:
+    """Lot 1 and Lot 2 on one title, a neighbour between: tapping Lot 2 keys
+    Lot 2's block, not Lot 1 (the title's smallest id) across the gap."""
+    small = parcel(1, _sq(X0, Y0, 10), "354613")
+    large = parcel(2, _sq(X0 + 30, Y0, 40), "354613")
+    parcels = layers([small, large])["LINZ_NZ_Primary_Parcels"]
+    assert title_key(parcels, 2) == 2
+    assert title_key(parcels, 1) == 1
