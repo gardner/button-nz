@@ -62,7 +62,10 @@ class TownMaps:
         with self._lock:
             if not path.is_file():
                 self.cache.mkdir(parents=True, exist_ok=True)
-                path.write_text(json.dumps(self._build(results)), encoding="utf-8")
+                layer = json.dumps(self._build(results))
+                partial = path.with_suffix(".partial")  # a cut-off write never looks whole
+                partial.write_text(layer, encoding="utf-8")
+                partial.replace(path)
         found: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
         return found
 

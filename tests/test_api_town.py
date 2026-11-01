@@ -109,6 +109,19 @@ def test_a_broken_screen_is_an_error_not_a_missing_town(tmp_path: Path) -> None:
         client.get("/town/reefton")
 
 
+def test_a_layer_cut_off_mid_write_is_never_served(tmp_path: Path) -> None:
+    def broken(*args: object, **kwargs: object) -> int:
+        raise OSError("disk full")
+
+    client = town_app(tmp_path, [])
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(Path, "write_text", broken)
+        with pytest.raises(OSError):
+            client.get("/town/reefton")
+    assert not list((tmp_path / "town").glob("*.geojson"))  # nothing half-made to read later
+    assert len(client.get("/town/reefton").json()["features"]) == 3
+
+
 def test_an_unknown_town_is_not_found(tmp_path: Path) -> None:
     assert town_app(tmp_path, []).get("/town/atlantis").status_code == 404
 
