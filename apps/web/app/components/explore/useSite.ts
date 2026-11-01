@@ -5,11 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { passing } from "@/lib/fields";
 import { type SiteState, createSite, getSite } from "@/lib/sites";
 
-/** The site being explored: started from an address or a clicked section,
- * followed while the server builds it, and kept in the address bar
- * (`?site=<id>`) so the page can be shared and reopened. A poll that fails
- * for a moment (a 502 while the API restarts, a timeout) is retried; one the
- * API refuses for good stops the following, with its reason shown. */
+/** A site asked for and not yet answered: the request (safe to repeat: one
+ * site per address), the pick it answers, and how often it has been asked. */
+interface Asking {
+  request: () => Promise<SiteState>;
+  ask: number;
+  tries: number;
+}
+
+/** The site being explored: started from an address (or opened from a
+ * link), followed while the server builds it, and kept in the address bar
+ * (`?site=<id>`) so the page can be shared and reopened. A pick or a poll
+ * that fails for a moment (a 502 while the API restarts, a dropped
+ * connection) is asked again; one the API refuses for good stops, with its
+ * reason shown. */
 export function useSite(pollMs: number) {
   const [site, setSite] = useState<SiteState | null>(null);
   // Why a pick failed stays until the next pick; why a poll failed, until
@@ -17,60 +26,54 @@ export function useSite(pollMs: number) {
   const [pickProblem, setPickProblem] = useState<string | null>(null);
   const [pollProblem, setPollProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
-  // The newest site asked for. Only a person's pick moves it on; a poll
-  // checks it, so a late answer about an older site never replaces a newer one.
+  // The newest site asked for. Only a pick moves it on; everything that
+  // answers checks it, so a late answer about an older site never wins.
   const picked = useRef(0);
-
-  /** A new pick starts with no reason left over from the last one. */
-  function forget() {
-    setPickProblem(null);
-    setPollProblem(null);
-  }
-
-  function pick(
-    request: () => Promise<SiteState>,
-    onFailure?: (e: Error) => void,
-  ) {
-    const ask = ++picked.current;
-    request().then(
-      (state) => {
-        if (ask !== picked.current) return;
-        setPickProblem(null);
-        setPollProblem(null);
-        setSite(state);
-      },
-      (e: Error) => {
-        if (ask !== picked.current) return;
-        setPickProblem(e.message);
-        setRetries((n) => n + 1); // keep following the site still on show
-        onFailure?.(e);
-      },
-    );
-  }
-
-  // A site opened from a link, asked for again after a failure that passes.
-  // A pick of the person's own stops it: only the newest ask can fail.
-  const [linked] = useState(() =>
-    typeof window === "undefined"
+  // A site in the link is the first pick, asked for as the page opens.
+  const [asking, setAsking] = useState<Asking | null>(() => {
+    const linked =
+      typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("site");
+    return linked === null
       ? null
-      : new URLSearchParams(window.location.search).get("site"),
-  );
-  const [linkTries, setLinkTries] = useState(0);
+      : { request: () => getSite(linked), ask: 0, tries: 0 };
+  });
+
+  function pick(request: () => Promise<SiteState>) {
+    setPickProblem(null); // a new pick starts with no reason left over
+    setPollProblem(null);
+    setAsking({ request, ask: ++picked.current, tries: 0 });
+  }
+
   useEffect(() => {
-    if (linked === null) return;
-    const ask = picked.current;
+    if (asking === null) return;
+    const { request, ask, tries } = asking;
+    let gone = false; // a newer pick has replaced this one
     const timer = setTimeout(
-      () => {
-        if (ask !== picked.current) return; // the person has picked since
-        pick(
-          () => getSite(linked),
-          (e) => passing(e) && setLinkTries((n) => n + 1),
-        );
-      },
-      linkTries === 0 ? 0 : pollMs,
+      () =>
+        request().then(
+          (state) => {
+            if (gone || ask !== picked.current) return;
+            setAsking(null);
+            setPickProblem(null);
+            setPollProblem(null);
+            setSite(state);
+          },
+          (e: Error) => {
+            if (gone || ask !== picked.current) return;
+            setPickProblem(e.message);
+            setRetries((n) => n + 1); // keep following the site still on show
+            setAsking(passing(e) ? { request, ask, tries: tries + 1 } : null);
+          },
+        ),
+      tries === 0 ? 0 : pollMs,
     );
-    return () => clearTimeout(timer);
-  }, [linked, linkTries]); // eslint-disable-line react-hooks/exhaustive-deps -- pollMs only paces
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [asking]); // eslint-disable-line react-hooks/exhaustive-deps -- pollMs only paces
 
   const building = site?.status === "building";
   useEffect(() => {
@@ -104,9 +107,6 @@ export function useSite(pollMs: number) {
   return {
     site,
     problem: pickProblem ?? pollProblem,
-    fromAddress: (addressId: number) => {
-      forget();
-      pick(() => createSite(addressId));
-    },
+    fromAddress: (addressId: number) => pick(() => createSite(addressId)),
   };
 }

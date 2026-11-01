@@ -125,10 +125,13 @@ describe("Explore", () => {
     screen_(390, 844);
     panel(358, 370);
     expect(await fly()).toMatchObject({ top: 80 + 370 + 24, left: 24 });
+    screen_(844, 390); // the phone turned: more room beside the panel
+    panel(440, 294);
+    expect(await fly()).toMatchObject({ left: 16 + 440 + 24 });
     vi.restoreAllMocks();
   });
 
-  it("frames the site again when the window changes shape", async () => {
+  it("frames the site again when the map changes shape", async () => {
     serve({
       "GET /api/town/reefton": [TOWN],
       [`GET /api/sites/${SITE_READY.id}`]: [SITE_READY],
@@ -136,9 +139,7 @@ describe("Explore", () => {
     window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
     render(<Explore pollMs={5} />);
     await vi.waitFor(() => expect(FakeMap.last?.fitOptions.length).toBe(1));
-    act(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
+    act(() => FakeMap.last?.fire("resize")); // the map has taken its new size
     expect(FakeMap.last?.fitted).toEqual([
       SITE_READY.bounds,
       SITE_READY.bounds,
