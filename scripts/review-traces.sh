@@ -37,6 +37,9 @@ while read -r run name; do
   # just reported. Any other failure is a real error and stops the script.
   status=0
   "$scripts_dir/review-metrics.sh" "$dir/trace.json" 2> "$dir/metrics.err" || status=$?
+  if [[ "$reviewer" == zai-review ]]; then
+    printf '\n_Cost is Claude Code'"'"'s estimate at Anthropic prices, not Z.ai'"'"'s bill._\n'
+  fi
   if [[ $status -eq 3 ]]; then
     printf '\n**No review happened:** the diff was never inspected.\n'
   elif [[ $status -ne 0 ]]; then

@@ -86,6 +86,11 @@ jobs:
           # The action requires an Anthropic key; the Z.ai key stands in for it
           # (ANTHROPIC_BASE_URL above sends every request to Z.ai).
           anthropic_api_key: ${{ secrets.ZAI_API_KEY }}
+          # Off: classifying buffered inline comments is a separate step that
+          # calls Anthropic's own API with anthropic_api_key, which here is the
+          # Z.ai key. Off, each comment posts at once, and the key only ever
+          # goes to ANTHROPIC_BASE_URL (Z.ai).
+          classify_inline_comments: "false"
           # Our own token skips the Claude App token exchange. That exchange
           # skips any PR that edits this workflow and still reports success,
           # so the check would pass without a review (claude-code-action#1614).
