@@ -24,16 +24,28 @@ export const ATTRIBUTION =
   "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
   "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
 
-/** Room for the panel on the left of the map, so what is framed isn't under it. */
-export function framing(): {
+/** The panel over the map is marked with this attribute, to frame round it. */
+export const PANEL = "data-map-panel";
+
+/** Padding that keeps what is framed clear of the panel, measured as it is
+ * now: beside it when the panel leaves the map's wider part free, under it
+ * (a phone, where it spans the width) otherwise, never leaving the map less
+ * than 40% of the height. `right` is kept clear on the right as well. */
+export function framing(right = 40): {
   top: number;
   bottom: number;
   left: number;
   right: number;
 } {
-  const width = typeof window === "undefined" ? 1440 : window.innerWidth;
-  const left = width < 768 ? 24 : Math.min(500, width * 0.38);
-  return { top: 90, bottom: 40, left, right: 40 };
+  const margin = 24;
+  const width = window.innerWidth;
+  const box = document.querySelector(`[${PANEL}]`)?.getBoundingClientRect();
+  if (!box || box.width === 0)
+    return { top: 90, bottom: 40, left: margin, right };
+  if (box.right < width / 2)
+    return { top: 90, bottom: 40, left: box.right + margin, right };
+  const top = Math.min(box.bottom + margin, window.innerHeight * 0.6);
+  return { top, bottom: 40, left: margin, right: margin };
 }
 
 /** Reefton, the town the screen covers, framed. */
