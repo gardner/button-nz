@@ -158,6 +158,18 @@ def test_a_courtyard_building_is_measured_whole_as_the_evaluator_does(tmp_path: 
     assert distances["building_separation"]["metres"] == 0.0
 
 
+def test_an_older_record_that_confirmed_no_buildings_needs_no_survey(tmp_path: Path) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    record_path = tmp_path / "runs" / job["id"] / "survey.json"
+    record = json.loads(record_path.read_text())
+    del record["buildings"]  # recorded before buildings were kept
+    record["survey_id"] = "a survey since replaced"
+    record["decisions"] = {"1": "keep_clear"}  # no building among them
+    record_path.write_text(json.dumps(record))
+    assert server.client.get(f"/designs/{job['id']}/map").json()["unknown"] == []
+
+
 def test_a_design_whose_record_is_missing_says_its_buildings_are_unknown(
     tmp_path: Path,
 ) -> None:

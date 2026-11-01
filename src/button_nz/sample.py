@@ -134,12 +134,18 @@ def _files(run: Path, job: Job, folder: str) -> list[Packed]:
     return found
 
 
+def _checked_against(used: dict[str, Any]) -> tuple[Any, ...]:
+    """What a record says its design was checked against. The kept ``buildings``
+    follow from the survey and its decisions, and older records lack them."""
+    return used["survey_id"], used["decisions"], used["buildings_complete"]
+
+
 def _surveyed(data: Path, designs: list[Job], decided_by: str) -> dict[str, Any]:
     """The survey with the decisions every design was checked against, as the
     worker recorded them when each ran. Designs checked against different ones,
     or a survey replaced since, are refused."""
     used = [_used(data / "runs" / job.id, job) for job in designs]
-    if any(u != used[0] for u in used):
+    if any(_checked_against(u) != _checked_against(used[0]) for u in used):
         raise SampleError("the designs were checked against different survey decisions")
     if used[0]["survey_id"] is None:
         raise SampleError("the designs ran without a survey: there is no site record to pack")
