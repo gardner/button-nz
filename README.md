@@ -84,7 +84,11 @@ for the full plan.
 9. **Place a real prefab.** Any product that fits can be placed on the site.
    Muse designs again, with the product's outside footprint as the walls, and
    the evaluator checks they are that footprint (`product_footprint`, to
-   0.10 m) before every other check runs on it.
+   0.10 m) before every other check runs on it. The brief also gives the
+   product's roof as its supplier builds it, and the render shows the
+   product's colours (`appearance` in the catalogue, each with its basis:
+   published palette or illustrative). The trusted pass still renders
+   exactly the measured triangles, in colours the host sets, never the model.
 
 ## Meta models
 
