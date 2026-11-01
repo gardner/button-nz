@@ -44,6 +44,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   FakeMap.last = null;
+  window.history.replaceState(null, "", "/"); // a site picked writes ?site=
 });
 
 describe("Explore", () => {
@@ -125,6 +126,24 @@ describe("Explore", () => {
     panel(358, 370);
     expect(await fly()).toMatchObject({ top: 80 + 370 + 24, left: 24 });
     vi.restoreAllMocks();
+  });
+
+  it("frames the site again when the window changes shape", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      [`GET /api/sites/${SITE_READY.id}`]: [SITE_READY],
+    });
+    window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(FakeMap.last?.fitOptions.length).toBe(1));
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(FakeMap.last?.fitted).toEqual([
+      SITE_READY.bounds,
+      SITE_READY.bounds,
+    ]);
+    expect(FakeMap.last?.fitOptions[1]).toMatchObject({ duration: 0 });
   });
 
   it("asks again for the town when it fails for a moment, but not when refused", async () => {
