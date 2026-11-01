@@ -93,7 +93,7 @@ function Panel({
   onAddress: (addressId: number) => void;
 }) {
   return (
-    <aside className="absolute bottom-4 left-4 top-20 flex w-[min(440px,calc(100%-2rem))] flex-col gap-4 overflow-y-auto pb-4 pr-1">
+    <aside className="absolute left-4 top-20 flex max-h-[calc(100%-6rem)] w-[min(440px,calc(100%-2rem))] flex-col gap-4 overflow-y-auto pb-4 pr-1">
       <h1 className="text-4xl font-semibold leading-tight tracking-tight drop-shadow-lg">
         Unlock the housing hiding in your backyard
       </h1>
