@@ -17,7 +17,7 @@ from button_nz.agent.conversation import Model
 from button_nz.agent.loop import DesignResult, DesignSite, design
 from button_nz.agent.model import ChatModel
 from button_nz.blender_worker.scene_input import scene_input
-from button_nz.demo_site import load_demo_site
+from button_nz.demo_site import DemoSite, load_demo_site
 from button_nz.evaluation import SiteContext
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import BBox
@@ -32,7 +32,12 @@ BRIEF = (
 
 
 def demo_site(margin_m: float = 20.0) -> DesignSite:
-    site = load_demo_site()
+    return design_site(load_demo_site(), margin_m)
+
+
+def design_site(site: DemoSite, margin_m: float = 20.0) -> DesignSite:
+    """A site to design on, from any site's manifest: its DEM and DSM, read
+    ``margin_m`` past its parcels, in a frame centred on it."""
     grid = read_terrain(
         site.rasters["dem"].asset, site.rasters["dsm"].asset, site.extent_nztm, margin_m
     )
@@ -51,6 +56,8 @@ def demo_aerial(site: DesignSite, pixel_m: float) -> NDArray[np.uint8]:
 def aerial_of(bbox: BBox, pixel_m: float) -> NDArray[np.uint8]:
     """The demo site's urban aerial over ``bbox``, ``pixel_m`` per pixel."""
     source = load_demo_site().rasters["aerial"]
+    if source.tile is None:
+        raise ValueError("the demo site's aerial is one LINZ tile")
     base, scale = source.asset.rsplit("/", 1)[0], int(source.tile.split("_")[1])
     assets = [f"{base}/{name}.tiff" for name in tiles_covering(bbox, scale)]
     return read_aerial(assets, bbox, pixel_m)
