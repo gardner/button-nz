@@ -20,7 +20,7 @@ from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.arcgis import Feature, FeatureLayer
-from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels
+from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels, titles_of
 
 MAX_RESULTS = 8
 NEAR_DEG = 0.25  # about 25 km each way: the town the map shows, and its neighbours
@@ -136,13 +136,16 @@ def _shape(feature: Feature) -> BaseGeometry:
 
 
 def title_key(parcels: FeatureLayer, parcel_id: int) -> int:
-    """The smallest parcel id on parcel ``parcel_id``'s titles: what a title
-    site with no address is kept by, whichever of its parcels was tapped."""
+    """The smallest id of a parcel on exactly parcel ``parcel_id``'s titles:
+    what a title site with no address is kept by, whichever of them was
+    tapped. A parcel on other titles too (a shared access lot) would read
+    back more titles when the site is built, so it can't be the key."""
     found = parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise NoSuchSection(parcel_id)
-    ids = [int(_props_of(p)["id"]) for p in title_parcels(parcels, found[0])]
-    return min([int(parcel_id), *ids])
+    titles = set(titles_of(found[0]))
+    same = [p for p in title_parcels(parcels, found[0]) if set(titles_of(p)) == titles]
+    return min([int(parcel_id), *(int(_props_of(p)["id"]) for p in same)])
 
 
 def _props_of(feature: Feature) -> dict[str, Any]:

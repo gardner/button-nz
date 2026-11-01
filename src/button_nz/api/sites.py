@@ -323,6 +323,8 @@ def _site_for(service: SiteService, request: SiteRequest) -> SiteRecord:
         key = title_key(service.parcels, request.parcel_id)
     except ArcGISError as error:
         raise HTTPException(502, f"LINZ's parcel lookup failed: {error}") from None
+    except SiteError as error:
+        raise HTTPException(422, str(error)) from None
     return _requested_title(service, key)
 
 
@@ -333,12 +335,13 @@ def _requested_title(service: SiteService, parcel_id: int) -> SiteRecord:
     known = store.by_parcel(parcel_id)
     if known is not None and known.status is not SiteStatus.FAILED:
         return known
-    assert service.parcels is not None
+    # Two LINZ queries, made before the lock every site request takes; wasted
+    # if another request builds it first, as ``_requested``'s address lookup is.
+    name = known.address if known is not None else _title_name(service, parcel_id)
     with _REQUESTS:
         known = store.by_parcel(parcel_id)
         if known is not None and known.status is not SiteStatus.FAILED:
             return known
-        name = known.address if known is not None else _title_name(service, parcel_id)
         with _admit(service.cap):
             if known is not None:
                 store.rebuild(known.id)
@@ -355,6 +358,8 @@ def _title_name(service: SiteService, parcel_id: int) -> str:
         return title_site_name(service.addresses, service.parcels, parcel_id)
     except ArcGISError as error:
         raise HTTPException(502, f"LINZ's lookup failed: {error}") from None
+    except SiteError as error:  # LINZ has no such parcel, or not a simple polygon
+        raise HTTPException(422, str(error)) from None
 
 
 def _address_of(service: SiteService, parcel_id: int) -> int | None:

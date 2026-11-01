@@ -18,6 +18,7 @@ from button_nz.sites.search import (
     address_on_section,
     ground_distance,
     search_addresses,
+    title_key,
     where_clause,
 )
 from test_sites_build import PARCELS, X0, Y0, layers, parcel  # noqa: E402
@@ -243,3 +244,15 @@ def test_a_parcel_with_no_record_of_title_is_refused_not_built() -> None:
     with pytest.raises(NotASection, match="record of title"):
         address_on_section(addresses, parcels, 5)
     assert asked == []
+
+
+def test_a_title_site_is_keyed_by_a_parcel_on_exactly_the_tapped_parcels_titles() -> None:
+    """A shared access lot (id 10, titles 800 and 900) has the smallest id, but
+    keying on it would read back both titles and build the neighbour's too."""
+    lot = [[X0 + 50, Y0], [X0 + 60, Y0], [X0 + 60, Y0 + 10], [X0 + 50, Y0 + 10], [X0 + 50, Y0]]
+    section = [[X0 + 60, Y0], [X0 + 80, Y0], [X0 + 80, Y0 + 20], [X0 + 60, Y0 + 20], [X0 + 60, Y0]]
+    parcels = layers(
+        [parcel(10, lot, "800, 900"), parcel(20, section, "900"), parcel(5, section, "900")]
+    )["LINZ_NZ_Primary_Parcels"]
+    assert title_key(parcels, 20) == 5  # on 900 alone, as 20 is: not the shared lot
+    assert title_key(parcels, 10) == 10  # the shared lot's own titles: only itself

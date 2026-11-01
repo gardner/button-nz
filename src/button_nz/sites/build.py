@@ -140,7 +140,7 @@ def find_title(sources: Sources, address_id: int) -> Title:
     address = find_address(sources.addresses, address_id).value
     point = ShapelyPoint(address.point)
     under = [f for f in sources.parcels.near(address.point, 0.0).features if _holds(f, point)]
-    sets = {tuple(sorted(_titles(f))) for f in under if _titles(f)}
+    sets = {tuple(sorted(titles_of(f))) for f in under if titles_of(f)}
     if len(sets) > 1:  # on the line between two properties: whose is it?
         named = " and ".join(", ".join(s) for s in sorted(sets))
         raise SiteError(f"{address.full_address} is on the boundary between titles {named}")
@@ -159,7 +159,7 @@ def title_of_parcel(sources: Sources, parcel_id: int, name: str) -> Title:
     found = sources.parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise SiteError(f"LINZ has no parcel {parcel_id}")
-    titles = tuple(sorted(_titles(found[0])))
+    titles = tuple(sorted(titles_of(found[0])))
     if not titles:
         raise SiteError(f"parcel {parcel_id} has no record of title: it isn't a property")
     parcels, extent = _title_parcels(sources, titles)
@@ -212,7 +212,7 @@ def _frontages_of(title: Title, sources: Sources) -> tuple[Frontage, ...]:
 def title_parcels(layer: FeatureLayer, parcel: Feature) -> list[Feature]:
     """Every parcel on the record(s) of title ``parcel`` is on, itself included;
     none if it has no title."""
-    titles = _titles(parcel)
+    titles = titles_of(parcel)
     return _on_titles(layer, titles) if titles else []
 
 
@@ -232,7 +232,7 @@ def _on_titles(layer: FeatureLayer, titles: Sequence[str]) -> list[Feature]:
     found = {
         int(_props(feature)["id"]): feature
         for feature in layer.where(where).features
-        if set(titles) & set(_titles(feature))  # LIKE '%1%' also finds 10 and 21
+        if set(titles) & set(titles_of(feature))  # LIKE '%1%' also finds 10 and 21
     }
     return [found[k] for k in sorted(found)]
 
@@ -398,7 +398,8 @@ def outlines_collection(features: Sequence[Feature]) -> dict[str, Any]:
     }
 
 
-def _titles(feature: Feature) -> list[str]:
+def titles_of(feature: Feature) -> list[str]:
+    """The records of title parcel ``feature`` is on: none for a road or reserve."""
     raw = str(_props(feature).get("titles") or "")
     return [t.strip() for t in raw.split(",") if _is_title(t.strip())]
 

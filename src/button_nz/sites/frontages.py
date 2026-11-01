@@ -67,7 +67,11 @@ def frontages(
                 found.setdefault(_road_of(line, roads, road_parcels), []).append(edge)
     names = {road.road_id: road.name for road in roads}
     fronting = [
-        Frontage(None if rid is None else names[rid], rid == street_road_id, tuple(on))
+        Frontage(
+            None if rid is None else names[rid],
+            rid is not None and rid == street_road_id,  # an unnamed road is no street
+            tuple(on),
+        )
         for rid, on in found.items()
     ]
     street = next((r for r in roads if r.road_id == street_road_id), None)
@@ -171,7 +175,11 @@ def describe_frontages(found: Sequence[Frontage] | None, local: Callable[[Point]
     if found is None:
         return "- road frontages: not known for this site.\n"
     if not found:
-        return "- road frontages: no edge of the title faces a road.\n"
+        # An address's street is always among them, beside the title or not.
+        return (
+            "- road frontages: no edge of the title faces a road, and the section "
+            "has no street address of its own.\n"
+        )
     lines = ["- road frontages (title edges along a road, local x, y):"]
     for f in found:
         name = f.road or "an unnamed road"
