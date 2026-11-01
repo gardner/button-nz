@@ -466,6 +466,40 @@ describe("a ready site", () => {
     expect(under()).toBe(true);
   });
 
+  it("doesn't blame a design asked for for an older link that fails before it answers", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=gone1`);
+    let failLink: (r: Response) => void = () => {};
+    let answerDesign: (r: Response) => void = () => {};
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const route = `${init?.method ?? "GET"} ${url.split("?")[0]}`;
+      if (route === "GET /api/designs/gone1")
+        return new Promise<Response>((r) => (failLink = r));
+      if (route === "POST /api/designs")
+        return new Promise<Response>((r) => (answerDesign = r));
+      const body = {
+        "GET /api/town/reefton": TOWN,
+        [`GET /api/sites/${SITE}`]: SITE_READY,
+        [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+        [`GET /api/sites/${SITE}/features`]: SURVEY,
+        "GET /api/designs/abc123/map": DESIGN_MAP,
+      }[route];
+      return body === undefined
+        ? new Promise<Response>(() => {})
+        : Promise.resolve(respond(body));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /afternoon sun/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Design it" }));
+    failLink(respond({ detail: "no design gone1" }, 404));
+    await new Promise((r) => setTimeout(r, 20));
+    answerDesign(respond(ACCEPTED));
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    expect(screen.queryByText(/Could not open design gone1/)).toBeNull();
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
