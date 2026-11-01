@@ -131,14 +131,14 @@ After a design is accepted, Muse Image turns its render into a photo-like
 picture, and it is shown only if SAM 3.1 finds the house in it overlapping
 the design's silhouette with an IoU of at least 0.60. On the 12 accepted
 designs of the batch runs (#117), the visual was re-made as the app makes
-it (code 6c5c1aa):
+it, from each design's accepted attempt (code 6c5c1aa):
 
 | Design | Batch run (one edit) | Re-run, one edit (IoU) | Up to two edits (edits, IoU) |
 |---|---|---|---|
 | 4ee3c533 | passed | passed (0.82) | failed (2, 0.36) |
 | 14e33e79 | failed | failed (0.36) | failed (2, 0.13) |
 | 2814a497 | failed | passed (0.78) | passed (2, 0.76) |
-| 7b219d6b | passed | passed (0.72) | passed (1, 0.71) |
+| 7b219d6b | passed | passed (0.93) | passed (1, 0.78) |
 | 02003a9b | passed | passed (0.83) | passed (1, 0.91) |
 | 3ca9262c | passed | passed (0.71) | passed (1, 0.73) |
 | 1f3ae911 | failed | failed (0.42) | failed (2, 0.49) |
@@ -167,5 +167,8 @@ it (code 6c5c1aa):
 - **Not done:** lowering the 0.60 threshold or showing a rejected picture.
   The check exists so the picture can't misrepresent the checked design.
 
-Each run is one sample per design, and the one-edit rate varied from 5 to
+7b219d6b was accepted on its second attempt; its row was first measured on
+the rejected first attempt by mistake and was re-measured on the accepted
+one (it passed both times; three samples each way all passed). Each run is
+one sample per design, and the one-edit rate varied from 5 to
 8 of 12 between runs, so differences of one or two designs are noise.

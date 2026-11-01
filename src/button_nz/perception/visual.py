@@ -52,9 +52,11 @@ CONCEPT = "house"  # what SAM 3.1 is asked to find in the illustration
 # feasibility test's failure, a cottage drawn as a shed, falls below it. A first
 # setting: tune it on live results.
 MIN_IOU = 0.6
-# Muse Image's result varies from edit to edit: about two in three pass the check
-# (8 of 12 recorded designs in one run; of five rejected ones, three passed when
-# re-made), so a second edit should take that to about nine in ten (#133).
+# Muse Image's result varies from edit to edit, so a rejected edit is made once
+# more. Measured on 12 recorded designs (#133, docs/results): the second edit
+# rescued 2 of the 7 it was made for (5 to 7 of 12). Failures mostly repeat for
+# the same design, so a third would buy little; it costs an edit (about 25 s) and
+# a SAM call, only when the first is rejected.
 EDITS = 2
 EDIT_TIMEOUT_S = 180.0  # an edit took about 24 s in the feasibility test
 VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"
