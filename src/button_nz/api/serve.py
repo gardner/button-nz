@@ -21,6 +21,7 @@ from pathlib import Path
 
 import httpx
 import uvicorn
+from fastapi import FastAPI
 
 from button_nz.agent.demo import demo_site
 from button_nz.agent.model import ChatModel
@@ -30,7 +31,11 @@ from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
 from button_nz.api.store import Store
+from button_nz.api.town import LINZ_PRIMARY_PARCELS, TOWNS, TownMaps, tiles_router, town_router
+from button_nz.config import ServiceEndpoints, load_basemap_api_key
 from button_nz.demo_site import DemoSite, load_demo_site
+from button_nz.geo.arcgis import FeatureLayer
+from button_nz.geo.property import LINZ
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.perception.visual import illustrate_from_env
 from button_nz.sites.live import LiveLayers, live_sources
@@ -78,6 +83,7 @@ def main(argv: list[str] | None = None) -> None:
         survey_decided_by=decided_by,
         sites=sites,
     )
+    _add_maps(app, args.data)
     uvicorn.run(app, host=args.host, port=args.port)
 
 
@@ -93,6 +99,15 @@ def _sites(
     )
     cap = None if daily is None else DailyCap(store.created_since, daily, "site builds")
     return SiteService(sites, builder, layers.addresses, cap)
+
+
+def _add_maps(app: FastAPI, data: Path) -> None:
+    """The town map (cached under ``DATA/town``) and the aerial basemap."""
+    client = httpx.Client(timeout=60.0, follow_redirects=True)
+    parcels = FeatureLayer(LINZ_PRIMARY_PARCELS, "CC-BY-4.0", LINZ, client)
+    app.include_router(town_router(TownMaps(TOWNS, parcels, data / "town")))
+    base = ServiceEndpoints.from_env().basemaps_tiles_base_url
+    app.include_router(tiles_router(client, load_basemap_api_key, base))
 
 
 if __name__ == "__main__":

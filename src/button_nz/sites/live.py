@@ -11,6 +11,7 @@ from pathlib import Path
 
 import httpx
 
+from button_nz.api.town import LINZ_PRIMARY_PARCELS
 from button_nz.config import ServiceEndpoints
 from button_nz.geo.arcgis import FeatureLayer
 from button_nz.geo.geometry import BBox
@@ -19,11 +20,6 @@ from button_nz.geo.property import LINZ
 from button_nz.sites.build import Sources, outlines_collection
 from button_nz.sites.stac import Catalogues
 from button_nz.town.lidar import mosaic
-
-LINZ_PRIMARY_PARCELS = (
-    "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/"
-    "LINZ_NZ_Primary_Parcels/FeatureServer/0"
-)
 
 
 class LiveLayers:

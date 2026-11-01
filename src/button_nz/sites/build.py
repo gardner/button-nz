@@ -32,6 +32,7 @@ from shapely import Point as ShapelyPoint
 from shapely import Polygon, union_all
 from shapely.geometry import shape
 
+from button_nz.demo_site import load_demo_site
 from button_nz.geo.arcgis import Feature, FeatureLayer
 from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
@@ -99,6 +100,11 @@ def build_site(
     manifest = _manifest(address_id, title, (dem, dsm, aerial), aerial_tiles, sources)
     manifest["aerial_bbox"] = list(grid.bbox)  # what aerial.png covers, at PIXEL_M
     _write(directory / "site.json", manifest)
+    try:
+        load_demo_site(directory)  # as the routes will: a site is ready only if it loads
+    except (ValueError, KeyError) as error:
+        (directory / "site.json").unlink()
+        raise SiteError(f"the site's record doesn't pass its own checks: {error}") from error
 
 
 def find_title(sources: Sources, address_id: int) -> Title:
@@ -155,14 +161,19 @@ def _aerial(
 ) -> tuple[Collection, list[str], bytes]:
     """The best aerial over the LiDAR's ground, and the photo of it to serve
     and survey (``grid.bbox`` at ``PIXEL_M``), as PNG."""
-    found = sources.catalogues.aerial_for(region, grid.bbox)
-    if found is None:
-        raise SiteError(f"no aerial photo in {region} at 0.3 m or finer since 2015 covers it")
-    collection, tiles = found
-    pixels = sources.read_aerial(tiles, grid.bbox, PIXEL_M)
-    buffer = io.BytesIO()
-    Image.fromarray(pixels, "RGB").save(buffer, format="PNG")
-    return collection, tiles, buffer.getvalue()
+    gaps: list[str] = []
+    for collection, tiles in sources.catalogues.aerials_for(region, grid.bbox):
+        try:
+            pixels = sources.read_aerial(tiles, grid.bbox, PIXEL_M)
+        except ValueError as error:  # a listed tile empty over the site: try the next
+            gaps.append(f"{collection.title}: {error}")
+            continue
+        buffer = io.BytesIO()
+        Image.fromarray(pixels, "RGB").save(buffer, format="PNG")
+        return collection, tiles, buffer.getvalue()
+    if gaps:
+        raise SiteError(f"every aerial listing this site has gaps over it: {'; '.join(gaps)}")
+    raise SiteError(f"no aerial photo in {region} at 0.3 m or finer since 2015 covers it")
 
 
 def aerial_pixels(png: bytes) -> NDArray[np.uint8]:
@@ -300,6 +311,8 @@ def _ring(feature: Feature) -> Ring:
     if geometry.get("type") != "Polygon":
         raise SiteError(f"parcel {_props(feature).get('id')} isn't a simple polygon")
     rings = cast("list[list[list[float]]]", geometry["coordinates"])
+    if len(rings) > 1:  # land inside it isn't on the title: never fill it in
+        raise SiteError(f"parcel {_props(feature).get('id')} has land within it that isn't its own")
     return tuple((float(x), float(y)) for x, y, *_ in rings[0])
 
 
