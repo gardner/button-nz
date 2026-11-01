@@ -244,11 +244,12 @@ photos made from the training points
 | Focal length, true vs MoGe | 996 vs 1,371 px (38% off) | 996 vs 1,254 px (26% off) |
 | Depth error on the building, after scaling to the LiDAR | 0.6% | 1.2% |
 | 3D point error on the building, median / 90th percentile | 1.51 / 2.37 m | 1.27 / 2.37 m |
-| Roof top above the scene's lowest point, LiDAR vs MoGe | 4.07 vs 3.81 m | 6.02 vs 5.45 m |
+| Roof top above the scene's lowest point, each measured in its own pointmap, LiDAR vs MoGe | 4.07 vs 8.02 m | 6.02 vs 13.83 m |
 
 Without LiDAR the reconstruction has no real-world scale, and even at the
-LiDAR's scale MoGe's wrong focal length puts points metres out sideways. The
-LiDAR pointmap removes both by construction. **These figures measure SAM 3D's
+LiDAR's scale MoGe's wrong focal length puts points metres out sideways, and
+its heights are wrong: measured from its own scene's lowest point, MoGe puts
+each roof about twice as high as the LiDAR does. The LiDAR pointmap removes all of this by construction. **These figures measure SAM 3D's
 input, not its output.** (An earlier lab note measured the same on photos made
 from LINZ's full DSM: 18.7–20.0× and 22–47% off.)
 

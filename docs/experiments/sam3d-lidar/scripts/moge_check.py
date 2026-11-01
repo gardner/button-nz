@@ -42,8 +42,8 @@ def main() -> None:
     np.save(scene_dir / "moge_points_cv_scaled.npy", moge_s.astype(np.float32))
 
     def height(world: np.ndarray) -> float:
-        z = world[m][:, 2]
-        return float(np.percentile(z, 98) - np.percentile(w_l[valid & ~mask][:, 2], 2))
+        """The roof's top above the scene's lowest point, both from the same pointmap."""
+        return float(np.percentile(world[m][:, 2], 98) - np.percentile(world[valid & ~mask][:, 2], 2))
 
     result = {
         "model": model_id,
