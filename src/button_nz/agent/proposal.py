@@ -36,6 +36,7 @@ OPENING_SHARE = 0.05  # of the walls' area: closing over openings may add no mor
 MIN_SOLIDITY = 0.5  # of the walls' convex hull: L, T and U plans pass, open strips don't
 MIN_ROOM_M2 = 1.0  # smaller pieces of a wall section are posts or balusters
 MAX_COURTYARD_SHARE = 0.5  # of what the walls enclose: open to the sky beyond this is no roof
+MIN_OPEN = 0.5  # of a face inside the walls, open to the sky: less is a room with a roof light
 COURTYARD_WALL_M = 2.0  # a courtyard's walls stand this high above the floor; a balustrade doesn't
 
 
@@ -115,30 +116,33 @@ def _courtyard_cut(z_min: float, z_max: float) -> float:
 
 
 def _courtyards(triangles: list[Triangle], walls: Polygon, z: float, high: float) -> list[Polygon]:
-    """The courtyards open to the sky inside ``walls``, the section at ``z``: its
-    faces clear of the walls' outside, a room's size or more, with nothing above
-    most of them, and still walled in at ``high`` (a deck's balustrade isn't a
-    courtyard's wall). Solid walls have their tops over them, and a room its
-    roof, so neither is a courtyard. One with something a room's size standing
-    in it is left as floor (the stricter reading): a courtyard is a plain hole."""
+    """The courtyards inside ``walls``: what is open to the sky both in the section
+    at ``z`` and, still walled in, at ``high`` (a balustrade isn't a courtyard's
+    wall). Each is a plain hole a room's size or more; one with anything over
+    part of its middle is left as floor (the stricter reading)."""
+    at_cut = _open_to_sky(triangles, walls, z)
+    if at_cut.is_empty:
+        return []
+    both = at_cut.intersection(_open_to_sky(triangles, walls, high))
+    return [p for p in _pieces(both) if p.area >= MIN_ROOM_M2 and not p.interiors]
+
+
+def _open_to_sky(triangles: list[Triangle], walls: Polygon, z: float) -> BaseGeometry:
+    """The open part of each face of the section at ``z`` inside ``walls``, clear
+    of their outside, that is mostly open to the sky: a room with a hole in its
+    roof is mostly roofed, so it is floor; eaves over a courtyard are not open."""
     inside = [
         face
         for face in faces(triangles, z)
         if face.area >= MIN_ROOM_M2
         and walls.contains(face.representative_point())
         and not face.intersects(walls.exterior)
-        and all(Polygon(hole).area < MIN_ROOM_M2 for hole in face.interiors)
     ]
     if not inside:
-        return []
+        return Polygon()
     above = outline_above(triangles, z)
-    open_ = [face for face in inside if face.intersection(above).area < MIN_FLOOR_COVER * face.area]
-    walled = section(triangles, high)
-    return [
-        Polygon(court.exterior)
-        for court in _pieces(union_all(open_))
-        if court.intersection(walled).area >= MIN_FLOOR_COVER * court.area
-    ]
+    opened = [(face, face.difference(above)) for face in inside]
+    return union_all([part for face, part in opened if part.area >= MIN_OPEN * face.area])
 
 
 def _lower_walls(

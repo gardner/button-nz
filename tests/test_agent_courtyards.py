@@ -48,12 +48,58 @@ def test_a_small_open_courtyard_is_not_counted_as_floor() -> None:
     assert _walls(measured).area == pytest.approx(180.0)
 
 
-def test_eaves_over_a_courtyard_do_not_shrink_it() -> None:
-    """Measured at the walls, as the exemption measures area: 0.5 m eaves overhang it."""
+def test_eaves_over_a_courtyard_shrink_it_to_what_is_open() -> None:
+    """The stricter reading: 0.5 m eaves overhang it, so 3 m x 3 m of it is open."""
     roof = box(-0.5, -0.5, 3, 12.5, 4.5, 3.2) + box(-0.5, 7.5, 3, 12.5, 12.5, 3.2)
     roof += box(-0.5, 4.5, 3, 4.5, 7.5, 3.2) + box(7.5, 4.5, 3, 12.5, 7.5, 3.2)
     measured = parse_measurements(measured_with(_courtyard_house(12, 4) + roof))
-    assert _walls(measured).area == pytest.approx(128.0)
+    assert _walls(measured).area == pytest.approx(135.0)
+
+
+def _skylit(rails: bool) -> list[Triangle]:
+    """Two hollow rooms; an unglazed 2.5 m x 2.5 m opening in the roof over the
+    west one, and with ``rails`` a balustrade round it, 1.1 m high."""
+    house = [t for t in hollow_house(door=False) if min(p[2] for p in t) < 3.0]
+    house += box(5.9, 0.2, 0.2, 6.1, 9.8, 3)  # the wall between the rooms
+    roof = box(0, 0, 3, 12, 3.5, 3.2) + box(0, 6, 3, 12, 10, 3.2)
+    roof += box(0, 3.5, 3, 1.5, 6, 3.2) + box(4, 3.5, 3, 12, 6, 3.2)
+    if not rails:
+        return house + roof
+    ring = box(1.5, 3.5, 0.2, 4, 3.55, 1.1) + box(1.5, 5.95, 0.2, 4, 6, 1.1)
+    ring += box(1.5, 3.55, 0.2, 1.55, 5.95, 1.1) + box(3.95, 3.55, 0.2, 4, 5.95, 1.1)
+    return house + roof + ring
+
+
+@pytest.mark.parametrize("rails", [False, True])
+def test_an_opening_in_a_rooms_roof_is_no_courtyard(rails: bool) -> None:
+    """The room is mostly roofed, so it is floor; a balustrade round the opening
+    encloses it at the wall cut, but no wall does 2 m up."""
+    measured = parse_measurements(measured_with(_skylit(rails)))
+    assert measured.courtyards == ()
+    assert _walls(measured).area == pytest.approx(120.0)
+
+
+def _alcove_house(alcove_to: float) -> list[Triangle]:
+    """A 14 m square courtyard house, its 4 m courtyard (5-9 m) opening east into
+    a roofed alcove, floored, that reaches ``alcove_to`` into the east wing."""
+    rest = [t for t in _courtyard_house(14, 4) if min(p[0] for p in t) < 9]  # no east wing
+    east = box(alcove_to, 5, 0, 14, 9, 3)
+    alcove = box(9, 5, 0, alcove_to, 9, 0.2) + box(9, 5, 2.8, alcove_to, 9, 3)
+    return rest + box(9, 0, 0, 14, 5, 3) + box(9, 9, 0, 14, 14, 3) + east + alcove
+
+
+def test_a_roofed_alcove_open_to_a_courtyard_stays_floor() -> None:
+    """One face at the wall cut, mostly open: only its open part is the courtyard."""
+    measured = parse_measurements(measured_with(_alcove_house(11)))
+    assert [Polygon(c).area for c in measured.courtyards] == pytest.approx([16.0])
+    assert _walls(measured).area == pytest.approx(180.0)
+
+
+def test_a_courtyard_joined_to_a_larger_roofed_room_is_floor() -> None:
+    """Mostly roofed (18 of 34 m²), the face is a room: the stricter reading."""
+    measured = parse_measurements(measured_with(_alcove_house(13.5)))
+    assert measured.courtyards == ()
+    assert _walls(measured).area == pytest.approx(196.0)
 
 
 def test_a_roofed_atrium_is_floor_not_a_courtyard() -> None:
