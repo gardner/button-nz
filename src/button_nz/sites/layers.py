@@ -94,7 +94,9 @@ def site_layers(
             (g, {**f["properties"], "id": str(f["id"]), "decision": d} | building_heights(g, lidar))
             for f, (g, _, d) in zip(found, decided, strict=True)
         ),
-        "canopy": _canopy(buildings, lidar),
+        "canopy": canopy_layer(
+            [shape(f["geometry"]) for f in buildings.get("features", [])], confirmed, lidar
+        ),
         "setback": collection([(title.difference(inner), rule)]),
         "halos": collection([(grown.difference(built), rule)]),
         "keep_clear": collection((g, {"id": i}) for g, i, d in decided if d == "keep_clear"),
@@ -127,9 +129,12 @@ def _metres(metres: float | None) -> float | None:
     return None if metres is None else round(metres, 2)
 
 
-def _canopy(buildings: Mapping[str, Any], lidar: Lidar) -> dict[str, Any]:
-    outlines = [shape(f["geometry"]) for f in buildings.get("features", [])]
-    trees = canopy(lidar.grid, outlines)
+def canopy_layer(
+    outlines: Sequence[BaseGeometry], confirmed: Sequence[BaseGeometry], lidar: Lidar
+) -> dict[str, Any]:
+    """What stands over 2 m and isn't a building: neither a LINZ outline nor one
+    the owner confirmed on the survey, so nothing stands twice."""
+    trees = canopy(lidar.grid, [*outlines, *confirmed])
     return collection((tree, extrusion(tree, lidar, height)) for tree, height in trees)
 
 

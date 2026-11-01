@@ -6,7 +6,7 @@ import numpy as np
 from shapely import box
 
 from button_nz.geo.terrain import TerrainGrid
-from button_nz.sites.layers import Lidar, building_heights, extrusion
+from button_nz.sites.layers import Lidar, building_heights, canopy_layer, extrusion
 
 # 20 m x 20 m at 1 m, ground 3 m above a datum of 100 m, a 4.5 m house on 8-12 x 8-12.
 DEM = np.full((20, 20), 103.0)
@@ -28,3 +28,8 @@ def test_beyond_the_lidar_nothing_is_guessed() -> None:
 
 def test_a_known_height_on_ground_stands_on_that_ground() -> None:
     assert extrusion(HOUSE, LIDAR, 6.9) == {"base_m": 3.0, "height_m": 9.9, "above_ground_m": 6.9}
+
+
+def test_a_building_the_owner_confirmed_is_not_also_canopy() -> None:
+    assert len(canopy_layer([], [], LIDAR)["features"]) == 1  # unknown, it stands up as canopy
+    assert canopy_layer([], [HOUSE], LIDAR)["features"] == []  # confirmed, it's a building
