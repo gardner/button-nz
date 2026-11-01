@@ -13,8 +13,8 @@ FEEDBACK = "Blender did not finish with your design: it crashed while running yo
 @pytest.mark.parametrize(
     ("text", "ended"),
     [
-        ("Design queued…", None),
-        ("Design running… Attempt 1 fail " + FEEDBACK, None),
+        ("Queued…", None),
+        ("Muse is designing: reading the LiDAR, writing Blender, checking… " + FEEDBACK, None),
         ("Accepted: attempt 2 Attempt 1 error " + FEEDBACK, "accepted"),
         ("No attempt passed every check.", "no attempt passed every check"),
         ("The design run failed: KeyError: META_API_KEY", "the design run failed"),
@@ -35,7 +35,7 @@ def test_a_failed_take_is_kept_beside_the_one_asked_for() -> None:
     ("text", "who"),
     [
         (
-            "What is on the site This survey is fixed on this server, as the owner decided it.",
+            "What's on the site? Fixed on this server, as the owner decided it.",
             "the owner",
         ),
         ("What is on the site #1 shed Existing building Keep clear Ignore", None),
