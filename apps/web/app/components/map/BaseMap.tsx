@@ -24,6 +24,10 @@ export const ATTRIBUTION =
   "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
   "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
 
+/** From this width the hero stands fixed on the right (Tailwind's xl), with
+ * room to frame a design between it and the panel. */
+export const HERO_FIXED = 1280;
+
 /** The narrowest strip, in pixels, worth framing a site in beside the panel. */
 const MIN_FRAME = 200;
 
@@ -49,8 +53,8 @@ export function framing(right = 40): {
   const beside = (width - box.right) * height; // the room right of it
   const under = (height - box.bottom) * width; // the room below it
   // Beside it only if there is a map's width there to frame in; the hero
-  // stands on the right from 1024 px, below that it's in the panel.
-  const side = width < 1024 ? margin : right;
+  // stands on the right from 1280 px (HERO_FIXED), below that it's in the panel.
+  const side = width < HERO_FIXED ? margin : right;
   if (beside > under && width - box.right - margin - side >= MIN_FRAME)
     return { top: 90, bottom: 40, left: box.right + margin, right: side };
   const top = Math.min(box.bottom + margin, height * 0.6);

@@ -73,7 +73,7 @@ export function ReadySite({
       />
       <DesignDock chain={chain} />
       {accepted && shown && (
-        <div className="lg:fixed lg:bottom-4 lg:right-4 lg:z-10">
+        <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10">
           <HeroMedia
             job={shown}
             parent={chain.chain.find((j) => j.id === shown.parentId)}
