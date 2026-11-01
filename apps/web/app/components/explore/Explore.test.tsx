@@ -83,6 +83,50 @@ describe("Explore", () => {
     ).toContain("not in LINZ's NZ Primary Parcels");
   });
 
+  it("frames the site clear of the panel: beside it when there's room, under it on a phone", async () => {
+    const screen_ = (width: number, height: number) => {
+      Object.defineProperty(window, "innerWidth", {
+        value: width,
+        configurable: true,
+      });
+      Object.defineProperty(window, "innerHeight", {
+        value: height,
+        configurable: true,
+      });
+    };
+    let box = new DOMRect();
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        return this.dataset.mapPanel === undefined ? new DOMRect() : box;
+      },
+    );
+    const panel = (width: number, height: number) =>
+      (box = new DOMRect(16, 80, width, height));
+    const fly = async () => {
+      serve({
+        "GET /api/town/reefton": [TOWN],
+        [`GET /api/sites/${SITE_READY.id}`]: [SITE_READY],
+      });
+      window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
+      render(<Explore pollMs={5} />);
+      await vi.waitFor(() => expect(FakeMap.last?.fitOptions.length).toBe(1));
+      const options = FakeMap.last?.fitOptions[0] as {
+        padding: Record<string, number>;
+      };
+      cleanup();
+      FakeMap.last = null; // the next page's map is a new one
+      window.history.replaceState(null, "", "/");
+      return options.padding;
+    };
+    screen_(1440, 900);
+    panel(440, 300);
+    expect(await fly()).toMatchObject({ left: 16 + 440 + 24 });
+    screen_(390, 844);
+    panel(358, 370);
+    expect(await fly()).toMatchObject({ top: 80 + 370 + 24, left: 24 });
+    vi.restoreAllMocks();
+  });
+
   it("asks again for the town when it fails for a moment, but not when refused", async () => {
     const fetch = vi
       .fn()
