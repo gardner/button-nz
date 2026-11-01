@@ -14,7 +14,9 @@ SAM 3D Objects turns a masked object in a photo into a 3D model: shape,
 texture and pose. Its geometry model can take an optional **scene pointmap**:
 a 3D point for every pixel. The paper says this can come "from hardware
 sensors (e.g., LiDAR on an iPhone)" ([SAM 3D, arXiv 2511.16624](https://arxiv.org/abs/2511.16624)),
-but its results use depth estimated from the image itself.
+but its results use depth estimated from the image itself, apart from its
+layout evaluation on Aria Digital Twin, which uses that dataset's provided
+sensor pointmaps.
 
 As far as we know, nobody has fed it survey LiDAR.
 
