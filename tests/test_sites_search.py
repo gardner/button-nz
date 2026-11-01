@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from button_nz.geo.arcgis import FeatureLayer
-from button_nz.sites.build import MAX_PARCELS, SiteError, title_parcels
+from button_nz.sites.build import MAX_PARCELS, MAX_SIDE_M, SiteError, title_parcels
 from button_nz.sites.search import (
     LOCAL_CANDIDATES,
     MAX_RESULTS,
@@ -256,3 +256,14 @@ def test_a_title_site_is_keyed_by_a_parcel_on_exactly_the_tapped_parcels_titles(
     )["LINZ_NZ_Primary_Parcels"]
     assert title_key(parcels, 20) == 5  # on 900 alone, as 20 is: not the shared lot
     assert title_key(parcels, 10) == 10  # the shared lot's own titles: only itself
+
+
+def test_a_tapped_block_is_measured_not_the_whole_title_a_road_cuts() -> None:
+    """Two blocks of one title further apart than a section is wide: each is a
+    section, so tapping one isn't refused as more than a section."""
+    near = parcel(1, A_RING, "354613")
+    x = X0 + MAX_SIDE_M + 100
+    far = parcel(2, [[x, Y0], [x + 20, Y0], [x + 20, Y0 + 30], [x, Y0 + 30], [x, Y0]], "354613")
+    asked: list[str] = []
+    addresses, parcels = _section_layers([near, far], asked)
+    assert address_on_section(addresses, parcels, 1) == 7  # the fake's address, on A

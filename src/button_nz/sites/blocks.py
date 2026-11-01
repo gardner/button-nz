@@ -3,7 +3,8 @@
 A road can cut a title in two: in Reefton's old town grid, lanes cross whole
 sections, and LINZ then gives each parcel as a MultiPolygon. A site is one
 block of land, so it is built on one block: the one its address is on, or for
-a title with no address, the largest. The rest is left out, and said to be.
+a title with no address, the one its parcel is on. The rest is left out,
+and said to be.
 """
 
 from collections.abc import Sequence
@@ -33,23 +34,17 @@ def pieces(parcels: Sequence[Feature]) -> list[Feature]:
     return found
 
 
-def block(parcels: Sequence[Feature], point: Point | None) -> tuple[list[Feature], float]:
+def block(parcels: Sequence[Feature], point: Point) -> tuple[list[Feature], float]:
     """The pieces of the title's block of land holding ``point`` (the nearest
-    if none does), or the largest block if ``point`` is None; and the area,
-    in m², of the title's land left out."""
+    if none does), and the area, in m², of the title's land left out."""
     parts = pieces(parcels)
     if not parts:
         return [], 0.0
     shapes = [shape(cast("dict[str, Any]", p["geometry"])) for p in parts]
     blocks = _touching(shapes)
     area = [sum(shapes[i].area for i in b) for b in blocks]
-    if point is None:
-        chosen = max(range(len(blocks)), key=lambda k: area[k])
-    else:
-        at = ShapelyPoint(point)
-        chosen = min(
-            range(len(blocks)), key=lambda k: min(shapes[i].distance(at) for i in blocks[k])
-        )
+    at = ShapelyPoint(point)
+    chosen = min(range(len(blocks)), key=lambda k: min(shapes[i].distance(at) for i in blocks[k]))
     return [parts[i] for i in sorted(blocks[chosen])], sum(area) - area[chosen]
 
 

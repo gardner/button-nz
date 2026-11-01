@@ -390,7 +390,7 @@ def test_a_title_a_road_cuts_in_two_is_built_on_the_addresss_side(tmp_path: Path
     site = load_demo_site(tmp_path)
     assert [p.parcel_id for p in site.parcels] == [1, 2]
     assert site.extent_nztm == (X0, Y0, X0 + 40, Y0 + 12)  # the south block only
-    (left_out,) = [item for item in site.open_items if "across a road" in item]
+    (left_out,) = [item for item in site.open_items if "doesn't touch" in item]
     assert "960 m²" in left_out  # the north block: 40 x 24 m
 
 
@@ -399,13 +399,38 @@ def test_the_side_of_the_road_is_the_one_the_address_is_on(tmp_path: Path) -> No
     assert load_demo_site(tmp_path).extent_nztm == (X0, Y0 + 16, X0 + 40, Y0 + 40)
 
 
-def test_a_title_site_a_road_cuts_in_two_is_built_on_its_larger_side(tmp_path: Path) -> None:
+def test_a_title_site_a_road_cuts_in_two_is_built_on_one_block_of_its_parcel(
+    tmp_path: Path,
+) -> None:
     found = sources(SPLIT)
     build_title_site(1, "Lot 1", tmp_path, found, lambda _: None)
-    assert load_demo_site(tmp_path).extent_nztm == (X0, Y0 + 16, X0 + 40, Y0 + 40)
+    site = load_demo_site(tmp_path)
+    assert site.extent_nztm in ((X0, Y0, X0 + 40, Y0 + 12), (X0, Y0 + 16, X0 + 40, Y0 + 40))
+    assert 1 in [p.parcel_id for p in site.parcels]
     assert title_site_name(found.addresses, found.parcels, 1).startswith("Lot 1")
 
 
 def test_a_title_in_one_piece_leaves_nothing_out(tmp_path: Path) -> None:
     build_site(7, tmp_path, sources(), lambda _: None)
-    assert not any("across a road" in item for item in load_demo_site(tmp_path).open_items)
+    assert not any("doesn't touch" in item for item in load_demo_site(tmp_path).open_items)
+
+
+def test_a_title_site_is_built_on_the_block_of_the_parcel_it_is_named_for(tmp_path: Path) -> None:
+    """Lot 1 (small) and Lot 2 (large) on one title, a neighbour between them:
+    the site keyed and named by Lot 1 holds Lot 1."""
+    small = parcel(1, _box(X0, Y0, X0 + 10, Y0 + 10), "354613")
+    large = parcel(2, _box(X0 + 30, Y0, X0 + 70, Y0 + 40), "354613")
+    build_title_site(1, "Lot 1", tmp_path, sources([small, large]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1]
+    (left_out,) = [item for item in site.open_items if "doesn't touch" in item]
+    assert "1,600 m²" in left_out and "road" not in left_out  # only what was measured
+
+
+def test_a_split_parcel_with_land_within_it_is_refused_before_it_is_named() -> None:
+    holed = _split(1, 0, 20)
+    hole = _box(X0 + 5, Y0 + 20, X0 + 10, Y0 + 25)
+    holed["geometry"]["coordinates"][1].append(hole)
+    found = sources([holed])
+    with pytest.raises(SiteError, match="isn't its own"):
+        title_site_name(found.addresses, found.parcels, 1)

@@ -38,7 +38,7 @@ from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
 from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
-from button_nz.sites.blocks import block
+from button_nz.sites.blocks import block, pieces
 from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
@@ -81,7 +81,7 @@ class Title:
     extent: BBox
     road_id: int | None = None  # the address's road, LINZ's
     addressed: bool = True  # False: a title with no address, built from its parcel
-    left_out_m2: float = 0.0  # the title's land across a road from the site (#136)
+    left_out_m2: float = 0.0  # the title's land that doesn't touch the site's block (#136)
 
 
 def build_site(
@@ -170,7 +170,8 @@ def title_of_parcel(sources: Sources, parcel_id: int, name: str) -> Title:
     titles = tuple(sorted(titles_of(found[0])))
     if not titles:
         raise SiteError(f"parcel {parcel_id} has no record of title: it isn't a property")
-    parcels, extent, left_out = _title_parcels(sources, titles, None)
+    here = shape(cast("dict[str, Any]", found[0]["geometry"])).representative_point()
+    parcels, extent, left_out = _title_parcels(sources, titles, (float(here.x), float(here.y)))
     middle = union_all([Polygon(_ring(f)) for f in parcels]).representative_point()
     point = (float(middle.x), float(middle.y))
     return Title(
@@ -186,6 +187,8 @@ def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: i
         raise SiteError(f"LINZ has no parcel {parcel_id}")
     props = _props(found[0])
     appellation = str(props.get("appellation") or f"Parcel {props['id']}")
+    for piece in pieces([found[0]]):  # one ring each, or refused now, not when built
+        _ring(piece)
     middle = shape(cast("dict[str, Any]", found[0]["geometry"])).representative_point()
     point = (float(middle.x), float(middle.y))
     near = addresses.in_envelope(_grown((*point, *point), NEAR_ADDRESS_M)).features
@@ -196,9 +199,10 @@ def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: i
 
 
 def _title_parcels(
-    sources: Sources, titles: Sequence[str], point: Point | None
+    sources: Sources, titles: Sequence[str], point: Point
 ) -> tuple[list[Feature], BBox, float]:
-    """The parcels on ``titles`` in the block of land at ``point`` (``blocks.block``),
+    """The parcels on ``titles`` in the block of land at ``point`` (``blocks.block``;
+    a title site's: its parcel's),
     their extent, and the area of the title's land left out; more than a
     section refused."""
     parcels, left_out = block(_on_titles(sources.parcels, titles), point)
@@ -324,8 +328,8 @@ def _manifest(
         )
     if title.left_out_m2 > 0:
         open_items.append(
-            f"The title also has {title.left_out_m2:,.0f} m² of land across a road, left out "
-            "of this site: a site is one block of land."
+            f"The title also has {_area(title.left_out_m2)} of land that doesn't touch this "
+            "site, left out of it: a site is one block of land."
         )
     return {
         "name": title.address,
@@ -440,6 +444,10 @@ def _ring(feature: Feature) -> Ring:
     if len(rings) > 1:  # land inside it isn't on the title: never fill it in
         raise SiteError(f"parcel {_props(feature).get('id')} has land within it that isn't its own")
     return tuple((float(x), float(y)) for x, y, *_ in rings[0])
+
+
+def _area(m2: float) -> str:
+    return "under 1 m²" if m2 < 1 else f"{m2:,.0f} m²"
 
 
 def _props(feature: Feature) -> dict[str, Any]:
