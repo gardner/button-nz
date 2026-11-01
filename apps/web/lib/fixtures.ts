@@ -57,6 +57,7 @@ export const SURVEY = {
         status: "agrees",
         note: "The LiDAR shows 4% of it under 0.5 m.",
         decision: "building",
+        suggested: false,
       },
       geometry: { type: "Polygon", coordinates: [square(1002, 2002, 3.5)] },
     },
@@ -71,6 +72,7 @@ export const SURVEY = {
         status: "conflict",
         note: "The LiDAR shows 90% of it under 0.5 m.",
         decision: null,
+        suggested: false,
       },
       geometry: {
         type: "MultiPolygon",
@@ -88,6 +90,7 @@ export const SURVEY = {
         status: "unlabelled",
         note: "The LiDAR shows 5 m² standing up here; no mask labels it.",
         decision: null,
+        suggested: false,
       },
       geometry: { type: "Polygon", coordinates: [square(1004, 2014, 2)] },
     },

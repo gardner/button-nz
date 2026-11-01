@@ -8,7 +8,7 @@ same, starts undecided.
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -16,10 +16,11 @@ from typing import Any
 
 from shapely import MultiPolygon, Polygon, union_all
 from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.agent.site import DesignSite
 from button_nz.geo.geometry import Ring
-from button_nz.perception.features import STRUCTURES, Status
+from button_nz.perception.features import GROUND, STRUCTURES, VEGETATION, Status
 
 
 class Decision(StrEnum):
@@ -57,6 +58,50 @@ def undecided_buildings(survey: Survey, decisions: Mapping[str, str]) -> list[st
         if f["id"] not in decisions
         and (f["properties"]["concept"] in STRUCTURES or f["properties"]["status"] in doubtful)
     ]
+
+
+MIN_ON_TITLE = 0.25  # less of a feature than this on the title: the neighbour's
+
+
+def suggested(survey: Survey, title: BaseGeometry) -> dict[str, Decision]:
+    """The decision each feature starts with, from what the survey measured,
+    for the owner to change: mostly the neighbour's, a parked car or open
+    ground is ignored, a building the LiDAR agrees with is a building, and
+    vegetation is kept clear. What the LiDAR disputes, or raised ground nothing
+    labelled, has none: the owner is asked, not guessed for."""
+    found: dict[str, Decision] = {}
+    for feature in survey.collection["features"]:
+        decision = _suggestion(feature, title)
+        if decision is not None:
+            found[feature["id"]] = decision
+    return found
+
+
+def _suggestion(feature: dict[str, Any], title: BaseGeometry) -> Decision | None:
+    concept, status = feature["properties"]["concept"], feature["properties"]["status"]
+    if status in (Status.CONFLICT, Status.UNLABELLED):
+        return None
+    area = shape(feature["geometry"])
+    if area.area > 0 and area.intersection(title).area / area.area < MIN_ON_TITLE:
+        return Decision.IGNORE
+    if status == Status.TRANSIENT or concept in GROUND:
+        return Decision.IGNORE
+    if concept in STRUCTURES and status == Status.AGREES:
+        return Decision.BUILDING
+    if concept in VEGETATION:
+        return Decision.KEEP_CLEAR
+    return None
+
+
+def effective(survey: Survey, decisions: Mapping[str, str], title: BaseGeometry) -> dict[str, str]:
+    """The decisions a design is checked on: the owner's, and for the rest
+    what the survey suggests."""
+    return {**{k: v.value for k, v in suggested(survey, title).items()}, **decisions}
+
+
+def title_of(rings: Iterable[Ring]) -> BaseGeometry:
+    """The land on a title, from its parcels' rings."""
+    return union_all([Polygon(ring) for ring in rings])
 
 
 def confirmed(

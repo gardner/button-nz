@@ -23,19 +23,30 @@ export const SITE_COLOURS = {
   walls: "#facc15",
 } as const;
 
-const DECIDED: Paint<"fill"> = {
-  "fill-color": [
-    "match",
-    ["coalesce", ["get", "decision"], "undecided"],
-    "building",
-    SITE_COLOURS.building,
-    "keep_clear",
-    SITE_COLOURS.keep_clear,
-    "ignore",
-    SITE_COLOURS.ignore,
-    SITE_COLOURS.undecided,
-  ],
-  "fill-opacity": ["match", ["get", "decision"], "ignore", 0.15, 0.5],
+/** A surveyed feature's colour, by what it was decided to be. */
+const DECIDED_COLOUR = [
+  "match",
+  ["coalesce", ["get", "decision"], "undecided"],
+  "building",
+  SITE_COLOURS.building,
+  "keep_clear",
+  SITE_COLOURS.keep_clear,
+  "ignore",
+  SITE_COLOURS.ignore,
+  SITE_COLOURS.undecided,
+] as NonNullable<Paint<"line">>["line-color"];
+
+/** The survey drawn see-through, so the owner sees what they are judging:
+ * the photo shows through (the fill stays, unseen, as what a click hits),
+ * and the kind is in a thick outline, faint for what is ignored. */
+const SURVEY_FILL: Paint<"fill"> = {
+  "fill-color": "#000000",
+  "fill-opacity": 0,
+};
+const SURVEY_LINE: Paint<"line"> = {
+  "line-color": DECIDED_COLOUR,
+  "line-width": 3,
+  "line-opacity": ["match", ["get", "decision"], "ignore", 0.45, 0.95],
 };
 
 /** In 3D the site's buildings and trees stand at half what the LiDAR says
@@ -141,12 +152,8 @@ export function SiteLayers({
       <GeoLayer
         id="site-features"
         data={map.features}
-        fill={DECIDED}
-        line={{
-          "line-color": "#ffffff",
-          "line-width": 1.5,
-          "line-opacity": 0.8,
-        }}
+        fill={SURVEY_FILL}
+        line={SURVEY_LINE}
         onClick={onFeature}
       />
       {/* Always mounted (empty in 2D), so its layers stay under the

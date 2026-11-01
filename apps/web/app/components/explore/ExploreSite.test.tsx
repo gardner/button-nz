@@ -86,6 +86,29 @@ function open() {
 }
 
 describe("a ready site", () => {
+  it("draws the survey see-through, its kind in a thick outline", async () => {
+    open();
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("site-features-line")).toBe(true),
+    );
+    const fill = FakeMap.last?.layers.get("site-features-fill") as {
+      paint: Record<string, unknown>;
+    };
+    const line = FakeMap.last?.layers.get("site-features-line") as {
+      paint: Record<string, unknown>;
+    };
+    expect(fill.paint["fill-opacity"]).toBe(0); // the photo shows through
+    expect(line.paint["line-width"]).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(line.paint["line-color"])).toContain("decision");
+  });
+
   it("credits its own data's providers on the map", async () => {
     open();
     serve({

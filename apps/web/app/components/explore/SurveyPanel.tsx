@@ -201,7 +201,9 @@ function Summary({
 }
 
 function label(feature: SiteFeature): string {
-  return feature.decision ? LOOKS[feature.decision].label : "Undecided";
+  if (!feature.decision) return "Undecided";
+  const named = LOOKS[feature.decision].label;
+  return feature.suggested ? `${named} (suggested)` : named;
 }
 
 function Note({ children }: { children: React.ReactNode }) {

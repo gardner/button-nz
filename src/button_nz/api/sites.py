@@ -22,6 +22,7 @@ from typing import Any, Self
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, model_validator
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.agent.demo import design_site
 from button_nz.agent.loop import DesignSite
@@ -30,10 +31,11 @@ from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
-from button_nz.demo_site import DemoSite, load_demo_site
+from button_nz.demo_site import DemoSite, load_demo_site, site_title
 from button_nz.geo.arcgis import ArcGISError, FeatureLayer
 from button_nz.geo.geometry import BBox
 from button_nz.geo.property import find_address
+from button_nz.perception.confirm import effective
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.build import SiteError
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
@@ -119,6 +121,10 @@ class Sites:
         site, _ = self.design_site(site_id)
         return Lidar(site.context.terrain, float(site.scene["frame"]["datum_m"]))
 
+    def survey_of(self, site_id: str) -> tuple[Path | None, FixedSurvey | None, BaseGeometry]:
+        """The site's survey file, how it is fixed, and the land on its title."""
+        return *self.survey(site_id), site_title(self.site(site_id))
+
     def survey(self, site_id: str) -> tuple[Path | None, FixedSurvey | None]:
         """The site's survey file, and how it is fixed (None: open). Read it
         with ``read_fixed``, which checks a fixed one is the survey fixed."""
@@ -199,7 +205,8 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
     def get_map(site_id: str) -> dict[str, Any]:
         site = sites.site(site_id)
         survey = read_fixed(*sites.survey(site_id))  # SurveyReplaced: a 409
-        decisions = {} if survey is None else store.decisions(survey.id)
+        own = {} if survey is None else store.decisions(survey.id)
+        decisions = {} if survey is None else effective(survey, own, site_title(site))
         return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 
     router.include_router(_terrain_router(sites))
