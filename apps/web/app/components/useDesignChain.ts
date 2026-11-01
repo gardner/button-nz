@@ -50,7 +50,12 @@ export function useDesignChain(pollMs: number, siteId?: string) {
         }
         setChain((started) => (started.length ? started : jobs));
       },
-      (e: Error) => setProblem(`Could not open design ${linked}: ${e.message}`),
+      (e: Error) => {
+        // A newer design has taken the link's place: its failure is old news.
+        const still = new URLSearchParams(window.location.search).get("design");
+        if (still === linked)
+          setProblem(`Could not open design ${linked}: ${e.message}`);
+      },
     );
   }, [siteId]); // fixed for a mount: the page remounts this for each site
   useEffect(() => {
