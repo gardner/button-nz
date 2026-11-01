@@ -1,6 +1,6 @@
 {
   "researched": "2026-10-30",
-  "about": "Prefab homes of 70 m² or less, from the suppliers' own pages: see docs/suppliers.md. length_m x width_m is the published outside footprint; dimensions_labelled is false where the page doesn't say what the figures measure; bounding_box is true where the plan isn't a rectangle, so length x width only bounds it. A null price_nzd means the supplier doesn't publish one.",
+  "about": "Prefab homes of 70 m² or less, from the suppliers' own pages: see docs/suppliers.md. length_m x width_m is the published outside footprint; dimensions_labelled is false where the page doesn't say what the figures measure; bounding_box is true where the plan isn't a rectangle, so length x width only bounds it. A null price_nzd means the supplier doesn't publish one. appearance gives each product's roof forms and pitch from its supplier's material (empty where not published) and wall and roof colours, with their basis: a published palette, or illustrative from a render.",
   "products": [
     {
       "id": "south-peak-okari",
@@ -24,7 +24,17 @@
         "https://southpeakhomes.co.nz/floor-plans/okari/",
         "https://southpeakhomes.co.nz/our-plans/floor-plans/",
         "https://southpeakhomes.co.nz/brochure-residential/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable",
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#f2f1ec",
+        "roof": "#4a4f52",
+        "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable or mono variants, apex heights published, pitch not): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "south-peak-nile",
@@ -48,7 +58,17 @@
         "https://southpeakhomes.co.nz/floor-plans/nile/",
         "https://southpeakhomes.co.nz/our-plans/floor-plans/",
         "https://southpeakhomes.co.nz/brochure-residential/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable",
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#f2f1ec",
+        "roof": "#4a4f52",
+        "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable or mono variants): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "south-peak-kendall",
@@ -72,7 +92,18 @@
         "https://southpeakhomes.co.nz/floor-plans/kendall/",
         "https://southpeakhomes.co.nz/our-plans/floor-plans/",
         "https://southpeakhomes.co.nz/brochure-residential/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable",
+          "mono",
+          "hip"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#f2f1ec",
+        "roof": "#4a4f52",
+        "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; gable, mono or hip variants): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "south-peak-sefton",
@@ -96,7 +127,18 @@
         "https://southpeakhomes.co.nz/floor-plans/sefton/",
         "https://southpeakhomes.co.nz/our-plans/floor-plans/",
         "https://southpeakhomes.co.nz/brochure-residential/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono",
+          "gable",
+          "hip"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#f2f1ec",
+        "roof": "#4a4f52",
+        "basis": "illustrative, from the supplier's render (Weathertex weatherboard, COLORSTEEL roof; mono, gable or hip rooflines): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "keith-hay-nook-60",
@@ -120,7 +162,16 @@
         "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nook-60.html",
         "https://www.keithhayhomes.co.nz/file/613/",
         "https://www.keithhayhomes.co.nz/contact-us/branches/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable"
+        ],
+        "roof_pitch_deg": 20,
+        "walls": "#eee8da",
+        "roof": "#3c3f41",
+        "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "keith-hay-nest-65",
@@ -144,7 +195,16 @@
         "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nest-65.html",
         "https://www.keithhayhomes.co.nz/file/612/",
         "https://www.keithhayhomes.co.nz/contact-us/branches/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable"
+        ],
+        "roof_pitch_deg": 20,
+        "walls": "#eee8da",
+        "roof": "#3c3f41",
+        "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "keith-hay-haven-70",
@@ -168,7 +228,16 @@
         "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/haven-70.html",
         "https://www.keithhayhomes.co.nz/file/611/",
         "https://www.keithhayhomes.co.nz/contact-us/branches/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "gable"
+        ],
+        "roof_pitch_deg": 20,
+        "walls": "#eee8da",
+        "roof": "#3c3f41",
+        "basis": "illustrative, from the supplier's render (Legacy specification: gable at 20 degrees): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "lockwood-haven",
@@ -191,7 +260,16 @@
       "sources": [
         "https://lockwood.co.nz/wp-content/uploads/2026/06/Small-Homes-Big-Possibilities_A5_150526.pdf",
         "https://lockwood.co.nz/find-a-contractor/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#b98a5e",
+        "roof": "#3d3d3d",
+        "basis": "illustrative, from the supplier's render (107 mm VG pine solid timber, or aluminium in Misty White on ReadyBuilt stock; roof colour not published): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "lockwood-lakeview",
@@ -214,7 +292,17 @@
       "sources": [
         "https://lockwood.co.nz/wp-content/uploads/2026/06/Small-Homes-Big-Possibilities_A5_150526.pdf",
         "https://lockwood.co.nz/find-a-contractor/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono",
+          "gable"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#e6e3d8",
+        "roof": "#3d3d3d",
+        "basis": "aluminium walls in Misty White, from the ReadyBuilt stock-house colour schedule (VG pine is the alternative); roof colour not published; hex approximate. Mono standard, gable trussed offered"
+      }
     },
     {
       "id": "lockwood-ara",
@@ -237,7 +325,14 @@
       "sources": [
         "https://lockwood.co.nz/wp-content/uploads/2026/06/Small-Homes-Big-Possibilities_A5_150526.pdf",
         "https://lockwood.co.nz/find-a-contractor/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [],
+        "roof_pitch_deg": null,
+        "walls": "#b98a5e",
+        "roof": "#3d3d3d",
+        "basis": "illustrative: the Lockwood solid-timber system assumed, not stated for the Ara; roof form and colours not published; hex approximate"
+      }
     },
     {
       "id": "living-little-oldham",
@@ -260,7 +355,16 @@
       "sources": [
         "https://livinglittle.co.nz/homes/oldham/",
         "https://livinglittle.co.nz/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#d3d5d2",
+        "roof": "#36383a",
+        "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "living-little-cameron",
@@ -283,7 +387,16 @@
       "sources": [
         "https://livinglittle.co.nz/homes/cameron/",
         "https://livinglittle.co.nz/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#d3d5d2",
+        "roof": "#36383a",
+        "basis": "illustrative, from the supplier's render (a generic Living Little render, not verified as this model; roof material not published): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "airhome-vista",
@@ -306,7 +419,16 @@
       "sources": [
         "https://www.airhome.co.nz/airhome-vista/",
         "https://www.airhome.co.nz/faq/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#e8e6df",
+        "roof": "#3b3e36",
+        "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
+      }
     },
     {
       "id": "airhome-pinnacle",
@@ -329,7 +451,16 @@
       "sources": [
         "https://www.airhome.co.nz/airhome-pinnacle/",
         "https://www.airhome.co.nz/faq/"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#e8e6df",
+        "roof": "#3b3e36",
+        "basis": "published 'Eclipse' palette: Cemintel Cloud walls (ends in Woodlands Ebony), COLORSTEEL Flax Pod roof and fascia; hex approximate. Roof: low mono with 400 mm eaves (supplier FAQ); pitch not stated"
+      }
     },
     {
       "id": "russley-methven",
@@ -352,7 +483,16 @@
       "sources": [
         "https://www.russleyportables.co.nz/product/accommodation/two-bedrooms/methven",
         "https://www.russleyportables.co.nz/faq"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#d8c9ae",
+        "roof": "#3a3a3a",
+        "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "russley-frazer",
@@ -375,7 +515,16 @@
       "sources": [
         "https://www.russleyportables.co.nz/product/accommodation/two-bedrooms/frazer",
         "https://www.russleyportables.co.nz/faq"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#d8c9ae",
+        "roof": "#3a3a3a",
+        "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
+      }
     },
     {
       "id": "russley-kurow",
@@ -398,7 +547,16 @@
       "sources": [
         "https://www.russleyportables.co.nz/product/accommodation/three-bedrooms/kurow",
         "https://www.russleyportables.co.nz/faq"
-      ]
+      ],
+      "appearance": {
+        "roof_forms": [
+          "mono"
+        ],
+        "roof_pitch_deg": null,
+        "walls": "#d8c9ae",
+        "roof": "#3a3a3a",
+        "basis": "illustrative, from the supplier's render (Coloursteel-clad EPS panels, low mono roof, dark fascia): colours are the buyer's choice; hex approximate"
+      }
     }
   ]
 }

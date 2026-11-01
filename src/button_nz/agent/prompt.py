@@ -98,12 +98,16 @@ def describe(report: Report) -> str:
     return "\n".join(lines)
 
 
-def placing(product: Footprint) -> str:
+def placing(product: Footprint, roof: str | None = None) -> str:
     """What the brief adds when the owner places a real product: its footprint,
-    which the evaluator checks the walls against."""
-    return (
+    which the evaluator checks the walls against, and its roof as the supplier
+    builds it (``roof``, e.g. "a gable roof at 20°"), where that is known."""
+    text = (
         f"Place this real prefab: the {product.name}. Its walls are a "
         f"{product.length_m:g} × {product.width_m:g} m rectangle, measured outside: "
         "build the Dwelling's walls to exactly that, either way round, wherever and "
         "facing whichever way best suits the brief and the site."
     )
+    if roof is None:
+        return text
+    return f"{text} Give it the roof its supplier builds: {roof}, within the height limit."

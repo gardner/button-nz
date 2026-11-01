@@ -8,9 +8,16 @@ dimensions whose page doesn't say what they measure are marked unlabelled.
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, ValidationError, computed_field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    computed_field,
+    model_validator,
+)
 
 from button_nz.evaluation import Footprint
 
@@ -20,6 +27,54 @@ MAX_FLOOR_AREA_M2 = 70.0  # the granny-flat exemption's limit
 
 class CatalogueError(ValueError):
     """A product that breaks the catalogue's rules: never offered."""
+
+
+RoofForm = Literal["mono", "gable", "hip", "flat"]
+HEX = r"^#[0-9a-fA-F]{6}$"
+
+
+class Appearance(BaseModel):
+    """How a product looks, from its supplier's material: the roof forms it is
+    built with (more than one: the buyer chooses; none: not published), the
+    pitch where stated, and wall and roof colours. ``basis`` says whether the
+    colours are a published palette or illustrative from a render."""
+
+    model_config = ConfigDict(frozen=True, strict=True, extra="forbid")
+
+    roof_forms: tuple[RoofForm, ...]
+    roof_pitch_deg: float | None
+    walls: str = Field(pattern=HEX)
+    roof: str = Field(pattern=HEX)
+    basis: str = Field(min_length=1)
+
+    @classmethod
+    def parse(cls, raw: Mapping[str, Any]) -> Self:
+        """An appearance from its JSON form, checked as the catalogue checks it."""
+        return cls.model_validate_json(json.dumps(raw), strict=True)
+
+    def roof_description(self) -> str | None:
+        """The roof in words for the design brief; None if it isn't known."""
+        match self.roof_forms:
+            case ():
+                return None
+            case (form,):
+                pitch = "" if self.roof_pitch_deg is None else f" at {self.roof_pitch_deg:g}°"
+                return f"a {form} roof{pitch}"
+            case forms:
+                return f"a {' or '.join(forms)} roof (the buyer chooses)"
+
+    def colours(self) -> dict[str, list[float]]:
+        """Wall and roof colours as Blender takes them: linear RGBA."""
+        return {"walls": _linear(self.walls), "roof": _linear(self.roof)}
+
+
+def _linear(hex_colour: str) -> list[float]:
+    def channel(value: int) -> float:
+        c = value / 255
+        return round(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4, 4)
+
+    rgb = [int(hex_colour[i : i + 2], 16) for i in (1, 3, 5)]
+    return [*(channel(v) for v in rgb), 1.0]
 
 
 class Product(BaseModel):
@@ -43,6 +98,7 @@ class Product(BaseModel):
     excludes: str
     west_coast: str  # what the supplier says about delivering to the West Coast
     sources: tuple[str, ...]
+    appearance: Appearance  # how it looks, for the placed design's brief and render
 
     @classmethod
     def parse(cls, raw: Mapping[str, Any]) -> Self:

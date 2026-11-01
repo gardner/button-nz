@@ -7,7 +7,7 @@ scene never carries seven-digit NZTM coordinates. Heights are relative to
 """
 
 from collections.abc import Sequence
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -33,12 +33,33 @@ class HeightGrid(TypedDict):
     heights: list[float]
 
 
+class DwellingColours(TypedDict):
+    """The trusted render's colours for the Dwelling, linear RGBA: its roof
+    (faces that point up) and its walls. Set by the host, never by the model."""
+
+    walls: list[float]
+    roof: list[float]
+
+
+# Bespoke designs: warm white walls, a dark grey roof.
+DEFAULT_COLOURS: DwellingColours = {
+    "walls": [0.8, 0.75, 0.65, 1.0],
+    "roof": [0.06, 0.07, 0.08, 1.0],
+}
+
+
 class SceneInput(TypedDict):
     frame: Frame
     terrain: HeightGrid
     ndsm: HeightGrid
     parcels: list[list[list[float]]]
     sources: list[str]
+    dwelling_colours: NotRequired[DwellingColours]
+
+
+def with_colours(scene: SceneInput, colours: DwellingColours) -> SceneInput:
+    """``scene`` with the Dwelling's render colours."""
+    return {**scene, "dwelling_colours": colours}
 
 
 def scene_input(

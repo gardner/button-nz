@@ -2,15 +2,17 @@
 scripted model that revises after a failed check. Run with `pytest -m blender`."""
 
 import json
+import struct
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
 
 from button_nz.agent.conversation import Turn
 from button_nz.agent.loop import DesignSite, design
-from button_nz.blender_worker.scene_input import scene_input
+from button_nz.blender_worker.scene_input import DwellingColours, scene_input
 from button_nz.evaluation import SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -82,3 +84,142 @@ def test_the_demo_site_runs_through_the_loop(tmp_path: Path) -> None:
     assert result.attempts[0].report is not None
     by_name = {c.name: c for c in result.attempts[0].report.checks}
     assert 189.0 < by_name["floor_level"].measured["lowest_ground_m"] < 191.5
+
+
+class PlacingModel:
+    """Places the dwelling well inside the title, once."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return MOVED
+
+
+def test_the_render_colours_the_roof_and_walls_as_the_host_says(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+    colours: DwellingColours = {"walls": [0.9, 0.1, 0.1, 1.0], "roof": [0.1, 0.1, 0.9, 1.0]}
+
+    result = design("A studio.", site, PlacingModel(), tmp_path, colours=colours)
+
+    assert result.accepted is not None
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    used = {p["material"] for p in gltf["meshes"][node["mesh"]]["primitives"]}
+    base = {
+        gltf["materials"][m]["name"]: gltf["materials"][m]["pbrMetallicRoughness"][
+            "baseColorFactor"
+        ]
+        for m in used
+    }
+    assert base["Dwelling roof"] == pytest.approx(colours["roof"], abs=1e-3)
+    assert base["Dwelling walls"] == pytest.approx(colours["walls"], abs=1e-3)
+
+
+class MirroringModel:
+    """Places a mirrored dwelling: every triangle wound the other way."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return MOVED.replace("(6.0, 5.0, 3.6)", "(6.0, 5.0, -3.6)")
+
+
+def test_the_roof_is_the_roof_whichever_way_its_triangles_wind(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    result = design("A studio.", site, MirroringModel(), tmp_path)
+
+    assert result.accepted is not None
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    top = {
+        gltf["materials"][p["material"]]["name"]: gltf["accessors"][p["attributes"]["POSITION"]][
+            "max"
+        ][1]
+        for p in gltf["meshes"][node["mesh"]]["primitives"]
+    }
+    assert top["Dwelling roof"] == pytest.approx(top["Dwelling walls"])  # the top face is roof
+
+
+# The dwelling above with a 0.2 m deck slab along its south side, in one mesh.
+WITH_DECK = (
+    MOVED
+    + """
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0.0, -3.5, 0.2))
+deck = bpy.context.active_object
+deck.scale = (6.0, 2.0, 0.2)
+bpy.ops.object.select_all(action="DESELECT")
+deck.select_set(True)
+dwelling.select_set(True)
+bpy.context.view_layer.objects.active = dwelling
+bpy.ops.object.join()
+"""
+)
+
+
+class DeckModel:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return WITH_DECK
+
+
+def test_a_deck_is_not_roof(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    design("A studio with a deck.", site, DeckModel(), tmp_path, max_attempts=1)
+
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    lowest = {
+        gltf["materials"][p["material"]]["name"]: gltf["accessors"][p["attributes"]["POSITION"]][
+            "min"
+        ][1]
+        for p in gltf["meshes"][node["mesh"]]["primitives"]
+    }
+    assert lowest["Dwelling roof"] == pytest.approx(3.9)  # only the top: not the deck or floor
+
+
+def glb_json(glb: Path) -> dict[str, Any]:
+    """The JSON chunk of a GLB file."""
+    data = glb.read_bytes()
+    (chunk_length,) = struct.unpack_from("<I", data, 12)
+    found: dict[str, Any] = json.loads(data[20 : 20 + chunk_length])
+    return found
+
+
+class EmptyModel:
+    """Leaves a Dwelling mesh with no faces."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return """
+dwelling = bpy.data.objects.new("Dwelling", bpy.data.meshes.new("Dwelling"))
+bpy.context.collection.objects.link(dwelling)
+"""
+
+
+def test_an_empty_dwelling_is_feedback_not_a_crash(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    result = design("A studio.", site, EmptyModel(), tmp_path, max_attempts=1)
+
+    assert result.accepted is None
+    assert "Dwelling" in result.attempts[0].feedback

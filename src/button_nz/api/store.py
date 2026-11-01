@@ -16,6 +16,9 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
+
+from button_nz.catalogue.products import Appearance
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -70,6 +73,7 @@ class Placed:
     name: str
     length_m: float
     width_m: float
+    appearance: Appearance | None = None  # how it looks; None for jobs placed before #100
 
 
 @dataclass(frozen=True)
@@ -129,7 +133,7 @@ class Store:
                     _now(),
                     parent_id,
                     instruction,
-                    None if product is None else json.dumps(asdict(product)),
+                    None if product is None else _placed_json(product),
                     site_id,
                 ),
             )
@@ -330,6 +334,16 @@ def _job(row: sqlite3.Row) -> Job:
         accepted_attempt=row["accepted_attempt"],
         parent_id=row["parent_id"],
         instruction=row["instruction"],
-        product=None if row["product"] is None else Placed(**json.loads(row["product"])),
+        product=None if row["product"] is None else _placed(json.loads(row["product"])),
         site_id=row["site_id"],
     )
+
+
+def _placed_json(product: Placed) -> str:
+    look = None if product.appearance is None else product.appearance.model_dump(mode="json")
+    return json.dumps(asdict(product) | {"appearance": look})
+
+
+def _placed(raw: dict[str, Any]) -> Placed:
+    look = raw.pop("appearance", None)
+    return Placed(**raw, appearance=None if look is None else Appearance.parse(look))

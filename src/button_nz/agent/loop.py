@@ -18,7 +18,12 @@ from button_nz.agent.prompt import describe, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
-from button_nz.blender_worker.scene_input import SceneInput
+from button_nz.blender_worker.scene_input import (
+    DEFAULT_COLOURS,
+    DwellingColours,
+    SceneInput,
+    with_colours,
+)
 from button_nz.evaluation import Check, Footprint, InvalidProposal, Report, Status, evaluate
 
 __all__ = [
@@ -100,6 +105,8 @@ def design(
     on_attempt: Callable[[Attempt], None] | None = None,
     revising: Revision | None = None,
     product: Footprint | None = None,
+    roof: str | None = None,
+    colours: DwellingColours = DEFAULT_COLOURS,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
     change it as the owner asks. Before each attempt the model may request up to
@@ -109,12 +116,15 @@ def design(
     since asking again would tell the model it failed. The evaluator still
     decides acceptance, and every attempt still records its verdict.
     ``on_attempt`` sees each attempt as it ends. Placing a real ``product``, the
-    brief gives its footprint, and every attempt is checked to be it."""
+    brief gives its footprint (and its ``roof``, in words, where known), and
+    every attempt is checked to be it. Every render uses the host's
+    ``colours`` for the Dwelling's roof and walls."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     prompt = system_prompt(site.scene, keep_clear, buildings)
-    asked = brief if product is None else f"{brief}\n\n{placing(product)}"
+    asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
+    scene = with_colours(site.scene, colours)  # the render's colours: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
     if revising is not None:
         conversation += [
@@ -132,7 +142,9 @@ def design(
             attempt = Attempt(number, "", ask.error, None, directory, ask.observed)
             _write_attempt(attempt)
         else:
-            attempt = _attempt(number, script, site, runner, directory, ask.observed, product)
+            attempt = _attempt(
+                number, script, site, scene, runner, directory, ask.observed, product
+            )
         attempts.append(attempt)
         if on_attempt is not None:
             on_attempt(attempt)
@@ -220,12 +232,13 @@ def _attempt(
     number: int,
     script: str,
     site: DesignSite,
+    scene: SceneInput,
     runner: Runner,
     directory: Path,
     observations: tuple[str, ...],
     product: Footprint | None,
 ) -> Attempt:
-    outputs = runner(site.scene, script, directory)
+    outputs = runner(scene, script, directory)
     report: Report | None = None
     judged = False
     try:

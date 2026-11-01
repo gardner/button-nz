@@ -21,7 +21,7 @@ import json
 import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -255,7 +255,8 @@ def _placed(placeable: Mapping[str, Product], product_id: str | None) -> Placed 
     if product_id not in placeable:
         raise HTTPException(422, f"{product_id} isn't a product whose footprint can be placed")
     footprint = placeable[product_id].footprint()
-    return Placed(product_id, footprint.name, footprint.length_m, footprint.width_m)
+    look = placeable[product_id].appearance
+    return Placed(product_id, footprint.name, footprint.length_m, footprint.width_m, look)
 
 
 def _job(store: Store, job_id: str) -> Job:
@@ -293,10 +294,16 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         accepted_attempt=job.accepted_attempt,
         parent_id=job.parent_id,
         instruction=job.instruction,
-        product=None if job.product is None else ProductView(**asdict(job.product)),
+        product=None if job.product is None else _product_view(job.product),
         site_id=job.site_id or DEMO_SITE_ID,
         attempts=attempts,
         illustrating=_illustrating(worker, job),
+    )
+
+
+def _product_view(product: Placed) -> ProductView:
+    return ProductView(
+        id=product.id, name=product.name, length_m=product.length_m, width_m=product.width_m
     )
 
 

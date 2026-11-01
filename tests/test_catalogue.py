@@ -19,6 +19,15 @@ from button_nz.catalogue import (
     matches,
     placement,
 )
+from button_nz.catalogue.products import Appearance
+
+APPEARANCE: dict[str, Any] = {
+    "roof_forms": ["gable"],
+    "roof_pitch_deg": 20,
+    "walls": "#eee8da",
+    "roof": "#3c3f41",
+    "basis": "illustrative, from the supplier's render",
+}
 
 
 def product(**overrides: Any) -> dict[str, Any]:
@@ -41,6 +50,7 @@ def product(**overrides: Any) -> dict[str, Any]:
         "excludes": "delivery, foundations",
         "west_coast": "not stated",
         "sources": ["https://example.com/sample"],
+        "appearance": APPEARANCE,
     }
     return fields | overrides
 
@@ -239,3 +249,34 @@ def test_a_product_says_whether_it_can_be_placed_when_sent() -> None:
     by_id = {p.id: p for p in load_products()}
     assert by_id["airhome-vista"].model_dump()["placeable"] is True
     assert by_id["lockwood-ara"].model_dump()["placeable"] is False
+
+
+def test_every_product_says_how_it_looks_and_on_what_basis() -> None:
+    by_id = {p.id: p for p in load_products()}
+    vista = by_id["airhome-vista"].appearance
+    assert vista.roof_forms == ("mono",) and "published" in vista.basis
+    assert by_id["keith-hay-nook-60"].appearance.roof_forms == ("gable",)
+    assert by_id["keith-hay-nook-60"].appearance.roof_pitch_deg == 20
+    assert by_id["lockwood-ara"].appearance.roof_forms == ()  # not published: unknown
+    assert all(p.appearance.basis for p in by_id.values())
+
+
+def test_the_roof_is_described_as_its_supplier_builds_it() -> None:
+    gable = Appearance.parse(APPEARANCE)
+    assert gable.roof_description() == "a gable roof at 20°"
+    either = gable.model_copy(update={"roof_forms": ("gable", "mono"), "roof_pitch_deg": None})
+    assert either.roof_description() == "a gable or mono roof (the buyer chooses)"
+    assert gable.model_copy(update={"roof_forms": ()}).roof_description() is None
+
+
+def test_colours_go_to_blender_as_linear_rgba() -> None:
+    colours = Appearance.parse(APPEARANCE | {"walls": "#ffffff", "roof": "#000000"})
+    assert colours.colours() == {"walls": [1.0, 1.0, 1.0, 1.0], "roof": [0.0, 0.0, 0.0, 1.0]}
+    mid = Appearance.parse(APPEARANCE | {"walls": "#808080"}).colours()["walls"]
+    assert mid[0] == pytest.approx(0.2158, abs=1e-3)  # sRGB 128 is about 0.216 linear
+
+
+@pytest.mark.parametrize("bad", [{"walls": "white"}, {"roof": "#12345"}, {"roof_forms": ["dome"]}])
+def test_an_appearance_that_isnt_a_colour_or_a_roof_is_refused(bad: dict[str, Any]) -> None:
+    with pytest.raises(CatalogueError):
+        Product.parse(product(appearance=APPEARANCE | bad))
