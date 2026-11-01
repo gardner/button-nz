@@ -13,7 +13,6 @@ LiDAR's DEM and DSM tiles into ``CACHE``, screens every section
 
 import argparse
 import math
-import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -24,6 +23,7 @@ from typing import Any
 import httpx
 from shapely import STRtree
 
+from button_nz.bench.provenance import code_commit
 from button_nz.catalogue import Product, load_products
 from button_nz.config import ServiceEndpoints
 from button_nz.geo.geometry import BBox
@@ -154,7 +154,7 @@ def sources(data: TownData, lidar: Sequence[str]) -> list[dict[str, str]]:
 
 def main(argv: Sequence[str] | None = None) -> None:
     options = parse_options(argv)
-    commit = _commit()  # before this run writes anything
+    commit = code_commit()  # before this run writes anything
     options.out_dir.mkdir(parents=True, exist_ok=True)
     log = options.out_dir / "results.jsonl"
     if log.exists():  # one run per directory: no mixed results
@@ -210,21 +210,6 @@ def _map_notes(meta: dict[str, Any]) -> list[str]:
         "Sources: Buller District Council parcels and zones; LINZ NZ Building Outlines; "
         "West Coast LiDAR 2020-24 (LINZ, Aerial Surveys, West Coast Regional Council).",
     ]
-
-
-RESULT_INPUTS = ("src", "data", "pyproject.toml", "uv.lock")  # what the results depend on
-
-
-def _commit() -> str:
-    """HEAD, marked if anything the results depend on differs from it. Old
-    results deleted to make way for this run's don't count."""
-
-    def git(*args: str) -> str:
-        return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
-
-    commit = git("rev-parse", "--short", "HEAD").strip()
-    changed = git("status", "--porcelain", "--untracked-files=no", "--", *RESULT_INPUTS).strip()
-    return commit + (" with uncommitted changes" if changed else "")
 
 
 def _day(epoch_ms: int) -> str:

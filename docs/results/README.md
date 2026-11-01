@@ -182,6 +182,32 @@ one (it passed both times; three samples each way all passed). Each run is
 one sample per design, and the one-edit rate varied from 5 to
 8 of 12 between runs, so differences of one or two designs are noise.
 
+## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
+
+**Reefton** ([report](impact/report.md), code 8a0721e). If some share of the
+**backyards** (properties with a LINZ building outline) with room for a real prefab
+added one flat each: 439 of Reefton's 745 backyards (town screen, by
+title). Today's housing, from Stats NZ's 2023 Census for Reefton: 603
+private dwellings, 489 households, 1,026 people; households average 1.95
+people, and 42% are one person (both of the 462 households whose size
+Stats NZ gives).
+
+| Backyards adding a flat | Homes | More homes than today | People housed |
+|---|---|---|---|
+| 10% of 439 | 43 | +7% | 43–83 |
+| 25% of 439 | 109 | +18% | 109–212 |
+| 50% of 439 | 219 | +36% | 219–426 |
+
+On the stricter count (235 backyards also clear on the LiDAR), 25% is 58
+homes (+10%). These are backyard flats only, so they understate the
+exemption: another 183 empty sections have room, and the exemption covers a
+small first home there too. They're counted apart, since it would be the
+first home rather than a flat beside one. The shares are scenarios, not forecasts, and the census's Reefton
+isn't exactly the screen's Residential zones, so the increase is
+indicative. The outlines don't say which building is a home: a property
+whose only outline is a shed counts as a backyard, and a house built since
+2015–16 is missing.
+
 ## Many real sections: placement before and after (`button_nz.bench.batch`, #117)
 
 The same 7 Reefton sections, from across the town screen's range of sizes,
