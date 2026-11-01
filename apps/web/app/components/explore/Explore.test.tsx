@@ -177,7 +177,7 @@ describe("Explore", () => {
       "GET /api/town/reefton": [TOWN],
       "GET /api/addresses": [ADDRESSES],
       "POST /api/sites": [SITE_BUILDING],
-      "GET /api/sites/addr-1907458": [SITE_BUILDING, SITE_READY],
+      "GET /api/sites/35-victory-street-reefton": [SITE_BUILDING, SITE_READY],
     });
     render(<Explore pollMs={5} />);
     fireEvent.change(screen.getByRole("combobox"), {
