@@ -16,12 +16,13 @@ import httpx2  # the HTTP client the openai SDK is built on
 import numpy as np
 import pytest
 from numpy.typing import NDArray
-from openai import DefaultHttpxClient, OpenAI
+from openai import BadRequestError, DefaultHttpxClient, OpenAI
 from PIL import Image
 
 from button_nz.agent.model import META_BASE_URL
 from button_nz.perception.sam import SAM_MODEL, Segmenter, parse_masks
 from button_nz.perception.visual import (
+    EDITS,
     MIN_IOU,
     VISUAL_MODEL,
     Visual,
@@ -75,13 +76,16 @@ def _sam_reply(text: str) -> dict[str, Any]:
 class Api:
     """The Meta Model API, mocked: what was asked, and what it replies."""
 
-    def __init__(self, sam_text: str = TREES, edit: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, sam_text: str | list[str] = TREES, edit: dict[str, Any] | None = None
+    ) -> None:
         # Half the render's size: the illustration is checked at the render's.
         illustration = Image.new("RGB", (SHAPE[1] // 2, SHAPE[0] // 2), (200, 180, 150))
         b64 = base64.b64encode(_png(illustration)).decode("ascii")
         self.edit = edit if edit is not None else {"created": 0, "data": [{"b64_json": b64}]}
-        self.sam_text = sam_text
+        self.sam_texts = [sam_text] if isinstance(sam_text, str) else sam_text  # last repeats
         self.edits: list[bytes] = []
+        self.failing_edits: set[int] = set()  # which edits, counted from 1, are refused
         self.segmentations: list[dict[str, Any]] = []
         client = OpenAI(
             base_url=META_BASE_URL,
@@ -93,10 +97,13 @@ class Api:
     def _handle(self, request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("/images/edits"):
             self.edits.append(request.content)
+            if len(self.edits) in self.failing_edits:
+                return httpx2.Response(400, json={"error": {"message": "refused"}})
             return httpx2.Response(200, json=self.edit)
         assert request.url.path.endswith("/responses")
         self.segmentations.append(json.loads(request.content))
-        return httpx2.Response(200, json=_sam_reply(self.sam_text))
+        text = self.sam_texts.pop(0) if len(self.sam_texts) > 1 else self.sam_texts[0]
+        return httpx2.Response(200, json=_sam_reply(text))
 
     def illustrate(self, render: Path, mask: Path) -> Visual:
         return illustrate(render, mask, self.client, self.segmenter)
@@ -121,6 +128,49 @@ def test_an_illustration_that_keeps_the_silhouette_is_accepted(tmp_path: Path) -
     assert visual.png is not None
     with Image.open(io.BytesIO(visual.png)) as shown:
         assert shown.size == (SHAPE[1], SHAPE[0])  # what was checked is what is shown
+
+
+def test_an_illustration_accepted_first_time_takes_one_edit(tmp_path: Path) -> None:
+    api = Api()
+    visual = api.illustrate(*_files(tmp_path, FIRST))
+    assert visual.accepted and visual.edits == 1 and len(api.edits) == 1
+
+
+def test_a_rejected_illustration_gets_a_second_edit(tmp_path: Path) -> None:
+    """Muse Image's result varies from edit to edit: of the seven designs whose
+    first edit was rejected, the second rescued two (#133). It is checked just
+    the same."""
+    api = Api(sam_text=["", TREES])  # no house in the first, the dwelling in the second
+    visual = api.illustrate(*_files(tmp_path, FIRST))
+    assert visual.accepted and visual.iou == pytest.approx(1.0)
+    assert visual.edits == EDITS == 2 and len(api.edits) == len(api.segmentations) == 2
+    assert visual.record()["edits"] == 2
+
+
+def test_a_failed_second_edit_keeps_the_first_edits_rejection(tmp_path: Path) -> None:
+    """The first edit was made and measured: its IoU is the record, not lost."""
+    shifted = np.roll(FIRST, 12, axis=1)
+    api = Api()
+    api.failing_edits = {2}
+    visual = api.illustrate(*_files(tmp_path, shifted))
+    assert not visual.accepted and visual.iou is not None and visual.iou < MIN_IOU
+    assert visual.edits == 1  # edits checked
+    assert visual.reason is not None and "second edit failed" in visual.reason
+
+
+def test_a_failed_first_edit_is_an_error_as_before(tmp_path: Path) -> None:
+    api = Api()
+    api.failing_edits = {1}
+    with pytest.raises(BadRequestError):
+        api.illustrate(*_files(tmp_path, FIRST))
+
+
+def test_an_illustration_rejected_every_time_is_not_shown(tmp_path: Path) -> None:
+    shifted = np.roll(FIRST, 12, axis=1)
+    api = Api()
+    visual = api.illustrate(*_files(tmp_path, shifted))
+    assert not visual.accepted and visual.png is None and visual.edits == EDITS
+    assert len(api.edits) == EDITS
 
 
 def test_the_edit_asks_muse_image_to_keep_the_building(tmp_path: Path) -> None:
@@ -198,7 +248,7 @@ def test_an_edit_without_an_image_is_an_error(tmp_path: Path) -> None:
 
 
 def test_an_accepted_visual_is_saved_with_its_record(tmp_path: Path) -> None:
-    visual = Visual(VISUAL_MODEL, True, 0.82, None, b"\x89PNG visual")
+    visual = Visual(VISUAL_MODEL, True, 0.82, None, b"\x89PNG visual", 1)
     save(visual, tmp_path)
     assert (tmp_path / "visual.png").read_bytes() == b"\x89PNG visual"
     record = json.loads((tmp_path / "visual.json").read_text(encoding="utf-8"))
@@ -208,12 +258,13 @@ def test_an_accepted_visual_is_saved_with_its_record(tmp_path: Path) -> None:
         "iou": 0.82,
         "min_iou": MIN_IOU,
         "reason": None,
+        "edits": 1,
     }
 
 
 def test_a_rejected_visual_is_recorded_but_not_saved(tmp_path: Path) -> None:
     (tmp_path / "visual.png").write_bytes(b"stale")
-    save(Visual(VISUAL_MODEL, False, 0.31, "It moved.", None), tmp_path)
+    save(Visual(VISUAL_MODEL, False, 0.31, "It moved.", None, 2), tmp_path)
     assert not (tmp_path / "visual.png").exists()
     record = json.loads((tmp_path / "visual.json").read_text(encoding="utf-8"))
     assert record["accepted"] is False and record["reason"] == "It moved."
@@ -229,6 +280,6 @@ def test_the_key_comes_from_the_environment(
 
 def test_only_an_accepted_visual_carries_an_image() -> None:
     with pytest.raises(ValueError, match="accepted"):
-        Visual(VISUAL_MODEL, False, 0.2, "It moved.", b"\x89PNG")
+        Visual(VISUAL_MODEL, False, 0.2, "It moved.", b"\x89PNG", 1)
     with pytest.raises(ValueError, match="accepted"):
-        Visual(VISUAL_MODEL, True, 0.9, None, None)
+        Visual(VISUAL_MODEL, True, 0.9, None, None, 1)
