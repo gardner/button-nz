@@ -4,6 +4,7 @@ import { ApiError } from "./fields";
 import { ADDRESSES, SITE_BUILDING, SITE_READY, TOWN } from "./fixtures-sites";
 import {
   createSite,
+  createSiteFromSection,
   getSite,
   getTown,
   parseSiteState,
@@ -70,6 +71,15 @@ describe("sites", () => {
       status: "building",
       step: "terrain",
       site: null,
+    });
+  });
+
+  it("starts building the site for a section, by its parcel", async () => {
+    const fetch = serve(SITE_BUILDING, 202);
+    await createSiteFromSection(3652040);
+    expect(fetch.mock.calls[0][0]).toBe("/api/sites");
+    expect(JSON.parse(String(fetch.mock.calls[0][1].body))).toEqual({
+      parcel_id: 3652040,
     });
   });
 

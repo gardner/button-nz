@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { ApiError, passing } from "@/lib/fields";
 import { getDesign } from "@/lib/api";
-import { type SiteState, createSite, getSite } from "@/lib/sites";
+import {
+  type SiteState,
+  createSite,
+  createSiteFromSection,
+  getSite,
+} from "@/lib/sites";
 
 /** A site asked for and not yet answered: the request (safe to repeat: one
  * site per address), the pick it answers, and how often it has been asked. */
@@ -117,6 +122,8 @@ export function useSite(pollMs: number) {
     opening: asking?.label ?? null,
     fromAddress: (addressId: number, address: string) =>
       pick(() => createSite(addressId), address),
+    fromSection: (parcelId: number) =>
+      pick(() => createSiteFromSection(parcelId), "the section you tapped"),
   };
 }
 

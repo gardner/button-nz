@@ -103,6 +103,14 @@ export async function createSite(addressId: number): Promise<SiteState> {
   );
 }
 
+/** Start building the site for a section tapped on the map, by its LINZ
+ * parcel id: the server finds the address on it (or on its title). */
+export async function createSiteFromSection(
+  parcelId: number,
+): Promise<SiteState> {
+  return parseSiteState(await send("POST", "/sites", { parcel_id: parcelId }));
+}
+
 export async function getSite(id: string): Promise<SiteState> {
   return parseSiteState(await request(`/sites/${encodeURIComponent(id)}`));
 }
