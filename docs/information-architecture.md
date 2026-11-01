@@ -19,7 +19,7 @@ checked against the measured site.
 │   ├── Site panel (SitePanel)
 │   │   ├── Name, title and valuation number
 │   │   ├── Site plan, north up: parcels, aerial photo, surveyed features, plan key
-│   │   ├── Sources: each dataset's title, licence, attribution and capture dates
+│   │   ├── Sources: each dataset's title, licence, attribution, and capture dates where recorded
 │   │   └── Still to confirm: the site's open items
 │   └── What is on the site (FeaturesPanel)
 │       ├── Fixed-survey note: who decided it, when the server has fixed it

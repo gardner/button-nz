@@ -21,8 +21,8 @@ owner to them, and doesn't yet serve them directly ([product.md](product.md)).
 **Goal:** the designs are checked against what really stands on the land.
 
 1. The owner opens button.nz and sees their section: the title, the parcels
-   on the aerial photo, and where each dataset comes from and when it was
-   captured.
+   on the aerial photo, and where each dataset comes from and, where
+   recorded, when it was captured.
 2. Under "What is on the site", each card is something SAM 3.1 found on the
    photo, with its area and height from the LiDAR. Where the photo and the
    LiDAR disagree, the card asks for their judgement.
@@ -131,8 +131,8 @@ one of their own.
    check, the 3D model, the AI visual, before and after. (A link opens a
    design and what came before it, not later revisions, so the team links
    the latest.)
-2. They read the site panel: real parcels, real LiDAR, sources and capture
-   dates. They see the survey as the owner decided it, and who decided it.
+2. They read the site panel: real parcels, real LiDAR, sources and,
+   where recorded, capture dates. They see the survey as the owner decided it, and who decided it.
 3. They write their own brief and press **Design**, and watch it run live:
    Muse's LiDAR views, a failed check and its repair, the accepted design.
 4. They ask which prefabs fit, and place one.
