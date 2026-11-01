@@ -86,22 +86,25 @@ def _square(a: Sequence[float], b: Sequence[float], c: Sequence[float]) -> bool:
 
 
 def street_distance(walls: Sequence[Point], found: Sequence[Frontage]) -> float | None:
-    """How far the walls are from the address's street's edge; None if the
-    site has no street among its frontages."""
+    """How far the walls are from the address's street; None if the site has
+    no street among its frontages. For a street that runs along no edge (a
+    rear section), the way from that edge on to the street is added."""
     street = next((f for f in found if f.street), None)
     if street is None:
         return None
+    return round(_gap(walls, street), 2)
+
+
+def _gap(walls: Sequence[Point], frontage: Frontage) -> float:
+    """Walls to the road: to its edge, plus beyond it for a road along no edge."""
     footprint = Polygon(walls)
-    return round(min(footprint.distance(LineString(edge)) for edge in street.edges), 2)
+    edge = min(footprint.distance(LineString(e)) for e in frontage.edges)
+    return edge + (0.0 if frontage.adjacent else frontage.distance_m)
 
 
 def road_distances(walls: Sequence[Point], found: Sequence[Frontage]) -> dict[str, float]:
     """How far the walls are from each frontage, by its road's name."""
-    footprint = Polygon(walls)
-    return {
-        f.road or "unnamed road": round(min(footprint.distance(LineString(e)) for e in f.edges), 2)
-        for f in found
-    }
+    return {f.road or "unnamed road": round(_gap(walls, f), 2) for f in found}
 
 
 def main(argv: list[str] | None = None) -> None:

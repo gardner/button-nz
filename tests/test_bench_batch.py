@@ -55,7 +55,7 @@ def test_a_visual_still_being_made_is_waited_for_not_counted_as_failed(monkeypat
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("visual.json"):
-            return httpx.Response(200, json={"accepted": True})
+            return httpx.Response(200, json={"accepted": True, "iou": 0.81})
         illustrating, attempt = next(polls)
         body = {
             "id": "j",
@@ -72,7 +72,7 @@ def test_a_visual_still_being_made_is_waited_for_not_counted_as_failed(monkeypat
         "attempts": [making],
         "accepted_attempt": 1,
     }
-    assert batch_run._visual(client, job) is True  # pyright: ignore[reportPrivateUsage]
+    assert batch_run._visual(client, job) == "passed"  # pyright: ignore[reportPrivateUsage]
 
 
 def test_a_repeat_runs_an_earlier_runs_sections_with_their_briefs(tmp_path: Path) -> None:
@@ -88,3 +88,44 @@ def test_a_repeat_runs_an_earlier_runs_sections_with_their_briefs(tmp_path: Path
 def test_a_fresh_run_pairs_its_picks_with_the_briefs_in_turn() -> None:
     sections = [section(i, 1 + i) for i in range(4)]
     assert planned(sections, 4) == [(0, BRIEFS[0]), (1, BRIEFS[1]), (2, BRIEFS[2]), (3, BRIEFS[0])]
+
+
+def test_a_rear_sections_street_distance_includes_the_way_to_the_street() -> None:
+    walls = [(5.0, 7.0), (10.0, 7.0), (10.0, 12.0), (5.0, 12.0), (5.0, 7.0)]
+    away = Frontage(
+        "Coal Street", True, (((0.0, 0.0), (40.0, 0.0)),), adjacent=False, distance_m=18.3
+    )
+    assert street_distance(walls, (away,)) == 25.3  # 7 m to the edge, 18.3 m on to the street
+
+
+def _visual_client(record: dict[str, Any]) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=record)
+
+    return httpx.Client(base_url="http://api", transport=httpx.MockTransport(handler))
+
+
+def test_a_visual_that_couldnt_be_checked_isnt_counted_as_a_failed_check() -> None:
+    from button_nz.bench import batch_run
+
+    made: dict[str, Any] = {"number": 1, "files": {"visual.json": "/v.json"}}
+    job: dict[str, Any] = {
+        "id": "j",
+        "illustrating": False,
+        "attempts": [made],
+        "accepted_attempt": 1,
+    }
+    rejected = _visual_client({"accepted": False, "iou": 0.07, "reason": "moved"})
+    unchecked = _visual_client({"accepted": False, "iou": None, "reason": "Muse Image refused"})
+    assert batch_run._visual(rejected, job) == "failed"  # pyright: ignore[reportPrivateUsage]
+    assert batch_run._visual(unchecked, job) == "not made"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_visual_that_never_finishes_is_not_made_and_the_design_is_kept(monkeypatch: Any) -> None:
+    from button_nz.bench import batch_run
+
+    monkeypatch.setattr(batch_run, "POLL_S", 0.0)
+    monkeypatch.setattr(batch_run, "VISUAL_TIMEOUT_S", 0.0)
+    still: dict[str, Any] = {"id": "j", "illustrating": True, "attempts": [], "accepted_attempt": 1}
+    client = _visual_client(still)
+    assert batch_run._visual(client, still) == "not made"  # pyright: ignore[reportPrivateUsage]

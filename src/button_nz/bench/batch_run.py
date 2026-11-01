@@ -22,8 +22,10 @@ from button_nz.bench.batch import (
     road_distances,
     street_distance,
 )
+from button_nz.geo.arcgis import ArcGISError
 from button_nz.geo.geometry import Point
 from button_nz.geo.property import find_address
+from button_nz.sites.build import SiteError
 from button_nz.sites.frontages import fetch_frontages
 from button_nz.sites.live import LiveLayers
 from button_nz.sites.search import address_on_section
@@ -56,6 +58,9 @@ def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = 
         except CapReached as error:
             print(f"stopped: {error}")
             break
+        except (httpx.HTTPError, TimeoutError, LookupError, SiteError, ArcGISError) as error:
+            # One section's failure is recorded, and the run goes on.
+            result = {"parcel_id": parcel_id, "brief": brief, "outcome": f"error: {error}"}
         _write(out, result)
         print(f"{parcel_id}: {result.get('outcome')}")
     _report(out)
@@ -66,7 +71,10 @@ def _one(client: httpx.Client, layers: LiveLayers, parcel_id: int, brief: str) -
     address_id = address_on_section(layers.addresses, layers.parcels, parcel_id)
     if address_id is None:
         return result | {"outcome": "no address on the section"}
-    site = client.post("/sites", json={"address_id": address_id}).raise_for_status().json()
+    asked_site = client.post("/sites", json={"address_id": address_id})
+    if asked_site.status_code == 429:  # the site-build cap: stop, as for designs
+        raise CapReached(asked_site.json().get("detail", "the daily site cap"))
+    site = asked_site.raise_for_status().json()
     site = _poll(client, f"/sites/{site['id']}", {"ready", "failed", "no_lidar"}, SITE_TIMEOUT_S)
     result |= {"site_id": site["id"], "address": site["address"]}
     if site["status"] != "ready":
@@ -133,19 +141,25 @@ def _walls(client: httpx.Client, job_id: str) -> list[Point]:
     return [tuple(float(v) for v in TO_NZTM.transform(x, y)) for x, y, *_ in ring]  # pyright: ignore[reportReturnType]
 
 
-def _visual(client: httpx.Client, job: dict[str, Any]) -> bool | None:
-    """Whether the AI visual passed its SAM check; None if none was made. The
-    visual is made after the design is done (``illustrating``): wait for it,
-    never count one still coming as a failure."""
+def _visual(client: httpx.Client, job: dict[str, Any]) -> str:
+    """The AI visual's verdict: "passed" or "failed" its SAM check, or "not
+    made" (none made, its making or checking failed, or it isn't done in
+    time). The visual is made after the design is done (``illustrating``):
+    it's waited for, never counted as failed while still coming."""
     deadline = time.monotonic() + VISUAL_TIMEOUT_S
     while job.get("illustrating"):
         if time.monotonic() > deadline:
-            raise TimeoutError(f"design {job['id']}'s visual still being made")
+            return "not made"  # the design is kept either way
         time.sleep(POLL_S)
         job = client.get(f"/designs/{job['id']}").raise_for_status().json()
     accepted = next(a for a in job["attempts"] if a["number"] == job["accepted_attempt"])
     url = accepted["files"].get("visual.json")
-    return None if url is None else bool(client.get(url).raise_for_status().json()["accepted"])
+    if url is None:
+        return "not made"
+    record = client.get(url).raise_for_status().json()
+    if record.get("iou") is None:  # made or checked by nothing: no silhouette verdict
+        return "not made"
+    return "passed" if record["accepted"] else "failed"
 
 
 def _ring(geometry: dict[str, Any]) -> tuple[Point, ...]:
@@ -187,9 +201,9 @@ def _report(out: Path) -> None:
         f"- sections tried: {len(rows)}; designed: {len(designed)}; accepted: {len(accepted)}",
         f"- accepted on the first attempt: {len(first)} of {len(designed)}",
         f"- plain rectangles: {sum(1 for r in accepted if r['rectangle'])} of {len(accepted)}",
-        f"- AI visual passed its SAM check: {sum(1 for r in accepted if r['visual'] is True)}"
-        f"; failed: {sum(1 for r in accepted if r['visual'] is False)}"
-        f"; none made: {sum(1 for r in accepted if r['visual'] is None)}",
+        f"- AI visual passed its SAM check: {sum(1 for r in accepted if r['visual'] == 'passed')}"
+        f"; failed it: {sum(1 for r in accepted if r['visual'] == 'failed')}"
+        f"; not made or not checked: {sum(1 for r in accepted if r['visual'] == 'not made')}",
         f"- median design time: {median(r['seconds'] for r in designed):.0f} s" if designed else "",
         "",
         "## First attempts' failing checks",

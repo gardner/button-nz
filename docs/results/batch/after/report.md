@@ -3,7 +3,7 @@
 - sections tried: 7; designed: 6; accepted: 6
 - accepted on the first attempt: 6 of 6
 - plain rectangles: 6 of 6
-- AI visual passed its SAM check: 3; failed: 3; none made: 0
+- AI visual passed its SAM check: 3; failed it: 3; not made or not checked: 0
 - median design time: 110 s
 
 ## First attempts' failing checks
