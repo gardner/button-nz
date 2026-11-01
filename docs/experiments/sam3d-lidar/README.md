@@ -41,13 +41,41 @@ photographs. So we make an ordinary-looking photo from our data:
    one metric 3D point per pixel, in the camera's coordinates.
 3. **The building's mask:** the pixels whose surface point falls inside its
    LINZ outline (plus 1 m) and stands more than 1 m above ground.
-4. **Two runs of SAM 3D on the same photo and mask:**
-   - **without LiDAR,** where SAM 3D estimates depth itself (MoGe);
-   - **with LiDAR,** passing our pointmap.
-5. **Measure each reconstruction against the truth we have:**
-   - roof height against the nDSM;
-   - footprint against the LINZ outline (overlap, IoU);
-   - overall scale.
+4. **Four conditions, each on the same photo and mask:**
+
+   | Condition | What it tests |
+   |---|---|
+   | SAM 3D, its own MoGe depth | the baseline |
+   | SAM 3D, the LiDAR pointmap | the main question |
+   | SAM 3D, the LiDAR pointmap, then fitted to the LiDAR | whether explicit fitting adds anything |
+   | [Roofer](https://github.com/3DBAG/roofer), from the LiDAR and the outline | a conventional, non-generative baseline |
+
+5. **Measure two things apart.**
+   - **Shape:** after the best scale and rigid alignment, is the roof right?
+     - roof-surface RMSE;
+     - roof-plane topology;
+     - whether the model is a valid closed solid.
+   - **Metric layout:** with no alignment, is it the right size and in the
+     right place?
+     - scale;
+     - position;
+     - roof height above ground;
+     - footprint.
+
+   Monocular depth has no scale at all, so a wrong scale isn't a bad shape;
+   reporting the two apart keeps one from hiding the other.
+
+6. **Measure against truth the model wasn't given.**
+   - The pointmap comes from the 1 m DSM. Scoring the model against that
+     same DSM only tests how faithfully it follows its input.
+   - Independent truth: LINZ's original LAS/LAZ point cloud, its points (not
+     the 1 m grid) held out.
+   - Footprint IoU against the LINZ outline mostly tests adherence to the
+     mask, which is drawn from that outline. It's reported as such, not as
+     footprint discovery.
+7. **Report the inputs as what they are:** the oblique photo is synthetic
+   (an orthophoto draped on a 1 m surface), with no real walls. Results
+   apply to synthetic oblique inputs, not to real oblique photography.
 
 ### How the pointmap goes in (verified in the code, not yet run)
 
@@ -60,6 +88,35 @@ photographs. So we make an ordinary-looking photo from our data:
   y up, z forward: OpenCV's with x and y negated). Missing pixels may be NaN.
 - **Scale:** the pipeline normalises scale and restores it on the output, so
   metric LiDAR should give a metric model.
+
+## What's known already
+
+From research the owner gathered on [#125](https://github.com/gardner/button-nz/issues/125#issuecomment-6558069113).
+Only the SAM 3D papers have been checked against their sources here; the
+rest are as reported, not yet checked.
+
+- **Meta's own ablation:** SAM 3D's appendix ("Pointmap Minimally Affects
+  Shape") found people preferred the version with and the version without a
+  pointmap equally often (48% each, on LVIS).
+  - That's perceived shape, on everyday objects, not buildings in metres.
+  - So the LiDAR's likely gain is metric layout (scale, position, height),
+    not shape. Hence step 5's split.
+- **SAM 3D on remote-sensing images** ([arXiv 2512.22452](https://arxiv.org/abs/2512.22452)):
+  image-similarity metrics only, no metric comparison against LiDAR.
+- **Fusing aerial imagery with LiDAR helps purpose-built models,** as
+  reported for LoD2-Former (roof wireframes) and P³ (building polygons).
+  - [P³](https://github.com/raphaelsulzer/PixelsPointsPolygons) includes LINZ
+    data from Twyford, Waipukurau and Gisborne: aerial RGB, LiDAR and
+    building polygons.
+- **Visual quality isn't validity:** one 2026 study reports that only 0.6%
+  of a generative model's building meshes were valid solids. Hence the
+  validity measure.
+- **External references, if time allows:** the ISPRS building
+  reconstruction benchmark (Vaihingen, Toronto), with independent reference
+  roofs; and Building3D (roof meshes and wireframes).
+- **No published study** does exactly this experiment: SAM 3D with measured
+  airborne LiDAR against SAM 3D with estimated depth, on real buildings,
+  with metric evaluation.
 
 ## What we've measured so far: the depth input
 
