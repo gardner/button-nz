@@ -13,6 +13,8 @@ https://button.nz. How they fit together on the page is in
 | **A real, verified site** | 35 Victory Street, Reefton: four sections on one title, with the parcels, the 1 m LiDAR DEM and DSM, and the 7.5 cm aerial photo pinned to exact tiles. Each dataset records its source, licence and attribution, and its capture dates where they are known | `data/demo-site/`, `button_nz.demo_site` |
 | **The map** | Any address, found from LINZ and built into a site; its parcels, rules and surveyed features drawn on LINZ's aerial basemap, in 2D or 3D | `explore/Explore.tsx`, `explore/SiteLayers.tsx`, `api/sites.py` |
 | **Sources** | Every dataset's licence and capture dates where recorded are in the site's record (`GET /sites/{id}`); the map credits the aerial, the parcels and the LiDAR | `api/site_view.py`, `map/BaseMap.tsx` |
+| **Any address, or a tapped section** | A LINZ address, or a section tapped on the town map, is built into a site once, in the background, from LINZ's national layers and STAC catalogues: the title's parcels, building outlines, the newest 1 m LiDAR DEM and DSM, the region's best recent aerial, and a SAM survey. A title with no address is built from its parcel. Where data is missing, the build says which | `sites/build.py`, `sites/stac.py`, `explore/SearchBox.tsx`, `explore/BuildProgress.tsx` |
+| **Road frontages** | Which title edges face a road, each named from LINZ NZ Addresses: Roads, and which is the address's own street, matched by LINZ's road id | `sites/frontages.py` |
 
 ## The survey
 
@@ -21,6 +23,7 @@ https://button.nz. How they fit together on the page is in
 | **SAM 3.1 survey** | Segments the aerial photo one concept at a time (building, shed, tree, hedge, garden bed, driveway, path, car). Each mask becomes a polygon on the national grid | `perception/sam.py`, `perception/survey.py` |
 | **Checked against the LiDAR** | Where the LiDAR can see it, each feature's height is read from the nDSM, and its status says whether the photo and the LiDAR agree: "agrees", "conflict" (the owner decides), "unlabelled" (raised ground no label covers), "transient" (a parked car, not part of the site) or "unchecked" (no rule for the concept, or too small for 1 m cells, so no height). Nothing is guessed | `perception/features.py`, `perception/survey.py` |
 | **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `explore/SurveyPanel.tsx`, `api/features.py` |
+| **Suggested decisions** | Plain cases start with a suggestion the owner can change: under 25% on the title, a parked car or open ground → ignore; a building the LiDAR agrees with → building; vegetation → keep clear. What the LiDAR disputes, and unlabelled raised ground, get none: the owner is asked. The owner's decision always wins | `perception/confirm.py` |
 | **Buildings complete** | The owner says every building is listed; the box can't be ticked while a possible building is undecided. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `explore/SurveyPanel.tsx`, `perception/confirm.py` |
 | **A fixed survey** | A public server can fix the survey as the owner decided it: shown with who decided, and closed to changes | `serve --survey-decided-by` |
 
@@ -34,6 +37,7 @@ https://button.nz. How they fit together on the page is in
 | **Sandboxed Blender** | The script runs in headless Blender inside a bubblewrap sandbox: no network, no keys, read-only system files, capped memory, processes and scratch space | `blender_worker/sandbox.py` |
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
 | **Repair from feedback** | A failed check goes back to Muse as feedback, with the render when the attempt produced one, for up to three attempts | `agent/loop.py` |
+| **Where a plain rectangle fits** | Muse is told the room inside the setbacks, 2 m from the listed buildings and off the keep-clear areas, and its two largest rectangles square to the title, so it moves a design rather than cutting a corner; and, after each attempt, how far its walls are from each road | `agent/room.py`, `sites/frontages.py` |
 | **Live progress** | The page follows the design as each attempt finishes | `useDesignChain.ts` |
 | **3D view** | The accepted design's model in 3D on the site's terrain, and in 3D on the map among the site's buildings and trees | `ModelViewer.tsx`, `explore/HeroMedia.tsx`, `map/View3D.tsx` |
 
@@ -99,8 +103,10 @@ https://button.nz. How they fit together on the page is in
   exemption's measurable siting and size conditions. It doesn't check
   for a mezzanine (Schedule 1A forbids one; the envelope can't show it),
   hazards, the district plan, services, structure or cladding weights.
-- **One site.** Only the demo site is wired up. The town screen shows the
-  same code working town-wide, but its sections aren't designable in the app.
+- **Only where the data is.** A site needs LINZ 1 m LiDAR, a recent aerial
+  photo (0.3 m or finer, since 2015) and a parcel with a record of title;
+  where one is missing, the app says which and builds nothing. Only Reefton
+  has a town map to tap; anywhere else, search by address.
 - **No accounts.** One shared server: designs are open to anyone with the
   link, and the survey is the owner's.
 - **No supplier quotes.** Prices are only what suppliers publish; ten of the
