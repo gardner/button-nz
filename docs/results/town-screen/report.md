@@ -1,13 +1,15 @@
 # Town screen: room for a real prefab in Reefton
 
-Code `cfde155`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
+Code `6119e7c`. Envelope (NZTM2000) `(1505100.0, 5336200.0, 1506700.0, 5337700.0)`. 1320 residential sections: BDC parcels with a title whose point lies in a Residential zone (986 with more than 1 m² of a LINZ building outline on them). Left out: 207 titles outside a Residential zone in the envelope, and parcels in one that aren't titles (Road: 2, Vesting on Deposit for Local Purpose Reserve: 3). A section counts if at least one real prefab with labelled dimensions fits in its room (below).
 
-| Count | Sections | Share |
-|---|---|---|
-| Room under LINZ outlines, stated dimensions | 859 | 65% |
-| Room under LINZ outlines, with 0.6 m eaves | 762 | 58% |
-| Room clear of everything over 2 m on the LiDAR, stated dimensions | 525 | 40% |
-| Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves | 409 | 31% |
+The sections are 959 properties (titles): a title can cover several parcels, and is what's bought, sold and regulated. A property has room if any of its parcels does.
+
+| Count | Properties | Share | Sections | Share |
+|---|---|---|---|---|
+| Room under LINZ outlines, stated dimensions | 698 | 73% | 859 | 65% |
+| Room under LINZ outlines, with 0.6 m eaves | 622 | 65% | 762 | 58% |
+| Room clear of everything over 2 m on the LiDAR, stated dimensions | 423 | 44% | 525 | 40% |
+| Room clear of everything over 2 m on the LiDAR, with 0.6 m eaves | 326 | 34% | 409 | 31% |
 
 ## Backyards
 

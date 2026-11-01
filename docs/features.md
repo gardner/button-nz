@@ -74,7 +74,7 @@ https://button.nz. How they fit together on the page is in
 
 | Feature | What it does | Where |
 |---|---|---|
-| **The town screen** | Runs the same fit over all 1,320 residential sections in Reefton, each on its own, 2 m from its boundaries and buildings. 762 (58%) have room for a real prefab with 0.6 m eaves, on LINZ's 2015–16 outlines; 409 (31%) also clear of everything over 2 m on the LiDAR. It's a screen, not a verdict | `town/`, `bench/town_screen.py`, [report](results/town-screen/report.md) |
+| **The town screen** | Runs the same fit over all 959 residential properties (titles, of 1,320 parcels) in Reefton, each parcel on its own, 2 m from its boundaries and buildings; a property has room if any of its parcels does. 622 (65%) have room for a real prefab with 0.6 m eaves, on LINZ's 2015–16 outlines; 326 (34%) also clear of everything over 2 m on the LiDAR. It's a screen, not a verdict | `town/`, `bench/town_screen.py`, [report](results/town-screen/report.md) |
 
 ## Serving it
 

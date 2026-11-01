@@ -101,26 +101,35 @@ fixed. It is kept for the record; the run above replaces it.
 ## Town screen: room for a real prefab in Reefton (`button_nz.bench.town_screen`)
 
 **Reefton** ([report](town-screen/report.md), [map](town-screen/map.png),
-code cfde155, #72; first run 98cdd48, identical per section). Every BDC title whose point lies in one of Reefton's
-Residential zones is screened on its own against Schedule 1A's siting rules:
+code 6119e7c, #122; first run cfde155, #72, identical per section). Every
+BDC parcel with a title whose point lies in one of Reefton's Residential
+zones is screened on its own against Schedule 1A's siting rules:
 the outline at least 2 m inside the boundary and 2 m from every LINZ building
 outline. A section counts if at least one of the catalogue's 14 prefabs with
 labelled dimensions fits. The LINZ outlines date from 2015–16, so a second
 count also keeps 2 m from everything over 2 m on the 2020–24 LiDAR, trees
 included: room without removing anything.
 
-| Count, with 0.6 m eaves | All 1,320 sections | 986 with a building (backyards) |
-|---|---|---|
-| Room under the LINZ outlines | 762 (58%) | 488 (49%) |
-| Room clear of everything over 2 m on the LiDAR | 409 (31%) | 258 (26%) |
+The parcels are then counted by **property**: a title, which is what's
+bought, sold and regulated, and can cover several parcels (231 of
+Reefton's titles cover 592 parcels between them). A property has room if
+any of its parcels does.
 
-Without the eave allowance the counts are 859 and 525. It's a screen, not a
+| Count, with 0.6 m eaves | All 959 properties | 745 with a building (backyards) | All 1,320 parcels |
+|---|---|---|---|
+| Room under the LINZ outlines | 622 (65%) | 439 (59%) | 762 (58%) |
+| Room clear of everything over 2 m on the LiDAR | 326 (34%) | 235 (32%) | 409 (31%) |
+
+Without the eave allowance the property counts are 698 and 423 (parcels:
+859 and 525). It's a screen, not a
 verdict. It doesn't check:
 
 - hazards (Reefton sits beside the Inangahua River);
 - slope and floor level;
 - the district plan and the NES-DMRU;
 - services;
-- lines between parcels on one title.
+- lines between parcels on one title (each is screened as if a legal
+  boundary, so a title of several parcels may have more room than this
+  shows).
 
 The report lists every limit.
