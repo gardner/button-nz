@@ -141,9 +141,10 @@ API serves only named artifacts, as regular files, never through a symlink.
 
 ## Data and licences
 
-All site data is CC BY 4.0. Attribution goes to Toitū Te Whenua Land
-Information New Zealand, Aerial Surveys, West Coast Regional Council and
-Buller District Council.
+All site data is CC BY 4.0, attributed to Toitū Te Whenua Land Information
+New Zealand, Aerial Surveys and West Coast Regional Council, except Buller
+District Council's parcels and zones, whose layers state no licence
+([data/README.md](data/README.md), "Parcel licence").
 
 | Data | Source | Captured |
 |---|---|---|

@@ -84,8 +84,9 @@ From live runs on the demo site ([docs/results](results/README.md)):
 
 ## How it's built
 
-- **Data:** LINZ and Buller District Council open data (CC BY 4.0), with
-  sources, licences and capture dates recorded for the site.
+- **Data:** LINZ open data (CC BY 4.0) and Buller District Council's public
+  parcel and zone layers (no licence stated), with sources, licences and
+  capture dates recorded for the site.
 - **Pipeline:** Python with FastAPI, shapely and rasterio; Blender 5 (Cycles,
   OptiX) on an RTX 5090.
 - **Sandbox:** model-written scripts run in a bubblewrap sandbox: no network,
