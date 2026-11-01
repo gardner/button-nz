@@ -15,7 +15,7 @@ import type { SiteState } from "@/lib/sites";
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
-import { Orbit, Terrain, Tilt } from "../map/View3D";
+import { Orbit, PITCH_3D, Terrain } from "../map/View3D";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
@@ -64,6 +64,7 @@ export function ReadySite({
     <>
       <SiteOverlays
         siteId={site.id}
+        siteBounds={site.bounds}
         three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
@@ -96,6 +97,7 @@ export function ReadySite({
  * accepted design with its distances. */
 function SiteOverlays({
   siteId,
+  siteBounds,
   three,
   siteMap,
   designMap,
@@ -103,6 +105,7 @@ function SiteOverlays({
   onFeature,
 }: {
   siteId: string;
+  siteBounds: Bounds | null;
   three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
@@ -115,8 +118,9 @@ function SiteOverlays({
       {/* The bare earth, with the site's buildings and trees standing on it
           as tall as the LiDAR says (SiteLayers) and the design among them. */}
       {three && <Terrain tiles={terrainTiles(siteId)} />}
-      {/* The tilt, unless an orbit (which tilts itself) is flying round. */}
-      {!(three && framed) && <Tilt three={three} />}
+      {/* The site framed, tilted as the switch says, until there is a
+          design to frame (below). */}
+      {!framed && <FitTo bounds={siteBounds} pitch={three ? PITCH_3D : 0} />}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}

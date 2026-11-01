@@ -98,32 +98,41 @@ export class FakeMap {
     return { style: { cursor: "" } };
   }
   fitOptions: unknown[] = [];
+  /** The fits that landed, not stopped by a later move. */
+  landed: unknown[] = [];
+  zoom = 14;
+  private moving: object | null = null;
+  /** As MapLibre's camera: a move lands a moment later, unless another move
+   * (an ease or a fit) starts first and stops it where it is. */
+  private move(
+    target: { pitch?: number; bearing?: number; zoom?: number },
+    landed?: () => void,
+  ) {
+    const move = { ...target };
+    this.moving = move;
+    queueMicrotask(() => {
+      if (this.moving !== move) return; // stopped by a later move
+      this.moving = null;
+      if (move.pitch !== undefined) this.pitch = move.pitch;
+      if (move.bearing !== undefined) this.bearing = move.bearing;
+      if (move.zoom !== undefined) this.zoom = move.zoom;
+      landed?.();
+      this.fire("moveend");
+    });
+  }
   fitBounds(bounds: unknown, options?: { pitch?: number; bearing?: number }) {
     this.fitted.push(bounds);
     this.fitOptions.push(options);
-    this.easing = null; // a fit stops an ease on its way
-    if (options?.pitch !== undefined) this.pitch = options.pitch;
-    if (options?.bearing !== undefined) this.bearing = options.bearing;
+    this.move({ ...options, zoom: 14 }, () => this.landed.push(bounds));
   }
-  private easing: { pitch?: number; bearing?: number } | null = null;
-  /** As MapLibre's: the move ends a moment later, unless another camera
-   * move (an ease or a fit) starts first and stops it where it is. */
-  easeTo(options: { pitch?: number; bearing?: number }) {
-    const ease = { ...options };
-    this.easing = ease;
-    queueMicrotask(() => {
-      if (this.easing !== ease) return; // stopped by a later move
-      this.easing = null;
-      if (ease.pitch !== undefined) this.pitch = ease.pitch;
-      if (ease.bearing !== undefined) this.bearing = ease.bearing;
-      this.fire("moveend");
-    });
+  easeTo(options: { pitch?: number; bearing?: number; zoom?: number }) {
+    this.move(options);
   }
   getPitch() {
     return this.pitch;
   }
   getZoom() {
-    return 14;
+    return this.zoom;
   }
   getBearing() {
     return this.bearing;

@@ -9,7 +9,7 @@ import { type SiteState, type Town, getTown } from "@/lib/sites";
 import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
-import { PITCH_3D, Tilt, ViewToggle } from "../map/View3D";
+import { Tilt, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -100,8 +100,8 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
 }
 
 /** Where the map looks before a site is ready: the town, tilted in 3D and
- * closer in, or the site being built. A ready site moves the camera itself
- * (ReadySite: its tilt, fit and orbit), so no two eases start at once. */
+ * closer in. A ready site moves the camera itself (ReadySite: its fit, tilt
+ * and orbit), so no two moves start at once and stop each other. */
 function Camera({
   site,
   town,
@@ -111,16 +111,13 @@ function Camera({
   town: Town | null;
   three: boolean;
 }) {
+  if (site?.status === "ready") return null;
   return (
     <>
-      {site?.status !== "ready" && (
-        <Tilt three={three} zoom={site ? undefined : TOWN_ZOOM_3D} />
-      )}
-      {/* The town is framed again once its headline fills the panel. */}
-      <FitTo
-        bounds={site?.bounds ?? (town ? REEFTON : null)}
-        pitch={three ? PITCH_3D : 0}
-      />
+      <Tilt three={three} zoom={site ? undefined : TOWN_ZOOM_3D} />
+      {/* The town is framed again once its headline fills the panel. A fit
+          keeps the tilt as it is, so the switch doesn't fly again. */}
+      <FitTo bounds={!site && town ? REEFTON : null} />
     </>
   );
 }

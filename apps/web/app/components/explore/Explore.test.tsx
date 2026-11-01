@@ -176,6 +176,9 @@ describe("Explore", () => {
     };
     expect(standing.features).toHaveLength(1);
     await vi.waitFor(() => expect(map.pitch).toBe(60));
+    // Closer in, for buildings a few metres tall to show.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(map.zoom).toBeGreaterThanOrEqual(15.8);
     expect(
       screen.getByRole("button", { name: "3D" }).getAttribute("aria-pressed"),
     ).toBe("true");
@@ -227,9 +230,10 @@ describe("Explore", () => {
       "Reading the LiDAR",
     );
     expect(await screen.findByText("Your site")).toBeTruthy();
-    // The map loads on its own time; the panel doesn't wait for it.
+    // The map loads on its own time; the panel doesn't wait for it. The fly
+    // to the site lands: nothing stops it on the way.
     await vi.waitFor(() =>
-      expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds),
+      expect(FakeMap.last?.landed.at(-1)).toEqual(SITE_READY.bounds),
     );
     expect(window.location.search).toBe("?site=35-victory-street-reefton");
     expect(
