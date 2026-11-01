@@ -26,9 +26,14 @@ def square(x: float) -> list[list[float]]:
 
 def results(tmp_path: Path) -> Path:
     rows: list[dict[str, object]] = [
-        {"parcel_id": 1, "fits_eaves": ["airhome-vista"], "clear_eaves": ["airhome-vista"]},
-        {"parcel_id": 2, "fits_eaves": ["south-peak-okari"], "clear_eaves": []},
-        {"parcel_id": 3, "fits_eaves": [], "clear_eaves": []},
+        {
+            "parcel_id": 1,
+            "property_id": 1,
+            "fits_eaves": ["airhome-vista"],
+            "clear_eaves": ["airhome-vista"],
+        },
+        {"parcel_id": 2, "property_id": 2, "fits_eaves": ["south-peak-okari"], "clear_eaves": []},
+        {"parcel_id": 3, "property_id": 3, "fits_eaves": [], "clear_eaves": []},
     ]
     path = tmp_path / "results.jsonl"
     path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
@@ -178,7 +183,9 @@ def test_new_screen_results_are_shown_not_the_old_layer(tmp_path: Path) -> None:
     seen: list[str] = []
     client = town_app(tmp_path, seen)
     client.get("/town/reefton")
-    rescreened = [{"parcel_id": 3, "fits_eaves": ["airhome-vista"], "clear_eaves": []}]
+    rescreened = [
+        {"parcel_id": 3, "property_id": 3, "fits_eaves": ["airhome-vista"], "clear_eaves": []}
+    ]
     (tmp_path / "results.jsonl").write_text(json.dumps(rescreened[0]), encoding="utf-8")
     town = client.get("/town/reefton").json()
     assert [(f["properties"]["id"], f["properties"]["category"]) for f in town["features"]] == [
@@ -251,3 +258,21 @@ def test_only_real_tiles_are_asked_for(path: str) -> None:
 def test_without_a_key_tiles_are_unavailable_and_say_why() -> None:
     tile = tiles_app(None, []).get("/tiles/aerial/1/0/0.webp")
     assert tile.status_code == 503 and "LINZ_BASEMAP_API_KEY" in tile.json()["detail"]
+
+
+def test_every_parcel_of_a_property_is_coloured_by_the_property(tmp_path: Path) -> None:
+    rows: list[dict[str, object]] = [
+        {"parcel_id": 1, "property_id": 1, "fits_eaves": [], "clear_eaves": []},
+        {"parcel_id": 2, "property_id": 2, "fits_eaves": ["airhome-vista"], "clear_eaves": []},
+        {"parcel_id": 3, "property_id": 2, "fits_eaves": [], "clear_eaves": []},  # 2's title
+    ]
+    client = town_app(tmp_path, [])  # the layer is built on the first request
+    (tmp_path / "results.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows), encoding="utf-8"
+    )
+    town = client.get("/town/reefton").json()
+    found = [
+        (f["properties"]["id"], f["properties"]["property"], f["properties"]["category"])
+        for f in town["features"]
+    ]
+    assert found == [(1, 1, "none"), (2, 2, "outlines"), (3, 2, "outlines")]

@@ -16,6 +16,7 @@ from button_nz.town.sources import (
     buildings_on,
     fetch,
     outlines,
+    properties,
     residential_sections,
 )
 
@@ -123,3 +124,26 @@ def test_zones_and_outlines_are_fetched_for_everywhere_a_section_reaches() -> No
         assert west <= 50 and south <= 50 and east >= 400 and north >= 90, layer
     west, south, east, north = asked["outlines"]
     assert west <= 48 and south <= 48 and east >= 402 and north >= 92
+
+
+def test_a_sections_titles_are_kept_from_its_parcel() -> None:
+    parcels = [
+        feature(box(10, 10, 30, 40), ParcelID=1, ParcelIntent="DCDB", Titles="NL7/117"),
+        feature(box(40, 10, 60, 40), ParcelID=2, ParcelIntent="DCDB", Titles="NL1A/1052, 512055"),
+        feature(box(70, 10, 90, 40), ParcelID=3, ParcelIntent="DCDB", Titles=None),
+    ]
+    sections = residential_sections(parcels, ZONES).sections
+    assert [s.titles for s in sections] == [("NL7/117",), ("NL1A/1052", "512055"), ()]
+
+
+def test_parcels_sharing_a_title_are_one_property() -> None:
+    sections = [
+        Section(5, box(0, 0, 1, 1), ("NL7/117",)),
+        Section(3, box(0, 0, 1, 1), ("NL7/117",)),  # same title as 5
+        Section(8, box(0, 0, 1, 1), ("A/1", "B/2")),
+        Section(9, box(0, 0, 1, 1), ("B/2",)),  # joins 8 through B/2
+        Section(4, box(0, 0, 1, 1), ()),  # no title: a property of its own
+        Section(6, box(0, 0, 1, 1), ("C/3",)),
+    ]
+    # Each property is named by its smallest parcel id, never by a title.
+    assert properties(sections) == {5: 3, 3: 3, 8: 8, 9: 8, 4: 4, 6: 6}

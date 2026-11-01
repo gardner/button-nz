@@ -14,6 +14,7 @@ from button_nz.town.screen import SectionResult
 def result(parcel_id: int, area: float, fits: tuple[str, ...] = (), **kw: object) -> SectionResult:
     fields: dict[str, object] = {
         "parcel_id": parcel_id,
+        "property_id": parcel_id,  # a property of its own unless given
         "area_m2": area,
         "buildings": 0,
         "room_m2": 0.0,
@@ -111,3 +112,25 @@ def test_long_map_notes_wrap_inside_the_image(tmp_path: Path) -> None:
         return Image.open(path).height
 
     assert height(["word " * 60]) > height(["word"])
+
+
+def test_a_property_of_several_parcels_is_counted_once() -> None:
+    # Parcels 1 and 2 are one title: a house on 1, an empty back section on 2.
+    results = [
+        result(1, 400, (), buildings=1, property_id=1),
+        result(2, 400, ("a",), property_id=1),
+        result(3, 600, ("a",), property_id=3),
+        result(4, 300, (), property_id=4),
+    ]
+    counts = summarise(results)
+    assert counts["sections"] == 4 and counts["properties"] == 3
+    properties = counts["by_property"]
+    assert properties["fits"] == 2  # 1+2 (room on its back section) and 3
+    assert properties["with_buildings"] == 1
+
+
+def test_the_report_leads_with_properties() -> None:
+    results = [result(1, 400, ("a",), property_id=1), result(2, 400, ("a",), property_id=1)]
+    text = report(results, META)
+    assert "1 properties (titles)" in text or "1 property (title)" in text
+    assert "| Count | Properties | Share | Sections | Share |" in text
