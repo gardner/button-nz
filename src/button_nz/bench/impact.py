@@ -72,8 +72,8 @@ def property_counts(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:
       a flat would be a second one beside (the outlines don't say which
       building is a home, so the report says so); with room on LINZ's
       outlines (eaves allowed), and room also clear on the LiDAR;
-    - empty sections with room, where a dwelling would be a first home, which
-      was allowed before the exemption: reported apart, never as flats."""
+    - empty sections with room, where a small home under the exemption would
+      be the first home, not a flat beside one: reported apart."""
     built: dict[int, bool] = {}
     room: dict[int, bool] = {}
     clear: dict[int, bool] = {}
@@ -140,7 +140,9 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             f"{counts['backyard_room']} have room for a real prefab on LINZ's building "
             "outlines (with 0.6 m eaves), and "
             f"{counts['backyard_clear']} also clear of everything over 2 m on the LiDAR. A flat "
-            "there is a second home beside the first: what the exemption adds.",
+            "there is a second home beside the first. The scenarios below count backyard "
+            "flats only, so they understate the exemption: it covers a small first home on "
+            "an empty section too (below).",
             "",
             "## Backyards, on LINZ's outlines",
             "",
@@ -152,9 +154,10 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             "",
             "## Empty sections",
             "",
-            f"Another {counts['empty_room']} properties with room have no building. A dwelling "
-            "there would be a first home, which was allowed before the exemption, so they "
-            "aren't counted as flats above.",
+            f"Another {counts['empty_room']} properties with room have no building. The "
+            "exemption covers a small home there too, but it would be the first home, not a "
+            "flat beside one, and an empty section could already be built on with consent, "
+            "so they're counted apart rather than added to the scenarios above.",
             "",
             "## How to read it",
             "",

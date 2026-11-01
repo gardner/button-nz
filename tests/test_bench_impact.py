@@ -66,6 +66,7 @@ def test_backyards_are_said_to_be_properties_with_a_linz_outline() -> None:
     text = report(counts | {"empty_room": 1}, census, raw, "abc1234")
     assert "LINZ building outline" in text and "shed" in text
     assert "{" not in text  # every figure filled in
+    assert "backyard flats only" in text  # the empty sections aren't in the scenarios
 
 
 def test_the_one_person_share_says_which_households_it_is_of() -> None:
