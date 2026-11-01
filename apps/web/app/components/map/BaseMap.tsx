@@ -17,8 +17,13 @@ import type { Bounds } from "@/lib/geo";
 
 /** The aerial basemap, LINZ's, proxied by the API so its key stays there. */
 export const AERIAL_TILES = "/api/tiles/aerial/{z}/{x}/{y}.webp";
+/** Credits for what the map shows: LINZ's aerial basemap (Reefton's urban
+ * photos are LINZ's, Aerial Surveys' and Buller District Council's), and the
+ * sections, which the API serves from LINZ's NZ Primary Parcels (#86). */
 export const ATTRIBUTION =
-  "Aerial © Toitū Te Whenua LINZ, CC BY 4.0 · Parcels © LINZ, CC BY 4.0";
+  "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
+  "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
+
 /** Room for the panel on the left of the map, so what is framed isn't under it. */
 export function framing(): {
   top: number;

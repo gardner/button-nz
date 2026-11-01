@@ -1,0 +1,71 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { SITE_BUILDING, SITE_READY } from "@/lib/fixtures-sites";
+
+import { useSite } from "./useSite";
+
+function respond(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+const OTHER = {
+  ...SITE_BUILDING,
+  id: "addr-42",
+  address: "42 Broadway, Reefton",
+};
+
+describe("useSite", () => {
+  it("keeps following a build after a poll fails for a moment", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(SITE_BUILDING, 202))
+      .mockResolvedValueOnce(respond({ detail: "the API is restarting" }, 502))
+      .mockResolvedValueOnce(respond(SITE_READY));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+    expect(result.current.problem).toBeNull();
+  });
+
+  it("stops following when the site is gone for good, and says why", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond(SITE_BUILDING, 202))
+      .mockResolvedValue(respond({ detail: "no site addr-1907458" }, 404));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.problem).toContain("no site"));
+    const calls = fetch.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 40));
+    expect(fetch.mock.calls.length).toBe(calls);
+  });
+
+  it("keeps a newer pick when an older site's poll answers after it", async () => {
+    let answerPick: (r: Response) => void = () => {};
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && String(init.body).includes("42"))
+        return new Promise<Response>((resolve) => (answerPick = resolve));
+      if (init?.method === "POST")
+        return Promise.resolve(respond(SITE_BUILDING, 202));
+      // Each site's poll answers with that site, both still building.
+      return Promise.resolve(
+        respond(url.endsWith("/addr-42") ? OTHER : SITE_BUILDING),
+      );
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.site?.id).toBe("addr-1907458"));
+    act(() => result.current.fromAddress(42));
+    await new Promise((r) => setTimeout(r, 30)); // several polls of the first site
+    await act(async () => answerPick(respond(OTHER, 202)));
+    await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(result.current.site?.id).toBe("addr-42");
+  });
+});
