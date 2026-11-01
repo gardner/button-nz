@@ -306,11 +306,16 @@ def test_a_clicked_section_starts_the_site_of_the_address_on_it(tmp_path: Path) 
     assert started.json()["id"] == again["id"]  # the same site as searching its address
 
 
-def test_a_section_with_no_address_is_refused_with_what_to_do(tmp_path: Path) -> None:
+def test_a_section_whose_title_has_no_address_is_built_from_its_title(tmp_path: Path) -> None:
     server = Server(tmp_path)
-    refused = server.client.post("/sites", json={"parcel_id": 3})  # parcel C: no address on it
-    assert refused.status_code == 422
-    assert "address" in refused.json()["detail"]
+    started = server.client.post("/sites", json={"parcel_id": 3})  # C: no address on its title
+    assert started.status_code == 202
+    site = started.json()
+    assert site["address"] == "Lot 3, beside 1 Test Street, Reefton"
+    assert server.client.post("/sites", json={"parcel_id": 3}).json()["id"] == site["id"]
+    assert server.builder.run_next()
+    ready = server.client.get(f"/sites/{site['id']}").json()
+    assert ready["status"] == "ready" and ready["name"] == "Lot 3, beside 1 Test Street, Reefton"
     assert server.client.post("/sites", json={"parcel_id": 999}).status_code == 404
 
 

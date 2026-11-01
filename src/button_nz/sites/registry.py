@@ -260,7 +260,7 @@ class SiteBuilder:
         if site.address_id is not None:
             build_site(site.address_id, directory, self.sources(), step)
         elif site.parcel_id is not None:
-            build_title_site(site.parcel_id, directory, self.sources(), step)
+            build_title_site(site.parcel_id, site.address, directory, self.sources(), step)
         else:  # the schema's CHECK forbids it
             raise ValueError(f"site {site.id} has neither an address nor a parcel")
 

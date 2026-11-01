@@ -135,6 +135,20 @@ def _shape(feature: Feature) -> BaseGeometry:
     return shape(cast("dict[str, Any]", feature["geometry"]))
 
 
+def title_key(parcels: FeatureLayer, parcel_id: int) -> int:
+    """The smallest parcel id on parcel ``parcel_id``'s titles: what a title
+    site with no address is kept by, whichever of its parcels was tapped."""
+    found = parcels.where(f"id = {int(parcel_id)}").features
+    if not found:
+        raise NoSuchSection(parcel_id)
+    ids = [int(_props_of(p)["id"]) for p in title_parcels(parcels, found[0])]
+    return min([int(parcel_id), *ids])
+
+
+def _props_of(feature: Feature) -> dict[str, Any]:
+    return cast("dict[str, Any]", feature["properties"])
+
+
 def _addresses_in(addresses: FeatureLayer, land: BaseGeometry) -> list[tuple[Point, int]]:
     """The addresses on ``land``, each at its point."""
     on: list[tuple[Point, int]] = []

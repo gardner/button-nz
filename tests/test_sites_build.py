@@ -27,6 +27,7 @@ from button_nz.sites.build import (
     Sources,
     build_site,
     build_title_site,
+    title_site_name,
 )
 from button_nz.sites.stac import ELEVATION, IMAGERY, Catalogues, Collection
 
@@ -350,7 +351,9 @@ def test_a_site_knows_which_edges_face_its_street(tmp_path: Path) -> None:
 
 
 def test_a_title_with_no_address_is_built_from_its_parcel(tmp_path: Path) -> None:
-    build_title_site(3, tmp_path, sources(), lambda _: None)  # parcel C, title 3546130
+    found = sources()
+    name = title_site_name(found.addresses, found.parcels, 3)  # parcel C, title 3546130
+    build_title_site(3, name, tmp_path, found, lambda _: None)
     site = load_demo_site(tmp_path)
     assert site.name == "Lot 3, beside 1 Test Street, Reefton"  # its appellation, and where
     assert [p.parcel_id for p in site.parcels] == [3]
@@ -360,4 +363,4 @@ def test_a_title_with_no_address_is_built_from_its_parcel(tmp_path: Path) -> Non
 def test_a_parcel_with_no_title_is_never_built(tmp_path: Path) -> None:
     untitled = [parcel(4, A, None)]
     with pytest.raises(SiteError, match="record of title"):
-        build_title_site(4, tmp_path, sources(untitled), lambda _: None)
+        build_title_site(4, "Lot 4", tmp_path, sources(untitled), lambda _: None)

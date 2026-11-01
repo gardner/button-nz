@@ -93,13 +93,14 @@ def build_site(
 
 
 def build_title_site(
-    parcel_id: int, directory: Path, sources: Sources, step: Callable[[str], None]
+    parcel_id: int, name: str, directory: Path, sources: Sources, step: Callable[[str], None]
 ) -> None:
     """Build the site of LINZ parcel ``parcel_id``'s title, for a title with no
-    address (a vacant section, say), into ``directory``."""
+    address (a vacant section, say), named ``name`` (``title_site_name``),
+    into ``directory``."""
     directory.mkdir(parents=True, exist_ok=True)
     step("parcels")
-    _build(title_of_parcel(sources, parcel_id), None, directory, sources, step)
+    _build(title_of_parcel(sources, parcel_id, name), None, directory, sources, step)
 
 
 def _build(
@@ -152,9 +153,9 @@ def find_title(sources: Sources, address_id: int) -> Title:
     )
 
 
-def title_of_parcel(sources: Sources, parcel_id: int) -> Title:
-    """The title LINZ parcel ``parcel_id`` is on, for a title with no address:
-    named by the parcel's appellation and the nearest address, with no street."""
+def title_of_parcel(sources: Sources, parcel_id: int, name: str) -> Title:
+    """The title LINZ parcel ``parcel_id`` is on, for a title with no address,
+    named ``name``, with no street."""
     found = sources.parcels.where(f"id = {int(parcel_id)}").features
     if not found:
         raise SiteError(f"LINZ has no parcel {parcel_id}")
@@ -164,18 +165,23 @@ def title_of_parcel(sources: Sources, parcel_id: int) -> Title:
     parcels, extent = _title_parcels(sources, titles)
     middle = union_all([Polygon(_ring(f)) for f in parcels]).representative_point()
     point = (float(middle.x), float(middle.y))
-    name = _named(found[0], point, sources)
     return Title(name, point, titles, tuple(parcels), extent, road_id=None, addressed=False)
 
 
-def _named(parcel: Feature, point: Point, sources: Sources) -> str:
-    """A title site's name: its appellation, and the nearest address to place it."""
-    appellation = str(_props(parcel).get("appellation") or f"Parcel {_props(parcel)['id']}")
-    near = sources.addresses.in_envelope(_grown((*point, *point), NEAR_ADDRESS_M)).features
+def title_site_name(addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: int) -> str:
+    """A title site's name: parcel ``parcel_id``'s appellation, and the nearest
+    address to place it ("Lot 1 DP 428487, beside 17 Munson Street, Reefton")."""
+    found = parcels.where(f"id = {int(parcel_id)}").features
+    if not found:
+        raise SiteError(f"LINZ has no parcel {parcel_id}")
+    props = _props(found[0])
+    appellation = str(props.get("appellation") or f"Parcel {props['id']}")
+    middle = Polygon(_ring(found[0])).representative_point()
+    point = (float(middle.x), float(middle.y))
+    near = addresses.in_envelope(_grown((*point, *point), NEAR_ADDRESS_M)).features
     if not near:
         return appellation
-    here = ShapelyPoint(point)
-    nearest = min(near, key=lambda f: here.distance(shape(f["geometry"])))
+    nearest = min(near, key=lambda f: middle.distance(shape(f["geometry"])))
     return f"{appellation}, beside {_props(nearest)['full_address']}"
 
 

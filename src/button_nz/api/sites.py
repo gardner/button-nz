@@ -37,7 +37,7 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.property import find_address
 from button_nz.perception.confirm import effective
 from button_nz.perception.survey import SURVEY_FILE
-from button_nz.sites.build import SiteError
+from button_nz.sites.build import SiteError, title_site_name
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import (
@@ -45,6 +45,7 @@ from button_nz.sites.search import (
     QueryError,
     address_on_section,
     search_addresses,
+    title_key,
 )
 from button_nz.sites.terrain_tiles import terrain_tile
 
@@ -188,7 +189,7 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
 
     @router.post("/sites", status_code=202)
     def post_site(request: SiteRequest) -> dict[str, Any]:
-        return _view(sites, _requested(service, _address_of(service, request)))
+        return _view(sites, _site_for(service, request))
 
     @router.get("/sites/{site_id}")
     def get_site(site_id: str) -> dict[str, Any]:
@@ -307,21 +308,65 @@ def _lonlat(near: str | None) -> tuple[float, float] | None:
     return lon, lat
 
 
-def _address_of(service: SiteService, request: SiteRequest) -> int:
-    """The address a request names, or the one on the section it names."""
+def _site_for(service: SiteService, request: SiteRequest) -> SiteRecord:
+    """The site a request names: its address's; or, for a section, the site of
+    the address on it or its title; or, where the whole title has none, the
+    title's own site (#121)."""
     if request.address_id is not None:
-        return request.address_id
+        return _requested(service, request.address_id)
     assert request.parcel_id is not None  # the request names one or the other
+    address = _address_of(service, request.parcel_id)
+    if address is not None:
+        return _requested(service, address)
+    assert service.parcels is not None  # _address_of refused without them
+    try:
+        key = title_key(service.parcels, request.parcel_id)
+    except ArcGISError as error:
+        raise HTTPException(502, f"LINZ's parcel lookup failed: {error}") from None
+    return _requested_title(service, key)
+
+
+def _requested_title(service: SiteService, parcel_id: int) -> SiteRecord:
+    """The title site kept by ``parcel_id``: the one there is, unless it failed,
+    or a new build, within the cap."""
+    store = service.sites.store
+    known = store.by_parcel(parcel_id)
+    if known is not None and known.status is not SiteStatus.FAILED:
+        return known
+    assert service.parcels is not None
+    with _REQUESTS:
+        known = store.by_parcel(parcel_id)
+        if known is not None and known.status is not SiteStatus.FAILED:
+            return known
+        name = known.address if known is not None else _title_name(service, parcel_id)
+        with _admit(service.cap):
+            if known is not None:
+                store.rebuild(known.id)
+                record = store.get(known.id)
+            else:
+                record = store.create_title(parcel_id, name)
+    service.builder.wake()
+    return record
+
+
+def _title_name(service: SiteService, parcel_id: int) -> str:
+    assert service.parcels is not None
+    try:
+        return title_site_name(service.addresses, service.parcels, parcel_id)
+    except ArcGISError as error:
+        raise HTTPException(502, f"LINZ's lookup failed: {error}") from None
+
+
+def _address_of(service: SiteService, parcel_id: int) -> int | None:
+    """The address on section ``parcel_id`` or its title; None if there's none."""
     if service.parcels is None:
         raise HTTPException(503, "this server can't look up sections; search by address")
     try:
-        found = address_on_section(service.addresses, service.parcels, request.parcel_id)
+        found = address_on_section(service.addresses, service.parcels, parcel_id)
     except NoSuchSection:
-        raise HTTPException(404, f"no section {request.parcel_id} in LINZ's parcels") from None
+        raise HTTPException(404, f"no section {parcel_id} in LINZ's parcels") from None
     except SiteError as error:  # NotASection, or too many titles to ask for
         raise HTTPException(422, str(error)) from None
     except ArcGISError as error:
         raise HTTPException(502, f"LINZ's parcel lookup failed: {error}") from None
-    if found is None:
-        raise HTTPException(422, "no address on this section: search for it by its address")
     return found
