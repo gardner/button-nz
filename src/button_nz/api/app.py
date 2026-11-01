@@ -17,10 +17,11 @@ artifact names are served, and only as regular files in the job's own run
 directory: never through a symlink.
 """
 
+import json
 import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -35,10 +36,12 @@ from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
 from button_nz.api.site_view import site_view as view_of
-from button_nz.api.sites import SiteService, sites_router
+from button_nz.api.sites import Sites, SiteService, sites_router
 from button_nz.api.store import Job, Placed, Store
 from button_nz.catalogue import Product, load_products
 from button_nz.demo_site import DemoSite
+from button_nz.sites.design_map import design_layers, scene_frame
+from button_nz.sites.registry import DEMO_SITE_ID
 
 ARTIFACT = re.compile(
     r"design\.glb|design\.png|observation-[1-9][0-9]*\.png|visual\.png|visual\.json"
@@ -49,6 +52,9 @@ class DesignRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=4000)
     allow_observations: bool = True
     product_id: str | None = None  # a catalogue product to place, walls and all
+    # The site to design on; omitted (None), the demo site. Never empty: an empty
+    # id is a client's mistake, not a request for the demo (422).
+    site_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class RevisionRequest(BaseModel):
@@ -62,6 +68,8 @@ class AttemptView(BaseModel):
     feedback: str
     observations: list[str]
     files: dict[str, str]  # artifact name -> URL
+    # every check: name, status, detail, measured, rule; None: its trace is missing
+    checks: list[dict[str, Any]] | None
 
 
 class ProductView(BaseModel):
@@ -84,6 +92,7 @@ class JobView(BaseModel):
     parent_id: str | None
     instruction: str | None
     product: ProductView | None  # the prefab it places
+    site_id: str  # the site it is designed on
     attempts: list[AttemptView]
     illustrating: bool  # done, and its AI visual is still being made: look again
 
@@ -102,7 +111,9 @@ def create_app(
     """The API. ``cap`` limits the design runs started a day; with
     ``survey_decided_by``, the survey is fixed as that person decided it."""
 
+    where = Where(site, survey, None if sites is None else sites.sites)
     threads, routers = _with_sites(sites, store, worker)
+    routers.append(_design_map_router(store, worker, where))
     app = FastAPI(title="button-nz", lifespan=_lifespan(store, threads))
     site_view = view_of(site) | {"aerial": aerial_view(aerial)}
     app.include_router(features_router(store, survey, survey_decided_by))
@@ -110,7 +121,7 @@ def create_app(
     for router in routers:
         app.include_router(router)
     catalogue = load_products() if products is None else products
-    app.include_router(products_router(store, worker.runs_dir, catalogue))
+    app.include_router(products_router(store, worker.runs_dir, catalogue, scene_frame))
     placeable = {p.id: p for p in catalogue if p.placeable}
 
     @app.get("/site")
@@ -120,8 +131,11 @@ def create_app(
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
         placed = _placed(placeable, request.product_id)
+        site_id = where.ready(DEMO_SITE_ID if request.site_id is None else request.site_id)
         with _admit(cap):
-            job = store.create_job(request.brief, request.allow_observations, product=placed)
+            job = store.create_job(
+                request.brief, request.allow_observations, product=placed, site_id=site_id
+            )
         worker.wake()
         return _job_view(store, worker, job)
 
@@ -137,6 +151,7 @@ def create_app(
                 parent.id,
                 request.instruction,
                 parent.product,
+                parent.site_id,
             )
         worker.wake()
         return _job_view(store, worker, job)
@@ -153,6 +168,50 @@ def create_app(
         return FileResponse(path)
 
     return app
+
+
+@dataclass(frozen=True)
+class Where:
+    """Which site a design is on: the demo site, or, with ``sites``, any other."""
+
+    demo: DemoSite
+    demo_survey: Path | None
+    sites: Sites | None
+
+    def ready(self, site_id: str) -> str:
+        """``site_id``, if a design can be made there now; else a 404 or 409."""
+        if self.sites is not None:
+            self.sites.site(site_id)
+        elif site_id != DEMO_SITE_ID:
+            raise HTTPException(404, f"this server designs only on the demo site, not {site_id}")
+        return site_id
+
+    def survey(self, job: Job) -> Path | None:
+        site_id = job.site_id or DEMO_SITE_ID
+        return self.demo_survey if self.sites is None else self.sites.survey(site_id)[0]
+
+
+def _design_map_router(store: Store, worker: Worker, where: Where) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/designs/{job_id}/map")
+    def get_design_map(job_id: str) -> dict[str, Any]:
+        job = _job(store, job_id)
+        if job.accepted_attempt is None:
+            raise HTTPException(409, f"design {job_id} has no accepted attempt to map")
+        attempt = _attempt_dir(worker, job, job.accepted_attempt)
+        return design_layers(attempt, lambda: where.survey(job))
+
+    return router
+
+
+def _checks(attempt: Path) -> list[dict[str, Any]] | None:
+    """The attempt's checks, as its trace recorded them; None if it has no trace."""
+    trace = attempt / "attempt.json"
+    if not trace.is_file():
+        return None
+    checks: list[dict[str, Any]] = json.loads(trace.read_text(encoding="utf-8"))["checks"]
+    return checks
 
 
 class _Thread(Protocol):
@@ -218,6 +277,7 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
             feedback=a.feedback,
             observations=list(a.observations),
             files=_files(worker, job, a.number),
+            checks=_checks(_attempt_dir(worker, job, a.number)),
         )
         for a in store.attempts(job.id)
     ]
@@ -234,6 +294,7 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         parent_id=job.parent_id,
         instruction=job.instruction,
         product=None if job.product is None else ProductView(**asdict(job.product)),
+        site_id=job.site_id or DEMO_SITE_ID,
         attempts=attempts,
         illustrating=_illustrating(worker, job),
     )

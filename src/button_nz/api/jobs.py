@@ -19,6 +19,7 @@ import threading
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
@@ -27,6 +28,7 @@ from button_nz.blender_worker.run import run_design
 from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
+from button_nz.sites.registry import DEMO_SITE_ID
 
 INTERRUPTED = "interrupted by a restart"
 SURVEY_USED = "survey.json"  # in each job's run folder: what its design was checked against
@@ -34,6 +36,7 @@ log = logging.getLogger(__name__)
 NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
 
 type Illustrator = Callable[[Path, Path], Visual]  # (design.png, dwelling-mask.png)
+type SiteFor = Callable[[str], tuple[DesignSite, Path | None]]  # a site id: where, and its survey
 
 
 class Worker:
@@ -47,10 +50,12 @@ class Worker:
         max_attempts: int = 3,
         survey: Path | None = None,
         illustrator: Illustrator | None = None,
+        site_for: SiteFor | None = None,
     ) -> None:
         self.store = store
         self.site = cache(site)  # read the terrain once, on the first job
         self.survey = survey  # its confirmed features are read afresh for each job
+        self.site_for = site_for  # any other site: its DesignSite and survey file
         self.model = model
         self.runs_dir = runs_dir
         self.runner = runner
@@ -151,9 +156,10 @@ class Worker:
                 )
             )
 
+        site, survey = self._where(job)
         result = design(
             job.brief,
-            self._confirmed_site(self.runs_dir / job.id),
+            self._confirmed_site(self.runs_dir / job.id, site, survey),
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
@@ -171,11 +177,19 @@ class Worker:
             return None
         return Footprint(job.product.name, job.product.length_m, job.product.width_m)
 
-    def _confirmed_site(self, run: Path) -> DesignSite:
-        """The site with what a person has confirmed on the survey, if any,
-        recorded in ``run`` as the survey and decisions this design is checked
-        against: they can change after it runs."""
-        survey = None if self.survey is None else Survey.read(self.survey)
+    def _where(self, job: Job) -> tuple[DesignSite, Path | None]:
+        """The site ``job`` is designed on, and its survey file."""
+        if job.site_id in (None, DEMO_SITE_ID):
+            return self.site(), self.survey
+        if self.site_for is None:
+            raise ValueError(f"this server designs only on the demo site, not {job.site_id}")
+        return self.site_for(job.site_id)
+
+    def _confirmed_site(self, run: Path, site: DesignSite, path: Path | None) -> DesignSite:
+        """``site`` with what a person has confirmed on its survey (``path``), if
+        any, recorded in ``run`` as the survey and decisions this design is
+        checked against: they can change after it runs."""
+        survey = None if path is None else Survey.read(path)
         decided = {} if survey is None else self.store.decisions(survey.id)
         complete = survey is not None and self.store.buildings_complete(survey.id)
         run.mkdir(parents=True, exist_ok=True)
@@ -183,12 +197,22 @@ class Worker:
             "survey_id": None if survey is None else survey.id,
             "decisions": decided,
             "buildings_complete": complete,
+            "buildings": _confirmed_buildings(survey, decided),  # kept: surveys get replaced
         }
         (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
         if survey is None:
-            return self.site()
+            return site
         decisions = {k: Decision(v) for k, v in decided.items()}
-        return confirmed(self.site(), survey, decisions, complete)
+        return confirmed(site, survey, decisions, complete)
+
+
+def _confirmed_buildings(survey: Survey | None, decided: dict[str, str]) -> list[Any]:
+    """The geometry (NZTM GeoJSON) of the survey's features confirmed as buildings."""
+    if survey is None:
+        return []
+    return [
+        f["geometry"] for f in survey.collection["features"] if decided.get(f["id"]) == "building"
+    ]
 
 
 def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:
