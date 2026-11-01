@@ -24,6 +24,7 @@ from button_nz.geo.geometry import Point, Ring
 
 STEP_M = 0.25  # the grid the rectangles are found on
 QUAD_SEGS = 16
+LINE_M = 0.05  # how wide a line between sections is taken out of the room
 INSET_M = 0.01  # printed corners are drawn in this far: rounding never takes them out
 MIN_WIDTH_M = 3.0  # narrower than this, no dwelling fits: not offered
 
@@ -42,9 +43,13 @@ def room_of(
     owner's decisions: inside the setbacks, 2 m from the buildings they listed,
     off the areas they keep clear. What they chose to ignore doesn't count;
     nothing the survey found constrains a design until someone confirms it."""
-    # Each parcel on its own: a dwelling keeps 2 m from the lines between a
-    # title's sections too, and is never built across one (s 42B).
-    inner = union_all([_buffer(Polygon(ring), -MIN_SEPARATION_M) for ring in title])
+    land = union_all([Polygon(ring) for ring in title])
+    # A dwelling is never built across a line between a title's sections
+    # (s 42B fails it); nearer than 2 m is the evaluator's "unknown", left in.
+    lines = union_all([Polygon(ring).boundary for ring in title]).difference(
+        land.boundary.buffer(1e-6)
+    )
+    inner = _buffer(land, -MIN_SEPARATION_M).difference(lines.buffer(LINE_M))
     taken = [_buffer(Polygon(r), MIN_SEPARATION_M) for r in buildings]
     taken += [Polygon(r) for r in keep_clear]
     return inner.difference(union_all(taken)) if taken else inner
@@ -156,9 +161,18 @@ def rectangles_text(found: Sequence[Rectangle], local: Callable[[Point], Point])
     lines: list[str] = []
     for i, rect in enumerate(found, 1):
         drawn = rect.polygon.buffer(-INSET_M, join_style="mitre")
-        corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in _corners(drawn, local))
-        lines.append(f"  - {i}: {rect.length_m:.1f} x {rect.width_m:.1f} m: {corners}")
+        corners = _corners(drawn, local)
+        long, short = _sides(corners)
+        text = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in corners)
+        lines.append(f"  - {i}: {long:.1f} x {short:.1f} m: {text}")
     return "\n".join(lines)
+
+
+def _sides(corners: Sequence[Point]) -> tuple[float, float]:
+    """The rectangle's sides, long first, rounded down to 0.1 m: a printed
+    size is never more than the room between its printed corners."""
+    sides = sorted(math.dist(corners[i], corners[i + 1]) for i in range(2))
+    return (math.floor(sides[1] * 10 + 1e-9) / 10, math.floor(sides[0] * 10 + 1e-9) / 10)
 
 
 def _corners(polygon: Polygon, local: Callable[[Point], Point]) -> list[Point]:

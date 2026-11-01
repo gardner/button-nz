@@ -64,7 +64,9 @@ def test_no_rectangle_crosses_a_line_between_two_sections_of_the_title() -> None
     a = ((0.0, 0.0), (20.0, 0.0), (20.0, 30.0), (0.0, 30.0), (0.0, 0.0))
     b = ((20.0, 0.0), (40.0, 0.0), (40.0, 30.0), (20.0, 30.0), (20.0, 0.0))
     room = room_of([a, b], buildings=[], keep_clear=[])
-    assert room.distance(LineString([(20, 0), (20, 30)])) >= 2.0 - 1e-9
+    # Only crossing a section line fails (s 42B): near one is the evaluator's
+    # "unknown", not a lost 4 m strip, so the room reaches the line.
+    assert room.area > 36 * 26 - 4  # the 40 x 30 m title inset 2 m, less the line itself
     for rect in largest_rectangles(room, angle_deg=0.0, count=2):
         assert not rect.polygon.intersects(LineString([(20, 0), (20, 30)]))
 
@@ -94,3 +96,14 @@ def test_printed_corners_lie_in_the_room_after_rounding() -> None:
     pairs = re.findall(r"\(([-\d.]+), ([-\d.]+)\)", text)
     corners = [(float(x), float(y)) for x, y in pairs]
     assert corners and all(room.covers(Point(x, y)) for x, y in corners)
+
+
+def test_a_printed_size_is_never_larger_than_its_printed_corners() -> None:
+    room = box(2.0024, 2.0024, 8.8, 27.9976)  # 6.80 m wide: the grid fits 6.75
+    text = rectangles_text(largest_rectangles(room, angle_deg=0.0, count=1), lambda p: p)
+    size = re.search(r"1: ([\d.]+) x ([\d.]+) m", text)
+    assert size is not None
+    pairs = re.findall(r"\(([-\d.]+), ([-\d.]+)\)", text)
+    xs, ys = [float(x) for x, _ in pairs], [float(y) for _, y in pairs]
+    spans = sorted((max(xs) - min(xs), max(ys) - min(ys)), reverse=True)
+    assert float(size[1]) <= spans[0] and float(size[2]) <= spans[1]
