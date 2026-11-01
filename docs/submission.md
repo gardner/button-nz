@@ -8,7 +8,7 @@ and nothing still to be produced is given a number.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address, checked end to end |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address. The smoke check (`check.sh`) passes only once the survey is fixed (open item 1) |
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Blocked** on the demo survey (open item 1); the recorder is ready |
 | 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
 | 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
@@ -20,17 +20,17 @@ and nothing still to be produced is given a number.
 
 | # | What | Owner | Unblocks |
 |---|---|---|---|
-| 1 | **Decide the demo survey** for 35 Victory Street on button.nz: one shed the LiDAR disputes is left to decide, then tick "every building is listed". Then set `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` (the `survey_id` from `/api/site/features`) together in `deploy.env`, and rerun `install.sh` (#91) | Owner | the final take (2), the sample (6) |
+| 1 | **Decide the demo survey** for 35 Victory Street on button.nz: check every suggestion, not only the one shed the LiDAR disputes (which has none). The shed the LiDAR agrees with arrives suggested as a building, and ticking "every building is listed" stores every suggestion as the owner's own decision; the owner says nothing is built on the site. Then tick the box. Then set `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` (the `survey_id` from `/api/site/features`) together in `deploy.env`, and rerun `install.sh` (#91) | Owner | the final take (2), the sample (6) |
 | 2 | **The submission portal's requirements:** the fields, the video's length and format, and whether a live URL is required | Owner (needs the team's login) | the video's cut, the form |
 | 3 | **Record and cut the final take** (`scripts/demo/record.py`, `cut.py`), then **package the sample** from it, and fill in pitch.md's video link | Team, once 1 is done | 2, 6 |
-| 4 | **SAM 3D results** (#125, #138): request access to `facebook/sam-3d-objects` on Hugging Face and log in; then `get_weights_and_run.sh` runs and scores both conditions | Owner (access); team (the run) | the SAM 3D slot below |
+| 4 | **SAM 3D results** (#125, #138): request access to `facebook/sam-3d-objects` on Hugging Face and log in; then `get_weights_and_run.sh` runs both conditions; scoring them needs the held-out truth and scorer in #138 (in review) | Owner (access); team (the run) | the SAM 3D slot below |
 | 5 | **Submit** on the portal | Owner (needs the team's login) | |
 
 ### SAM 3D Objects with LiDAR (#125)
 
 **Pending.** No SAM 3D output exists yet: its weights are gated on Hugging
 Face and access hasn't been granted. The held-out truth, the scorer and the
-Roofer baseline are in #138 ([write-up](experiments/sam3d-lidar/README.md)).
+Roofer baseline are in review in #138 ([write-up](experiments/sam3d-lidar/README.md)).
 When it has run, its measured comparison goes here and in
 [docs/results](results/README.md), from the scorer's own output.
 
@@ -48,7 +48,8 @@ behind a Cloudflare tunnel. It adds:
 
 `META_API_KEY` stays on the server, read by the API's service only. Plan §15's
 deployed demonstration is live at https://button.nz, through the team's
-Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it.
+Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it,
+and fails until the survey is fixed.
 Its survey is fixed once the owner has decided it (open item 1).
 
 ## 2. Demo video

@@ -77,8 +77,9 @@ Anyone opens https://button.nz and, in one session:
   every run accepted; Spark was faster, so it designs.
 - **SAM 3D Objects** (an experiment, not in the app): can it rebuild a real
   house from our aerial photo, and does the measured LiDAR, given in place of
-  its own depth estimate, make that accurate? The held-out truth, scorer and a
-  conventional baseline are built ([write-up](experiments/sam3d-lidar/README.md)).
+  its own depth estimate, make that accurate? The held-out truth, scorer and
+  a conventional baseline are being prepared
+  ([write-up](experiments/sam3d-lidar/README.md)).
   **Results pending:** SAM 3D's weights are gated, and access hasn't been
   granted yet.
 
