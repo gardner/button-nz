@@ -4,8 +4,8 @@ by path inside Blender (``design_measure``) and tested outside it.
 Each triangle is mapped onto its own plane, so every edge keeps its length and
 a texture tiles at true scale on walls and roof slopes alike: ``u`` runs level
 along the face, ``v`` up it (up a wall, up a roof's slope). A level face maps
-east and north. Coplanar triangles share the mapping, so a wall or roof plane
-is seamless however it is triangulated.
+east and north. Coplanar triangles share the mapping whatever their winding, so
+a wall or roof plane is seamless however it is triangulated.
 """
 
 import math
@@ -22,6 +22,9 @@ def face_uvs(a: Point, b: Point, c: Point) -> list[UV]:
     across = math.hypot(n[0], n[1])
     if length == 0.0 or across / length < LEVEL:  # level (or no area): east and north
         return [(p[0], p[1]) for p in (a, b, c)]
+    dominant = n[0] if abs(n[0]) >= abs(n[1]) else n[1]  # its sign is never rounding noise
+    if dominant < 0:  # the plane's normal, not the winding's: always the same one of two
+        n = (-n[0], -n[1], -n[2])
     u = (-n[1] / across, n[0] / across, 0.0)  # level, in the plane
     v = _cross(n, u)  # in the plane, with a positive height component
     v_length = math.sqrt(_dot(v, v))

@@ -55,6 +55,17 @@ def test_coplanar_faces_share_the_mapping() -> None:
     assert second[a] == pytest.approx(first[a]) and second[c] == pytest.approx(first[c])
 
 
+@pytest.mark.parametrize("triangle", [WALL, ROOF])
+def test_coplanar_faces_wound_opposite_ways_share_the_mapping(
+    triangle: tuple[Point, Point, Point],
+) -> None:
+    a, b, c = triangle
+    d = (a[0] + c[0] - b[0], a[1] + c[1] - b[1], a[2] + c[2] - b[2])  # completes the quad
+    first = dict(zip((a, b, c), face_uvs(a, b, c), strict=True))
+    second = dict(zip((a, d, c), face_uvs(a, d, c), strict=True))  # the other winding
+    assert second[a] == pytest.approx(first[a]) and second[c] == pytest.approx(first[c])
+
+
 def test_a_degenerate_face_maps_without_failing() -> None:
     point = (1.0, 2.0, 3.0)
     assert face_uvs(point, point, point) == [(1.0, 2.0)] * 3
