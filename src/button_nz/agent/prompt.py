@@ -59,10 +59,15 @@ stands on the ground.
 
 
 def system_prompt(
-    scene: SceneInput, keep_clear: Sequence[Ring] = (), buildings: Sequence[Ring] = ()
+    scene: SceneInput,
+    keep_clear: Sequence[Ring] = (),
+    buildings: Sequence[Ring] = (),
+    frontages: str = "",
 ) -> str:
     """The contract and the site. ``keep_clear`` (the owner's preservation areas)
-    and ``buildings`` (existing ones the owner listed) are local rings."""
+    and ``buildings`` (existing ones the owner listed) are local rings;
+    ``frontages`` describes which edges face which road
+    (``sites.frontages.describe_frontages``)."""
     rules = CONTRACT.format(
         sep=MIN_SEPARATION_M,
         area=MAX_FLOOR_AREA_M2,
@@ -75,6 +80,7 @@ def system_prompt(
         f"- datum: {scene['frame']['datum_m']:.2f} m (NZVD2016); "
         f"ground from {min(heights):.2f} to {max(heights):.2f} m above it.\n"
         f"- parcels on the title (local x, y corners):\n{_rings('parcel', scene['parcels'])}\n"
+        f"{frontages}"
     )
     if keep_clear:
         site += f"- areas the owner wants kept clear:\n{_rings('area', keep_clear)}\n"

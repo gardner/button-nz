@@ -44,7 +44,10 @@ def design_site(site: DemoSite, margin_m: float = 20.0) -> DesignSite:
     frame = LocalFrame.centred_on(site.extent_nztm)
     parcels = tuple(parcel.ring for parcel in site.parcels)
     return DesignSite(
-        scene_input(grid, frame, parcels), frame, SiteContext(parcels=parcels, terrain=grid)
+        scene_input(grid, frame, parcels),
+        frame,
+        SiteContext(parcels=parcels, terrain=grid),
+        site.frontages,
     )
 
 

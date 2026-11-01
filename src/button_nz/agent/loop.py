@@ -26,6 +26,7 @@ from button_nz.blender_worker.scene_input import (
     with_finishes,
 )
 from button_nz.evaluation import Check, Footprint, InvalidProposal, Report, Status, evaluate
+from button_nz.sites.frontages import describe_frontages, road_distances
 
 __all__ = [
     "Attempt",
@@ -145,7 +146,8 @@ def design(
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
-    prompt = system_prompt(site.scene, keep_clear, buildings)
+    frontages = describe_frontages(site.frontages, local)
+    prompt = system_prompt(site.scene, keep_clear, buildings, frontages)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
     scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
@@ -286,7 +288,11 @@ def _attempt(
         judged = True  # from here on, it is the evaluator speaking
         on_step(Step(number, Phase.CHECKING))
         report = evaluate(proposal, site.context, product)
-        feedback = describe(report)
+        feedback = "\n".join(
+            part
+            for part in (describe(report), road_distances(proposal.footprint, site.frontages))
+            if part
+        )
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
     attempt = Attempt(
