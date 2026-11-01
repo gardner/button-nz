@@ -56,6 +56,7 @@ class Server:
             None if cap is None else DailyCap(self.sites_store.created_since, cap, "site builds")
         )
         service = SiteService(sites, self.builder, found.addresses, daily)
+        self.sites = sites
         self.worker = Worker(
             self.store, synthetic_site, model, tmp_path / "runs", runner, site_for=sites.design_site
         )

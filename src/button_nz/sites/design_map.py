@@ -50,10 +50,11 @@ def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[st
     parcels = [Polygon(p.ring) for p in site.parcels]
     title = union_all(parcels)
     internal = union_all([p.boundary for p in parcels]).difference(title.boundary.buffer(1e-6))
+    buildings = _confirmed(attempt.parent / SURVEY_USED, survey)
     targets = {
         "title_boundary_setback": title.boundary,
         "section_boundary_setback": internal,
-        "building_separation": _confirmed(attempt.parent / SURVEY_USED, survey),
+        "building_separation": Polygon() if buildings is None else buildings,
     }
     lines = [
         (
@@ -71,25 +72,32 @@ def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[st
         "walls": collection([(walls, {})]),
         "outline": collection([(outline, {})]),
         "distances": collection(lines),
+        # a check whose line can't be drawn now, and why: never left out silently
+        "unknown": []
+        if buildings is not None
+        else [{"check": "building_separation", "reason": "the survey has changed since it ran"}],
     }
 
 
-def _confirmed(record: Path, survey: Path | None) -> BaseGeometry:
-    """The buildings the design was checked against: the survey's features its
-    record says were confirmed as buildings."""
-    found = None if survey is None else Survey.read(survey)
-    if found is None or not record.is_file():
+def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | None:
+    """The buildings the design was checked against, as its record kept them;
+    None if that can't be known (an older record, made on a survey since replaced)."""
+    if not record.is_file():
         return Polygon()
     used = json.loads(record.read_text(encoding="utf-8"))
-    if used.get("survey_id") != found.id:
-        return Polygon()  # checked against an earlier survey: its buildings aren't these
-    decided: dict[str, str] = used.get("decisions", {})
-    buildings = [
-        shape(f["geometry"])
-        for f in found.collection["features"]
-        if decided.get(str(f["id"])) == "building"
-    ]
-    return union_all(buildings) if buildings else Polygon()
+    if "buildings" in used:
+        kept = [shape(g) for g in used["buildings"]]
+    else:  # records before the geometry was kept: only the same survey can say
+        found = None if survey is None else Survey.read(survey)
+        if found is None or used.get("survey_id") != found.id:
+            return None
+        decided: dict[str, str] = used.get("decisions", {})
+        kept = [
+            shape(f["geometry"])
+            for f in found.collection["features"]
+            if decided.get(str(f["id"])) == "building"
+        ]
+    return union_all(kept) if kept else Polygon()
 
 
 def _line(outline: BaseGeometry, target: BaseGeometry) -> BaseGeometry:

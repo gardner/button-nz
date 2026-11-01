@@ -19,6 +19,7 @@ import threading
 from collections.abc import Callable
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
@@ -196,12 +197,22 @@ class Worker:
             "survey_id": None if survey is None else survey.id,
             "decisions": decided,
             "buildings_complete": complete,
+            "buildings": _confirmed_buildings(survey, decided),  # kept: surveys get replaced
         }
         (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
         if survey is None:
             return site
         decisions = {k: Decision(v) for k, v in decided.items()}
         return confirmed(site, survey, decisions, complete)
+
+
+def _confirmed_buildings(survey: Survey | None, decided: dict[str, str]) -> list[Any]:
+    """The geometry (NZTM GeoJSON) of the survey's features confirmed as buildings."""
+    if survey is None:
+        return []
+    return [
+        f["geometry"] for f in survey.collection["features"] if decided.get(f["id"]) == "building"
+    ]
 
 
 def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:

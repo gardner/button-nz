@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from shapely.geometry import shape
 
 from button_nz.blender_worker.run import DesignOutputs
@@ -115,3 +116,41 @@ def test_each_fitting_product_says_where_it_would_stand(tmp_path: Path) -> None:
     for product in products["fits"]:
         (placed,) = product["placed_footprint"]["features"]
         assert walls.buffer(1e-6).covers(shape(placed["geometry"]))
+
+
+def test_a_designs_record_keeps_the_buildings_it_was_checked_against(tmp_path: Path) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    record = json.loads((tmp_path / "runs" / job["id"] / "survey.json").read_text())
+    assert record["buildings"] == []  # nothing confirmed on the built site's survey
+    assert server.client.get(f"/designs/{job['id']}/map").json()["unknown"] == []
+
+
+def test_only_a_few_design_sites_are_kept_in_memory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from button_nz.api import sites as module
+
+    server, _ = designing(tmp_path)
+    sites = server.sites
+    read: list[str] = []
+
+    def reading(site: str) -> str:  # stands in for reading the site's terrain
+        read.append(site)
+        return site
+
+    def no_survey(site_id: str) -> tuple[None, None]:
+        return None, None
+
+    def same(site_id: str) -> str:
+        return site_id
+
+    monkeypatch.setattr(sites, "site", same)
+    monkeypatch.setattr(sites, "survey", no_survey)
+    monkeypatch.setattr(module, "design_site", reading)
+    for n in range(module.DESIGN_SITES_KEPT + 2):
+        sites.design_site(f"site-{n}")
+    sites.design_site("site-0")  # dropped as the oldest: read again
+    assert read.count("site-0") == 2
+    sites.design_site(f"site-{module.DESIGN_SITES_KEPT + 1}")  # the newest: still kept
+    assert read.count(f"site-{module.DESIGN_SITES_KEPT + 1}") == 1
