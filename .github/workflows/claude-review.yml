@@ -39,12 +39,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The script as it is on the base branch, never the PR's own copy (HEAD^1:
-      # the merge commit's first parent, the base commit this workflow file
-      # itself comes from, so YAML and scripts always match). This
-      # step runs outside the sandbox, and a PR's script could write to
-      # GITHUB_ENV (BASH_ENV, say) and take over the review step that holds
-      # the key.
+      # The helper scripts come from HEAD^1, the base branch the PR is merged
+      # onto, not the PR's own copies. This workflow file itself is the PR's
+      # (from the merge commit), so a PR changing a script takes effect only
+      # once merged, and a PR changing both runs its YAML with the base's
+      # script. This is about mistakes, not a trust boundary: whoever can push
+      # a branch can also edit this YAML. What keeps the keys safe is that
+      # only same-repository PRs (push access) get them, and forks are
+      # skipped.
       - name: Collect earlier review threads
         env:
           GH_TOKEN: ${{ github.token }}
@@ -65,8 +67,8 @@ jobs:
       # it use copies taken now, in runner temp, which it cannot write to, and
       # the job ends by deleting the workspace.
       - name: Keep trusted copies of the post-review files
-        # From the base branch (HEAD^1), like the threads script: a PR's own
-        # copy would run outside the sandbox after the review.
+        # From HEAD^1, like the threads script above (see there for what that
+        # does and doesn't protect).
         run: |
           mkdir "$RUNNER_TEMP/trusted"
           git show "HEAD^1:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
