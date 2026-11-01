@@ -35,7 +35,12 @@ describe("getSiteMap", () => {
         features: [
           {
             ...SITE_MAP.features.features[0],
-            properties: { concept: "shed", status: "conflict", decision: null },
+            properties: {
+              id: "1",
+              concept: "shed",
+              status: "conflict",
+              decision: null,
+            },
           },
         ],
       },
@@ -59,6 +64,7 @@ describe("getSiteMap", () => {
             {
               ...SITE_MAP.features.features[0],
               properties: {
+                id: "1",
                 concept: "shed",
                 status: "agrees",
                 decision: "demolish",

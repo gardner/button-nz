@@ -40,7 +40,12 @@ export function useDesignChain(pollMs: number, siteId?: string) {
     lineage(linked).then(
       (jobs) => {
         if (siteId !== undefined && jobs.at(-1)?.siteId !== siteId) {
-          dropLink(); // a design on another site: not this site's to show
+          // A design on another site isn't this site's to show; its link goes,
+          // unless a newer design has taken its place meanwhile.
+          const still = new URLSearchParams(window.location.search).get(
+            "design",
+          );
+          if (still === linked) dropLink();
           return;
         }
         setChain((started) => (started.length ? started : jobs));

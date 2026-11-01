@@ -136,7 +136,7 @@ function Accepted({
   return (
     <>
       <PrefabSection job={job} chain={chain} onAsked={() => onAsked(job.id)} />
-      <div className="md:fixed md:bottom-4 md:right-4 md:z-10">
+      <div className="lg:fixed lg:bottom-4 lg:right-4 lg:z-10">
         <HeroMedia
           job={job}
           parent={chain.chain.find((j) => j.id === job.parentId)}

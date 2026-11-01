@@ -95,6 +95,7 @@ export const TOWN = {
       },
     },
   ],
+  missing: { ids: [], reason: "not in LINZ's NZ Primary Parcels" },
 };
 
 function collection(...features: object[]) {
@@ -114,6 +115,16 @@ function polygon(
   };
 }
 
+/** A feature as #88's `sites.layers.collection` writes it: its id in its
+ * properties, none at the top level. */
+function unnamed(properties: object, coordinates: unknown) {
+  return {
+    type: "Feature",
+    properties,
+    geometry: { type: "Polygon", coordinates },
+  };
+}
+
 /** GET /sites/{id}/map */
 export const SITE_MAP = {
   parcels: collection(
@@ -125,14 +136,12 @@ export const SITE_MAP = {
   ),
   buildings: collection(),
   features: collection(
-    polygon(
-      "1",
-      { concept: "shed", status: "agrees", decision: "ignore" },
+    unnamed(
+      { id: "1", concept: "shed", status: "agrees", decision: "ignore" },
       square(171.862, -42.116, 0.00004),
     ),
-    polygon(
-      "3",
-      { concept: "tree", status: "agrees", decision: "keep_clear" },
+    unnamed(
+      { id: "3", concept: "tree", status: "agrees", decision: "keep_clear" },
       square(171.8621, -42.1159, 0.00005),
     ),
   ),

@@ -33,7 +33,8 @@ export function framing(right = 40): {
 } {
   const width = typeof window === "undefined" ? 1440 : window.innerWidth;
   const left = width < 768 ? 24 : Math.min(500, width * 0.38);
-  return { top: 90, bottom: 40, left, right: width < 768 ? 24 : right };
+  // The hero stands on the right from 1024 px; below that it is in the panel.
+  return { top: 90, bottom: 40, left, right: width < 1024 ? 24 : right };
 }
 
 /** Reefton, the town the screen covers, framed. */
