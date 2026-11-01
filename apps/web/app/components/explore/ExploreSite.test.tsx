@@ -354,6 +354,55 @@ describe("a ready site", () => {
     expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
   });
 
+  it("calls a design asked for before a survey change outdated, even if it answers after", async () => {
+    open();
+    let answerDesign: (r: Response) => void = () => {};
+    const fetch = vi.fn((url: string, init?: RequestInit) => {
+      const route = `${init?.method ?? "GET"} ${url.split("?")[0]}`;
+      if (route === "POST /api/designs")
+        return new Promise<Response>((r) => (answerDesign = r));
+      const body = {
+        "GET /api/town/reefton": TOWN,
+        [`GET /api/sites/${SITE}`]: SITE_READY,
+        [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+        [`GET /api/sites/${SITE}/features`]: SURVEY,
+        [`PUT /api/sites/${SITE}/features/2`]: {
+          ...SURVEY.features[1],
+          properties: {
+            ...SURVEY.features[1].properties,
+            decision: "building",
+          },
+        },
+        "GET /api/designs/abc123/map": DESIGN_MAP,
+      }[route];
+      return body === undefined
+        ? new Promise<Response>(() => {})
+        : Promise.resolve(respond(body));
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<Explore pollMs={5} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /afternoon sun/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Design it" }));
+    fireEvent.click(screen.getByRole("button", { name: /#2 tree/ }));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /#2 tree/ })).getByRole(
+        "button",
+        { name: "Existing building" },
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(fetch.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
+        true,
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 20)); // the save has answered
+    answerDesign(respond(ACCEPTED));
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

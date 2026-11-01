@@ -33,22 +33,18 @@ export function ReadySite({
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState(false); // the survey, opened again
-  const chain = useDesignChain(pollMs, site.id);
-  // Once the survey changes, only designs started here after it are checked
-  // on it: `fresh` counts the designs made before the latest change.
-  const [fresh, setFresh] = useState<number | null>(null);
-  const survey = useSurvey(site.id, () => {
-    setVersion((v) => v + 1);
-    setFresh(chain.made.length);
-  });
+  // `version` counts the survey's changes: a design is checked on the
+  // survey as it was when it was asked for.
+  const chain = useDesignChain(pollMs, site.id, version);
+  const survey = useSurvey(site.id, () => setVersion((v) => v + 1));
   const siteMap = useSiteMap(site.id, version);
   const shown = chain.shown;
   const designMap = useDesignMap(shown);
   const accepted = shown?.status === "done" && shown.acceptedAttempt !== null;
+  // Once the survey has changed, only designs asked for since are checked
+  // on it (one opened from a link was asked for before this page).
   const outdated =
-    fresh !== null &&
-    shown !== undefined &&
-    !chain.made.slice(fresh).includes(shown.id);
+    version > 0 && shown !== undefined && chain.made.get(shown.id) !== version;
 
   const design = designState(shown);
   useEffect(() => onDesign(design), [design, onDesign]);
