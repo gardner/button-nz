@@ -33,7 +33,7 @@ https://button.nz. How they fit together on the page is in
 | **LiDAR views on request** | Before each attempt, Muse may ask for up to four views: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. They don't count as attempts | `agent/observe.py`, `lidar/` |
 | **Sandboxed Blender** | The script runs in headless Blender inside a bubblewrap sandbox: no network, no keys, read-only system files, capped memory, processes and scratch space | `blender_worker/sandbox.py` |
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
-| **Repair from feedback** | A failed check goes back to Muse with its measurement and the render, for up to three attempts | `agent/loop.py` |
+| **Repair from feedback** | A failed check goes back to Muse as feedback, with the render when the attempt produced one, for up to three attempts | `agent/loop.py` |
 | **Live progress** | The page follows the design as each attempt finishes | `useDesignChain.ts` |
 | **3D view** | The accepted design, or any attempt that produced a model, in 3D on the site's terrain | `ModelViewer.tsx` |
 

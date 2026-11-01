@@ -24,7 +24,8 @@ checked against the measured site.
 │   └── What is on the site (FeaturesPanel)
 │       ├── Fixed-survey note: who decided it, when the server has fixed it
 │       ├── One card per surveyed feature (#1 shed, #3 tree, …)
-│       │   ├── What SAM 3.1 found, its area, height and the LiDAR's agreement
+│       │   ├── What SAM 3.1 found, its area, its height where the LiDAR has one,
+│       │   │   and whether the LiDAR agrees
 │       │   └── Decision: Existing building · Keep clear · Ignore
 │       └── Every building on the site is listed (checkbox)
 └── The design (DesignPanel)
@@ -34,8 +35,8 @@ checked against the measured site.
         ├── Placing the <product>: walls L × W m (a placed prefab only)
         ├── Status line: queued, running, accepted, no attempt passed, or failed
         ├── Before and after (a revision only)
-        ├── Attempt 1…n: verdict, each check's result in words (with its
-        │   measurement), the LiDAR views asked for, and, if it produced a
+        ├── Attempt 1…n: verdict, each check's plain detail (the full
+        │   measurements stay in the trace), the LiDAR views asked for, and, if it produced a
         │   model, its render and View in 3D; the accepted attempt also gets
         │   the AI illustration, when its check passes
         ├── 3D model (ModelViewer)

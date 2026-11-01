@@ -52,13 +52,14 @@ with the evidence.
    appears as it finishes, with each check's result and, if it produced a
    model, its render.
 4. If a check fails ("0.50 m from the boundary; at least 2 m required"),
-   Muse sees that measurement and its own render, and tries again, up to
-   three attempts.
+   Muse sees that feedback and, if the attempt rendered, its own render, and
+   tries again, up to three attempts.
 5. The status line says **Accepted: attempt n**. Each check shows pass, fail
-   or unknown, with its measurement in words; the rule behind each is in
-   the attempt's trace.
-6. A few seconds later the AI illustration appears, labelled AI-illustrated,
-   shown only because SAM 3.1 found the house kept the design's shape.
+   or unknown, with a plain detail; every measurement and the rule behind
+   each are in the attempt's trace.
+6. If Muse Image's illustration passes its check, it appears a few seconds
+   later, labelled AI-illustrated: SAM 3.1 found the house kept the design's
+   shape. If it doesn't pass, no illustration is shown.
 7. **View in 3D** shows the design on the site's terrain.
 
 **What can go wrong:**
@@ -165,7 +166,7 @@ from real runs.
    `BUTTON_SURVEY_DECIDED_BY` and run `install.sh` again.
 3. **Record the demo:**
    - `scripts/demo/record.py` drives the live app: the owner's survey, a
-     brief, the design, its visual and 3D model, a revision, the prefabs,
+     brief, the design, its checked visual and 3D model, a revision, the prefabs,
      and a placement.
    - `cut.py` cuts it to length, with the speed shown wherever it's sped up.
 4. **Package the sample:** `python -m button_nz.sample` packs a design and
