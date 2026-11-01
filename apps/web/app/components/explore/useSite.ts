@@ -100,10 +100,12 @@ export function useSite(pollMs: number) {
   useEffect(() => {
     if (id === undefined) return;
     const url = new URL(window.location.href);
-    // A design linked from another site isn't this site's (a link with a
-    // design alone named no site: the design's is the one opened).
+    // The link's design goes with the site the link opened (a link with a
+    // design alone named no site: the design's is the one opened), never
+    // with a site picked since.
+    const fromLink = picked.current === 0;
     const before = url.searchParams.get("site");
-    if (before !== null && before !== id) url.searchParams.delete("design");
+    if (!fromLink && before !== id) url.searchParams.delete("design");
     url.searchParams.set("site", id);
     window.history.replaceState(null, "", url);
   }, [id]);
