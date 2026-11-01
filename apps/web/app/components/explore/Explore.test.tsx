@@ -413,6 +413,14 @@ describe("Explore", () => {
     expect(FakeMap.last?.sources.has("town-credit")).toBe(false);
   });
 
+  it("credits Reefton's photos before the town's sections have come", async () => {
+    serve({}); // the town never answers
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.sources.has("town-credit")).toBe(true),
+    );
+  });
+
   it("leaves cleanly, after the map itself is gone", async () => {
     serve({ "GET /api/town/reefton": [TOWN] });
     const { unmount } = render(<Explore pollMs={5} />);

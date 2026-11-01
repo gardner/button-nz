@@ -85,10 +85,14 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
             town={town.data}
             behind={site !== null}
             standing={three && site?.status !== "ready"}
-            credited={site?.status !== "ready"}
           />
         )}
         <Camera site={site} town={town.data} three={three} />
+        {/* The town's photos are credited while the camera is on the town,
+            loaded or not (as Camera has it): a ready site credits its own. */}
+        {site?.status !== "ready" && (
+          <Credit id="town-credit" text={TOWN_CREDIT} />
+        )}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"
@@ -186,12 +190,10 @@ function TownLayers({
   town,
   behind,
   standing,
-  credited,
 }: {
   town: Town;
   behind: boolean;
   standing: boolean; // 3D, with no ready site's own buildings to show
-  credited: boolean; // the town on show, with no ready site's own credit
 }) {
   return (
     <>
@@ -201,9 +203,6 @@ function TownLayers({
         fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
         line={TOWN_LINE}
       />
-      {/* The town's photos are credited while the camera is on the town
-          (as Camera has it): a ready site, in Reefton or not, credits its own. */}
-      {credited && <Credit id="town-credit" text={TOWN_CREDIT} />}
       {standing && (
         <GeoLayer
           id="town-buildings"
