@@ -3,13 +3,18 @@
 **Status:** partly built, waiting for model access.
 
 - **Done:** SAM 3D's environment is installed and tested on this machine's
-  RTX 5090. The virtual oblique photos, pointmaps and masks are made for two
-  buildings. The MoGe-vs-LiDAR check on the depth input is measured.
+  RTX 5090. The method's pieces (photo, pointmap, mask) are proven on two
+  buildings, and the MoGe-vs-LiDAR check on the depth input is measured.
+  Those photos, pointmaps and masks were made from LINZ's full DSM, which
+  carries the held-out points, so **they can't be scored**: they have to be
+  remade from the training-points surface (step 6).
 - **Blocked:** SAM 3D's weights on Hugging Face (`facebook/sam-3d-objects`)
   are gated, and Meta approves access by hand.
 - **Still to build:**
-  - the held-out truth: LINZ's LAS/LAZ points, with an input surface made
-    without the held-out ones (step 6);
+  - the held-out truth: LINZ's LAS/LAZ points, split into held-out blocks
+    and training points, with a surface made from the training points
+    (step 6);
+  - the photos, pointmaps and masks remade from that surface;
   - the fitting step (condition 3);
   - Roofer (condition 4);
   - the shape and layout scoring (step 5).
@@ -76,10 +81,10 @@ photographs. So we make an ordinary-looking photo from our data:
    reporting the two apart keeps one from hiding the other.
 
 6. **Measure against truth the model wasn't given.**
-   - The pointmap comes from the 1 m DSM, and LINZ makes that DSM from its
-     LAS/LAZ points. So scoring against the DSM, or against all those
-     points, only tests how faithfully the model follows its input:
-     **source-data fidelity**, reported as such.
+   - LINZ's 1 m DSM is made from all of its LAS/LAZ points. A model given
+     inputs made from the DSM, and scored against the DSM or those points,
+     is only tested on how faithfully it follows its input: **source-data
+     fidelity**, reported as such, never as held-out truth.
    - For held-out truth, LINZ's LAS/LAZ points are split once: a held-out
      share (whole spatial blocks, so neighbouring points can't stand in for
      them), and the rest, the **training points**.
@@ -194,9 +199,11 @@ third-party code are untrusted downloads, kept apart from the project.
 2. Once approved: `~/src/sam3d-spike/env/bin/hf auth login`.
 3. `~/src/sam3d-spike/scripts/get_weights_and_run.sh`. It downloads the
    weights, then runs the first two conditions (MoGe depth, and the LiDAR
-   pointmap) for both buildings on GPU 1. It doesn't yet make the held-out
-   surface, the fitted condition, Roofer or the scoring: those are still to
-   build (see Status).
+   pointmap) for both buildings on GPU 1.
+   - **Its inputs come from LINZ's full DSM, so its outputs prove the
+     pipeline runs but can't be scored** (step 6).
+   - Scoring needs the training-points surface and the inputs remade from
+     it, then the fitted condition, Roofer and the scoring (see Status).
 
 **The environment, and why it isn't upstream's:**
 - Upstream's setup pins torch 2.5.1/cu121, which has no kernels for the
