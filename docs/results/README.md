@@ -101,7 +101,7 @@ fixed. It is kept for the record; the run above replaces it.
 ## Town screen: room for a real prefab in Reefton (`button_nz.bench.town_screen`)
 
 **Reefton** ([report](town-screen/report.md), [map](town-screen/map.png),
-code 6119e7c, #122; first run cfde155, #72, identical per section). Every
+code 7136d87, #122; first run cfde155, #72, identical per section). Every
 BDC parcel with a title whose point lies in one of Reefton's Residential
 zones is screened on its own against Schedule 1A's siting rules:
 the outline at least 2 m inside the boundary and 2 m from every LINZ building
