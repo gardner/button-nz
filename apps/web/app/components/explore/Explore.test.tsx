@@ -202,8 +202,11 @@ describe("Explore", () => {
     expect((await screen.findByRole("status")).textContent).toContain(
       "Reading the LiDAR",
     );
-    expect(await screen.findByText("Site ready")).toBeTruthy();
-    expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds);
+    expect(await screen.findByText("Your site")).toBeTruthy();
+    // The map loads on its own time; the panel doesn't wait for it.
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.fitted.at(-1)).toEqual(SITE_READY.bounds),
+    );
     expect(window.location.search).toBe("?site=35-victory-street-reefton");
     expect(
       screen.getByRole("listitem", { current: "step" }).textContent,
@@ -244,6 +247,6 @@ describe("Explore", () => {
       "GET /api/sites/35-victory-street-reefton": [SITE_READY],
     });
     render(<Explore pollMs={5} />);
-    expect(await screen.findByText("Site ready")).toBeTruthy();
+    expect(await screen.findByText("Your site")).toBeTruthy();
   });
 });

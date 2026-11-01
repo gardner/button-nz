@@ -31,7 +31,7 @@ describe("useSite", () => {
       .mockResolvedValueOnce(respond(SITE_READY));
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
     expect(result.current.problem).toBeNull();
   });
@@ -44,7 +44,7 @@ describe("useSite", () => {
       .mockResolvedValueOnce(respond(SITE_READY));
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
   });
 
@@ -81,7 +81,7 @@ describe("useSite", () => {
       ).length;
     const { result } = renderHook(() => useSite(20));
     await waitFor(() => expect(result.current.problem).toContain("restarting"));
-    act(() => result.current.fromAddress(42));
+    act(() => result.current.fromAddress(42, "an address"));
     const asked = linked();
     await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));
     await new Promise((r) => setTimeout(r, 100)); // several retries' worth
@@ -111,7 +111,7 @@ describe("useSite", () => {
       .mockResolvedValueOnce(respond(SITE_READY, 202));
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
     expect(result.current.problem).toBeNull();
     expect(
@@ -139,11 +139,11 @@ describe("useSite", () => {
     });
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() =>
       expect(result.current.site?.id).toBe("35-victory-street-reefton"),
     );
-    act(() => result.current.fromAddress(42));
+    act(() => result.current.fromAddress(42, "an address"));
     await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));
     await act(async () => answerPoll(respond(SITE_BUILDING)));
     await new Promise((r) => setTimeout(r, 20));
@@ -158,7 +158,7 @@ describe("useSite", () => {
       );
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.problem).toContain("used"));
     await new Promise((r) => setTimeout(r, 40));
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -173,7 +173,7 @@ describe("useSite", () => {
       );
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.problem).toContain("no site"));
     const calls = fetch.mock.calls.length;
     await new Promise((r) => setTimeout(r, 40));
@@ -197,11 +197,11 @@ describe("useSite", () => {
     });
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() =>
       expect(result.current.site?.id).toBe("35-victory-street-reefton"),
     );
-    act(() => result.current.fromAddress(42));
+    act(() => result.current.fromAddress(42, "an address"));
     await waitFor(() => expect(result.current.site?.status).toBe("ready"));
     expect(pollsSince).toBeGreaterThanOrEqual(3); // polls answered after it
     expect(result.current.problem).toContain("LINZ"); // and didn't clear it
@@ -214,9 +214,9 @@ describe("useSite", () => {
       .mockReturnValueOnce(new Promise<Response>(() => {})); // the next, still on its way
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() => expect(result.current.problem).toContain("LINZ"));
-    act(() => result.current.fromAddress(42));
+    act(() => result.current.fromAddress(42, "an address"));
     expect(result.current.problem).toBeNull();
   });
 
@@ -234,11 +234,11 @@ describe("useSite", () => {
     });
     vi.stubGlobal("fetch", fetch);
     const { result } = renderHook(() => useSite(5));
-    act(() => result.current.fromAddress(1907458));
+    act(() => result.current.fromAddress(1907458, "an address"));
     await waitFor(() =>
       expect(result.current.site?.id).toBe("35-victory-street-reefton"),
     );
-    act(() => result.current.fromAddress(42));
+    act(() => result.current.fromAddress(42, "an address"));
     await new Promise((r) => setTimeout(r, 30)); // several polls of the first site
     await act(async () => answerPick(respond(OTHER, 202)));
     await waitFor(() => expect(result.current.site?.id).toBe("addr-42"));

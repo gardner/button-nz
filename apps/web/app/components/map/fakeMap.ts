@@ -61,8 +61,11 @@ export class FakeMap {
   removeSource(id: string) {
     this.sources.delete(id);
   }
+  /** The layers' ids, bottom first, as MapLibre stacks them. */
+  order: string[] = [];
   addLayer(layer: { id: string }) {
     this.layers.set(layer.id, layer);
+    this.order.push(layer.id);
   }
   getLayer(id: string) {
     if (!this.style) throw new TypeError("the map has been removed");
@@ -70,6 +73,7 @@ export class FakeMap {
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+    this.order = this.order.filter((layer) => layer !== id);
   }
   setPaintProperty(layer: string, key: string, value: unknown) {
     const found = this.layers.get(layer) as
@@ -88,5 +92,20 @@ export class FakeMap {
   style: object | undefined = {};
   remove() {
     this.style = undefined;
+  }
+}
+
+/** A stand-in for MapLibre's Marker: its element goes into the document. */
+export class FakeMarker {
+  constructor(public options: { element: HTMLElement }) {}
+  setLngLat() {
+    return this;
+  }
+  addTo() {
+    document.body.appendChild(this.options.element);
+    return this;
+  }
+  remove() {
+    this.options.element.remove();
   }
 }

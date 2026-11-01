@@ -35,9 +35,19 @@ export { API };
 export type JobStatus = "queued" | "running" | "done" | "failed";
 export type Verdict = "pass" | "fail" | "unknown" | "error";
 
+/** One of the evaluator's checks of an attempt, as it measured it. */
+export interface Check {
+  name: string;
+  status: "pass" | "fail" | "unknown";
+  detail: string;
+  measured: Record<string, number>;
+  rule: string; // where the limit comes from
+}
+
 export interface Attempt {
   number: number;
   status: Verdict;
+  checks: Check[] | null; // null when the API can't tell, or doesn't send them
   feedback: string;
   observations: string[];
   files: Record<string, string>; // artifact name -> URL through the proxy
@@ -55,6 +65,7 @@ export interface Job {
   acceptedAttempt: number | null;
   parentId: string | null; // the design this one revises, if it is a revision
   instruction: string | null; // the owner's change to that design
+  siteId: string | null; // the site it is designed on; null on the demo site's API
   product: PlacedProduct | null; // the catalogue product it places, if any
   attempts: Attempt[];
   illustrating: boolean; // done, and its AI visual is still being made
@@ -119,13 +130,16 @@ export async function createDesign(
   brief: string,
   allowObservations: boolean,
   productId?: string,
+  siteId?: string,
 ): Promise<Job> {
   const placing = productId === undefined ? {} : { product_id: productId };
+  const site = siteId === undefined ? {} : { site_id: siteId };
   return parseJob(
     await send("POST", "/designs", {
       brief,
       allow_observations: allowObservations,
       ...placing,
+      ...site,
     }),
   );
 }
@@ -157,8 +171,15 @@ export async function getProducts(id: string): Promise<Products> {
   );
 }
 
-export async function getFeatures(): Promise<Survey> {
-  return parseSurvey(await request("/site/features"));
+/** Where a site's survey is: the demo site's, or `siteId`'s. */
+function surveyed(siteId: string | undefined): string {
+  return siteId === undefined
+    ? "/site"
+    : `/sites/${encodeURIComponent(siteId)}`;
+}
+
+export async function getFeatures(siteId?: string): Promise<Survey> {
+  return parseSurvey(await request(`${surveyed(siteId)}/features`));
 }
 
 /** Record a decision about feature `id` of survey `surveyId`. Refused (409)
@@ -167,12 +188,17 @@ export async function decideFeature(
   surveyId: string,
   id: string,
   decision: Decision,
+  siteId?: string,
 ): Promise<SiteFeature> {
   return parseFeature(
-    await send("PUT", `/site/features/${encodeURIComponent(id)}`, {
-      decision,
-      survey_id: surveyId,
-    }),
+    await send(
+      "PUT",
+      `${surveyed(siteId)}/features/${encodeURIComponent(id)}`,
+      {
+        decision,
+        survey_id: surveyId,
+      },
+    ),
   );
 }
 
@@ -181,9 +207,10 @@ export async function decideFeature(
 export async function setBuildingsComplete(
   surveyId: string,
   complete: boolean,
+  siteId?: string,
 ): Promise<boolean> {
   const survey = record(
-    await send("PUT", "/site/survey", {
+    await send("PUT", `${surveyed(siteId)}/survey`, {
       buildings_complete: complete,
       survey_id: surveyId,
     }),
@@ -206,6 +233,7 @@ export function parseJob(raw: unknown): Job {
     acceptedAttempt: optional(job, "accepted_attempt", number),
     parentId: optional(job, "parent_id", text),
     instruction: optional(job, "instruction", text),
+    siteId: "site_id" in job ? optional(job, "site_id", text) : null,
     product: optional(job, "product", (f, k) => parsePlaced(f[k])),
     attempts: list(job, "attempts").map(parseAttempt),
     illustrating: flag(job, "illustrating"),
@@ -222,12 +250,31 @@ function parsePlaced(raw: unknown): PlacedProduct {
   };
 }
 
+const CHECK_STATUSES: readonly Check["status"][] = ["pass", "fail", "unknown"];
+
+function parseCheck(raw: unknown): Check {
+  const check = record(raw, "check");
+  const measured = record(check.measured, "measured");
+  return {
+    name: text(check, "name"),
+    status: oneOf(check, "status", CHECK_STATUSES),
+    detail: text(check, "detail"),
+    measured: Object.fromEntries(
+      Object.keys(measured).map((key) => [key, number(measured, key)]),
+    ),
+    rule: text(check, "rule"),
+  };
+}
+
 function parseAttempt(raw: unknown): Attempt {
   const attempt = record(raw, "attempt");
   const files = record(attempt.files, "files");
   return {
     number: number(attempt, "number"),
     status: oneOf(attempt, "status", VERDICTS),
+    // Absent (the demo site's) or null (the API can't tell): none to show.
+    checks:
+      attempt.checks == null ? null : list(attempt, "checks").map(parseCheck),
     feedback: text(attempt, "feedback"),
     observations: list(attempt, "observations").map((o) =>
       asText(o, "observation"),

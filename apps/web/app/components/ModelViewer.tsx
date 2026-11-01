@@ -7,12 +7,18 @@ import { Suspense, useEffect, useState } from "react";
 /** One design's GLB (the measured site plus the dwelling), framed to fit and
  * orbitable. Blender exports glTF y-up, as three.js expects. ``data-model``
  * says whether this URL's model has loaded (the canvas shows before it has). */
-export function ModelViewer({ url }: { url: string }) {
+export function ModelViewer({
+  url,
+  height = "h-[480px]",
+}: {
+  url: string;
+  height?: string; // a Tailwind height class
+}) {
   const [loaded, setLoaded] = useState<string | null>(null);
   return (
     <div
       data-model={loaded === url ? "loaded" : "loading"}
-      className="h-[480px] w-full overflow-hidden rounded border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"
+      className={`${height} w-full overflow-hidden rounded border border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900`}
     >
       <Canvas camera={{ position: [0, 40, 60], fov: 45 }}>
         <ambientLight intensity={0.6} />

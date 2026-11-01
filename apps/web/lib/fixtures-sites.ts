@@ -115,6 +115,16 @@ function polygon(
   };
 }
 
+/** A feature as #88's `sites.layers.collection` writes it: its id in its
+ * properties, none at the top level. */
+function unnamed(properties: object, coordinates: unknown) {
+  return {
+    type: "Feature",
+    properties,
+    geometry: { type: "Polygon", coordinates },
+  };
+}
+
 /** GET /sites/{id}/map */
 export const SITE_MAP = {
   parcels: collection(
@@ -126,14 +136,12 @@ export const SITE_MAP = {
   ),
   buildings: collection(),
   features: collection(
-    polygon(
-      "1",
-      { concept: "shed", status: "agrees", decision: "ignore" },
+    unnamed(
+      { id: "1", concept: "shed", status: "agrees", decision: "ignore" },
       square(171.862, -42.116, 0.00004),
     ),
-    polygon(
-      "3",
-      { concept: "tree", status: "agrees", decision: "keep_clear" },
+    unnamed(
+      { id: "3", concept: "tree", status: "agrees", decision: "keep_clear" },
       square(171.8621, -42.1159, 0.00005),
     ),
   ),
@@ -143,4 +151,52 @@ export const SITE_MAP = {
   halos: collection(),
   keep_clear: collection(polygon("3", {}, square(171.8621, -42.1159, 0.00005))),
   room: collection(polygon("room", {}, square(171.86193, -42.11607, 0.00024))),
+};
+
+/** Checks per attempt, as GET /designs/{id} sends them (#86). */
+export const CHECKS = [
+  {
+    name: "title_boundary_setback",
+    status: "pass",
+    detail: "3.20 m from the title boundary; at least 2 m required.",
+    measured: { value: 3.2, minimum: 2 },
+    rule: "Building Act 2004, Schedule 1A",
+  },
+  {
+    name: "building_separation",
+    status: "unknown",
+    detail: "No existing buildings are confirmed by the owner.",
+    measured: {},
+    rule: "Building Act 2004, Schedule 1A",
+  },
+  {
+    name: "floor_area",
+    status: "fail",
+    detail: "The footprint is 72.0 m²: over 70.",
+    measured: { footprint_area_m2: 72, maximum: 70 },
+    rule: "Building Act 2004, Schedule 1A",
+  },
+];
+
+/** GET /designs/{id}/map */
+export const DESIGN_MAP = {
+  outline: collection(
+    polygon("outline", {}, square(171.862, -42.1159, 0.00009)),
+  ),
+  walls: collection(
+    polygon("walls", {}, square(171.86201, -42.11589, 0.00007)),
+  ),
+  distances: collection({
+    type: "Feature",
+    id: "d1",
+    properties: { check: "title_boundary_setback", metres: 3.2, required: 2 },
+    geometry: {
+      type: "LineString",
+      coordinates: [
+        [171.862, -42.1159],
+        [171.86196, -42.11593],
+      ],
+    },
+  }),
+  unknown: [],
 };

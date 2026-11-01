@@ -20,14 +20,24 @@ import { useVisuals } from "./useVisuals";
  * visuals still being made are followed separately (`useVisuals`), and the
  * forms don't wait for them. A page opened with `?design=<id>` starts with
  * that design and the designs it revises, and the address bar keeps the id of
- * the design on show, so it can be shared. */
-export function useDesignChain(pollMs: number) {
+ * the design on show, so it can be shared. With `siteId`, new designs are
+ * made on that site (else the demo site). */
+export function useDesignChain(
+  pollMs: number,
+  siteId?: string,
+  survey = 0, // the survey's revision: each design started records it
+) {
   const [chain, setChain] = useState<Job[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [retries, setRetries] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // The designs started here (not those opened from a link), each with the
+  // survey revision it was asked for on.
+  const [made, setMade] = useState<ReadonlyMap<string, number>>(new Map());
   const starting = useRef(false); // guards clicks before the re-render disables the forms
+  // Whether the design in the link is still wanted: not once one is asked for.
+  const linkWanted = useRef(true);
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
   const newest = chain.at(-1);
   const working =
@@ -37,10 +47,27 @@ export function useDesignChain(pollMs: number) {
     const linked = new URLSearchParams(window.location.search).get("design");
     if (linked === null) return;
     lineage(linked).then(
-      (jobs) => setChain((started) => (started.length ? started : jobs)),
-      (e: Error) => setProblem(`Could not open design ${linked}: ${e.message}`),
+      (jobs) => {
+        if (siteId !== undefined && jobs.at(-1)?.siteId !== siteId) {
+          // A design on another site isn't this site's to show; its link goes,
+          // unless a newer design has taken its place meanwhile.
+          const still = new URLSearchParams(window.location.search).get(
+            "design",
+          );
+          if (linkWanted.current && still === linked) dropLink();
+          return;
+        }
+        setChain((started) => (started.length ? started : jobs));
+      },
+      (e: Error) => {
+        // A design asked for since has taken the link's place: its failure
+        // is old news.
+        const still = new URLSearchParams(window.location.search).get("design");
+        if (linkWanted.current && still === linked)
+          setProblem(`Could not open design ${linked}: ${e.message}`);
+      },
     );
-  }, []);
+  }, [siteId]); // fixed for a mount: the page remounts this for each site
   useEffect(() => {
     if (!working || newest === undefined) return;
     const timer = setTimeout(() => {
@@ -63,7 +90,9 @@ export function useDesignChain(pollMs: number) {
    * it returns to the chain. */
   function begin(request: () => Promise<Job>, follow: (job: Job) => void) {
     if (starting.current) return;
+    const asked = survey; // the survey as it is now, not when the job comes
     starting.current = true;
+    linkWanted.current = false;
     setSubmitting(true);
     setProblem(null);
     request()
@@ -71,6 +100,7 @@ export function useDesignChain(pollMs: number) {
         (job) => {
           setLost(false);
           setSelected(null); // show the new design
+          setMade((jobs) => new Map(jobs).set(job.id, asked));
           follow(job);
         },
         (e: Error) => setProblem(e.message),
@@ -86,7 +116,7 @@ export function useDesignChain(pollMs: number) {
    * (say, the daily cap) keeps the chain on show. */
   function design(brief: string, observe: boolean, productId?: string) {
     begin(
-      () => createDesign(brief, observe, productId),
+      () => createDesign(brief, observe, productId, siteId),
       (job) => setChain([job]),
     );
   }
@@ -111,12 +141,20 @@ export function useDesignChain(pollMs: number) {
   return {
     chain,
     shown,
+    made,
     select: setSelected,
     problem,
     busy: submitting || working,
     design,
     revise,
   };
+}
+
+/** Takes `?design=` out of the address bar. */
+function dropLink() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("design");
+  window.history.replaceState(null, "", url);
 }
 
 /** Design `id`, after the designs it revises, oldest first. */

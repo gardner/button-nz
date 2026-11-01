@@ -24,6 +24,10 @@ export const ATTRIBUTION =
   "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 (Reefton: LINZ, Aerial Surveys, " +
   "Buller District Council) · Sections: LINZ NZ Primary Parcels, CC BY 4.0";
 
+/** From this width the hero stands fixed on the right (Tailwind's xl), with
+ * room to frame a design between it and the panel. */
+export const HERO_FIXED = 1280;
+
 /** The narrowest strip, in pixels, worth framing a site in beside the panel. */
 const MIN_FRAME = 200;
 
@@ -48,9 +52,11 @@ export function framing(right = 40): {
   const height = window.innerHeight;
   const beside = (width - box.right) * height; // the room right of it
   const under = (height - box.bottom) * width; // the room below it
-  // Beside it only if there is a map's width there to frame in.
-  if (beside > under && width - box.right - margin - right >= MIN_FRAME)
-    return { top: 90, bottom: 40, left: box.right + margin, right };
+  // Beside it only if there is a map's width there to frame in; the hero
+  // stands on the right from 1280 px (HERO_FIXED), below that it's in the panel.
+  const side = width < HERO_FIXED ? margin : right;
+  if (beside > under && width - box.right - margin - side >= MIN_FRAME)
+    return { top: 90, bottom: 40, left: box.right + margin, right: side };
   const top = Math.min(box.bottom + margin, height * 0.6);
   return { top, bottom: 40, left: margin, right: margin };
 }
@@ -70,9 +76,10 @@ export function useMap(): MapLibreMap | null {
   return useContext(MapContext);
 }
 
-/** A full-bleed aerial map, framed on `bounds`, that its children draw on.
- * MapLibre is loaded in the browser only, and needs WebGL: without it the
- * page says so instead of the map, and everything else still works. */
+/** A full-bleed aerial map, framed on `bounds`, with its children over it.
+ * They always render; those that draw on the map (`useMap()`) wait for it to
+ * load. MapLibre is loaded in the browser only, and needs WebGL: without it
+ * the map says so, and everything over it still works. */
 export function BaseMap({
   bounds,
   children,
@@ -80,22 +87,26 @@ export function BaseMap({
   bounds: Bounds;
   children?: ReactNode;
 }) {
+  const [map, setMap] = useState<MapLibreMap | null>(null);
   return (
-    <MapBoundary>
-      <MapCanvas bounds={bounds}>{children}</MapCanvas>
-    </MapBoundary>
+    <div className="relative h-full w-full">
+      <MapBoundary>
+        <MapCanvas bounds={bounds} onLoad={setMap} />
+      </MapBoundary>
+      <MapContext.Provider value={map}>{children}</MapContext.Provider>
+    </div>
   );
 }
 
 function MapCanvas({
   bounds,
-  children,
+  onLoad,
 }: {
   bounds: Bounds;
-  children?: ReactNode;
+  onLoad: (map: MapLibreMap) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<MapLibreMap | null>(null);
+  const loaded = useRef(onLoad);
   const [problem, setProblem] = useState<string | null>(null);
   const initial = useRef(bounds);
   useEffect(() => {
@@ -130,7 +141,7 @@ function MapCanvas({
           setProblem(error instanceof Error ? error.message : String(error));
           return;
         }
-        made.on("load", () => setMap(made ?? null));
+        made.on("load", () => made && loaded.current(made));
       },
       (error: Error) => setProblem(error.message),
     );
@@ -140,10 +151,9 @@ function MapCanvas({
     };
   }, []);
   return (
-    <div className="relative h-full w-full">
+    <div className="absolute inset-0">
       <div ref={container} data-testid="map" className="h-full w-full" />
       {problem && <NoMap reason={problem} />}
-      <MapContext.Provider value={map}>{map && children}</MapContext.Provider>
     </div>
   );
 }

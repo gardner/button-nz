@@ -11,6 +11,7 @@ interface Asking {
   request: () => Promise<SiteState>;
   ask: number;
   tries: number;
+  label: string | null; // what is being opened, in words (none for a link)
 }
 
 /** The site being explored: started from an address (or opened from a
@@ -37,18 +38,18 @@ export function useSite(pollMs: number) {
         : new URLSearchParams(window.location.search).get("site");
     return linked === null
       ? null
-      : { request: () => getSite(linked), ask: 0, tries: 0 };
+      : { request: () => getSite(linked), ask: 0, tries: 0, label: null };
   });
 
-  function pick(request: () => Promise<SiteState>) {
+  function pick(request: () => Promise<SiteState>, label: string) {
     setPickProblem(null); // a new pick starts with no reason left over
     setPollProblem(null);
-    setAsking({ request, ask: ++picked.current, tries: 0 });
+    setAsking({ request, ask: ++picked.current, tries: 0, label });
   }
 
   useEffect(() => {
     if (asking === null) return;
-    const { request, ask, tries } = asking;
+    const { request, ask, tries, label } = asking;
     let gone = false; // a newer pick has replaced this one
     const timer = setTimeout(
       () =>
@@ -64,7 +65,9 @@ export function useSite(pollMs: number) {
             if (gone || ask !== picked.current) return;
             setPickProblem(e.message);
             setRetries((n) => n + 1); // keep following the site still on show
-            setAsking(again(e) ? { request, ask, tries: tries + 1 } : null);
+            setAsking(
+              again(e) ? { request, ask, tries: tries + 1, label } : null,
+            );
           },
         ),
       tries === 0 ? 0 : pollMs,
@@ -101,6 +104,8 @@ export function useSite(pollMs: number) {
   useEffect(() => {
     if (id === undefined) return;
     const url = new URL(window.location.href);
+    // A design linked from another site isn't this site's.
+    if (url.searchParams.get("site") !== id) url.searchParams.delete("design");
     url.searchParams.set("site", id);
     window.history.replaceState(null, "", url);
   }, [id]);
@@ -108,7 +113,10 @@ export function useSite(pollMs: number) {
   return {
     site,
     problem: pickProblem ?? pollProblem,
-    fromAddress: (addressId: number) => pick(() => createSite(addressId)),
+    // What a pick is opening, until it is answered or refused.
+    opening: asking?.label ?? null,
+    fromAddress: (addressId: number, address: string) =>
+      pick(() => createSite(addressId), address),
   };
 }
 
