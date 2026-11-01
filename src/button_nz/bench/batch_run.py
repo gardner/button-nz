@@ -15,7 +15,13 @@ from typing import Any
 import httpx
 from pyproj import Transformer
 
-from button_nz.bench.batch import BRIEFS, is_rectangle, pick, road_distances, street_distance
+from button_nz.bench.batch import (
+    is_rectangle,
+    planned,
+    repeat_of,
+    road_distances,
+    street_distance,
+)
 from button_nz.geo.geometry import Point
 from button_nz.geo.property import find_address
 from button_nz.sites.frontages import fetch_frontages
@@ -33,15 +39,18 @@ class CapReached(RuntimeError):
     """The server refused another design today (429)."""
 
 
-def run_batch(api: str, town: str, count: int, out: Path) -> None:
+def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = None) -> None:
     client = httpx.Client(base_url=api, timeout=60.0)
     layers = LiveLayers(httpx.Client(timeout=60.0, follow_redirects=True))
-    sections = client.get(f"/town/{town}").raise_for_status().json()["features"]
+    if repeat is None:
+        sections = client.get(f"/town/{town}").raise_for_status().json()["features"]
+        designs = planned(sections, count)
+    else:
+        designs = repeat_of(repeat)
     done = {r["parcel_id"] for r in _results(out)}
-    for i, parcel_id in enumerate(pick(sections, count)):
+    for parcel_id, brief in designs:
         if parcel_id in done:
             continue
-        brief = BRIEFS[i % len(BRIEFS)]
         try:
             result = _one(client, layers, parcel_id, brief)
         except CapReached as error:

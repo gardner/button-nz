@@ -5,7 +5,9 @@
 
 It drives the API as the app does: each section's site is built from its
 LINZ address, a design is asked for, and its result is read back. Sections
-are those the town screen says have room, spread across their range of sizes.
+are those the town screen says have room, spread across their range of sizes;
+``--repeat`` designs an earlier run's sections with its briefs instead, to
+measure a change on the same designs.
 Each brief tests a placement the owner cares about. Per design it records:
 - acceptance and the attempts taken;
 - every check's verdict;
@@ -20,6 +22,7 @@ what was done so far kept: run it again to go on.
 """
 
 import argparse
+import json
 import math
 from collections.abc import Sequence
 from pathlib import Path
@@ -53,6 +56,18 @@ def pick(sections: Sequence[dict[str, Any]], count: int) -> list[int]:
         return [room[0][1]]
     last = len(room) - 1
     return [room[round(i * last / (count - 1))][1] for i in range(count)]
+
+
+def planned(sections: Sequence[dict[str, Any]], count: int) -> list[tuple[int, str]]:
+    """A fresh run's designs: ``pick``'s sections, each with the next brief in turn."""
+    return [(pid, BRIEFS[i % len(BRIEFS)]) for i, pid in enumerate(pick(sections, count))]
+
+
+def repeat_of(results: Path) -> list[tuple[int, str]]:
+    """An earlier run's sections, each with the brief it had: to measure a
+    change on exactly the same designs."""
+    rows = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines() if line]
+    return [(int(r["parcel_id"]), str(r["brief"])) for r in rows]
 
 
 def is_rectangle(walls: Sequence[Point]) -> bool:
@@ -95,10 +110,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--sections", type=int, default=20)
     parser.add_argument("--town", default="reefton")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--repeat",
+        type=Path,
+        help="an earlier run's results.jsonl: design its sections with its briefs again",
+    )
     args = parser.parse_args(argv)
     from button_nz.bench.batch_run import run_batch  # live: LINZ and the API
 
-    run_batch(args.api, args.town, args.sections, args.out)
+    run_batch(args.api, args.town, args.sections, args.out, args.repeat)
 
 
 if __name__ == "__main__":

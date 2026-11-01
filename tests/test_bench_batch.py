@@ -1,11 +1,13 @@
 """Tests for button_nz.bench.batch: the many-sites design run's pure parts."""
 
+import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import httpx
 
-from button_nz.bench.batch import is_rectangle, pick, street_distance
+from button_nz.bench.batch import BRIEFS, is_rectangle, pick, planned, repeat_of, street_distance
 from button_nz.sites.frontages import Frontage
 
 
@@ -71,3 +73,18 @@ def test_a_visual_still_being_made_is_waited_for_not_counted_as_failed(monkeypat
         "accepted_attempt": 1,
     }
     assert batch_run._visual(client, job) is True  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_repeat_runs_an_earlier_runs_sections_with_their_briefs(tmp_path: Path) -> None:
+    earlier = tmp_path / "results.jsonl"
+    rows = [
+        {"parcel_id": 7, "brief": "far from the street", "outcome": "accepted"},
+        {"parcel_id": 9, "brief": "keeping the trees", "outcome": "no address on the section"},
+    ]
+    earlier.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert repeat_of(earlier) == [(7, "far from the street"), (9, "keeping the trees")]
+
+
+def test_a_fresh_run_pairs_its_picks_with_the_briefs_in_turn() -> None:
+    sections = [section(i, 1 + i) for i in range(4)]
+    assert planned(sections, 4) == [(0, BRIEFS[0]), (1, BRIEFS[1]), (2, BRIEFS[2]), (3, BRIEFS[0])]
