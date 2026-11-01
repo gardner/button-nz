@@ -66,7 +66,9 @@ EDITS = 2
 # In the 12 recorded renders the dwelling's box is 50 to 161 px of 1280 (0.25% to
 # 0.9% of the picture), and Muse Image redrew it loosely: bigger, or a little off
 # (#133). The close-up is this many times the box, so the dwelling spans about a
-# third of it and the section around it stays in view.
+# third of it and the section around it stays in view. Measured on those 12
+# (docs/results): 10 passed, all on the first edit (IoU 0.83-0.98), against 8
+# of the whole render in a run just before (6 on the first edit).
 CONTEXT = 3
 EDIT_TIMEOUT_S = 180.0  # an edit took about 24 s in the feasibility test
 VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"

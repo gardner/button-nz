@@ -182,6 +182,51 @@ one (it passed both times; three samples each way all passed). Each run is
 one sample per design, and the one-edit rate varied from 5 to
 8 of 12 between runs, so differences of one or two designs are noise.
 
+### A close-up of the dwelling
+
+In every recorded render the dwelling is tiny: its box is 50 to 161 px of
+the 1280 px width, 0.25% to 0.9% of the picture. Muse Image now illustrates
+a close-up: a window of the render with the render's shape, three times
+the dwelling's box, scaled up to the render's size. SAM checks it against
+the silhouette, cut and scaled the same way, at the same IoU 0.60, and the
+close-up is what is shown. Nothing is pasted back into a wider picture, so
+nothing can cover a moved house. The two runs below were made back to back
+on the 12 designs: the code before (23e8e7f) first, then the close-up
+(6f018f1).
+
+| Design | Whole render, up to two edits (edits, IoU) | Close-up, up to two edits (edits, IoU) |
+|---|---|---|
+| 4ee3c533 | passed (2, 0.64) | passed (1, 0.97) |
+| 14e33e79 | failed (2, 0.12) | passed (1, 0.95) |
+| 2814a497 | passed (1, 0.60) | passed (1, 0.93) |
+| 7b219d6b | passed (1, 0.78) | passed (1, 0.83) |
+| 02003a9b | passed (1, 0.72) | passed (1, 0.97) |
+| 3ca9262c | failed (2, 0.23) | passed (1, 0.98) |
+| 1f3ae911 | failed (2, 0.53) | passed (1, 0.92) |
+| b6d7a54d | passed (1, 0.65) | failed (2, 0.37) |
+| fb1d8b45 | passed (2, 0.72) | passed (1, 0.97) |
+| c5832e90 | failed (2, 0.42) | failed (2, 0.44) |
+| 910c6d05 | passed (1, 0.75) | passed (1, 0.93) |
+| 1b52b41d | passed (1, 0.91) | passed (1, 0.97) |
+| **Passed** | **8 of 12** (6 on the first edit) | **10 of 12** (10 on the first edit) |
+
+- **The first edit passes far more often:** 10 of 12 against 6, and the
+  accepted pictures overlap the silhouette more closely (IoU 0.83 to 0.98,
+  median 0.96, against 0.60 to 0.91). Two of the three designs that had
+  failed every time passed, 14e33e79 at 0.95 and 1f3ae911 at 0.92.
+- **Two still fail.** c5832e90 failed in every run; trees stand in front of
+  its dwelling, so its silhouette is the part that shows. b6d7a54d has the
+  tallest box in frame (121 px), and its close-up was the largest window.
+  It had passed in two earlier runs and failed in two, so one run says
+  little about it.
+- **What's shown changes.** The visual is now a close-up of the dwelling
+  and its section, not the whole drone view with the landscape and sky.
+  The page shows it in a 400 px panel, where the whole-render dwelling was
+  15 to 50 px wide.
+- Each run is one sample per design: 8 against 10 alone is within the noise
+  noted above, but the first-edit rate (6 against 10) and the IoUs point the
+  same way.
+
 ## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
 
 **Reefton** ([report](impact/report.md), code 8a0721e). If some share of the

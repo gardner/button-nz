@@ -68,11 +68,12 @@ for the full plan.
    verdict and the render go back to Muse for the next attempt.
 6. **Revise.** An accepted design can be changed in plain words. Muse starts
    from the accepted script, and the evaluator checks the result again.
-7. **Illustrate.** Muse Image turns the trusted render into a photograph of
-   the same scene. Image models move and invent things, so SAM 3.1 finds the
-   house in the illustration, and it is shown only if it overlaps the
-   design's silhouette from the same camera (IoU at least 0.6), labelled
-   AI-illustrated.
+7. **Illustrate.** Muse Image turns a close-up of the trusted render, three
+   times the dwelling's size, into a photograph of the same scene. Image
+   models move and invent things, so SAM 3.1 finds the house in the
+   illustration, and it is shown only if it overlaps the design's
+   silhouette from the same camera, cut to the same close-up (IoU at least
+   0.6), labelled AI-illustrated.
 8. **Match real prefabs.** `button_nz.catalogue` holds 17 New Zealand prefab
    products, each with sourced dimensions, and its price where the supplier
    publishes one (seven do; see [docs/suppliers.md](docs/suppliers.md)). Of the
