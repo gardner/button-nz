@@ -11,6 +11,7 @@ site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
 """
 
 import json
+import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
@@ -155,19 +156,27 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
     return router
 
 
+_REQUESTS = threading.Lock()  # one site per address: requests are decided one at a time
+
+
 def _requested(service: SiteService, address_id: int) -> SiteRecord:
     """The site at ``address_id``: the one there is, unless it failed, or a new
-    build, within the cap."""
+    build, within the cap. Two requests for one address get one site."""
     store = service.sites.store
     known = store.by_address(address_id)
     if known is not None and known.status is not SiteStatus.FAILED:
         return known
-    with _admit(service.cap):
-        if known is not None:
-            store.rebuild(known.id)
-            record = store.get(known.id)
-        else:
-            record = store.create(address_id, _address(service.addresses, address_id))
+    address = _address(service.addresses, address_id) if known is None else known.address
+    with _REQUESTS:
+        known = store.by_address(address_id)  # again: another request may have made it
+        if known is not None and known.status is not SiteStatus.FAILED:
+            return known
+        with _admit(service.cap):
+            if known is not None:
+                store.rebuild(known.id)
+                record = store.get(known.id)
+            else:
+                record = store.create(address_id, address)
     service.builder.wake()
     return record
 

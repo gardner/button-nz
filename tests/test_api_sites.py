@@ -1,11 +1,13 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from fastapi.testclient import TestClient
+from httpx2 import Response  # what TestClient returns
 from shapely import Point
 from shapely.geometry import shape
 
@@ -167,3 +169,28 @@ def test_two_addresses_with_one_slug_get_two_sites(tmp_path: Path) -> None:
     assert store.create(3, "1 Ōtaki Road").id == "1-otaki-road"
     since = datetime.now(UTC) - timedelta(minutes=1)
     assert len(store.created_since(since)) == 3
+
+
+def test_every_rebuild_counts_against_the_cap(tmp_path: Path) -> None:
+    server = Server(tmp_path, cap=2)
+    site_id = server.client.post("/sites", json={"address_id": 7}).json()["id"]
+
+    def fail_and_ask_again() -> int:  # as a restart mid-build leaves it
+        server.sites_store.start(site_id)
+        server.sites_store.recover()
+        return server.client.post("/sites", json={"address_id": 7}).status_code
+
+    assert fail_and_ask_again() == 202  # the day's second build
+    assert fail_and_ask_again() == 429  # a third is past the cap
+
+
+def test_two_requests_for_one_new_address_get_the_one_site(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+
+    def ask(_: int) -> Response:
+        return server.client.post("/sites", json={"address_id": 7})
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(pool.map(ask, range(4)))
+    assert {r.status_code for r in responses} == {202}
+    assert {r.json()["id"] for r in responses} == {"1-test-street-reefton"}

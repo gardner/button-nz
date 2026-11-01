@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS sites (
     started_at TEXT,
     finished_at TEXT
 );
+CREATE TABLE IF NOT EXISTS site_builds (
+    site_id TEXT NOT NULL REFERENCES sites (id),
+    requested_at TEXT NOT NULL
+);
 """
 
 
@@ -93,11 +97,13 @@ class SiteStore:
                 or db.execute("SELECT 1 FROM sites WHERE id = ?", (site_id,)).fetchone()
             ):
                 site_id = f"{site_id}-{address_id}"
+            now = _now()
             db.execute(
                 "INSERT INTO sites (id, address_id, address, status, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (site_id, address_id, address, SiteStatus.BUILDING, _now()),
+                (site_id, address_id, address, SiteStatus.BUILDING, now),
             )
+            db.execute("INSERT INTO site_builds VALUES (?, ?)", (site_id, now))
         return self.get(site_id)
 
     def get(self, site_id: str) -> SiteRecord:
@@ -114,13 +120,13 @@ class SiteStore:
             return None
 
     def created_since(self, since: datetime) -> list[datetime]:
-        """When each site build since ``since`` was asked for, oldest first."""
+        """When each build since ``since`` was asked for, rebuilds included, oldest first."""
         with self._db() as db:
             rows = db.execute(
-                "SELECT created_at FROM sites WHERE created_at > ? ORDER BY created_at",
+                "SELECT requested_at FROM site_builds WHERE requested_at > ? ORDER BY requested_at",
                 (since.astimezone(UTC).isoformat(),),
             ).fetchall()
-        return [datetime.fromisoformat(r["created_at"]) for r in rows]
+        return [datetime.fromisoformat(r["requested_at"]) for r in rows]
 
     def next_to_build(self) -> SiteRecord | None:
         try:
@@ -145,13 +151,16 @@ class SiteStore:
         )
 
     def rebuild(self, site_id: str) -> None:
-        """Build a failed site again, from the start, as a new request."""
+        """Build a failed site again, from the start: another build request."""
+        now = _now()
         self._set(
             site_id,
             "status = ?, error = NULL, step = NULL, started_at = NULL, finished_at = NULL, "
             "created_at = ?",
-            (SiteStatus.BUILDING, _now()),
+            (SiteStatus.BUILDING, now),
         )
+        with self._db() as db:
+            db.execute("INSERT INTO site_builds VALUES (?, ?)", (site_id, now))
 
     def recover(self) -> int:
         """Fail every build a restart cut off; return how many."""
