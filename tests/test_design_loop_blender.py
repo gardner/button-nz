@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from button_nz.agent.conversation import Turn
 from button_nz.agent.loop import DesignSite, design
@@ -126,8 +127,20 @@ def test_the_render_finishes_the_roof_and_walls_as_the_host_says(tmp_path: Path)
         image = gltf["images"][gltf["textures"][colour["index"]]["source"]]
         assert finishes[part]["texture"] in image["name"]
         assert "normalTexture" in materials[name]
-        scale = colour["extensions"]["KHR_texture_transform"]["scale"]
-        assert [abs(s) for s in scale] == pytest.approx([1 / tile_m, 1 / tile_m], rel=1e-3)
+        transform = colour["extensions"]["KHR_texture_transform"]
+        assert [abs(s) for s in transform["scale"]] == pytest.approx([1 / tile_m] * 2, rel=1e-3)
+        assert transform.get("rotation", 0.0) == pytest.approx(0.0)  # turned in the UVs
+    walls = next(
+        p for p in primitives if materials["Dwelling walls"] is gltf["materials"][p["material"]]
+    )
+    corners = glb_values(glb, gltf, walls["indices"]).reshape(-1, 3)
+    position = glb_values(glb, gltf, walls["attributes"]["POSITION"])  # glTF: y is up
+    uv = glb_values(glb, gltf, walls["attributes"]["TEXCOORD_0"])
+    upright = [t for t in corners if np.ptp(position[t][:, 1]) > 1.0]  # the walls, not floor
+    on_walls = uv[np.unique(np.concatenate(upright))]
+    across, along = on_walls.max(axis=0) - on_walls.min(axis=0)
+    assert across == pytest.approx(3.6, abs=0.01)  # weatherboards: u runs up the wall,
+    assert along > 5.0  # and v along it, so the boards and their relief run level
 
 
 class MirroringModel:
@@ -209,6 +222,24 @@ def glb_json(glb: Path) -> dict[str, Any]:
     (chunk_length,) = struct.unpack_from("<I", data, 12)
     found: dict[str, Any] = json.loads(data[20 : 20 + chunk_length])
     return found
+
+
+COMPONENTS = {5121: np.uint8, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
+WIDTHS = {"SCALAR": 1, "VEC2": 2, "VEC3": 3}
+
+
+def glb_values(glb: Path, gltf: dict[str, Any], accessor: int) -> NDArray[Any]:
+    """An accessor's values (indices, positions, UVs), one row each, from the
+    GLB's binary chunk; assumes tightly packed views, as Blender writes them."""
+    data = glb.read_bytes()
+    (json_length,) = struct.unpack_from("<I", data, 12)
+    binary = 20 + json_length + 8  # past the JSON chunk and the BIN chunk's header
+    found = gltf["accessors"][accessor]
+    view = gltf["bufferViews"][found["bufferView"]]
+    start = binary + view.get("byteOffset", 0) + found.get("byteOffset", 0)
+    width = WIDTHS[found["type"]]
+    values = np.frombuffer(data, COMPONENTS[found["componentType"]], found["count"] * width, start)
+    return values.reshape(-1, width) if width > 1 else values
 
 
 class EmptyModel:

@@ -208,16 +208,26 @@ def _bake(dwelling: Any, triangles: list[list[list[float]]], look: dict[str, Any
     mesh = b.data.meshes.new("Dwelling")
     mesh.from_pydata(vertices, [], faces)
     mesh.update()
-    uvs = [c for triangle in triangles for uv in surface_math.face_uvs(*triangle) for c in uv]
+    parts = (look["walls"], look["roof"])  # material 0, 1
+    mesh.materials.append(finishes.material("Dwelling walls", parts[0]))
+    mesh.materials.append(finishes.material("Dwelling roof", parts[1]))
+    _roof_apart(mesh, triangles)
+    turned = [finishes.turned(part) for part in parts]
+    uvs: list[float] = []
+    for triangle, polygon in zip(triangles, mesh.polygons, strict=True):
+        for u, v in surface_math.face_uvs(*triangle):
+            uvs += (-v, u) if turned[polygon.material_index] else (u, v)
     mesh.uv_layers.new(name="UVMap").data.foreach_set("uv", uvs)  # loops follow the corners
-    mesh.materials.append(finishes.material("Dwelling walls", look["walls"]))
-    mesh.materials.append(finishes.material("Dwelling roof", look["roof"]))
+    b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
+
+
+def _roof_apart(mesh: Any, triangles: list[list[list[float]]]) -> None:
+    """Give roof faces material 1: level faces in the Dwelling's upper half."""
     heights = [point[2] for triangle in triangles for point in triangle]
     eaves = (min(heights, default=0.0) + max(heights, default=0.0)) / 2  # floors, decks below
     for polygon in mesh.polygons:
         level = abs(polygon.normal.z) > ROOF_NORMAL_Z
         polygon.material_index = 1 if level and polygon.center.z > eaves else 0
-    b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 
 def _plain(value: Any) -> Any:

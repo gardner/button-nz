@@ -3,12 +3,12 @@ texture from ``textures/``, laid on the baked mesh's UVs (metres, from
 ``surface_math``). Runs in Blender's Python, imported by ``design_measure``.
 
 A finish is the product's colour multiplied over a greyscale detail map, with
-the texture's normal map and the finish's roughness. Its scale and turn are a
-Mapping node, which glTF exports as ``KHR_texture_transform``.
+the texture's normal map and the finish's roughness. Its scale is a
+Mapping node, which glTF exports as ``KHR_texture_transform``; boards are
+laid level by turning the UVs (``turned``).
 """
 
 import json
-import math
 import os
 from typing import Any
 
@@ -53,14 +53,21 @@ def material(name: str, finish: dict[str, Any]) -> Any:
     return material
 
 
+def turned(finish: dict[str, Any]) -> bool:
+    """Whether ``finish`` lays its boards level: its faces' UVs take a quarter
+    turn (the photographs' boards run up the image). Turning the UVs, not the
+    texture lookup, turns the surface's tangent frame too, so the normal map's
+    relief is lit the way the boards run."""
+    turn: bool = textures()[finish["texture"]]["boards_across"]
+    return turn
+
+
 def _mapping(nodes: Any, links: Any, spec: dict[str, Any]) -> Any:
-    """UVs in metres to tiles of ``tile_m``, turned so boards run level if asked."""
+    """UVs in metres to tiles of ``tile_m``."""
     coordinates = nodes.new("ShaderNodeTexCoord")
     mapping = nodes.new("ShaderNodeMapping")
     scale = 1.0 / spec["tile_m"]
     mapping.inputs["Scale"].default_value = (scale, scale, 1.0)
-    if spec["boards_across"]:  # the photographs' boards run up the image
-        mapping.inputs["Rotation"].default_value = (0.0, 0.0, math.pi / 2)
     links.new(coordinates.outputs["UV"], mapping.inputs["Vector"])
     return mapping
 
