@@ -52,7 +52,9 @@ class DesignRequest(BaseModel):
     brief: str = Field(min_length=1, max_length=4000)
     allow_observations: bool = True
     product_id: str | None = None  # a catalogue product to place, walls and all
-    site_id: str | None = None  # the site to design on; None: the demo site
+    # The site to design on; omitted (None), the demo site. Never empty: an empty
+    # id is a client's mistake, not a request for the demo (422).
+    site_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class RevisionRequest(BaseModel):
@@ -129,7 +131,7 @@ def create_app(
     @app.post("/designs", status_code=202)
     def post_design(request: DesignRequest) -> JobView:
         placed = _placed(placeable, request.product_id)
-        site_id = where.ready(request.site_id or DEMO_SITE_ID)
+        site_id = where.ready(DEMO_SITE_ID if request.site_id is None else request.site_id)
         with _admit(cap):
             job = store.create_job(
                 request.brief, request.allow_observations, product=placed, site_id=site_id
