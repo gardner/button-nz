@@ -100,3 +100,9 @@ export function numbers(value: unknown, count: number): number[] {
 export function asPoint(value: unknown): Point {
   return numbers(value, 2) as Point;
 }
+
+/** A failure worth trying again: the API restarting, a timeout, or the
+ * connection dropping (a fetch that throws), but not a refusal. */
+export function passing(e: Error): boolean {
+  return !(e instanceof ApiError) || e.transient;
+}
