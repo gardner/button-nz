@@ -65,7 +65,7 @@ Each object, what it holds, and where it comes from.
 
 | Object | Holds | Source | Kept in |
 |---|---|---|---|
-| **Site** | Name, title, parcels, extent, rasters and vectors with licences and capture dates, open items | LINZ open data (CC BY 4.0) and Buller District Council's public parcels (no licence stated), pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
+| **Site** | Name, title, parcels, extent, rasters and vectors with licences and, where recorded, capture dates, open items | LINZ open data (CC BY 4.0) and Buller District Council's public parcels (no licence stated), pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
 | **Survey** | What SAM 3.1 found on the aerial photo, plus raised ground on the LiDAR that no label covers (concept "unlabelled", no score). Each is a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
@@ -128,7 +128,7 @@ attempt-<n>/                each file below exists only if its step ran: an atte
                             with no script keeps just its trace and observations, and
                             one whose script failed has nothing from the later passes
   attempt.json              the agent's trace: observations, script, verdict, feedback
-  observation-<k>.png       the LiDAR views the model asked for
+  observation-<k>.png       the image-producing LiDAR views the model asked for
   scene.json                the georeferenced site scene
   design.py                 the model's Blender script
   script/design.blend       the Blender file it saved
