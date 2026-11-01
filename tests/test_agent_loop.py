@@ -1,6 +1,7 @@
 """Tests for button_nz.agent.loop with a scripted model and a fake Blender runner."""
 
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -398,3 +399,12 @@ def test_feedback_says_how_far_the_walls_are_from_each_road(
     result = run(replace(site, frontages=(coal,)), model, tmp_path)
     # GOOD's walls run from y = 7 to 12: 7 m from the south edge.
     assert "7.00 m from the Coal Street (the address's street) edge" in result.attempts[1].feedback
+
+
+def test_muse_is_told_where_a_plain_rectangle_fits(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    contract = model.seen[0][0].text
+    # The 40 x 20 m parcel, 2 m in from every side, on a 25 cm grid.
+    assert re.search(r"1: 35\.\d x 15\.\d m", contract)
+    assert "rather than cut a corner" in contract

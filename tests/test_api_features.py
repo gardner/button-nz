@@ -144,7 +144,7 @@ def test_a_design_keeps_clear_of_what_was_confirmed(surveyed: Surveyed) -> None:
     prompt = surveyed.model.seen[0][0].text
     assert "existing buildings" in prompt and "(30.00, 12.00)" in prompt
     assert "kept clear" in prompt and "(22.00, 12.00)" in prompt
-    assert "(2.00, 2.00)" not in prompt  # the ignored car
+    assert "(2.00, 2.00), (4.00, 2.00), (4.00, 4.00)" not in prompt  # the ignored car
     (attempt,) = surveyed.client.get(f"/designs/{job}").json()["attempts"]
     assert "building_separation: pass" in attempt["feedback"]
 

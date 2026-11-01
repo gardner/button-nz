@@ -17,6 +17,7 @@ from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
 from button_nz.agent.observe import ObservationError, observe
 from button_nz.agent.prompt import describe, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
+from button_nz.agent.room import describe_room
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import (
@@ -146,8 +147,8 @@ def design(
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
-    frontages = describe_frontages(site.frontages, local)
-    prompt = system_prompt(site.scene, keep_clear, buildings, frontages)
+    places = describe_frontages(site.frontages, local) + describe_room(site.context, local)
+    prompt = system_prompt(site.scene, keep_clear, buildings, places)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
     scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
