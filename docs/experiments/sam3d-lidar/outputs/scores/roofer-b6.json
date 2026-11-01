@@ -1,0 +1,24 @@
+{
+ "building": "b6",
+ "model": "RESULTS/roofer/out/objects/b6/reconstruct/b6.city.jsonl",
+ "held_out_roof_points": 130,
+ "validity": {
+  "watertight": true,
+  "triangles": 24
+ },
+ "model_points": 13730,
+ "roof_rmse_m": 0.193,
+ "roof_median_m": 0.074,
+ "roof_coverage": 1.0,
+ "height_err_m": 0.089,
+ "ground_m": 186.26,
+ "footprint_iou": 0.901,
+ "scale": [
+  1.072,
+  1.035
+ ],
+ "fitted_scale": 0.951,
+ "shape_roof_rmse_m": 0.247,
+ "shape_roof_median_m": 0.149,
+ "shape_roof_coverage": 1.0
+}
