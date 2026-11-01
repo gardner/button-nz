@@ -69,7 +69,7 @@ Each object, what it holds, and where it comes from.
 | **Survey** | What SAM 3.1 found on the aerial photo, plus raised ground on the LiDAR that no label covers (concept "unlabelled", no score). Each is a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
-| **Attempt** | Verdict, feedback, LiDAR views asked for, the model's script and its measured result | The design loop | `DATA/button.db` (attempts), `DATA/runs/<job>/attempt-<n>/` |
+| **Attempt** | Verdict, feedback, LiDAR views asked for, and, where those steps completed, the model's script and its measured result | The design loop | `DATA/button.db` (attempts), `DATA/runs/<job>/attempt-<n>/` |
 | **Check** | Name, pass, fail or unknown, a plain detail, measurements, the rule it comes from. The page shows the name, verdict and detail; the measurements and rule are in the trace | The evaluator (`button_nz.evaluation`) | Each attempt's `attempt.json` |
 | **Product** | Supplier, model, outside footprint, area and its basis, rooms, price or null, exclusions, West Coast note, sources; whether it can be placed | Suppliers' own pages | `data/catalogue/products.json` |
 | **Placed product** | The product a design places, as the catalogue gave it then | The owner's "Place it on the site" | `DATA/button.db` (jobs.product) |
@@ -120,7 +120,7 @@ Each design keeps its files under `DATA/runs/<job>/`:
 
 ```
 survey.json                 the survey's id and the decisions it was checked against
-design.json                 the run's summary
+design.json                 the run's summary, once the design loop finishes
 attempt-<n>/                each file below exists only if its step ran: an attempt
                             with no script keeps just its trace and observations, and
                             one whose script failed has nothing from the later passes

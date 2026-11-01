@@ -187,6 +187,7 @@ from real runs.
    the town screen; each writes its report from its own log.
 
 **What can go wrong:** something fails, and it stops rather than falling back:
-- a survey that isn't the owner's fails the recording before any paid call;
+- a survey the server hasn't fixed fails the recording before any paid call
+  (the recorder checks that it is fixed, not which survey: #91);
 - a design without its survey record can't be packaged;
 - a tool missing from the PATH stops the install.
