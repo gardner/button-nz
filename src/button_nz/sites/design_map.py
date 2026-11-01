@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from shapely import LineString, Polygon, union_all
+from shapely import LineString, MultiPolygon, Polygon, union_all
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import nearest_points
@@ -86,18 +86,26 @@ def _confirmed(record: Path, survey: Path | None) -> BaseGeometry | str:
         return "the design has no record of the survey it was checked against"
     used = json.loads(record.read_text(encoding="utf-8"))
     if "buildings" in used:
-        kept = [shape(g) for g in used["buildings"]]
+        kept = [part for g in used["buildings"] for part in _outer(shape(g))]
     else:  # records before the geometry was kept: only the same survey can say
         found = None if survey is None else Survey.read(survey)
         if found is None or used.get("survey_id") != found.id:
             return "the survey has changed since the design was checked"
         decided: dict[str, str] = used.get("decisions", {})
         kept = [
-            shape(f["geometry"])
+            part
             for f in found.collection["features"]
             if decided.get(str(f["id"])) == "building"
+            for part in _outer(shape(f["geometry"]))
         ]
     return union_all(kept) if kept else Polygon()
+
+
+def _outer(geometry: BaseGeometry) -> list[Polygon]:
+    """Each polygon of ``geometry`` filled in: the evaluator keeps a building's
+    outer ring only (``perception.confirm``), so its courtyard is no gap here."""
+    parts = geometry.geoms if isinstance(geometry, MultiPolygon) else [geometry]
+    return [Polygon(part.exterior) for part in parts if isinstance(part, Polygon)]
 
 
 def _line(outline: BaseGeometry, target: BaseGeometry) -> BaseGeometry:
