@@ -15,7 +15,7 @@ import type { SiteState } from "@/lib/sites";
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
-import { Orbit, Terrain } from "../map/View3D";
+import { Orbit, Terrain, Tilt } from "../map/View3D";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
@@ -115,6 +115,8 @@ function SiteOverlays({
       {/* The bare earth, with the site's buildings and trees standing on it
           as tall as the LiDAR says (SiteLayers) and the design among them. */}
       {three && <Terrain tiles={terrainTiles(siteId)} />}
+      {/* The tilt, unless an orbit (which tilts itself) is flying round. */}
+      {!(three && framed) && <Tilt three={three} />}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}
@@ -131,7 +133,7 @@ function SiteOverlays({
           {three && framed ? (
             <Orbit bounds={framed} right={HERO_WIDTH + 40} />
           ) : (
-            <FitTo bounds={framed} right={HERO_WIDTH + 40} />
+            <FitTo bounds={framed} right={HERO_WIDTH + 40} pitch={0} />
           )}
         </>
       )}

@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { passing } from "@/lib/fields";
+import { measured } from "@/lib/siteMap";
 import { type SiteState, type Town, getTown } from "@/lib/sites";
 
 import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
-import { Tilt, ViewToggle } from "../map/View3D";
+import { PITCH_3D, Tilt, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -67,19 +68,13 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, opening, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
   const { progress, three, setThree, onProgress } = useJourney();
-  // An accepted design in 3D is flown round (ReadySite's Orbit): no tilt here.
-  const orbiting = three && progress.design === "accepted";
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
         {town.data && (
           <TownLayers town={town.data} behind={site !== null} three={three} />
         )}
-        {!orbiting && (
-          <Tilt three={three} zoom={site ? undefined : TOWN_ZOOM_3D} />
-        )}
-        {/* The town is framed again once its headline fills the panel. */}
-        <FitTo bounds={site?.bounds ?? (town.data ? REEFTON : null)} />
+        <Camera site={site} town={town.data} three={three} />
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"
@@ -101,6 +96,32 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
         />
       </BaseMap>
     </main>
+  );
+}
+
+/** Where the map looks before a site is ready: the town, tilted in 3D and
+ * closer in, or the site being built. A ready site moves the camera itself
+ * (ReadySite: its tilt, fit and orbit), so no two eases start at once. */
+function Camera({
+  site,
+  town,
+  three,
+}: {
+  site: SiteState | null;
+  town: Town | null;
+  three: boolean;
+}) {
+  return (
+    <>
+      {site?.status !== "ready" && (
+        <Tilt three={three} zoom={site ? undefined : TOWN_ZOOM_3D} />
+      )}
+      {/* The town is framed again once its headline fills the panel. */}
+      <FitTo
+        bounds={site?.bounds ?? (town ? REEFTON : null)}
+        pitch={three ? PITCH_3D : 0}
+      />
+    </>
   );
 }
 
@@ -141,7 +162,7 @@ function TownLayers({
       {three && !behind && (
         <GeoLayer
           id="town-buildings"
-          data={town.buildings}
+          data={measured(town.buildings)}
           extrusion={TOWN_BUILDINGS_3D}
         />
       )}

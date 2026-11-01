@@ -35,10 +35,10 @@ describe("getSiteMap", () => {
         heightM: 7.2,
       },
     ]);
-    expect(map.buildings.features[0].properties).toEqual({
-      heightM: 4,
-      baseM: 0.2,
-    });
+    expect(map.buildings.features.map((f) => f.properties)).toEqual([
+      { heightM: 4, baseM: 0.2 },
+      { heightM: null, baseM: null }, // the LiDAR has no cell inside it
+    ]);
     expect(map.canopy.features[0].properties).toEqual({ heightM: 8.1 });
     expect(map.room.features).toHaveLength(1);
     expect(map.halos.features).toHaveLength(0);
@@ -81,7 +81,10 @@ describe("getSiteMap", () => {
         buildings: {
           ...SITE_MAP.buildings,
           features: [
-            { ...SITE_MAP.buildings.features[0], properties: { id: 25 } },
+            {
+              ...SITE_MAP.buildings.features[0],
+              properties: { id: 25, height_m: "tall", base_m: 0 },
+            },
           ],
         },
       },
@@ -111,6 +114,22 @@ describe("getSiteMap", () => {
 });
 
 describe("getDesignMap", () => {
+  it("reads a design whose heights weren't measured", async () => {
+    const unmeasured = {
+      ...DESIGN_MAP,
+      walls: {
+        ...DESIGN_MAP.walls,
+        features: [{ ...DESIGN_MAP.walls.features[0], properties: {} }],
+      },
+    };
+    serve(unmeasured);
+    const map = await getDesignMap("abc123");
+    expect(map.walls.features[0].properties).toEqual({
+      baseM: null,
+      heightM: null,
+    });
+  });
+
   it("reads the outline, the walls and each distance with its rule", async () => {
     const fetch = serve(DESIGN_MAP);
     const map = await getDesignMap("abc123");

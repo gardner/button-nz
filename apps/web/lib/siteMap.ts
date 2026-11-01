@@ -24,15 +24,16 @@ export interface SurveyedFeature {
   heightM: number | null; // its LiDAR height above the ground, where it has one
 }
 
-/** How tall a thing stands, in metres above the ground under it (#86 v1.1). */
+/** How tall a thing stands, in metres above the ground under it (#86 v1.1);
+ * null where the LiDAR has no cell inside it. */
 export interface Tall {
-  heightM: number;
+  heightM: number | null;
 }
 
 /** A thing that can be stood up on the map: from `baseM` to `heightM`
- * above the ground under it. */
+ * (null where they weren't measured). */
 export interface Raised extends Tall {
-  baseM: number;
+  baseM: number | null;
 }
 
 export interface SiteMap {
@@ -110,11 +111,30 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
 }
 
 export function tall(p: Fields): Tall {
-  return { heightM: number(p, "height_m") };
+  return { heightM: optional(p, "height_m", number) };
 }
 
+/** Floor and roof, or base and top; absent or null where not measured. */
 function raised(p: Fields): Raised {
-  return { heightM: number(p, "height_m"), baseM: number(p, "base_m") };
+  return {
+    heightM: p.height_m === undefined ? null : optional(p, "height_m", number),
+    baseM: p.base_m === undefined ? null : optional(p, "base_m", number),
+  };
+}
+
+/** The features that can be stood up: those with every height measured. */
+export function measured<P extends Tall>(
+  data: FeatureCollection<P>,
+): FeatureCollection<P> {
+  return {
+    ...data,
+    features: data.features.filter(
+      (f) =>
+        f.properties.heightM !== null &&
+        (!("baseM" in f.properties) ||
+          (f.properties as Partial<Raised>).baseM !== null),
+    ),
+  };
 }
 
 /** Terrain-RGB tiles of a site's bare earth (DEM), metres above its

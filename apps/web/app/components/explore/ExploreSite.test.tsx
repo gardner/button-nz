@@ -409,10 +409,12 @@ describe("a ready site", () => {
       tiles: [`/api/sites/${SITE}/terrain/{z}/{x}/{y}.png`],
     });
     expect(map.terrain).toMatchObject({ source: "terrain" });
+    // With terrain on, MapLibre stands an extrusion on the ground at its
+    // centroid: the walls go from there up their own height.
     expect(map.layers.get("design-walls-extrusion")).toMatchObject({
       paint: {
-        "fill-extrusion-base": ["get", "baseM"],
-        "fill-extrusion-height": ["get", "heightM"],
+        "fill-extrusion-base": 0,
+        "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
       },
     });
     // On the bare earth, the site's buildings and trees stand as tall as the
@@ -423,7 +425,7 @@ describe("a ready site", () => {
     expect(map.layers.get("site-canopy-extrusion")).toMatchObject({
       paint: { "fill-extrusion-height": ["get", "heightM"] },
     });
-    expect(map.pitch).toBe(60);
+    await vi.waitFor(() => expect(map.pitch).toBe(60));
     const start = map.bearing;
     await vi.waitFor(() => expect(map.bearing).not.toBe(start));
     act(() => map.fire("mousedown"));
@@ -431,6 +433,10 @@ describe("a ready site", () => {
     await new Promise((r) => setTimeout(r, 60));
     expect(map.bearing).toBe(held);
     fireEvent.click(screen.getByRole("button", { name: "2D" }));
+    // Flat again, though the 2D framing starts in the same moment.
+    await vi.waitFor(() => expect(map.pitch).toBe(0));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(map.pitch).toBe(0);
     expect(map.terrain).toBeNull();
     expect(map.sources.has("terrain")).toBe(false);
     expect(map.layers.has("design-walls-extrusion")).toBe(false);
@@ -542,6 +548,21 @@ describe("a ready site", () => {
     answerMap(respond(SITE_MAP));
     await new Promise((r) => setTimeout(r, 20));
     expect(under()).toBe(true);
+  });
+
+  it("tilts for 3D even while an accepted design's map is on its way", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      // GET /api/designs/abc123/map never answers.
+    });
+    render(<Explore pollMs={5} />);
+    expect(await screen.findByText("Accepted: attempt 1")).toBeTruthy();
+    await vi.waitFor(() => expect(FakeMap.last?.pitch).toBe(60));
   });
 
   it("doesn't open a design linked from another site", async () => {

@@ -101,6 +101,15 @@ export const TOWN = {
     features: [
       {
         type: "Feature",
+        id: 11,
+        properties: { height_m: null }, // no LiDAR cell inside it
+        geometry: {
+          type: "Polygon",
+          coordinates: square(171.8603, -42.1159, 0.00002),
+        },
+      },
+      {
+        type: "Feature",
         id: 10,
         properties: { height_m: 6.5 },
         geometry: {
@@ -153,6 +162,11 @@ export const SITE_MAP = {
       25,
       { id: 25, height_m: 4, base_m: 0.2 },
       square(171.8623, -42.1158, 0.00006),
+    ),
+    polygon(
+      26,
+      { id: 26, height_m: null, base_m: null },
+      square(171.8625, -42.1158, 0.00002),
     ),
   ),
   canopy: collection(

@@ -13,9 +13,12 @@ import { framing, useMap } from "./BaseMap";
 export function FitTo({
   bounds,
   right,
+  pitch,
 }: {
   bounds: Bounds | null;
   right?: number;
+  /** The tilt to end at: a fit stops any ease on its way, a tilt's too. */
+  pitch?: number;
 }) {
   const map = useMap();
   const key = bounds?.join(",");
@@ -26,6 +29,9 @@ export function FitTo({
         padding: framing(right),
         duration,
         maxZoom: 20,
+        ...(pitch === undefined
+          ? {}
+          : { pitch, ...(pitch === 0 ? { bearing: 0 } : {}) }),
       });
     fit(2500);
     // On MapLibre's own resize, once the canvas has its new size: the
@@ -37,6 +43,6 @@ export function FitTo({
     };
     // Fly again only when the bounds really change, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, key, right]);
+  }, [map, key, right, pitch]);
   return null;
 }

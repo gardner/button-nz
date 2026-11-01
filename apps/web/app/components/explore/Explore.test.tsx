@@ -170,13 +170,18 @@ describe("Explore", () => {
       type: "fill-extrusion",
       paint: { "fill-extrusion-height": ["get", "heightM"] },
     });
-    expect(map.pitch).toBe(60);
+    // Only the buildings the LiDAR measured stand.
+    const standing = map.sources.get("town-buildings")?.data as {
+      features: unknown[];
+    };
+    expect(standing.features).toHaveLength(1);
+    await vi.waitFor(() => expect(map.pitch).toBe(60));
     expect(
       screen.getByRole("button", { name: "3D" }).getAttribute("aria-pressed"),
     ).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "2D" }));
     expect(map.layers.has("town-buildings-extrusion")).toBe(false);
-    expect(map.pitch).toBe(0);
+    await vi.waitFor(() => expect(map.pitch).toBe(0));
   });
 
   it("asks again for the town when it fails for a moment, but not when refused", async () => {

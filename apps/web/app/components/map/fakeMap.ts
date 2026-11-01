@@ -98,15 +98,26 @@ export class FakeMap {
     return { style: { cursor: "" } };
   }
   fitOptions: unknown[] = [];
-  fitBounds(bounds: unknown, options?: unknown) {
+  fitBounds(bounds: unknown, options?: { pitch?: number; bearing?: number }) {
     this.fitted.push(bounds);
     this.fitOptions.push(options);
+    this.easing = null; // a fit stops an ease on its way
+    if (options?.pitch !== undefined) this.pitch = options.pitch;
+    if (options?.bearing !== undefined) this.bearing = options.bearing;
   }
-  /** Moves at once, and says so when done, as a finished ease would. */
+  private easing: { pitch?: number; bearing?: number } | null = null;
+  /** As MapLibre's: the move ends a moment later, unless another camera
+   * move (an ease or a fit) starts first and stops it where it is. */
   easeTo(options: { pitch?: number; bearing?: number }) {
-    if (options.pitch !== undefined) this.pitch = options.pitch;
-    if (options.bearing !== undefined) this.bearing = options.bearing;
-    queueMicrotask(() => this.fire("moveend"));
+    const ease = { ...options };
+    this.easing = ease;
+    queueMicrotask(() => {
+      if (this.easing !== ease) return; // stopped by a later move
+      this.easing = null;
+      if (ease.pitch !== undefined) this.pitch = ease.pitch;
+      if (ease.bearing !== undefined) this.bearing = ease.bearing;
+      this.fire("moveend");
+    });
   }
   getPitch() {
     return this.pitch;

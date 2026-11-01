@@ -1,6 +1,13 @@
 "use client";
 
-import type { DesignMap, SiteMap, SurveyedFeature } from "@/lib/siteMap";
+import type { ExpressionSpecification } from "maplibre-gl";
+
+import {
+  type DesignMap,
+  type SiteMap,
+  type SurveyedFeature,
+  measured,
+} from "@/lib/siteMap";
 
 import { GeoLayer, type Paint } from "../map/GeoLayer";
 
@@ -53,10 +60,14 @@ function Standing({ map }: { map: SiteMap }) {
     <>
       <GeoLayer
         id="site-standing-buildings"
-        data={map.buildings}
+        data={measured(map.buildings)}
         extrusion={BUILDINGS_3D}
       />
-      <GeoLayer id="site-canopy" data={map.canopy} extrusion={CANOPY_3D} />
+      <GeoLayer
+        id="site-canopy"
+        data={measured(map.canopy)}
+        extrusion={CANOPY_3D}
+      />
     </>
   );
 }
@@ -133,18 +144,26 @@ export function SiteLayers({
   );
 }
 
-/** The design stood up in place: its walls from floor to roof, in its
- * colour, and its eaves as a thin slab at the roof. */
+/** The design's own height, floor to roof. With terrain on, MapLibre stands
+ * an extrusion on the ground at its centroid, so it rises from there. */
+const OWN_HEIGHT: ExpressionSpecification = [
+  "-",
+  ["get", "heightM"],
+  ["get", "baseM"],
+];
+
+/** The design stood up in place: its walls in its colour, and its eaves as
+ * a thin slab at the roof. */
 const WALLS_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": SITE_COLOURS.walls,
-  "fill-extrusion-base": ["get", "baseM"],
-  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-base": 0,
+  "fill-extrusion-height": OWN_HEIGHT,
   "fill-extrusion-opacity": 0.95,
 };
 const EAVES_3D: Paint<"fill-extrusion"> = {
   "fill-extrusion-color": "#fafaf9",
-  "fill-extrusion-base": ["-", ["get", "heightM"], 0.2],
-  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-base": ["-", OWN_HEIGHT, 0.2],
+  "fill-extrusion-height": OWN_HEIGHT,
   "fill-extrusion-opacity": 0.7,
 };
 
@@ -157,19 +176,20 @@ export function DesignLayers({
   map: DesignMap;
   three: boolean;
 }) {
-  if (three)
+  // A design whose heights weren't measured is drawn flat, even in 3D.
+  if (three && measured(map.walls).features.length > 0)
     return (
       <>
         <GeoLayer
           key="walls-3d"
           id="design-walls"
-          data={map.walls}
+          data={measured(map.walls)}
           extrusion={WALLS_3D}
         />
         <GeoLayer
           key="eaves-3d"
           id="design-outline"
-          data={map.outline}
+          data={measured(map.outline)}
           extrusion={EAVES_3D}
         />
         <Distances map={map} />
