@@ -8,13 +8,11 @@ refused (429) with when the next frees up, and is never queued.
 
 import math
 import threading
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-
-from button_nz.api.store import Store
 
 WINDOW = timedelta(hours=24)
 
@@ -24,24 +22,33 @@ def utc_now() -> datetime:
 
 
 class DailyCap:
-    def __init__(self, store: Store, designs: int, clock: Callable[[], datetime] = utc_now) -> None:
-        if designs < 1:
-            raise ValueError(f"a daily cap of {designs} design runs allows none")
-        self.store, self.designs, self.clock = store, designs, clock
+    """At most ``limit`` of something (``noun``) in any 24 hours, counted by
+    ``started``: when each began since a time, oldest first."""
+
+    def __init__(
+        self,
+        started: Callable[[datetime], Sequence[datetime]],
+        limit: int,
+        noun: str = "design runs",
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
+        if limit < 1:
+            raise ValueError(f"a daily cap of {limit} {noun} allows none")
+        self.started, self.limit, self.noun, self.clock = started, limit, noun, clock
         self._lock = threading.Lock()
 
     @contextmanager
     def admit(self) -> Generator[None]:
-        """Hold the cap while one design run is created, or refuse it (429)."""
+        """Hold the cap while one more is created, or refuse it (429)."""
         with self._lock:
             now = self.clock()
-            started = self.store.created_since(now - WINDOW)
-            if len(started) >= self.designs:
-                frees = started[len(started) - self.designs] + WINDOW
+            started = self.started(now - WINDOW)
+            if len(started) >= self.limit:
+                frees = started[len(started) - self.limit] + WINDOW
                 wait = max(1, math.ceil((frees - now).total_seconds()))
                 raise HTTPException(
                     429,
-                    f"This server starts {self.designs} design runs a day, and they are "
+                    f"This server starts {self.limit} {self.noun} a day, and they are "
                     f"used. The next frees up at {frees:%H:%M} UTC.",
                     headers={"Retry-After": str(wait)},
                 )

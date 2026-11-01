@@ -6,7 +6,6 @@
 
 import { type Site, parseSite } from "./api";
 import {
-  ApiError,
   asPoint,
   list,
   number,
@@ -90,25 +89,21 @@ export async function createSite(addressId: number): Promise<SiteState> {
   );
 }
 
-/** Start building the site of a parcel: a section clicked on the town map. */
-export async function createSiteForParcel(
-  parcelId: number,
-): Promise<SiteState> {
-  return parseSiteState(await send("POST", "/sites", { parcel_id: parcelId }));
-}
-
 export async function getSite(id: string): Promise<SiteState> {
   return parseSiteState(await request(`/sites/${encodeURIComponent(id)}`));
 }
 
+/** A site's state as #88 serves it: `{id, address, status, step, error}`,
+ * and once ready, GET /site's fields beside them (its NZTM point as
+ * `address_nztm`, since `address` is the text) with lon/lat `bounds`. */
 export function parseSiteState(raw: unknown): SiteState {
   const state = record(raw, "site state");
   const status = oneOf(state, "status", STATUSES);
-  const bounds =
-    state.bounds === null ? null : (numbers(state.bounds, 4) as Bounds);
-  const site = state.site === null ? null : parseSite(state.site);
-  if (status === "ready" && (bounds === null || site === null))
-    throw new ApiError("a ready site needs its bounds and its site");
+  const ready = status === "ready";
+  const bounds = ready ? (numbers(state.bounds, 4) as Bounds) : null;
+  const site = ready
+    ? parseSite({ ...state, address: state.address_nztm })
+    : null;
   return {
     id: text(state, "id"),
     address: text(state, "address"),
