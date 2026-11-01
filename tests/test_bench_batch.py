@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 
 from button_nz.bench.batch import BRIEFS, is_rectangle, pick, planned, repeat_of, street_distance
 from button_nz.sites.frontages import Frontage
@@ -150,3 +151,24 @@ def test_an_api_failure_stops_the_run_with_the_section_left_to_retry(
     out = tmp_path / "out"
     batch_run.run_batch("http://api", "reefton", 1, out, earlier)
     assert not (out / "results.jsonl").exists() or (out / "results.jsonl").read_text() == ""
+
+
+def test_only_a_sections_own_missing_data_is_recorded_as_its_outcome() -> None:
+    from button_nz.bench.batch_run import SectionDataError, _lookup  # pyright: ignore[reportPrivateUsage]
+    from button_nz.geo.arcgis import ArcGISError
+
+    def missing() -> int:
+        raise LookupError("LINZ address 7: 0 matches")
+
+    def network() -> int:
+        raise ArcGISError("https://services.arcgis.com/...: [Errno -3]")
+
+    def changed() -> int:
+        raise KeyError("address")
+
+    with pytest.raises(SectionDataError):
+        _lookup(missing)
+    with pytest.raises(ArcGISError):  # a LINZ outage stops the run, to retry
+        _lookup(network)
+    with pytest.raises(KeyError):  # a changed response is a bug, not data
+        _lookup(changed)

@@ -8,6 +8,7 @@ stops (the daily cap, a restart) goes on where it left off when run again.
 import json
 import time
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -28,7 +29,7 @@ from button_nz.geo.property import find_address
 from button_nz.sites.build import SiteError
 from button_nz.sites.frontages import fetch_frontages
 from button_nz.sites.live import LiveLayers
-from button_nz.sites.search import address_on_section
+from button_nz.sites.search import NoSuchSection, address_on_section
 
 POLL_S = 5.0
 SITE_TIMEOUT_S = 15 * 60
@@ -39,6 +40,25 @@ TO_NZTM = Transformer.from_crs(4326, 2193, always_xy=True)
 
 class CapReached(RuntimeError):
     """The server refused another design today (429)."""
+
+
+class SectionDataError(RuntimeError):
+    """Something about one section's own data: LINZ has no title, address or
+    road for it. Recorded as that section's outcome; the run goes on."""
+
+
+def _lookup[T](found: Callable[[], T]) -> T:
+    """A LINZ lookup about the section, its own "not there" made a
+    ``SectionDataError``. Network failures (``ArcGISError``) and anything
+    else, a ``KeyError`` from a changed response say, pass through."""
+    try:
+        return found()
+    except (SiteError, NoSuchSection) as error:
+        raise SectionDataError(str(error)) from error
+    except LookupError as error:
+        if type(error) is not LookupError:  # KeyError, IndexError: not "not there"
+            raise
+        raise SectionDataError(str(error)) from error
 
 
 def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = None) -> None:
@@ -55,14 +75,12 @@ def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = 
             continue
         try:
             result = _one(client, layers, parcel_id, brief)
-        except (CapReached, httpx.HTTPError, TimeoutError) as error:
-            # The cap, or the API or network failing: stop with nothing written
-            # for this section, so running again retries it.
+        except (CapReached, httpx.HTTPError, TimeoutError, ArcGISError) as error:
+            # The cap, or the API, LINZ or the network failing: stop with
+            # nothing written for this section, so running again retries it.
             print(f"stopped: {error}")
             break
-        except (LookupError, SiteError, ArcGISError) as error:
-            # Something about this section's own data (no title, no road, LINZ
-            # refusing it): recorded, and the run goes on.
+        except SectionDataError as error:  # this section's own data: recorded
             result = {"parcel_id": parcel_id, "brief": brief, "outcome": f"error: {error}"}
         _write(out, result)
         print(f"{parcel_id}: {result.get('outcome')}")
@@ -71,7 +89,7 @@ def run_batch(api: str, town: str, count: int, out: Path, repeat: Path | None = 
 
 def _one(client: httpx.Client, layers: LiveLayers, parcel_id: int, brief: str) -> dict[str, Any]:
     result: dict[str, Any] = {"parcel_id": parcel_id, "brief": brief}
-    address_id = address_on_section(layers.addresses, layers.parcels, parcel_id)
+    address_id = _lookup(lambda: address_on_section(layers.addresses, layers.parcels, parcel_id))
     if address_id is None:
         return result | {"outcome": "no address on the section"}
     asked_site = client.post("/sites", json={"address_id": address_id})
@@ -82,9 +100,13 @@ def _one(client: httpx.Client, layers: LiveLayers, parcel_id: int, brief: str) -
     result |= {"site_id": site["id"], "address": site["address"]}
     if site["status"] != "ready":
         return result | {"outcome": f"site {site['status']}: {site.get('error')}"}
-    road_id = find_address(layers.addresses, address_id).value.road_id
+    road_id = _lookup(lambda: find_address(layers.addresses, address_id).value.road_id)
     rings = [_ring(f["geometry"]) for f in site["parcels"]["features"]]
-    found = () if road_id is None else fetch_frontages(layers.parcels, layers.roads, rings, road_id)
+    found = (
+        ()
+        if road_id is None
+        else _lookup(lambda: fetch_frontages(layers.parcels, layers.roads, rings, road_id))
+    )
     started = time.monotonic()
     asked = client.post("/designs", json={"brief": brief, "site_id": site["id"]})
     if asked.status_code == 429:
