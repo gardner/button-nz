@@ -8,7 +8,14 @@ import httpx
 import pytest
 
 from button_nz.geo.arcgis import FeatureLayer
-from button_nz.sites.search import MAX_RESULTS, QueryError, search_addresses, where_clause
+from button_nz.sites.search import (
+    LOCAL_CANDIDATES,
+    MAX_RESULTS,
+    QueryError,
+    ground_distance,
+    search_addresses,
+    where_clause,
+)
 
 URL = "https://example.test/arcgis/rest/services/LINZ_NZ_Addresses/FeatureServer/0"
 
@@ -130,3 +137,20 @@ def test_without_a_place_the_search_is_national_as_before() -> None:
     seen: list[dict[str, str]] = []
     found = search_addresses(places_layer(seen), "12 st")
     assert [a["id"] for a in found] == [3, 4, 1, 2] and len(seen) == 1
+
+
+def test_nearest_is_by_ground_distance_not_raw_degrees() -> None:
+    # Near Reefton a degree of longitude is about 0.74 of a degree of latitude:
+    # 0.10 deg east (about 8.3 km) is nearer than 0.08 deg north (about 8.9 km).
+    east = {"lonlat": [REEFTON[0] + 0.10, REEFTON[1]]}
+    north = {"lonlat": [REEFTON[0], REEFTON[1] + 0.08]}
+    assert sorted([north, east], key=lambda a: ground_distance(a["lonlat"], REEFTON)) == [
+        east,
+        north,
+    ]
+
+
+def test_more_local_candidates_are_asked_for_than_are_shown() -> None:
+    seen: list[dict[str, str]] = []
+    search_addresses(places_layer(seen), "12 st", near=REEFTON)
+    assert int(seen[0]["resultRecordCount"]) == LOCAL_CANDIDATES > MAX_RESULTS

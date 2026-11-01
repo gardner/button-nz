@@ -12,12 +12,14 @@ fill the rest of the list, each address once.
 
 import math
 import re
+from collections.abc import Sequence
 from typing import Any, cast
 
 from button_nz.geo.arcgis import FeatureLayer
 
 MAX_RESULTS = 8
 NEAR_DEG = 0.25  # about 25 km each way: the town the map shows, and its neighbours
+LOCAL_CANDIDATES = 50  # asked for near the map, then ranked: LINZ's own order isn't distance
 WGS84 = "4326"
 ALLOWED = re.compile(r"[^\W_]|[ ,.'/\-]")  # one allowed character: no underscore
 WORD = re.compile(r"[^\W_][^\W_'/\-]*(?:['/\-][^\W_]+)*")
@@ -50,13 +52,21 @@ def search_addresses(
         return _addresses(layer.first(clause, MAX_RESULTS, out_sr=WGS84).features)
     lon, lat = near
     box = (lon - NEAR_DEG, lat - NEAR_DEG, lon + NEAR_DEG, lat + NEAR_DEG)
-    local = _addresses(layer.first(clause, MAX_RESULTS, out_sr=WGS84, within=box).features)
-    local.sort(key=lambda a: math.dist(a["lonlat"], near))
+    local = _addresses(layer.first(clause, LOCAL_CANDIDATES, out_sr=WGS84, within=box).features)
+    local = sorted(local, key=lambda a: ground_distance(a["lonlat"], near))[:MAX_RESULTS]
     if len(local) == MAX_RESULTS:
         return local
     seen = {a["id"] for a in local}
     rest = _addresses(layer.first(clause, MAX_RESULTS, out_sr=WGS84).features)
     return (local + [a for a in rest if a["id"] not in seen])[:MAX_RESULTS]
+
+
+def ground_distance(a: Sequence[float], b: Sequence[float]) -> float:
+    """How far apart two lon/lat points are on the ground, in degrees of
+    latitude: longitude scaled by the cosine of the latitude. Close enough to
+    rank addresses within a town."""
+    shrink = math.cos(math.radians((a[1] + b[1]) / 2))
+    return math.hypot((a[0] - b[0]) * shrink, a[1] - b[1])
 
 
 def _addresses(features: Any) -> list[dict[str, Any]]:
