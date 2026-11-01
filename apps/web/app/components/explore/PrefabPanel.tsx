@@ -38,18 +38,17 @@ export function PrefabPanel({
     shown.current = onShown; // the newest, for the unmount below
   });
   useEffect(() => () => shown.current(false), []);
+  // From state, which a reply after unmount can't set: a late reply can't
+  // report a list that isn't on the page.
+  useEffect(() => {
+    if (found) shown.current(true);
+  }, [found]);
 
   function ask() {
     setAsking(true);
     setProblem(null);
     getProducts(jobId)
-      .then(
-        (f) => {
-          setFound(f);
-          shown.current(true);
-        },
-        (e: Error) => setProblem(e.message),
-      )
+      .then(setFound, (e: Error) => setProblem(e.message))
       .finally(() => setAsking(false));
   }
 

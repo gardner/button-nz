@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PRODUCTS } from "@/lib/fixtures";
@@ -84,6 +90,30 @@ describe("PrefabPanel", () => {
     expect(onShown).toHaveBeenLastCalledWith(true);
     unmount();
     expect(onShown).toHaveBeenLastCalledWith(false);
+  });
+
+  it("doesn't report a list that answered after the panel went", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((r) => (answer = r))),
+    );
+    const onShown = vi.fn();
+    const { unmount } = render(
+      <PrefabPanel
+        jobId="abc123"
+        busy={false}
+        onPlace={vi.fn()}
+        onHover={vi.fn()}
+        onShown={onShown}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    unmount();
+    await act(async () => answer(new Response(JSON.stringify(PRODUCTS))));
+    expect(onShown).not.toHaveBeenCalledWith(true);
   });
 
   it("says nothing is shown when the request fails", async () => {

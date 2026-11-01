@@ -485,9 +485,11 @@ describe("a ready site", () => {
       await screen.findByRole("button", { name: "Which real prefabs fit?" }),
     );
     expect(await screen.findByText("AirHome Vista")).toBeTruthy();
-    expect(
-      screen.getByRole("listitem", { current: "step" }).textContent,
-    ).toContain("Prefab");
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("listitem", { current: "step" }).textContent,
+      ).toContain("Prefab"),
+    );
     fireEvent.click(
       screen.getByRole("button", {
         name: "Place the AirHome Vista on the site",
