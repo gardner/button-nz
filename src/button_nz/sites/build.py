@@ -38,6 +38,7 @@ from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
 from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
+from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
 MAX_PARCELS = 12
@@ -62,6 +63,7 @@ class Sources:
     addresses: FeatureLayer  # LINZ NZ Addresses
     parcels: FeatureLayer  # LINZ NZ Primary Parcels
     buildings: FeatureLayer  # LINZ NZ Building Outlines
+    roads: FeatureLayer  # LINZ NZ Addresses: Roads, to name the title's frontages
     catalogues: Catalogues
     segment: Segment  # SAM 3.1
     join: Join  # tiles into one raster (``town.lidar.mosaic``)
@@ -75,6 +77,7 @@ class Title:
     titles: tuple[str, ...]
     parcels: tuple[Feature, ...]
     extent: BBox
+    road_id: int | None = None  # the address's road, LINZ's
 
 
 def build_site(
@@ -86,6 +89,7 @@ def build_site(
     step("parcels")
     title = find_title(sources, address_id)
     _write(directory / "parcels.geojson", _parcels_file(title))
+    _write(directory / "frontages.geojson", to_collection(_frontages_of(title, sources)))
     outlines = sources.buildings.in_envelope(_grown(title.extent, TERRAIN_MARGIN_M))
     _write(directory / "buildings.geojson", outlines_collection(outlines.features))
     step("terrain")
@@ -129,7 +133,17 @@ def find_title(sources: Sources, address_id: int) -> Title:
             f"{extent[2] - extent[0]:.0f} x {extent[3] - extent[1]:.0f} m: more than a section "
             f"(at most {MAX_PARCELS} parcels within {MAX_SIDE_M:g} m)"
         )
-    return Title(address.full_address, address.point, titles, tuple(parcels), extent)
+    return Title(
+        address.full_address, address.point, titles, tuple(parcels), extent, address.road_id
+    )
+
+
+def _frontages_of(title: Title, sources: Sources) -> tuple[Frontage, ...]:
+    """Which of the title's edges face a road; the address's own is its street."""
+    if title.road_id is None:
+        raise SiteError(f"LINZ gives no road for {title.address}: its street can't be named")
+    rings = [_ring(f) for f in title.parcels]
+    return fetch_frontages(sources.parcels, sources.roads, rings, title.road_id)
 
 
 def title_parcels(layer: FeatureLayer, parcel: Feature) -> list[Feature]:
@@ -237,6 +251,7 @@ def _manifest(
         "valuation_number": None,
         "address": {"linz_address_id": address_id, "nztm": list(title.point)},
         "parcels_file": "parcels.geojson",
+        "frontages_file": "frontages.geojson",
         "parcel_ids": [int(_props(f)["id"]) for f in title.parcels],
         "extent": {"nztm": list(title.extent)},
         "rasters": {
@@ -247,6 +262,7 @@ def _manifest(
         "vectors": {
             "parcels": _vector("LINZ NZ Primary Parcels", sources.parcels.url),
             "building_outlines": _vector("LINZ NZ Building Outlines", sources.buildings.url),
+            "roads": _vector("LINZ NZ Addresses: Roads", sources.roads.url),
         },
         "open_items": open_items,
         "built_at": datetime.now(UTC).isoformat(),

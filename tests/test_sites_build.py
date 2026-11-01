@@ -42,14 +42,35 @@ def parcel(pid: int, ring: list[list[float]], titles: str | None) -> dict[str, A
 
 C = [[X0 + 40, Y0], [X0 + 60, Y0], [X0 + 60, Y0 + 30], [X0 + 40, Y0 + 30], [X0 + 40, Y0]]
 PARCELS = [parcel(2, B, "354613"), parcel(1, A, "354613"), parcel(3, C, "3546130")]
+# The road reserve along the title's south side: a road parcel, with no title.
+ROAD = {
+    "type": "Feature",
+    "properties": {"id": 50, "appellation": None, "titles": None, "parcel_intent": "Road"},
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [X0 - 20, Y0 - 15],
+                [X0 + 80, Y0 - 15],
+                [X0 + 80, Y0],
+                [X0 - 20, Y0],
+                [X0 - 20, Y0 - 15],
+            ]
+        ],
+    },
+}
 
 
 def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[str, FeatureLayer]:
     def handler(request: httpx.Request) -> httpx.Response:
         url = urlsplit(str(request.url))
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
-        if "Addresses" in url.path:
-            address = {"address_id": 7, "full_address": "1 Test Street, Reefton"}
+        if "Addresses_Roads" in url.path:  # Test Street's centreline, south of the title
+            props = {"road_id": 99, "full_road_name": "Test Street"}
+            line = {"type": "LineString", "coordinates": [[X0 - 20, Y0 - 7.5], [X0 + 80, Y0 - 7.5]]}
+            found = [{"type": "Feature", "properties": props, "geometry": line}]
+        elif "Addresses" in url.path:
+            address = {"address_id": 7, "full_address": "1 Test Street, Reefton", "road_id": 99}
             found = [
                 {
                     "type": "Feature",
@@ -57,6 +78,8 @@ def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[st
                     "geometry": {"type": "Point", "coordinates": point},
                 }
             ]
+        elif "Parcels" in url.path and q.get("geometryType") == "esriGeometryEnvelope":
+            found = [*parcels, ROAD]  # around the title: its parcels and the road beside it
         elif "Parcels" in url.path and q.get("geometryType") == "esriGeometryPoint":
             found = parcels  # the builder keeps those that cover the point
         elif "Parcels" in url.path and q.get("where", "").startswith("id = "):
@@ -92,7 +115,12 @@ def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[st
         name: FeatureLayer(
             f"https://example.test/{name}/FeatureServer/0", "CC-BY-4.0", "LINZ", client
         )
-        for name in ("LINZ_NZ_Addresses", "LINZ_NZ_Primary_Parcels", "LINZ_NZ_Building_Outlines")
+        for name in (
+            "LINZ_NZ_Addresses",
+            "LINZ_NZ_Addresses_Roads",
+            "LINZ_NZ_Primary_Parcels",
+            "LINZ_NZ_Building_Outlines",
+        )
     }
 
 
@@ -184,6 +212,7 @@ def sources(
         addresses=found["LINZ_NZ_Addresses"],
         parcels=found["LINZ_NZ_Primary_Parcels"],
         buildings=found["LINZ_NZ_Building_Outlines"],
+        roads=found["LINZ_NZ_Addresses_Roads"],
         catalogues=FakeCatalogues(lidar, gappy_newer),
         segment=no_masks,
         join=join,
@@ -265,6 +294,7 @@ def test_an_address_on_a_parcel_edge_is_on_the_parcel(tmp_path: Path) -> None:
         addresses=found["LINZ_NZ_Addresses"],
         parcels=found["LINZ_NZ_Primary_Parcels"],
         buildings=found["LINZ_NZ_Building_Outlines"],
+        roads=found["LINZ_NZ_Addresses_Roads"],
         catalogues=FakeCatalogues(),
         segment=no_masks,
         join=join,
@@ -293,6 +323,7 @@ def test_an_address_on_the_line_between_two_titles_is_refused(tmp_path: Path) ->
         addresses=found["LINZ_NZ_Addresses"],
         parcels=found["LINZ_NZ_Primary_Parcels"],
         buildings=found["LINZ_NZ_Building_Outlines"],
+        roads=found["LINZ_NZ_Addresses_Roads"],
         catalogues=FakeCatalogues(),
         segment=no_masks,
         join=join,
@@ -300,3 +331,12 @@ def test_an_address_on_the_line_between_two_titles_is_refused(tmp_path: Path) ->
     )
     with pytest.raises(SiteError, match="boundary between titles 354613 and 999999"):
         build_site(7, tmp_path, edge, lambda _: None)
+
+
+def test_a_site_knows_which_edges_face_its_street(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(), lambda _: None)
+    found = load_demo_site(tmp_path).frontages
+    assert found is not None
+    assert [(f.road, f.street) for f in found] == [("Test Street", True)]
+    (street,) = found
+    assert all(a[1] == Y0 and b[1] == Y0 for a, b in street.edges)  # the south side

@@ -6,6 +6,7 @@
   "title": "354613",
   "valuation_number": "1905027200",
   "parcels_file": "parcels.geojson",
+  "frontages_file": "frontages.geojson",
   "parcel_ids": [3652040, 3621992, 3615590, 3625049],
   "extent": {
     "nztm": [1505926.13, 5336777.48, 1505969.74, 5336822.22]
@@ -63,6 +64,12 @@
       "title": "LINZ NZ Building Outlines",
       "service": "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Building_Outlines/FeatureServer/0",
       "capture": { "start": "2015-12-26T00:00:00Z", "end": "2016-06-01T00:00:00Z" },
+      "licence": "CC-BY-4.0",
+      "attribution": "Toitū Te Whenua Land Information New Zealand"
+    },
+    "roads": {
+      "title": "LINZ NZ Addresses: Roads",
+      "service": "https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Addresses_Roads/FeatureServer/0",
       "licence": "CC-BY-4.0",
       "attribution": "Toitū Te Whenua Land Information New Zealand"
     }

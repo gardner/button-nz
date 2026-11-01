@@ -16,6 +16,7 @@ from button_nz.evaluation import SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
+from button_nz.sites.frontages import Frontage
 from meshes import box
 
 # One 40 m x 20 m parcel; the local frame's origin is NZTM (0, 0), datum 100 m.
@@ -371,3 +372,29 @@ def test_each_step_is_reported_as_it_starts(site: DesignSite, tmp_path: Path) ->
         (2, Phase.RENDERING, ""),
         (2, Phase.CHECKING, ""),
     ]
+
+
+def test_muse_is_told_the_road_frontages_and_which_is_the_street(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    coal = Frontage("Coal Street", True, (((0.0, 0.0), (40.0, 0.0)),))
+    model = ScriptedModel("good")
+    run(replace(site, frontages=(coal,)), model, tmp_path)
+    contract = model.seen[0][0].text
+    assert "facing Coal Street (the address's street)" in contract
+
+
+def test_a_site_whose_frontages_arent_known_says_so(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    assert "road frontages: not known" in model.seen[0][0].text
+
+
+def test_feedback_says_how_far_the_walls_are_from_each_road(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    coal = Frontage("Coal Street", True, (((0.0, 0.0), (40.0, 0.0)),))  # the south edge
+    model = ScriptedModel("near", "good")
+    result = run(replace(site, frontages=(coal,)), model, tmp_path)
+    # GOOD's walls run from y = 7 to 12: 7 m from the south edge.
+    assert "7.00 m from the Coal Street (the address's street) edge" in result.attempts[1].feedback
