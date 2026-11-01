@@ -18,6 +18,7 @@ from shapely.geometry import mapping, shape
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Runner
 from button_nz.api.app import create_app
+from button_nz.api.fixed import FixedSurvey
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
@@ -26,6 +27,7 @@ from button_nz.demo_site import load_demo_site
 from button_nz.sites.registry import DEMO_ADDRESS_ID, DEMO_SITE_ID, SiteBuilder, SiteStore
 from test_api import fake_runner, scripted, synthetic_site
 from test_api_features import write_survey
+from test_api_limits import survey_id
 from test_sites_build import sources
 
 
@@ -50,7 +52,7 @@ class Server:
             load_demo_site(),
             demo_survey,
             None,
-            "the owner",
+            FixedSurvey("the owner", survey_id(demo_survey)),
             lambda bbox: {"type": "FeatureCollection", "features": []},
         )
         daily = (
@@ -286,3 +288,11 @@ def test_a_search_near_the_map_takes_lon_lat_and_refuses_anything_else(tmp_path:
     for bad in ("171.86", "a,b", "400,-42", "1,2,3"):
         refused = server.client.get("/addresses", params={"q": "1 Test Street", "near": bad})
         assert refused.status_code == 422
+
+
+def test_the_demo_sites_replaced_fixed_survey_is_refused_on_its_map(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    write_survey(tmp_path / "survey.geojson", "tree")  # not the survey the owner decided
+    for path in ("features", "map"):
+        refused = server.client.get(f"/sites/{DEMO_SITE_ID}/{path}")
+        assert refused.status_code == 409 and "fixed" in refused.json()["detail"]

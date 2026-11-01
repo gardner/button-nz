@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from button_nz.agent.demo import design_site
 from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
+from button_nz.api.fixed import FixedSurvey, check_fixed
 from button_nz.api.limits import DailyCap
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
@@ -64,12 +65,12 @@ class Sites:
         demo: DemoSite,
         demo_survey: Path | None,
         demo_aerial: SiteAerial | None,
-        demo_decided_by: str | None,
+        demo_fixed: FixedSurvey | None,
         outlines: Outlines,
     ) -> None:
         self.store, self.sites_dir, self.outlines = store, sites_dir, outlines
         self.demo, self.demo_survey, self.demo_aerial = demo, demo_survey, demo_aerial
-        self.demo_decided_by = demo_decided_by
+        self.demo_fixed = demo_fixed
         self._load = lru_cache(maxsize=64)(load_demo_site)
         self._designs: OrderedDict[str, DesignSite] = OrderedDict()  # the few most recent
         self._outlines_lock = threading.Lock()
@@ -104,11 +105,13 @@ class Sites:
         site, _ = self.design_site(site_id)
         return Lidar(site.context.terrain, float(site.scene["frame"]["datum_m"]))
 
-    def survey(self, site_id: str) -> tuple[Path | None, str | None]:
-        """The site's survey file, and who fixed it (None: open)."""
+    def survey(self, site_id: str) -> tuple[Path | None, FixedSurvey | None]:
+        """The site's survey file, and how it is fixed (None: open). A fixed
+        survey's file is checked to be the one fixed (``SurveyReplaced``)."""
         self.site(site_id)
         if site_id == DEMO_SITE_ID:
-            return self.demo_survey, self.demo_decided_by
+            check_fixed(self.demo_survey, self.demo_fixed)
+            return self.demo_survey, self.demo_fixed
         return self.sites_dir / site_id / SURVEY_FILE, None
 
     def aerial(self, site_id: str) -> tuple[BBox, Callable[[], bytes]] | None:

@@ -7,10 +7,12 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from button_nz.api.app import create_app
+from button_nz.api.fixed import FixedSurvey
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.perception.confirm import Survey
 from test_api import fake_runner, scripted, synthetic_site
 from test_api_features import write_survey
 
@@ -36,6 +38,8 @@ def client(
     store = Store(tmp_path / "button.db")
     survey = tmp_path / "survey.geojson"
     write_survey(survey, "shed", "tree")
+    # Fixed, it is pinned to the survey decided: the one written here.
+    fixed = None if decided_by is None else FixedSurvey(decided_by, survey_id(survey))
     worker = Worker(
         store,
         site=synthetic_site,
@@ -43,12 +47,17 @@ def client(
         runs_dir=tmp_path / "runs",
         runner=fake_runner,
         survey=survey,
+        fixed_survey=fixed,
     )
     daily = None if cap is None else DailyCap(store.created_since, cap, clock=clock or Clock())
-    app = create_app(
-        store, worker, load_demo_site(), survey=survey, cap=daily, survey_decided_by=decided_by
-    )
+    app = create_app(store, worker, load_demo_site(), survey=survey, cap=daily, fixed_survey=fixed)
     return TestClient(app), worker
+
+
+def survey_id(path: Path) -> str:
+    found = Survey.read(path)
+    assert found is not None
+    return found.id
 
 
 def test_designs_past_the_cap_wait_until_the_oldest_is_a_day_old(tmp_path: Path) -> None:
@@ -107,3 +116,21 @@ def test_an_open_survey_can_be_decided(tmp_path: Path) -> None:
     assert features["decided_by"] is None
     body = {"decision": "ignore", "survey_id": features["survey_id"]}
     assert api.put("/site/features/1", json=body).status_code == 200
+
+
+def test_a_fixed_survey_replaced_on_disk_is_refused_not_served_undecided(tmp_path: Path) -> None:
+    api, _ = client(tmp_path, decided_by="the owner")
+    pinned = api.get("/site/features").json()["survey_id"]
+    write_survey(tmp_path / "survey.geojson", "tree", "shed", "tree")  # a new survey's id
+    refused = api.get("/site/features")
+    assert refused.status_code == 409
+    assert pinned in refused.json()["detail"] and "the owner" in refused.json()["detail"]
+
+
+def test_a_design_on_a_replaced_fixed_survey_fails_with_why(tmp_path: Path) -> None:
+    api, worker = client(tmp_path, decided_by="the owner")
+    write_survey(tmp_path / "survey.geojson", "tree")
+    job = api.post("/designs", json=ORIGINAL).json()
+    assert worker.run_next()
+    failed = api.get(f"/designs/{job['id']}").json()
+    assert failed["status"] == "failed" and "fixed" in failed["error"]

@@ -27,6 +27,7 @@ from button_nz.agent.demo import demo_site
 from button_nz.agent.model import ChatModel
 from button_nz.api.aerial import demo_aerial
 from button_nz.api.app import create_app
+from button_nz.api.fixed import FixedSurvey
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
@@ -58,12 +59,16 @@ def main(argv: list[str] | None = None) -> None:
         "--survey-decided-by",
         help="fix the survey, as this person decided it (e.g. 'the owner'); empty leaves it open",
     )
+    parser.add_argument(
+        "--survey-id",
+        help="the survey they decided (GET /site/features' survey_id): a fixed survey's pin",
+    )
     args = parser.parse_args(argv)
+    fixed = _fixed(parser, args.survey_decided_by or None, args.survey_id or None)
     store = Store(args.data / "button.db")
     survey = args.data / SURVEY_FILE
     site = load_demo_site()
-    decided_by = args.survey_decided_by or None  # empty: the owner is deciding
-    sites = _sites(args.data, site, survey, decided_by, args.daily_sites)
+    sites = _sites(args.data, site, survey, fixed, args.daily_sites)
     worker = Worker(
         store,
         site=demo_site,
@@ -72,6 +77,7 @@ def main(argv: list[str] | None = None) -> None:
         survey=survey,
         illustrator=illustrate_from_env,
         site_for=sites.sites.design_site,  # any other site
+        fixed_survey=fixed,
     )
     cap = None if args.daily_designs is None else DailyCap(store.created_since, args.daily_designs)
     app = create_app(
@@ -81,23 +87,32 @@ def main(argv: list[str] | None = None) -> None:
         survey=survey,
         aerial=demo_aerial(site),
         cap=cap,
-        survey_decided_by=decided_by,
+        fixed_survey=fixed,
         sites=sites,
     )
     _add_maps(app, args.data)
     uvicorn.run(app, host=args.host, port=args.port)
 
 
+def _fixed(
+    parser: argparse.ArgumentParser, decided_by: str | None, survey_id: str | None
+) -> FixedSurvey | None:
+    """The fixed survey: who decided it and which it was, both or neither
+    (empty: the owner is still deciding). A fixed survey with no pin would be
+    any survey file that turns up (#91)."""
+    if (decided_by is None) != (survey_id is None):
+        parser.error("--survey-decided-by and --survey-id fix the survey together: give both")
+    return None if decided_by is None or survey_id is None else FixedSurvey(decided_by, survey_id)
+
+
 def _sites(
-    data: Path, demo: DemoSite, survey: Path, decided_by: str | None, daily: int | None
+    data: Path, demo: DemoSite, survey: Path, fixed: FixedSurvey | None, daily: int | None
 ) -> SiteService:
     client = httpx.Client(timeout=60.0, follow_redirects=True)
     layers = LiveLayers(client)
     store = SiteStore(data / "button.db")
     builder = SiteBuilder(store, data / "sites", live_sources(layers, client, data / "stac"))
-    sites = Sites(
-        store, data / "sites", demo, survey, demo_aerial(demo), decided_by, layers.outlines
-    )
+    sites = Sites(store, data / "sites", demo, survey, demo_aerial(demo), fixed, layers.outlines)
     cap = None if daily is None else DailyCap(store.created_since, daily, "site builds")
     return SiteService(sites, builder, layers.addresses, cap)
 

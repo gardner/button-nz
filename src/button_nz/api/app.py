@@ -26,12 +26,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from fastapi import APIRouter, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from button_nz.api.aerial import SiteAerial, aerial_router, aerial_view
 from button_nz.api.features import features_router, site_features_router
+from button_nz.api.fixed import FixedSurvey, SurveyReplaced
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
 from button_nz.api.products import products_router
@@ -105,18 +106,24 @@ def create_app(
     aerial: SiteAerial | None = None,
     products: Sequence[Product] | None = None,
     cap: DailyCap | None = None,
-    survey_decided_by: str | None = None,
+    fixed_survey: FixedSurvey | None = None,
     sites: SiteService | None = None,
 ) -> FastAPI:
     """The API. ``cap`` limits the design runs started a day; with
-    ``survey_decided_by``, the survey is fixed as that person decided it."""
+    ``fixed_survey``, the survey is fixed as that person decided it: a
+    survey file replaced since is refused (409), never served undecided."""
 
     where = Where(site, survey, None if sites is None else sites.sites)
     threads, routers = _with_sites(sites, store, worker)
     routers.append(_design_map_router(store, worker, where))
     app = FastAPI(title="button-nz", lifespan=_lifespan(store, threads))
     site_view = view_of(site) | {"aerial": aerial_view(aerial)}
-    app.include_router(features_router(store, survey, survey_decided_by))
+    app.include_router(features_router(store, survey, fixed_survey))
+
+    @app.exception_handler(SurveyReplaced)
+    def survey_replaced(_: Request, error: SurveyReplaced) -> JSONResponse:
+        return JSONResponse({"detail": str(error)}, status_code=409)
+
     app.include_router(aerial_router(aerial))
     for router in routers:
         app.include_router(router)

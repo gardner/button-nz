@@ -32,12 +32,22 @@ BUTTON_DAILY_DESIGNS="30"
 # with no access code, anyone at all), and set it, then run this again, once
 # they have.
 BUTTON_SURVEY_DECIDED_BY=""
+# The survey they decided: its survey_id, from /api/site/features. Set with
+# BUTTON_SURVEY_DECIDED_BY: a survey file replaced since is then refused,
+# never served or designed on undecided.
+BUTTON_SURVEY_ID=""
 SETTINGS
   echo "Wrote $settings: check BUTTON_DATA and BUTTON_SURVEY_DECIDED_BY, then run this again."
   exit 0
 fi
 # shellcheck source=/dev/null
 source "$settings"
+# A fixed survey is pinned to the survey decided: both, or neither (#91).
+if [[ -n "${BUTTON_SURVEY_DECIDED_BY:-}" && -z "${BUTTON_SURVEY_ID:-}" ]] ||
+  [[ -z "${BUTTON_SURVEY_DECIDED_BY:-}" && -n "${BUTTON_SURVEY_ID:-}" ]]; then
+  echo "$settings: set BUTTON_SURVEY_DECIDED_BY and BUTTON_SURVEY_ID together (or neither)." >&2
+  exit 1
+fi
 if [[ ! -f "$BUTTON_DATA/survey.geojson" ]]; then
   echo "No survey at $BUTTON_DATA/survey.geojson: survey the site first (README, \"Run it\")." >&2
   exit 1
@@ -69,7 +79,7 @@ WorkingDirectory=$repo
 Environment=PATH=$path
 EnvironmentFile=$repo/.env
 EnvironmentFile=$settings
-ExecStart=$(command -v uv) run --frozen python -m button_nz.api.serve --host 127.0.0.1 --port $api_port --data \${BUTTON_DATA} --daily-designs \${BUTTON_DAILY_DESIGNS} --survey-decided-by \${BUTTON_SURVEY_DECIDED_BY}
+ExecStart=$(command -v uv) run --frozen python -m button_nz.api.serve --host 127.0.0.1 --port $api_port --data \${BUTTON_DATA} --daily-designs \${BUTTON_DAILY_DESIGNS} --survey-decided-by \${BUTTON_SURVEY_DECIDED_BY} --survey-id \${BUTTON_SURVEY_ID}
 Restart=on-failure
 RestartSec=5
 

@@ -23,6 +23,7 @@ from typing import Any
 
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
+from button_nz.api.fixed import FixedSurvey, check_fixed
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.blender_worker.scene_input import DwellingColours
@@ -52,10 +53,12 @@ class Worker:
         survey: Path | None = None,
         illustrator: Illustrator | None = None,
         site_for: SiteFor | None = None,
+        fixed_survey: FixedSurvey | None = None,
     ) -> None:
         self.store = store
         self.site = cache(site)  # read the terrain once, on the first job
         self.survey = survey  # its confirmed features are read afresh for each job
+        self.fixed_survey = fixed_survey  # the survey a fixed one must be
         self.site_for = site_for  # any other site: its DesignSite and survey file
         self.model = model
         self.runs_dir = runs_dir
@@ -194,6 +197,7 @@ class Worker:
     def _where(self, job: Job) -> tuple[DesignSite, Path | None]:
         """The site ``job`` is designed on, and its survey file."""
         if job.site_id in (None, DEMO_SITE_ID):
+            check_fixed(self.survey, self.fixed_survey)  # never an undecided stand-in
             return self.site(), self.survey
         if self.site_for is None:
             raise ValueError(f"this server designs only on the demo site, not {job.site_id}")
