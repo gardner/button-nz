@@ -95,6 +95,7 @@ export const TOWN = {
       },
     },
   ],
+  missing: { ids: [], reason: "not in LINZ's NZ Primary Parcels" },
 };
 
 function collection(...features: object[]) {

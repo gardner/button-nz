@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import type { FeatureCollection } from "@/lib/geo";
 import { passing } from "@/lib/fields";
-import { type SiteState, type TownSection, getTown } from "@/lib/sites";
+import { type SiteState, type Town, getTown } from "@/lib/sites";
 
 import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
@@ -52,7 +51,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
         {town.data && (
           <GeoLayer
             id="town"
-            data={town.data}
+            data={town.data.sections}
             fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
             line={TOWN_LINE}
           />
@@ -142,7 +141,7 @@ function SidePanel({
 
 /** The town's sections; a failure that passes is asked again `retryMs` on. */
 function useTown(slug: string, retryMs: number) {
-  const [data, setData] = useState<FeatureCollection<TownSection> | null>(null);
+  const [data, setData] = useState<Town | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
   useEffect(() => {
