@@ -141,7 +141,11 @@ def describe_room(site: SiteContext, local: Callable[[Point], Point]) -> str:
     room = room_of(title, site.confirmed_buildings, site.preservation_areas)
     found = largest_rectangles(room, longest_edge_angle(title))
     if not found:
-        return "- room for a dwelling: none left inside the rules.\n"
+        # Only rectangles square to the title are searched: say no more than that.
+        return (
+            f"- room for a dwelling: {room.area:.0f} m² inside the rules, but no rectangle "
+            f"at least {MIN_WIDTH_M:g} m wide fits in it square to the title.\n"
+        )
     lines = [
         f"- room for a dwelling ({room.area:.0f} m²: inside the setbacks, 2 m from the "
         "listed buildings, off the kept areas). Its largest rectangles, for the whole "

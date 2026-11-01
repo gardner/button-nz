@@ -2,9 +2,18 @@
 
 import re
 
+import numpy as np
 from shapely import LineString, Point, Polygon, box
 
-from button_nz.agent.room import MIN_WIDTH_M, largest_rectangles, rectangles_text, room_of
+from button_nz.agent.room import (
+    MIN_WIDTH_M,
+    describe_room,
+    largest_rectangles,
+    rectangles_text,
+    room_of,
+)
+from button_nz.evaluation import SiteContext
+from button_nz.geo.terrain import TerrainGrid
 
 TITLE = ((0.0, 0.0), (20.0, 0.0), (20.0, 30.0), (0.0, 30.0), (0.0, 0.0))
 
@@ -107,3 +116,16 @@ def test_a_printed_size_is_never_larger_than_its_printed_corners() -> None:
     xs, ys = [float(x) for x, _ in pairs], [float(y) for _, y in pairs]
     spans = sorted((max(xs) - min(xs), max(ys) - min(ys)), reverse=True)
     assert float(size[1]) <= spans[0] and float(size[2]) <= spans[1]
+
+
+def test_a_room_with_no_square_rectangle_says_only_that() -> None:
+    sliver = ((0.0, 0.0), (40.0, 0.0), (40.0, 6.5), (0.0, 6.5), (0.0, 0.0))  # 2.5 m once inset
+    site = SiteContext(parcels=(sliver,), terrain=_terrain())
+    text = describe_room(site, lambda p: p)
+    assert "no rectangle at least 3 m wide fits in it square to the title" in text
+    assert "none left" not in text
+
+
+def _terrain() -> TerrainGrid:
+    flat = np.full((10, 40), 100.0)
+    return TerrainGrid((0.0, 0.0, 40.0, 10.0), 1.0, flat, np.zeros_like(flat), ("synthetic",))
