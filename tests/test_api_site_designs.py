@@ -65,6 +65,14 @@ def test_a_design_is_made_on_the_site_it_names(tmp_path: Path) -> None:
     assert abs(setback["measured"]["distance_m"] - 3.0) < 0.05 and "Schedule 1A" in setback["rule"]
 
 
+def test_an_attempt_without_its_trace_says_its_checks_are_unknown(tmp_path: Path) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    (tmp_path / "runs" / job["id"] / "attempt-1" / "attempt.json").unlink()
+    (attempt,) = server.client.get(f"/designs/{job['id']}").json()["attempts"]
+    assert attempt["checks"] is None  # not [] : that would say no check ran
+
+
 def test_a_design_without_a_site_is_on_the_demo_site(tmp_path: Path) -> None:
     server = Server(tmp_path)
     created = server.client.post("/designs", json={"brief": "A studio."}).json()

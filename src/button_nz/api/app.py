@@ -66,7 +66,8 @@ class AttemptView(BaseModel):
     feedback: str
     observations: list[str]
     files: dict[str, str]  # artifact name -> URL
-    checks: list[dict[str, Any]]  # every check: name, status, detail, measured, rule
+    # every check: name, status, detail, measured, rule; None: its trace is missing
+    checks: list[dict[str, Any]] | None
 
 
 class ProductView(BaseModel):
@@ -202,12 +203,12 @@ def _design_map_router(store: Store, worker: Worker, where: Where) -> APIRouter:
     return router
 
 
-def _checks(attempt: Path) -> list[dict[str, Any]]:
-    """The attempt's checks, as its trace recorded them; none if it has no trace."""
+def _checks(attempt: Path) -> list[dict[str, Any]] | None:
+    """The attempt's checks, as its trace recorded them; None if it has no trace."""
     trace = attempt / "attempt.json"
     if not trace.is_file():
-        return []
-    checks: list[dict[str, Any]] = json.loads(trace.read_text(encoding="utf-8")).get("checks", [])
+        return None
+    checks: list[dict[str, Any]] = json.loads(trace.read_text(encoding="utf-8"))["checks"]
     return checks
 
 
