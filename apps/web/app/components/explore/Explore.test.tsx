@@ -181,7 +181,12 @@ describe("Explore", () => {
       type: "fill-extrusion",
       paint: {
         "fill-extrusion-base": 0,
-        "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+        // half the measured height: context, not the design (CONTEXT_SCALE)
+        "fill-extrusion-height": [
+          "*",
+          ["-", ["get", "heightM"], ["get", "baseM"]],
+          0.5,
+        ],
       },
     });
     // Only the buildings the LiDAR measured stand.

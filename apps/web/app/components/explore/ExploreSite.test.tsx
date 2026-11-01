@@ -409,17 +409,23 @@ describe("a ready site", () => {
     act(() => map.fire("resize"));
     // Each stands its own height, top less base, on the aerial: no terrain,
     // whose DSM would stand the buildings and trees a second time.
-    const own = {
+    // The design stands its full height; its neighbours and trees at half
+    // (CONTEXT_SCALE), so they don't crowd it.
+    const height = ["-", ["get", "heightM"], ["get", "baseM"]];
+    const own = { "fill-extrusion-base": 0, "fill-extrusion-height": height };
+    const context = {
       "fill-extrusion-base": 0,
-      "fill-extrusion-height": ["-", ["get", "heightM"], ["get", "baseM"]],
+      "fill-extrusion-height": ["*", height, 0.5],
     };
     expect(map.terrain).toBeNull();
+    expect(map.layers.get("design-walls-extrusion")).toMatchObject({
+      paint: own,
+    });
     for (const layer of [
-      "design-walls-extrusion",
       "site-standing-buildings-extrusion",
       "site-canopy-extrusion",
     ])
-      expect(map.layers.get(layer)).toMatchObject({ paint: own });
+      expect(map.layers.get(layer)).toMatchObject({ paint: context });
     await vi.waitFor(() => expect(map.pitch).toBe(60));
     // The orbit reframes when the map changes shape, with the padding its
     // fly-in left counted once.
