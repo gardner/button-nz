@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 from shapely import Point as ShapelyPoint
+from shapely import Polygon, unary_union
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
@@ -41,7 +42,8 @@ def parcels_in(found: Sequence[Feature]) -> int:
 
 def block(parcels: Sequence[Feature], point: Point) -> tuple[list[Feature], float]:
     """The pieces of the title's block of land holding ``point`` (the nearest
-    if none does), and the area, in m², of the title's land left out."""
+    if none does), each parcel's pieces that share an edge made whole again,
+    and the area, in m², of the title's land left out."""
     parts = pieces(parcels)
     if not parts:
         return [], 0.0
@@ -50,7 +52,26 @@ def block(parcels: Sequence[Feature], point: Point) -> tuple[list[Feature], floa
     area = [sum(shapes[i].area for i in b) for b in blocks]
     at = ShapelyPoint(point)
     chosen = min(range(len(blocks)), key=lambda k: min(shapes[i].distance(at) for i in blocks[k]))
-    return [parts[i] for i in sorted(blocks[chosen])], sum(area) - area[chosen]
+    return _whole([parts[i] for i in sorted(blocks[chosen])]), sum(area) - area[chosen]
+
+
+def _whole(found: list[Feature]) -> list[Feature]:
+    """Each parcel's pieces in ``found`` as one Polygon where they share an
+    edge: the seam between them is no boundary. Pieces that only meet at a
+    corner, or within ``TOUCH_M``, stay apart."""
+    by_parcel: dict[Any, list[Feature]] = {}
+    for piece in found:
+        by_parcel.setdefault(cast("dict[str, Any]", piece["properties"])["id"], []).append(piece)
+    whole: list[Feature] = []
+    for group in by_parcel.values():
+        merged = unary_union([shape(cast("dict[str, Any]", p["geometry"])) for p in group])
+        if len(group) == 1 or not isinstance(merged, Polygon):
+            whole.extend(group)
+            continue
+        rings = [merged.exterior, *merged.interiors]
+        coordinates = [[[float(x), float(y)] for x, y, *_ in r.coords] for r in rings]
+        whole.append({**group[0], "geometry": {"type": "Polygon", "coordinates": coordinates}})
+    return whole
 
 
 def blocks_of(parcels: Sequence[Feature]) -> list[list[Feature]]:

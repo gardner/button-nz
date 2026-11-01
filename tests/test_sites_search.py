@@ -400,3 +400,13 @@ def test_a_title_in_more_blocks_than_a_sections_parcels_is_refused_past_its_own(
     with pytest.raises(NotASection, match="more than a section"):
         address_on_section(_addresses([], asked), parcels, 1)
     assert len(asked) == 1  # only its own block
+
+
+def test_the_tapped_block_counts_toward_a_titles_blocks() -> None:
+    """The tapped block and a section's most parcels of other blocks: one more
+    block than a section's parcels."""
+    tapped = parcel(1, _sq(X0, Y0, 10), "354613")
+    rest = [parcel(2 + i, _sq(X0 + 30 * (i + 1), Y0, 10), "354613") for i in range(MAX_PARCELS)]
+    parcels = layers([tapped, *rest])["LINZ_NZ_Primary_Parcels"]
+    with pytest.raises(NotASection, match=f"{MAX_PARCELS + 1} blocks"):
+        address_on_section(_addresses([]), parcels, 1)

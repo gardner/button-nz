@@ -450,3 +450,16 @@ def test_a_parcel_in_touching_pieces_counts_once_toward_a_sections_parcels() -> 
     wrapped["geometry"] = {"type": "MultiPolygon", "coordinates": halves}
     title = find_title(sources([*lots, wrapped], point=[X0 + 15, Y0 + 15]), 7)
     assert len({p["properties"]["id"] for p in title.parcels}) == MAX_PARCELS
+
+
+def test_a_parcel_in_pieces_sharing_an_edge_is_one_parcel_of_the_site(tmp_path: Path) -> None:
+    """Their seam is no boundary: one ring, so the checks see no internal line
+    and the open items don't ask whether it is a legal boundary."""
+    one = parcel(1, _box(X0, Y0, X0 + 20, Y0 + 15), "354613")
+    halves = [[_box(X0, Y0, X0 + 20, Y0 + 15)], [_box(X0, Y0 + 15, X0 + 20, Y0 + 30)]]
+    one["geometry"] = {"type": "MultiPolygon", "coordinates": halves}
+    build_site(7, tmp_path, sources([one]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1]
+    assert site.extent_nztm == (X0, Y0, X0 + 20, Y0 + 30)
+    assert not any("legal boundaries" in item for item in site.open_items)

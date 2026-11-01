@@ -130,7 +130,7 @@ def address_on_section(
     if on := _addresses_on(addresses, mine):
         return min(on, key=lambda o: (not here.covers(o[0]), here.centroid.distance(o[0])))[1]
     sections = [b for b in others if not _too_big(b)]
-    if len(sections) > MAX_PARCELS:
+    if 1 + len(sections) > MAX_PARCELS:  # its own block too
         raise NotASection(
             f"parcel {parcel_id}'s block has no address, and its title is "
             f"{len(sections) + 1} blocks: more than a section"
