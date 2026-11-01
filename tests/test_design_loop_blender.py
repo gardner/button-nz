@@ -149,6 +149,49 @@ def test_the_roof_is_the_roof_whichever_way_its_triangles_wind(tmp_path: Path) -
     assert top["Dwelling roof"] == pytest.approx(top["Dwelling walls"])  # the top face is roof
 
 
+# The dwelling above with a 0.2 m deck slab along its south side, in one mesh.
+WITH_DECK = (
+    MOVED
+    + """
+bpy.ops.mesh.primitive_cube_add(size=1, location=(0.0, -3.5, 0.2))
+deck = bpy.context.active_object
+deck.scale = (6.0, 2.0, 0.2)
+bpy.ops.object.select_all(action="DESELECT")
+deck.select_set(True)
+dwelling.select_set(True)
+bpy.context.view_layer.objects.active = dwelling
+bpy.ops.object.join()
+"""
+)
+
+
+class DeckModel:
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return WITH_DECK
+
+
+def test_a_deck_is_not_roof(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    design("A studio with a deck.", site, DeckModel(), tmp_path, max_attempts=1)
+
+    gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
+    node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
+    lowest = {
+        gltf["materials"][p["material"]]["name"]: gltf["accessors"][p["attributes"]["POSITION"]][
+            "min"
+        ][1]
+        for p in gltf["meshes"][node["mesh"]]["primitives"]
+    }
+    assert lowest["Dwelling roof"] == pytest.approx(3.9)  # only the top: not the deck or floor
+
+
 def glb_json(glb: Path) -> dict[str, Any]:
     """The JSON chunk of a GLB file."""
     data = glb.read_bytes()

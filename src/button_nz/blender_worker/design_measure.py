@@ -37,12 +37,13 @@ design_io: Any = _design_io
 MAX_TRIANGLES = 200_000
 NOT_FINITE = "Some of the Dwelling's vertices aren't finite numbers (NaN or inf)."
 # The Dwelling is rendered opaque in the host's colours (the scene's
-# ``dwelling_colours``), whatever material the script gave: faces that point up
-# take the roof's, the rest the walls'. These are for a scene written before
-# the host set them (button_nz.blender_worker.scene_input.DEFAULT_COLOURS).
+# ``dwelling_colours``), whatever material the script gave: level faces in its
+# upper half (roof planes, soffits) take the roof's, the rest (walls, floor,
+# decks) the walls'. These are for a scene written before the host set them
+# (button_nz.blender_worker.scene_input.DEFAULT_COLOURS).
 DWELLING_RGBA = (0.8, 0.75, 0.65, 1.0)
 ROOF_RGBA = (0.06, 0.07, 0.08, 1.0)
-ROOF_NORMAL_Z = 0.5  # a face this near level is roof (either winding; the floor is unseen)
+ROOF_NORMAL_Z = 0.5  # a face this near level, in the upper half, is roof (either winding)
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
     "The Dwelling has {n} triangles, more than 200,000. Model the building's envelope, "
@@ -210,8 +211,11 @@ def _bake(
     mesh.update()
     mesh.materials.append(build_scene.material("Dwelling walls", walls))
     mesh.materials.append(build_scene.material("Dwelling roof", roof))
+    heights = [point[2] for triangle in triangles for point in triangle]
+    eaves = (min(heights) + max(heights)) / 2  # below it, level faces are floors and decks
     for polygon in mesh.polygons:
-        polygon.material_index = 1 if abs(polygon.normal.z) > ROOF_NORMAL_Z else 0
+        level = abs(polygon.normal.z) > ROOF_NORMAL_Z
+        polygon.material_index = 1 if level and polygon.center.z > eaves else 0
     b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 
