@@ -1,6 +1,8 @@
 """Tests for any-address sites over HTTP (button_nz.api.sites): search, build,
 serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -197,3 +199,28 @@ def test_two_requests_for_one_new_address_get_the_one_site(tmp_path: Path) -> No
         responses = list(pool.map(ask, range(4)))
     assert {r.status_code for r in responses} == {202}
     assert {r.json()["id"] for r in responses} == {"1-test-street-reefton"}
+
+
+def test_a_site_asked_for_while_the_builder_settles_is_still_built(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    builder = server.builder
+    drained = threading.Event()
+    real = builder.run_next
+
+    def run_next() -> bool:
+        ran = real()
+        if not ran and not drained.is_set():  # the queue looked empty: a request lands now
+            drained.set()
+            server.client.post("/sites", json={"address_id": 7})
+        return ran
+
+    builder.run_next = run_next  # type: ignore[method-assign]
+    builder.start()
+    try:
+        for _ in range(200):
+            if server.client.get("/sites/1-test-street-reefton").json().get("status") == "ready":
+                break
+            time.sleep(0.05)
+        assert server.client.get("/sites/1-test-street-reefton").json()["status"] == "ready"
+    finally:
+        builder.stop()
