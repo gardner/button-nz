@@ -42,6 +42,7 @@ from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
 MAX_PARCELS = 12
+NEAR_ADDRESS_M = 200.0  # how far to look for an address to place a title site by
 MAX_SIDE_M = 200.0  # a site wider or taller than this is more than a section
 TERRAIN_MARGIN_M = 25.0  # read past the site: the design scene's margin is 20 m
 TITLE = r"[0-9A-Za-z/]+"
@@ -78,6 +79,7 @@ class Title:
     parcels: tuple[Feature, ...]
     extent: BBox
     road_id: int | None = None  # the address's road, LINZ's
+    addressed: bool = True  # False: a title with no address, built from its parcel
 
 
 def build_site(
@@ -87,7 +89,26 @@ def build_site(
     telling ``step`` which step it is on."""
     directory.mkdir(parents=True, exist_ok=True)
     step("parcels")
-    title = find_title(sources, address_id)
+    _build(find_title(sources, address_id), address_id, directory, sources, step)
+
+
+def build_title_site(
+    parcel_id: int, directory: Path, sources: Sources, step: Callable[[str], None]
+) -> None:
+    """Build the site of LINZ parcel ``parcel_id``'s title, for a title with no
+    address (a vacant section, say), into ``directory``."""
+    directory.mkdir(parents=True, exist_ok=True)
+    step("parcels")
+    _build(title_of_parcel(sources, parcel_id), None, directory, sources, step)
+
+
+def _build(
+    title: Title,
+    address_id: int | None,
+    directory: Path,
+    sources: Sources,
+    step: Callable[[str], None],
+) -> None:
     _write(directory / "parcels.geojson", _parcels_file(title))
     _write(directory / "frontages.geojson", to_collection(_frontages_of(title, sources)))
     outlines = sources.buildings.in_envelope(_grown(title.extent, TERRAIN_MARGIN_M))
@@ -125,6 +146,41 @@ def find_title(sources: Sources, address_id: int) -> Title:
     titles = sets.pop() if sets else ()
     if not titles:
         raise SiteError(f"{address.full_address} isn't on a parcel with a record of title")
+    parcels, extent = _title_parcels(sources, titles)
+    return Title(
+        address.full_address, address.point, titles, tuple(parcels), extent, address.road_id
+    )
+
+
+def title_of_parcel(sources: Sources, parcel_id: int) -> Title:
+    """The title LINZ parcel ``parcel_id`` is on, for a title with no address:
+    named by the parcel's appellation and the nearest address, with no street."""
+    found = sources.parcels.where(f"id = {int(parcel_id)}").features
+    if not found:
+        raise SiteError(f"LINZ has no parcel {parcel_id}")
+    titles = tuple(sorted(_titles(found[0])))
+    if not titles:
+        raise SiteError(f"parcel {parcel_id} has no record of title: it isn't a property")
+    parcels, extent = _title_parcels(sources, titles)
+    middle = union_all([Polygon(_ring(f)) for f in parcels]).representative_point()
+    point = (float(middle.x), float(middle.y))
+    name = _named(found[0], point, sources)
+    return Title(name, point, titles, tuple(parcels), extent, road_id=None, addressed=False)
+
+
+def _named(parcel: Feature, point: Point, sources: Sources) -> str:
+    """A title site's name: its appellation, and the nearest address to place it."""
+    appellation = str(_props(parcel).get("appellation") or f"Parcel {_props(parcel)['id']}")
+    near = sources.addresses.in_envelope(_grown((*point, *point), NEAR_ADDRESS_M)).features
+    if not near:
+        return appellation
+    here = ShapelyPoint(point)
+    nearest = min(near, key=lambda f: here.distance(shape(f["geometry"])))
+    return f"{appellation}, beside {_props(nearest)['full_address']}"
+
+
+def _title_parcels(sources: Sources, titles: Sequence[str]) -> tuple[list[Feature], BBox]:
+    """Every parcel on ``titles``, and their extent; more than a section refused."""
     parcels = _on_titles(sources.parcels, titles)
     extent = bounds([pt for f in parcels for pt in _ring(f)])
     if len(parcels) > MAX_PARCELS or max(extent[2] - extent[0], extent[3] - extent[1]) > MAX_SIDE_M:
@@ -133,14 +189,12 @@ def find_title(sources: Sources, address_id: int) -> Title:
             f"{extent[2] - extent[0]:.0f} x {extent[3] - extent[1]:.0f} m: more than a section "
             f"(at most {MAX_PARCELS} parcels within {MAX_SIDE_M:g} m)"
         )
-    return Title(
-        address.full_address, address.point, titles, tuple(parcels), extent, address.road_id
-    )
+    return parcels, extent
 
 
 def _frontages_of(title: Title, sources: Sources) -> tuple[Frontage, ...]:
     """Which of the title's edges face a road; the address's own is its street."""
-    if title.road_id is None:
+    if title.addressed and title.road_id is None:
         raise SiteError(f"LINZ gives no road for {title.address}: its street can't be named")
     rings = [_ring(f) for f in title.parcels]
     try:
@@ -234,7 +288,7 @@ def _grown(extent: BBox, margin_m: float) -> BBox:
 
 
 def _manifest(
-    address_id: int,
+    address_id: int | None,  # None: a title site, built from its parcel
     title: Title,
     rasters: tuple[Collection, Collection, Collection],
     aerial_tiles: Sequence[str],

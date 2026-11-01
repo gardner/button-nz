@@ -19,25 +19,30 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
-from button_nz.sites.build import NoLidar, Sources, build_site
+from button_nz.sites.build import NoLidar, Sources, build_site, build_title_site
 
 DEMO_SITE_ID = "35-victory-street-reefton"
 DEMO_ADDRESS_ID = 3213224  # LINZ's 35 Victory Street, Reefton
 INTERRUPTED = "interrupted by a restart: ask for the site again"
 log = logging.getLogger(__name__)
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS sites (
+# A site is built from an address, or, for a title with none, from the
+# title: kept by its smallest parcel id.
+SITES_COLUMNS = """
     id TEXT PRIMARY KEY,
-    address_id INTEGER NOT NULL UNIQUE,
+    address_id INTEGER UNIQUE,
+    parcel_id INTEGER UNIQUE,
     address TEXT NOT NULL,
     status TEXT NOT NULL,
     step TEXT,
     error TEXT,
     created_at TEXT NOT NULL,
     started_at TEXT,
-    finished_at TEXT
-);
+    finished_at TEXT,
+    CHECK (address_id IS NOT NULL OR parcel_id IS NOT NULL)
+"""
+SCHEMA = f"""
+CREATE TABLE IF NOT EXISTS sites ({SITES_COLUMNS});
 CREATE TABLE IF NOT EXISTS site_builds (
     site_id TEXT NOT NULL REFERENCES sites (id),
     requested_at TEXT NOT NULL
@@ -55,12 +60,13 @@ class SiteStatus(StrEnum):
 @dataclass(frozen=True)
 class SiteRecord:
     id: str
-    address_id: int
-    address: str
+    address_id: int | None  # the LINZ address it was built from
+    address: str  # its name: the address, or the title's appellation
     status: SiteStatus
     step: str | None
     error: str | None
     created_at: datetime
+    parcel_id: int | None = None  # a title with no address: its smallest parcel id
 
 
 DEMO_RECORD = SiteRecord(
@@ -74,6 +80,20 @@ DEMO_RECORD = SiteRecord(
 )
 
 
+def _migrate(db: sqlite3.Connection) -> None:
+    """Bring a store made before title sites up to date: rebuild ``sites``
+    with a ``parcel_id`` and an ``address_id`` that may be empty, keeping
+    every row (SQLite can't drop a NOT NULL in place)."""
+    columns = [r[1] for r in db.execute("PRAGMA table_info(sites)").fetchall()]
+    if not columns or "parcel_id" in columns:
+        return  # a new store, or one already up to date
+    kept = ", ".join(c for c in columns)
+    db.execute(f"CREATE TABLE sites_new ({SITES_COLUMNS})")
+    db.execute(f"INSERT INTO sites_new ({kept}) SELECT {kept} FROM sites")
+    db.execute("DROP TABLE sites")
+    db.execute("ALTER TABLE sites_new RENAME TO sites")
+
+
 def slug(address: str) -> str:
     """``12 Cuba Street, Petone`` as ``12-cuba-street-petone``: ASCII, macrons dropped."""
     plain = unicodedata.normalize("NFKD", address).encode("ascii", "ignore").decode()
@@ -85,23 +105,34 @@ class SiteStore:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         with self._db() as db:
+            _migrate(db)
             db.executescript(SCHEMA)
 
     def create(self, address_id: int, address: str) -> SiteRecord:
         """A new site to build for ``address_id``: its id is the address's slug,
-        or, if another address has that, the slug and the address id."""
-        site_id = slug(address) or str(address_id)
+        or, if another site has that, the slug and the address id."""
+        return self._insert(address, address_id, None, address_id)
+
+    def create_title(self, parcel_id: int, name: str) -> SiteRecord:
+        """A new site for a title with no address, kept by ``parcel_id`` (its
+        smallest parcel id) and named ``name`` (its appellation)."""
+        return self._insert(name, None, parcel_id, parcel_id)
+
+    def _insert(
+        self, name: str, address_id: int | None, parcel_id: int | None, key: int
+    ) -> SiteRecord:
+        site_id = slug(name) or str(key)
         with self._db() as db:
             if (
                 site_id == DEMO_SITE_ID
                 or db.execute("SELECT 1 FROM sites WHERE id = ?", (site_id,)).fetchone()
             ):
-                site_id = f"{site_id}-{address_id}"
+                site_id = f"{site_id}-{key}"
             now = _now()
             db.execute(
-                "INSERT INTO sites (id, address_id, address, status, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (site_id, address_id, address, SiteStatus.BUILDING, now),
+                "INSERT INTO sites (id, address_id, parcel_id, address, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (site_id, address_id, parcel_id, name, SiteStatus.BUILDING, now),
             )
             db.execute("INSERT INTO site_builds VALUES (?, ?)", (site_id, now))
         return self.get(site_id)
@@ -116,6 +147,13 @@ class SiteStore:
             return DEMO_RECORD
         try:
             return self._one("SELECT * FROM sites WHERE address_id = ?", (address_id,), KeyError())
+        except KeyError:
+            return None
+
+    def by_parcel(self, parcel_id: int) -> SiteRecord | None:
+        """The title site kept by ``parcel_id``, if there is one."""
+        try:
+            return self._one("SELECT * FROM sites WHERE parcel_id = ?", (parcel_id,), KeyError())
         except KeyError:
             return None
 
@@ -189,6 +227,7 @@ class SiteStore:
             step=row["step"],
             error=row["error"],
             created_at=datetime.fromisoformat(row["created_at"]),
+            parcel_id=row["parcel_id"],
         )
 
     @contextmanager
@@ -211,18 +250,27 @@ class SiteBuilder:
         self._wake, self._stop = threading.Event(), threading.Event()
         self._thread: threading.Thread | None = None
 
+    def _build(self, site: SiteRecord) -> None:
+        """From its address, or, for a title with none, from its parcel."""
+        directory = self.sites_dir / site.id
+
+        def step(name: str) -> None:
+            self.store.step(site.id, name)
+
+        if site.address_id is not None:
+            build_site(site.address_id, directory, self.sources(), step)
+        elif site.parcel_id is not None:
+            build_title_site(site.parcel_id, directory, self.sources(), step)
+        else:  # the schema's CHECK forbids it
+            raise ValueError(f"site {site.id} has neither an address nor a parcel")
+
     def run_next(self) -> bool:
         site = self.store.next_to_build()
         if site is None:
             return False
         self.store.start(site.id)
         try:
-            build_site(
-                site.address_id,
-                self.sites_dir / site.id,
-                self.sources(),
-                lambda step: self.store.step(site.id, step),
-            )
+            self._build(site)
         except NoLidar as error:
             self.store.finish(site.id, SiteStatus.NO_LIDAR, str(error))
         except Exception as error:  # the site's failure, recorded rather than lost

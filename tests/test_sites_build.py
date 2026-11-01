@@ -20,7 +20,14 @@ from button_nz.geo.arcgis import FeatureLayer
 from button_nz.geo.geometry import BBox
 from button_nz.geo.tiles import tiles_covering
 from button_nz.perception.features import Mask
-from button_nz.sites.build import MAX_SIDE_M, NoLidar, SiteError, Sources, build_site
+from button_nz.sites.build import (
+    MAX_SIDE_M,
+    NoLidar,
+    SiteError,
+    Sources,
+    build_site,
+    build_title_site,
+)
 from button_nz.sites.stac import ELEVATION, IMAGERY, Catalogues, Collection
 
 rio: Any = rasterio
@@ -340,3 +347,17 @@ def test_a_site_knows_which_edges_face_its_street(tmp_path: Path) -> None:
     assert [(f.road, f.street) for f in found] == [("Test Street", True)]
     (street,) = found
     assert all(a[1] == Y0 and b[1] == Y0 for a, b in street.edges)  # the south side
+
+
+def test_a_title_with_no_address_is_built_from_its_parcel(tmp_path: Path) -> None:
+    build_title_site(3, tmp_path, sources(), lambda _: None)  # parcel C, title 3546130
+    site = load_demo_site(tmp_path)
+    assert site.name == "Lot 3, beside 1 Test Street, Reefton"  # its appellation, and where
+    assert [p.parcel_id for p in site.parcels] == [3]
+    assert site.frontages is not None and not any(f.street for f in site.frontages)
+
+
+def test_a_parcel_with_no_title_is_never_built(tmp_path: Path) -> None:
+    untitled = [parcel(4, A, None)]
+    with pytest.raises(SiteError, match="record of title"):
+        build_title_site(4, tmp_path, sources(untitled), lambda _: None)

@@ -134,3 +134,10 @@ def test_a_short_street_near_one_end_of_a_long_edge_is_nearest_that_edge() -> No
     stub = Road(1, "Coal Street", LineString([(-5, -1), (2, -1)]))  # 1 m south, at the west end
     (street,) = frontages([long_title], [], [stub], street_road_id=1)
     assert street.edges == (((0.0, 0.0), (100.0, 0.0)),) and street.distance_m == 1.0
+
+
+def test_a_section_with_no_address_has_roads_but_no_street() -> None:
+    found = frontages([TITLE], [SOUTH_ROAD, WEST_ROAD], [COAL, CURLE], street_road_id=None)
+    assert {(f.road, f.street) for f in found} == {("Coal Street", False), ("Curle Street", False)}
+    text = describe_frontages(found, lambda p: p)
+    assert "has no street address" in text
