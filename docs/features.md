@@ -42,9 +42,9 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **An independent evaluator** | Ordinary code measures the geometry, never the model's words. A failed check can't be argued away | `evaluation/` |
-| **The exemption's measurable rules** | Schedule 1A of the Building Act, as MBIE's guidance quotes it. Each check is pass, fail or unknown, with its measurement and rule: on the title; 2 m from the title boundary; internal section lines (unknown unless confirmed as legal boundaries); 2 m from confirmed buildings; floor area within 70 m²; one storey; height within 4 m of the floor; floor within 1 m of the ground; keep-clear areas | `evaluation/checks.py` |
-| **Honest unknowns** | What the data can't decide is "unknown", never a pass: an unconfirmed building list, a floor below the existing ground, an unconfirmed boundary | `evaluation/checks.py` |
-| **Recorded against what it was checked on** | Each design records the survey and decisions it was checked against, as they were when it ran | `api/jobs.py` |
+| **The exemption's measurable rules** | Schedule 1A of the Building Act, as MBIE's guidance quotes it. Each check is pass, fail or unknown, with its measurement and rule (the page shows the verdict and a plain detail; the rule and every measurement are in the attempt's trace): on the title; 2 m from the title boundary; internal section lines (unknown within 2 m, since nothing yet records whether they are legal boundaries); 2 m from confirmed buildings; floor area within 70 m²; one storey; height within 4 m of the floor; floor within 1 m of the ground; keep-clear areas | `evaluation/checks.py` |
+| **Honest unknowns** | What the data can't decide is "unknown", never a pass: an unconfirmed building list, a floor below the existing ground, a design within 2 m of a line between sections | `evaluation/checks.py` |
+| **Recorded against what it was checked on** | Each design records the survey's id and the decisions it was checked against, as they were when it ran | `api/jobs.py` |
 
 ## Changing a design
 
@@ -82,8 +82,8 @@ https://button.nz. How they fit together on the page is in
 |---|---|---|
 | **Deployed** | The API, the web app and a Cloudflare tunnel run as systemd services on the GPU machine; nothing listens beyond 127.0.0.1 | `scripts/deploy/`, [deploy.md](deploy.md) |
 | **Daily cap** | At most 30 design runs (originals, revisions and placements) start in any 24 hours; one past it is refused with when the next frees up | `api/limits.py` |
-| **Optional access code** | A code can gate every page and API request. button.nz runs without one | `apps/web/proxy.ts`, `lib/access.ts` |
-| **Smoke test** | Checks a served URL as a visitor reaches it | `scripts/deploy/check.sh` |
+| **Optional access code** | A code can gate every page and API request. `install.sh` generates one; button.nz runs with `BUTTON_ACCESS_CODE` emptied, so it is open to anyone | `apps/web/proxy.ts`, `lib/access.ts` |
+| **Smoke test** | Checks a code-gated URL as a visitor reaches it: the gate, the page, the site and a fixed survey (an open server is #84) | `scripts/deploy/check.sh` |
 
 ## Evidence
 

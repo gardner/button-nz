@@ -34,8 +34,9 @@ checked against the measured site.
         ├── Placing the <product>: walls L × W m (a placed prefab only)
         ├── Status line: queued, running, accepted, no attempt passed, or failed
         ├── Before and after (a revision only)
-        ├── Attempt 1…n: verdict, every check with its measurement and rule,
-        │   the LiDAR views asked for, the render, the AI illustration, View in 3D
+        ├── Attempt 1…n: verdict, each check's result in words (with its
+        │   measurement), the LiDAR views asked for, the render, the AI
+        │   illustration, View in 3D
         ├── 3D model (ModelViewer)
         ├── Which real prefabs fit? (ProductsPanel, an accepted design only)
         │   ├── Each fitting product: size, area, rooms, price, exclusions,
@@ -65,10 +66,10 @@ Each object, what it holds, and where it comes from.
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
 | **Attempt** | Verdict, feedback, LiDAR views asked for, the model's script and its measured result | The design loop | `DATA/button.db` (attempts), `DATA/runs/<job>/attempt-<n>/` |
-| **Check** | Name, pass, fail or unknown, a plain detail, measurements, the rule it comes from | The evaluator (`button_nz.evaluation`) | Inside each attempt's trace |
+| **Check** | Name, pass, fail or unknown, a plain detail, measurements, the rule it comes from. The page shows the name, verdict and detail; the measurements and rule are in the trace | The evaluator (`button_nz.evaluation`) | Each attempt's `attempt.json` |
 | **Product** | Supplier, model, outside footprint, area and its basis, rooms, price or null, exclusions, West Coast note, sources; whether it can be placed | Suppliers' own pages | `data/catalogue/products.json` |
 | **Placed product** | The product a design places, as the catalogue gave it then | The owner's "Place it on the site" | `DATA/button.db` (jobs.product) |
-| **Survey record** | The survey and decisions a design was checked against | The worker, as each design runs | `DATA/runs/<job>/survey.json` |
+| **Survey record** | The survey's id and the decisions a design was checked against (not the survey's features themselves: a replaced survey can't be recovered from it) | The worker, as each design runs | `DATA/runs/<job>/survey.json` |
 
 ### Vocabulary
 
@@ -114,7 +115,7 @@ a survey fixed as the owner decided it (403 on changes). See
 Each design keeps its files under `DATA/runs/<job>/`:
 
 ```
-survey.json                 the survey and decisions it was checked against
+survey.json                 the survey's id and the decisions it was checked against
 design.json                 the run's summary
 attempt-<n>/
   attempt.json              the agent's trace: observations, script, verdict, feedback

@@ -48,12 +48,13 @@ with the evidence.
 2. They press **Design**. The page shows the design queued, then running.
 3. Muse Spark looks at the site through the LiDAR views it asks for, writes a
    Blender script, and sandboxed Blender builds and measures it. Each attempt
-   appears as it finishes, with its render and every check.
+   appears as it finishes, with its render and each check's result.
 4. If a check fails ("0.50 m from the boundary; at least 2 m required"),
    Muse sees that measurement and its own render, and tries again, up to
    three attempts.
 5. The status line says **Accepted: attempt n**. Each check shows pass, fail
-   or unknown, its measurement and the rule it comes from.
+   or unknown, with its measurement in words; the rule behind each is in
+   the attempt's trace.
 6. A few seconds later the AI illustration appears, labelled AI-illustrated,
    shown only because SAM 3.1 found the house kept the design's shape.
 7. **View in 3D** shows the design on the site's terrain.
@@ -152,7 +153,8 @@ from real runs.
 1. **Serve it:**
    - `scripts/deploy/install.sh` builds the app and writes the settings and
      systemd services, adding the Cloudflare tunnel once its token is there.
-   - `check.sh` checks the served URL as a visitor reaches it.
+   - `check.sh` checks a code-gated URL as a visitor reaches it. button.nz
+     runs open (`BUTTON_ACCESS_CODE` emptied); a check for that is #84.
    - Details are in [deploy.md](deploy.md).
 2. **Fix the survey** once the owner has decided it: set
    `BUTTON_SURVEY_DECIDED_BY` and run `install.sh` again.
