@@ -57,8 +57,8 @@ photographs. So we make an ordinary-looking photo from our data:
    |---|---|
    | SAM 3D, its own MoGe depth | the baseline |
    | SAM 3D, the LiDAR pointmap | the main question |
-   | SAM 3D, the LiDAR pointmap, then fitted to the LiDAR | whether explicit fitting adds anything |
-   | [Roofer](https://github.com/3DBAG/roofer), from the LiDAR and the outline | a conventional, non-generative baseline |
+   | SAM 3D, the LiDAR pointmap, then fitted to the training points | whether explicit fitting adds anything |
+   | [Roofer](https://github.com/3DBAG/roofer), from the training points and the outline | a conventional, non-generative baseline |
 
 5. **Measure two things apart.**
    - **Shape:** after the best scale and rigid alignment, is the roof right?
@@ -80,11 +80,21 @@ photographs. So we make an ordinary-looking photo from our data:
      LAS/LAZ points. So scoring against the DSM, or against all those
      points, only tests how faithfully the model follows its input:
      **source-data fidelity**, reported as such.
-   - For held-out truth, we build our own surface:
-     - from LINZ's LAS/LAZ points less a held-out share (whole spatial
-       blocks, so neighbouring points can't stand in for them);
-     - the pointmap and Roofer use that surface;
-     - each model is scored against the held-out points it never saw.
+   - For held-out truth, LINZ's LAS/LAZ points are split once: a held-out
+     share (whole spatial blocks, so neighbouring points can't stand in for
+     them), and the rest, the **training points**.
+   - **Nothing a model is given may carry the held-out points.** From the
+     training points alone we build our own surface, and every input comes
+     from it:
+     - the photo (step 1) is draped on it and rendered;
+     - the pointmap (step 2) is cast onto it, so photo and pointmap agree
+       pixel for pixel;
+     - the mask's height test (step 3) uses it;
+     - the fitting step (condition 3) fits to the training points only;
+     - Roofer (condition 4) gets the training points themselves, not a
+       raster, since it finds roof planes in a point cloud.
+   - Each model is scored against the held-out points, which nothing it was
+     given was made from.
    - Footprint IoU against the LINZ outline mostly tests adherence to the
      mask, which is drawn from that outline. It's reported as such, not as
      footprint discovery.
