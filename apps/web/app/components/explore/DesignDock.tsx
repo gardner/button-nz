@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { Job } from "@/lib/api";
 
 import { DesignHistory, RevisionForm } from "../Revisions";
+import { Placing } from "../DesignPanel";
 import type { useDesignChain } from "../useDesignChain";
 import { AttemptRow } from "./AttemptRow";
 
@@ -109,6 +110,7 @@ function Shown({
 }) {
   return (
     <div className="flex flex-col gap-2">
+      {job.product && <Placing product={job.product} />}
       <Status job={job} />
       {job.attempts.map((a) => (
         <AttemptRow key={a.number} attempt={a} />

@@ -9,9 +9,9 @@ import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
 import { BuildProgress } from "./BuildProgress";
-import { ReadySite } from "./ReadySite";
+import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
-import { type JourneyState, Stepper, stepOf } from "./Stepper";
+import { Stepper, stepOf } from "./Stepper";
 import { TOWN_COLOURS, TownOverview } from "./TownOverview";
 import { useSite } from "./useSite";
 
@@ -43,8 +43,8 @@ const TOWN_LINE: Paint<"line"> = {
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, opening, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
-  const [design, setDesign] = useState<JourneyState["design"]>();
-  const step = stepOf({ site: site?.status, design });
+  const [progress, setProgress] = useState<Progress>({});
+  const step = stepOf({ site: site?.status, ...progress });
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
@@ -78,7 +78,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
           town={town}
           pollMs={pollMs}
           onAddress={fromAddress}
-          onDesign={setDesign}
+          onProgress={setProgress}
         />
       </BaseMap>
     </main>
@@ -94,7 +94,7 @@ function SidePanel({
   town,
   pollMs,
   onAddress,
-  onDesign,
+  onProgress,
 }: {
   site: SiteState | null;
   problem: string | null;
@@ -102,7 +102,7 @@ function SidePanel({
   town: ReturnType<typeof useTown>;
   pollMs: number;
   onAddress: (addressId: number, address: string) => void;
-  onDesign: (design: JourneyState["design"]) => void;
+  onProgress: (progress: Progress) => void;
 }) {
   return (
     <aside
@@ -134,7 +134,7 @@ function SidePanel({
           site={site}
           held={opening !== null}
           pollMs={pollMs}
-          onDesign={onDesign}
+          onProgress={onProgress}
         />
       )}
       {town.problem && (
@@ -153,12 +153,12 @@ function SiteSection({
   site,
   held,
   pollMs,
-  onDesign,
+  onProgress,
 }: {
   site: SiteState;
   held: boolean;
   pollMs: number;
-  onDesign: (design: JourneyState["design"]) => void;
+  onProgress: (progress: Progress) => void;
 }) {
   if (site.status !== "ready")
     return (
@@ -175,7 +175,7 @@ function SiteSection({
         key={site.id}
         site={site}
         pollMs={pollMs}
-        onDesign={onDesign}
+        onProgress={onProgress}
       />
     </fieldset>
   );

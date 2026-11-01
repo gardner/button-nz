@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { JOB, SURVEY } from "@/lib/fixtures";
+import { JOB, PRODUCTS, SURVEY } from "@/lib/fixtures";
 import {
   ADDRESSES,
   CHECKS,
@@ -361,6 +361,32 @@ describe("a ready site", () => {
     expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
   });
 
+  it("names the prefab a design is placing", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        product: {
+          id: "airhome-vista",
+          name: "AirHome Vista",
+          length_m: 12.2,
+          width_m: 4,
+        },
+      },
+    });
+    render(<Explore pollMs={5} />);
+    expect(
+      await screen.findByText("Placing the AirHome Vista: walls 12.2 × 4 m"),
+    ).toBeTruthy();
+  });
+
   it("calls a design asked for before a survey change outdated, even if it answers after", async () => {
     open();
     let answerDesign: (r: Response) => void = () => {};
@@ -561,5 +587,50 @@ describe("a ready site", () => {
     expect(
       fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
     ).toHaveLength(0);
+  });
+
+  it("finds the prefabs that fit, and places one as a new design", async () => {
+    open();
+    const fetch = serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "POST /api/designs": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+      "GET /api/designs/abc123/products": PRODUCTS,
+    });
+    render(<Explore pollMs={5} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /afternoon sun/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Design it" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(await screen.findByText("AirHome Vista")).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("listitem", { current: "step" }).textContent,
+      ).toContain("Prefab"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Place the AirHome Vista on the site",
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+      ).toHaveLength(2),
+    );
+    const placed = fetch.mock.calls.filter(
+      ([, init]) => init?.method === "POST",
+    )[1];
+    expect(JSON.parse(String(placed[1]?.body))).toMatchObject({
+      brief: JOB.brief,
+      product_id: "airhome-vista",
+      site_id: SITE,
+    });
   });
 });
