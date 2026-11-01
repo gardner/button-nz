@@ -128,6 +128,18 @@ def test_a_designs_record_keeps_the_buildings_it_was_checked_against(tmp_path: P
     assert server.client.get(f"/designs/{job['id']}/map").json()["unknown"] == []
 
 
+def test_a_design_whose_record_is_missing_says_its_buildings_are_unknown(
+    tmp_path: Path,
+) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    (tmp_path / "runs" / job["id"] / "survey.json").unlink()  # a run made before records
+    layers = server.client.get(f"/designs/{job['id']}/map").json()
+    assert [u["check"] for u in layers["unknown"]] == ["building_separation"]
+    checks = {d["properties"]["check"] for d in layers["distances"]["features"]}
+    assert "building_separation" not in checks
+
+
 def test_only_a_few_design_sites_are_kept_in_memory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
