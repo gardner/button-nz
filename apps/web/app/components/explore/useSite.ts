@@ -73,6 +73,8 @@ export function useSite(pollMs: number) {
   useEffect(() => {
     if (id === undefined) return;
     const url = new URL(window.location.href);
+    // A design linked from another site isn't this site's.
+    if (url.searchParams.get("site") !== id) url.searchParams.delete("design");
     url.searchParams.set("site", id);
     window.history.replaceState(null, "", url);
   }, [id]);

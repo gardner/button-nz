@@ -55,6 +55,43 @@ describe("AttemptRow", () => {
     expect(screen.getByText(/0.50 m from the boundary/)).toBeTruthy();
   });
 
+  it("shows the evaluator's words when an attempt has an empty list of checks", () => {
+    render(<AttemptRow attempt={attempt([])} />);
+    expect(screen.queryByRole("list", { name: "Checks" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Details/ }));
+    expect(screen.getByText(/0.50 m from the boundary/)).toBeTruthy();
+  });
+
+  it("shows the LiDAR views the model asked for, as thumbnails named by tool", () => {
+    const raw = {
+      ...JOB,
+      attempts: [
+        {
+          ...JOB.attempts[0],
+          observations: ["render_contours", "render_slope"],
+          files: {
+            "observation-1.png": "/designs/abc123/attempts/1/observation-1.png",
+            "observation-2.png": "/designs/abc123/attempts/1/observation-2.png",
+          },
+        },
+      ],
+    };
+    render(<AttemptRow attempt={parseJob(raw).attempts[0]} />);
+    const views = within(screen.getByRole("list", { name: "LiDAR views" }))
+      .getAllByRole("img")
+      .map((i) => [i.getAttribute("alt"), i.getAttribute("src")]);
+    expect(views).toEqual([
+      [
+        "LiDAR view 1: render contours",
+        "/api/designs/abc123/attempts/1/observation-1.png",
+      ],
+      [
+        "LiDAR view 2: render slope",
+        "/api/designs/abc123/attempts/1/observation-2.png",
+      ],
+    ]);
+  });
+
   it("names every check the evaluator makes, in plain words", () => {
     expect(checkLabel("product_footprint")).toBe("The prefab's footprint");
     expect(checkLabel("something_new")).toBe("something new");

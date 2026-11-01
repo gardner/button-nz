@@ -76,7 +76,7 @@ function TabBody({
 }) {
   if (tab === "model" && model)
     return (
-      <Contained>
+      <Contained key={model}>
         <ModelViewer url={model} height="h-[300px]" />
       </Contained>
     );
