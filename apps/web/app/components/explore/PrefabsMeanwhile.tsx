@@ -59,10 +59,15 @@ export function PrefabsMeanwhile() {
                 · {p.supplier} · {sizeOf(p)} · {p.bedrooms} bed
               </span>
             </span>
-            <span className="shrink-0 tabular-nums text-zinc-300">
-              {p.priceNzd === null
-                ? "price not published"
-                : NZD.format(p.priceNzd)}
+            <span className="flex shrink-0 flex-col items-end text-zinc-300">
+              <span className="tabular-nums">
+                {p.priceNzd === null
+                  ? "price not published"
+                  : NZD.format(p.priceNzd)}
+              </span>
+              {p.priceNzd !== null && (
+                <span className="text-xs text-zinc-500">{p.priceBasis}</span>
+              )}
             </span>
           </li>
         ))}

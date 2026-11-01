@@ -51,6 +51,23 @@ describe("PrefabsMeanwhile", () => {
     expect(item.textContent).not.toContain("on request");
   });
 
+  it("gives a published price with the basis the supplier gives it", async () => {
+    const from = {
+      ...PRODUCTS.fits[0],
+      price_nzd: 182000,
+      price_basis: "from; incl GST",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && [from]))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [item] = await screen.findAllByRole("listitem");
+    expect(item.textContent).toMatch(/\$182,000.*from; incl GST/);
+  });
+
   it("says when the catalogue couldn't load, rather than showing nothing", async () => {
     vi.stubGlobal(
       "fetch",
