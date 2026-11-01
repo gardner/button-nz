@@ -198,3 +198,28 @@ def glb_json(glb: Path) -> dict[str, Any]:
     (chunk_length,) = struct.unpack_from("<I", data, 12)
     found: dict[str, Any] = json.loads(data[20 : 20 + chunk_length])
     return found
+
+
+class EmptyModel:
+    """Leaves a Dwelling mesh with no faces."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
+        return """
+dwelling = bpy.data.objects.new("Dwelling", bpy.data.meshes.new("Dwelling"))
+bpy.context.collection.objects.link(dwelling)
+"""
+
+
+def test_an_empty_dwelling_is_feedback_not_a_crash(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    frame = LocalFrame.centred_on(grid.bbox)
+    site = DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
+    )
+
+    result = design("A studio.", site, EmptyModel(), tmp_path, max_attempts=1)
+
+    assert result.accepted is None
+    assert "Dwelling" in result.attempts[0].feedback

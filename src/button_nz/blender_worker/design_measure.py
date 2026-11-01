@@ -212,7 +212,7 @@ def _bake(
     mesh.materials.append(build_scene.material("Dwelling walls", walls))
     mesh.materials.append(build_scene.material("Dwelling roof", roof))
     heights = [point[2] for triangle in triangles for point in triangle]
-    eaves = (min(heights) + max(heights)) / 2  # below it, level faces are floors and decks
+    eaves = (min(heights, default=0.0) + max(heights, default=0.0)) / 2  # floors, decks below
     for polygon in mesh.polygons:
         level = abs(polygon.normal.z) > ROOF_NORMAL_Z
         polygon.material_index = 1 if level and polygon.center.z > eaves else 0
