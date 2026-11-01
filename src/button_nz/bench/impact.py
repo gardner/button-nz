@@ -28,13 +28,10 @@ SHARES = (0.10, 0.25, 0.50)
 @dataclass(frozen=True)
 class Census:
     year: int
-    population: int  # usually resident
+    population: int  # usually resident, private and non-private dwellings
     households: int
     dwellings: int  # private dwellings, occupied and not
-
-    @property
-    def people_per_household(self) -> float:
-        return self.population / self.households
+    household_size: float  # mean usual residents per household (private dwellings)
 
     @classmethod
     def read(cls, path: Path) -> tuple[Census, dict[str, Any]]:
@@ -44,8 +41,19 @@ class Census:
             population=int(raw["usually_resident_population"]),
             households=int(raw["households"]),
             dwellings=int(raw["private_dwellings"]["total"]),
+            household_size=_mean_size(raw["household_size"]["counts"]),
         )
         return census, raw
+
+
+def _mean_size(counts: Mapping[str, int]) -> float:
+    """The mean household size from Stats NZ's households-by-size counts.
+    "8+" counts as 8, so a town with any such households would be understated:
+    it's refused rather than guessed."""
+    if counts.get("8+", 0):
+        raise ValueError("households of eight or more: their size isn't known")
+    sized = {int(k): v for k, v in counts.items() if k != "8+"}
+    return round(sum(k * v for k, v in sized.items()) / sum(sized.values()), 2)
 
 
 @dataclass(frozen=True)
@@ -54,19 +62,31 @@ class Scenario:
     homes: int
     increase: float  # of the town's private dwellings
     people_low: int  # one person a flat
-    people_high: int  # the town's own people per household
+    people_high: int  # the town's own mean household size
 
 
 def property_counts(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:
-    """Properties, and those with room (on LINZ's outlines, with eaves) and
-    room also clear on the LiDAR: a property counts if any of its parcels does."""
+    """Properties counted once each (a title of one or more parcels):
+    - backyards: properties with a building, where a flat would be a second
+      home; with room on LINZ's outlines (eaves allowed), and room also clear
+      on the LiDAR;
+    - empty sections with room, where a dwelling would be a first home, which
+      was allowed before the exemption: reported apart, never as flats."""
+    built: dict[int, bool] = {}
     room: dict[int, bool] = {}
     clear: dict[int, bool] = {}
     for r in rows:
         pid = int(r["property_id"])
+        built[pid] = built.get(pid, False) or bool(r["buildings"])
         room[pid] = room.get(pid, False) or bool(r["fits_eaves"])
         clear[pid] = clear.get(pid, False) or bool(r["clear_eaves"])
-    return {"properties": len(room), "room": sum(room.values()), "clear": sum(clear.values())}
+    return {
+        "properties": len(built),
+        "backyards": sum(built.values()),
+        "backyard_room": sum(1 for p in built if built[p] and room[p]),
+        "backyard_clear": sum(1 for p in built if built[p] and clear[p]),
+        "empty_room": sum(1 for p in built if not built[p] and room[p]),
+    }
 
 
 def scenarios(count: int, census: Census, shares: Sequence[float] = SHARES) -> list[Scenario]:
@@ -80,25 +100,26 @@ def scenarios(count: int, census: Census, shares: Sequence[float] = SHARES) -> l
                 homes=homes,
                 increase=homes / census.dwellings,
                 people_low=homes,
-                people_high=math.floor(homes * census.people_per_household + 1e-9),
+                people_high=math.floor(homes * census.household_size + 1e-9),
             )
         )
     return found
 
 
 def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], commit: str) -> str:
-    rows = [
-        "| Properties adding a flat | Homes | More homes than today | People housed |",
+    header = [
+        "| Backyards adding a flat | Homes | More homes than today | People housed |",
         "|---|---|---|---|",
     ]
 
     def table(count: int) -> list[str]:
-        return rows + [
+        return header + [
             f"| {s.share:.0%} of {count} | {s.homes} | +{s.increase:.0%} | "
             f"{s.people_low}–{s.people_high} |"
             for s in scenarios(count, census)
         ]
 
+    single = raw["household_size"]["counts"]["1"] / sum(raw["household_size"]["counts"].values())
     return "\n".join(
         [
             "# Impact: what the town screen would mean for Reefton's housing",
@@ -106,29 +127,36 @@ def report(counts: Mapping[str, int], census: Census, raw: Mapping[str, Any], co
             f"Code `{commit}`. Properties from the town screen "
             "([report](../town-screen/report.md)), counted by title. Today's housing from "
             f"{raw['source']} (retrieved {raw['retrieved']}, {raw['licence']}): "
-            f"{census.dwellings} private dwellings, {census.households} households and "
-            f"{census.population:,} people in {census.year}, "
-            f"{census.people_per_household:.1f} people per household.",
+            f"{census.dwellings} private dwellings, {census.households:,} households and "
+            f"{census.population:,} people in {census.year}; households average "
+            f"{census.household_size:.1f} people, and {single:.0%} are one person.",
             "",
-            f"Of Reefton's {counts['properties']} residential properties, {counts['room']} have "
+            f"Of Reefton's {counts['properties']} residential properties, {counts['backyards']} "
+            f"have a building on them. Of those **backyards**, {counts['backyard_room']} have "
             "room for a real prefab on LINZ's building outlines (with 0.6 m eaves), and "
-            f"{counts['clear']} also clear of everything over 2 m on the LiDAR.",
+            f"{counts['backyard_clear']} also clear of everything over 2 m on the LiDAR. A flat "
+            "there is a second home beside the first: what the exemption adds.",
             "",
-            "## On LINZ's outlines",
+            "## Backyards, on LINZ's outlines",
             "",
-            *table(counts["room"]),
+            *table(counts["backyard_room"]),
             "",
-            "## Also clear on the LiDAR (stricter)",
+            "## Backyards, also clear on the LiDAR (stricter)",
             "",
-            *table(counts["clear"]),
+            *table(counts["backyard_clear"]),
+            "",
+            "## Empty sections",
+            "",
+            f"Another {counts['empty_room']} properties with room have no building. A dwelling "
+            "there would be a first home, which was allowed before the exemption, so they "
+            "aren't counted as flats above.",
             "",
             "## How to read it",
             "",
             "- **The shares are scenarios, not forecasts.** Nothing here says how many "
             "owners would build.",
-            "- **People housed** runs from one person a flat to the town's own "
-            f"{census.people_per_household:.1f} people per household: a one-bedroom flat "
-            "may house fewer than an average home.",
+            "- **People housed** runs from one person a flat to Reefton's average household "
+            f"of {census.household_size:.1f} (from Stats NZ's households by size).",
             "- **The areas differ.** The census's Reefton (a statistical area) and the town "
             "screen's Residential zones aren't the same boundary, so the increase is "
             "indicative.",
