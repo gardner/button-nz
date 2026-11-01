@@ -28,6 +28,7 @@ class Address:
     address_id: int
     full_address: str
     point: Point
+    road_id: int | None = None  # LINZ's road the address is on (NZ Addresses: Roads)
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ def find_address(layer: FeatureLayer, address_id: int) -> Sourced[Address]:
         address_id=int(props["address_id"]),
         full_address=str(props["full_address"]),
         point=(float(coordinates[0]), float(coordinates[1])),
+        road_id=None if props.get("road_id") is None else int(props["road_id"]),
     )
     return Sourced(address, found.provenance)
 

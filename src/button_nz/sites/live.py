@@ -18,6 +18,7 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.imagery import read_aerial
 from button_nz.geo.property import LINZ
 from button_nz.sites.build import Sources, outlines_collection
+from button_nz.sites.frontages import LINZ_ADDRESS_ROADS
 from button_nz.sites.stac import Catalogues
 from button_nz.town.lidar import mosaic
 
@@ -30,6 +31,7 @@ class LiveLayers:
         self.addresses = FeatureLayer(f"{found.linz_addresses_url}/0", "CC-BY-4.0", LINZ, client)
         self.parcels = FeatureLayer(LINZ_PRIMARY_PARCELS, "CC-BY-4.0", LINZ, client)
         self.buildings = FeatureLayer(f"{found.linz_buildings_url}/0", "CC-BY-4.0", LINZ, client)
+        self.roads = FeatureLayer(LINZ_ADDRESS_ROADS, "CC-BY-4.0", LINZ, client)
 
     def outlines(self, bbox: BBox) -> dict[str, object]:
         """The building outlines over ``bbox``, as an NZTM FeatureCollection."""
@@ -48,6 +50,7 @@ def live_sources(layers: LiveLayers, client: httpx.Client, cache: Path) -> Calla
             addresses=layers.addresses,
             parcels=layers.parcels,
             buildings=layers.buildings,
+            roads=layers.roads,
             catalogues=catalogues,
             segment=segmenter.masks,
             join=mosaic,

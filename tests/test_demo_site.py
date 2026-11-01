@@ -154,3 +154,34 @@ def test_a_built_rasters_tiles_must_cover_the_site(site_dir: Path) -> None:
     _edit(site_dir, ("rasters", "dem", "tiles"), [north])
     with pytest.raises(ValueError, match="dem: its tiles don't cover"):
         load_demo_site(site_dir)
+
+
+def test_a_site_with_its_frontages_file_carries_them(site_dir: Path) -> None:
+    edge = [[1505930.0, 5336780.0], [1505950.0, 5336780.0]]
+    collection = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "road": "Victory Street",
+                    "street": True,
+                    "adjacent": True,
+                    "distance_m": 0.0,
+                },
+                "geometry": {"type": "MultiLineString", "coordinates": [edge]},
+            }
+        ],
+    }
+    (site_dir / "frontages.geojson").write_text(json.dumps(collection), encoding="utf-8")
+    _edit(site_dir, ("frontages_file",), "frontages.geojson")
+    found = load_demo_site(site_dir).frontages
+    assert found is not None and [(f.road, f.street) for f in found] == [("Victory Street", True)]
+
+
+def test_a_site_built_before_frontages_has_them_unknown(site_dir: Path) -> None:
+    path = site_dir / "site.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    del manifest["frontages_file"]  # as sites were built before frontages
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert load_demo_site(site_dir).frontages is None

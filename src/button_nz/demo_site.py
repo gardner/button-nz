@@ -24,6 +24,7 @@ from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.geometry import BBox, Point, Ring, bounds, contains, covers
 from button_nz.geo.tiles import tile_bounds
+from button_nz.sites.frontages import Frontage, from_collection
 
 __all__ = ["DEMO_SITE_DIR", "DemoSite", "contains", "load_demo_site"]
 
@@ -77,6 +78,9 @@ class DemoSite:
     rasters: Mapping[str, RasterSource]
     vectors: Mapping[str, VectorSource]
     open_items: tuple[str, ...]
+    # Which title edges face which road; None for a site built before they
+    # were found (``sites.frontages``): not known, never assumed to be none.
+    frontages: tuple[Frontage, ...] | None = None
 
 
 def load_demo_site(directory: Path = DEMO_SITE_DIR) -> DemoSite:
@@ -93,9 +97,15 @@ def load_demo_site(directory: Path = DEMO_SITE_DIR) -> DemoSite:
         rasters={k: _raster(v, directory) for k, v in manifest["rasters"].items()},
         vectors={k: _vector(v) for k, v in manifest["vectors"].items()},
         open_items=tuple(str(item) for item in manifest["open_items"]),
+        frontages=_frontages(directory, manifest),
     )
     _check(site, [int(i) for i in manifest["parcel_ids"]])
     return site
+
+
+def _frontages(directory: Path, manifest: dict[str, Any]) -> tuple[Frontage, ...] | None:
+    name = manifest.get("frontages_file")  # absent: built before frontages were found
+    return None if name is None else from_collection(_read(directory / str(name)))
 
 
 def _check(site: DemoSite, parcel_ids: Sequence[int]) -> None:

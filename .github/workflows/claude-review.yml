@@ -39,13 +39,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The helper scripts come from HEAD^1, the base branch the PR is merged
+      # onto, not the PR's own copies. This workflow file itself is the PR's
+      # (from the merge commit), so a PR changing a script takes effect only
+      # once merged, and a PR changing both runs its YAML with the base's
+      # script. This is about mistakes, not a trust boundary: whoever can push
+      # a branch can also edit this YAML. What keeps the keys safe is that
+      # only same-repository PRs (push access) get them, and forks are
+      # skipped.
       - name: Collect earlier review threads
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          scripts/pr-review-threads.sh
-          "$GITHUB_REPOSITORY" "${{ github.event.pull_request.number }}"
-          > review-threads.md
+        run: |
+          git show "HEAD^1:scripts/pr-review-threads.sh" > "$RUNNER_TEMP/pr-review-threads.sh"
+          bash "$RUNNER_TEMP/pr-review-threads.sh" \
+            "$GITHUB_REPOSITORY" "${{ github.event.pull_request.number }}" > review-threads.md
 
       # Claude Code sandboxes Bash with bubblewrap and socat. Ubuntu 24.04's
       # AppArmor blocks the unprivileged user namespaces bubblewrap needs.
@@ -59,9 +67,13 @@ jobs:
       # it use copies taken now, in runner temp, which it cannot write to, and
       # the job ends by deleting the workspace.
       - name: Keep trusted copies of the post-review files
+        # From HEAD^1, like the threads script above (see there for what that
+        # does and doesn't protect).
         run: |
           mkdir "$RUNNER_TEMP/trusted"
-          cp scripts/review-metrics.sh .github/review-trace-key.asc "$RUNNER_TEMP/trusted/"
+          git show "HEAD^1:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
+          chmod +x "$RUNNER_TEMP/trusted/review-metrics.sh"
+          git show "HEAD^1:.github/review-trace-key.asc" > "$RUNNER_TEMP/trusted/review-trace-key.asc"
 
       - name: Review the pull request
         id: review
