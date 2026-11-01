@@ -36,6 +36,8 @@ export function useDesignChain(
   // survey revision it was asked for on.
   const [made, setMade] = useState<ReadonlyMap<string, number>>(new Map());
   const starting = useRef(false); // guards clicks before the re-render disables the forms
+  // Whether the design in the link is still wanted: not once one is asked for.
+  const linkWanted = useRef(true);
   const [lost, setLost] = useState(false); // the API can't give the newest job any more
   const newest = chain.at(-1);
   const working =
@@ -52,15 +54,16 @@ export function useDesignChain(
           const still = new URLSearchParams(window.location.search).get(
             "design",
           );
-          if (still === linked) dropLink();
+          if (linkWanted.current && still === linked) dropLink();
           return;
         }
         setChain((started) => (started.length ? started : jobs));
       },
       (e: Error) => {
-        // A newer design has taken the link's place: its failure is old news.
+        // A design asked for since has taken the link's place: its failure
+        // is old news.
         const still = new URLSearchParams(window.location.search).get("design");
-        if (still === linked)
+        if (linkWanted.current && still === linked)
           setProblem(`Could not open design ${linked}: ${e.message}`);
       },
     );
@@ -89,6 +92,7 @@ export function useDesignChain(
     if (starting.current) return;
     const asked = survey; // the survey as it is now, not when the job comes
     starting.current = true;
+    linkWanted.current = false;
     setSubmitting(true);
     setProblem(null);
     request()

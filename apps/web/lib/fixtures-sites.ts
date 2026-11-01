@@ -259,4 +259,5 @@ export const DESIGN_MAP = {
       ],
     },
   }),
+  unknown: [],
 };

@@ -133,6 +133,26 @@ describe("getDesignMap", () => {
     });
   });
 
+  it("reads the checks it couldn't draw, and why, and refuses a map without them", async () => {
+    serve({
+      ...DESIGN_MAP,
+      unknown: [
+        {
+          check: "building_separation",
+          reason: "the survey has changed since the design was checked",
+        },
+      ],
+    });
+    expect((await getDesignMap("abc123")).unknown).toEqual([
+      {
+        check: "building_separation",
+        reason: "the survey has changed since the design was checked",
+      },
+    ]);
+    serve({ ...DESIGN_MAP, unknown: undefined });
+    await expect(getDesignMap("abc123")).rejects.toThrow(ApiError);
+  });
+
   it("reads the outline, the walls and each distance with its rule", async () => {
     const fetch = serve(DESIGN_MAP);
     const map = await getDesignMap("abc123");

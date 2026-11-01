@@ -12,7 +12,15 @@ import {
   type FeatureStatus,
   STATUSES,
 } from "./features";
-import { type Fields, number, oneOf, optional, text } from "./fields";
+import {
+  type Fields,
+  list,
+  number,
+  oneOf,
+  optional,
+  record,
+  text,
+} from "./fields";
 import { type FeatureCollection, parseCollection } from "./geo";
 import { request } from "./http";
 
@@ -49,10 +57,17 @@ export interface Distance {
   required: number;
 }
 
+/** A check whose line the map can't draw, and why (never left out silently). */
+export interface Undrawn {
+  check: string;
+  reason: string;
+}
+
 export interface DesignMap {
   outline: FeatureCollection<Raised>; // all it covers from above, eaves too
   walls: FeatureCollection<Raised>; // from its floor to its roof
   distances: FeatureCollection<Distance>;
+  unknown: Undrawn[];
 }
 
 const PLAIN = ["parcels", "setback", "halos", "keep_clear", "room"] as const;
@@ -103,6 +118,10 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
       metres: number(p, "metres"),
       required: number(p, "required"),
     })),
+    unknown: list(map, "unknown").map((raw) => {
+      const u = record(raw, "unknown check");
+      return { check: text(u, "check"), reason: text(u, "reason") };
+    }),
   };
 }
 
