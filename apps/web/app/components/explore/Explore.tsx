@@ -71,7 +71,11 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
         {town.data && (
-          <TownLayers town={town.data} behind={site !== null} three={three} />
+          <TownLayers
+            town={town.data}
+            behind={site !== null}
+            standing={three && site?.status !== "ready"}
+          />
         )}
         <Camera site={site} town={town.data} three={three} />
         <div
@@ -165,15 +169,15 @@ function useJourney() {
 }
 
 /** The town's sections, stepped back once a site is chosen, and in 3D its
- * buildings standing (none round a site, whose LiDAR surface shows them). */
+ * buildings standing, until a ready site stands its own. */
 function TownLayers({
   town,
   behind,
-  three,
+  standing,
 }: {
   town: Town;
   behind: boolean;
-  three: boolean;
+  standing: boolean; // 3D, with no ready site's own buildings to show
 }) {
   return (
     <>
@@ -183,7 +187,7 @@ function TownLayers({
         fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
         line={TOWN_LINE}
       />
-      {three && !behind && (
+      {standing && (
         <GeoLayer
           id="town-buildings"
           data={measured(town.buildings)}

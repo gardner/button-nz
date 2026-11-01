@@ -130,9 +130,12 @@ export class FakeMap {
   }
   /** Jumps, at once: what each jump asked for. */
   jumps: unknown[] = [];
-  jumpTo(options: { zoom?: number }) {
+  jumpTo(options: { zoom?: number; pitch?: number }) {
     this.jumps.push(options);
+    this.moving = null; // as MapLibre's: a jump stops a move on its way
     if (options.zoom !== undefined) this.zoom = options.zoom;
+    if (options.pitch !== undefined) this.pitch = options.pitch;
+    queueMicrotask(() => this.fire("moveend"));
   }
   getPitch() {
     return this.pitch;

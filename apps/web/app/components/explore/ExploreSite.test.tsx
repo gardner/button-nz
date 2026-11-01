@@ -403,6 +403,8 @@ describe("a ready site", () => {
       expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
     );
     const map = FakeMap.last!;
+    // The map resizes while the orbit's fly-in is on its way: still tilted.
+    act(() => map.fire("resize"));
     // Each stands its own height, top less base, on the aerial: no terrain,
     // whose DSM would stand the buildings and trees a second time.
     const own = {

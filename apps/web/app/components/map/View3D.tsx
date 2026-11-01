@@ -60,7 +60,8 @@ export function Orbit({
     };
     map.easeTo({ center, ...view(), pitch: PITCH_3D, duration: 2500 });
     // Framed again, at once, when the map changes shape; the turn goes on.
-    const reframe = () => map.jumpTo({ center, ...view() });
+    // The tilt too: a jump stops the fly-in wherever it has got to.
+    const reframe = () => map.jumpTo({ center, ...view(), pitch: PITCH_3D });
     map.on("resize", reframe);
     map.once("moveend", () => {
       if (!stopped) frame = requestAnimationFrame(spin);
