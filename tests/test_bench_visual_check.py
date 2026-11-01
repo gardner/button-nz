@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from button_nz.bench.visual_check import accepted_attempt
+from button_nz.bench.visual_check import accepted_attempt, keep
+from button_nz.perception.visual import VISUAL_MODEL, Visual
 
 
 def _run(runs: Path, design: str, accepted: int | None) -> None:
@@ -23,3 +24,11 @@ def test_a_design_with_no_accepted_attempt_is_refused(tmp_path: Path) -> None:
     _run(tmp_path, "none", None)
     with pytest.raises(ValueError, match="no accepted attempt"):
         accepted_attempt(tmp_path, "none")
+
+
+def test_each_visual_can_be_kept_for_review(tmp_path: Path) -> None:
+    """The app keeps only accepted pictures; a measurement can keep its record too."""
+    visual = Visual(VISUAL_MODEL, True, 0.8, None, b"\x89PNG close-up", 1, (1, 2, 3, 4))
+    keep(visual, tmp_path / "kept", "d1")
+    assert (tmp_path / "kept" / "d1" / "visual.png").read_bytes() == b"\x89PNG close-up"
+    assert json.loads((tmp_path / "kept" / "d1" / "visual.json").read_text())["iou"] == 0.8
