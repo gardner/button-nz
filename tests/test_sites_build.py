@@ -58,6 +58,9 @@ def layers(parcels: list[dict[str, Any]], point: list[float] = POINT) -> dict[st
             ]
         elif "Parcels" in url.path and q.get("geometryType") == "esriGeometryPoint":
             found = parcels  # the builder keeps those that cover the point
+        elif "Parcels" in url.path and q.get("where", "").startswith("id = "):
+            wanted = int(q["where"].removeprefix("id = "))
+            found = [p for p in parcels if p["properties"]["id"] == wanted]
         elif "Parcels" in url.path:
             title = q["where"].split("'%")[1].split("%'")[0]
             found = [p for p in parcels if title in str(p["properties"]["titles"])]

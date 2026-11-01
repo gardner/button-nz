@@ -18,10 +18,10 @@ from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from button_nz.agent.demo import design_site
 from button_nz.agent.loop import DesignSite
@@ -37,7 +37,12 @@ from button_nz.perception.confirm import Survey
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
-from button_nz.sites.search import QueryError, search_addresses
+from button_nz.sites.search import (
+    NoSuchSection,
+    QueryError,
+    address_on_section,
+    search_addresses,
+)
 from button_nz.sites.terrain_tiles import terrain_tile
 
 CACHE_A_DAY = "public, max-age=86400"
@@ -48,7 +53,16 @@ type Outlines = Callable[[BBox], dict[str, Any]]
 
 
 class SiteRequest(BaseModel):
-    address_id: int
+    """One of: a LINZ address, or a LINZ primary parcel clicked on the map."""
+
+    address_id: int | None = None
+    parcel_id: int | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> Self:
+        if (self.address_id is None) == (self.parcel_id is None):
+            raise ValueError("name one address_id or one parcel_id")
+        return self
 
 
 class Sites:
@@ -145,6 +159,7 @@ class SiteService:
     builder: SiteBuilder
     addresses: FeatureLayer
     cap: DailyCap | None = None
+    parcels: FeatureLayer | None = None  # LINZ NZ Primary Parcels: starting from a section
 
 
 def sites_router(service: SiteService, store: Store) -> APIRouter:
@@ -165,7 +180,7 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
 
     @router.post("/sites", status_code=202)
     def post_site(request: SiteRequest) -> dict[str, Any]:
-        return _view(sites, _requested(service, request.address_id))
+        return _view(sites, _requested(service, _address_of(service, request)))
 
     @router.get("/sites/{site_id}")
     def get_site(site_id: str) -> dict[str, Any]:
@@ -280,3 +295,21 @@ def _lonlat(near: str | None) -> tuple[float, float] | None:
     if not (-180 <= lon <= 180 and -90 <= lat <= 90):
         raise HTTPException(422, "near is outside the world")
     return lon, lat
+
+
+def _address_of(service: SiteService, request: SiteRequest) -> int:
+    """The address a request names, or the one on the section it names."""
+    if request.address_id is not None:
+        return request.address_id
+    assert request.parcel_id is not None  # the request names one or the other
+    if service.parcels is None:
+        raise HTTPException(503, "this server can't look up sections; search by address")
+    try:
+        found = address_on_section(service.addresses, service.parcels, request.parcel_id)
+    except NoSuchSection:
+        raise HTTPException(404, f"no section {request.parcel_id} in LINZ's parcels") from None
+    except ArcGISError as error:
+        raise HTTPException(502, f"LINZ's parcel lookup failed: {error}") from None
+    if found is None:
+        raise HTTPException(422, "no address on this section: search for it by its address")
+    return found

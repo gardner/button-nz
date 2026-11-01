@@ -15,7 +15,12 @@ import re
 from collections.abc import Sequence
 from typing import Any, cast
 
+from shapely import Point
+from shapely.geometry import shape
+from shapely.geometry.base import BaseGeometry
+
 from button_nz.geo.arcgis import FeatureLayer
+from button_nz.sites.build import title_parcels
 
 MAX_RESULTS = 8
 NEAR_DEG = 0.25  # about 25 km each way: the town the map shows, and its neighbours
@@ -84,3 +89,42 @@ def _addresses(features: Any) -> list[dict[str, Any]]:
             }
         )
     return results
+
+
+class NoSuchSection(LookupError):
+    """LINZ has no primary parcel with that id."""
+
+
+def address_on_section(
+    addresses: FeatureLayer, parcels: FeatureLayer, parcel_id: int
+) -> int | None:
+    """The LINZ address on primary parcel ``parcel_id``, so a section clicked on
+    the map starts the same site as searching for it. A section with no address
+    of its own takes one on another parcel of its title (one property); the one
+    nearest the section's middle wins. None when the whole title has none."""
+    found = parcels.where(f"id = {int(parcel_id)}").features
+    if not found:
+        raise NoSuchSection(parcel_id)
+    section = shape(cast("dict[str, Any]", found[0]["geometry"]))
+    own = _addresses_on(addresses, section, section)
+    if own:
+        return min(own)[1]
+    others = [
+        _addresses_on(addresses, shape(cast("dict[str, Any]", p["geometry"])), section)
+        for p in title_parcels(parcels, found[0])
+    ]
+    on = [a for found_on in others for a in found_on]
+    return min(on)[1] if on else None
+
+
+def _addresses_on(
+    addresses: FeatureLayer, area: BaseGeometry, section: BaseGeometry
+) -> list[tuple[float, int]]:
+    """The addresses on ``area``, each with its distance from ``section``'s middle."""
+    on: list[tuple[float, int]] = []
+    for feature in addresses.in_envelope(area.bounds).features:
+        x, y = (float(v) for v in cast("dict[str, Any]", feature["geometry"])["coordinates"][:2])
+        if area.covers(Point(x, y)):
+            props = cast("dict[str, Any]", feature["properties"])
+            on.append((section.centroid.distance(Point(x, y)), int(props["address_id"])))
+    return on

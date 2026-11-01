@@ -132,6 +132,13 @@ def find_title(sources: Sources, address_id: int) -> Title:
     return Title(address.full_address, address.point, titles, tuple(parcels), extent)
 
 
+def title_parcels(layer: FeatureLayer, parcel: Feature) -> list[Feature]:
+    """Every parcel on the record(s) of title ``parcel`` is on, itself included;
+    none if it has no title."""
+    titles = _titles(parcel)
+    return _on_titles(layer, titles) if titles else []
+
+
 def _on_titles(layer: FeatureLayer, titles: Sequence[str]) -> list[Feature]:
     found: dict[int, Feature] = {}
     for title in titles:
