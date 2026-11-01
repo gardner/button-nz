@@ -11,7 +11,7 @@ from button_nz.api.app import create_app
 from button_nz.api.jobs import Worker
 from button_nz.api.store import Store
 from button_nz.blender_worker.run import DesignOutputs
-from button_nz.blender_worker.scene_input import DEFAULT_COLOURS, SceneInput
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES, SceneInput
 from button_nz.catalogue import Product
 from button_nz.demo_site import load_demo_site
 from test_api import ScriptedModel, fake_runner, synthetic_site
@@ -45,6 +45,8 @@ def product(
                 "roof_pitch_deg": 20,
                 "walls": "#ffffff",
                 "roof": "#000000",
+                "walls_texture": "white_planks_clean",
+                "roof_texture": "box_profile_metal_sheet",
                 "basis": "illustrative",
             },
         }
@@ -151,22 +153,24 @@ def test_a_design_keeps_its_product_as_it_was_when_placed(tmp_path: Path) -> Non
     assert "product_footprint: pass" in job["attempts"][0]["feedback"]  # checked as placed
 
 
-def test_a_placed_product_brings_its_roof_to_the_brief_and_its_colours_to_the_render(
+def test_a_placed_product_brings_its_roof_to_the_brief_and_its_finishes_to_the_render(
     tmp_path: Path,
 ) -> None:
     placing = Placing(tmp_path, "good")
     job_id = placing.place("cabin").json()["id"]
     assert placing.worker.run_next()
     assert "a gable roof at 20°" in placing.model.seen[0][1].text
-    colours = placing.scenes[0].get("dwelling_colours")
-    assert colours == {"walls": [1.0, 1.0, 1.0, 1.0], "roof": [0.0, 0.0, 0.0, 1.0]}
+    assert placing.scenes[0].get("dwelling_finishes") == {
+        "walls": {"rgba": [1.0, 1.0, 1.0, 1.0], "texture": "white_planks_clean"},
+        "roof": {"rgba": [0.0, 0.0, 0.0, 1.0], "texture": "box_profile_metal_sheet"},
+    }
     placed = placing.store.get_job(job_id).product
     assert placed is not None and placed.appearance is not None
     assert placed.appearance.roof == "#000000"  # the snapshot keeps how it looked
 
 
-def test_a_bespoke_design_renders_in_the_neutral_colours(tmp_path: Path) -> None:
+def test_a_bespoke_design_renders_in_the_default_finishes(tmp_path: Path) -> None:
     placing = Placing(tmp_path, "good")
     placing.client.post("/designs", json={"brief": "A studio."})
     assert placing.worker.run_next()
-    assert placing.scenes[0].get("dwelling_colours") == DEFAULT_COLOURS
+    assert placing.scenes[0].get("dwelling_finishes") == DEFAULT_FINISHES

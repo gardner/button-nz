@@ -26,7 +26,6 @@ from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
 from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
-from button_nz.blender_worker.scene_input import DwellingColours
 from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
@@ -177,16 +176,12 @@ class Worker:
         return result.accepted
 
     def _look(self, job: Job) -> dict[str, Any]:
-        """The placed product's roof in words and render colours; the defaults
+        """The placed product's roof in words and render finishes; the defaults
         for a bespoke design, or one placed before products had an appearance."""
         look = None if job.product is None else job.product.appearance
         if look is None:
             return {}
-        colours = look.colours()
-        return {
-            "roof": look.roof_description(),
-            "colours": DwellingColours(walls=colours["walls"], roof=colours["roof"]),
-        }
+        return {"roof": look.roof_description(), "finishes": look.finishes()}
 
     def _placing(self, job: Job) -> Footprint | None:
         """The footprint of the product ``job`` places, as it was when placed."""

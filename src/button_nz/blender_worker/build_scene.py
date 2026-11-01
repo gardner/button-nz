@@ -25,15 +25,19 @@ import sys
 from typing import Any
 
 import bpy  # pyright: ignore[reportMissingImports]
+import mathutils as _mathutils  # pyright: ignore[reportMissingImports]
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import terrain_math as _terrain_math  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 b: Any = bpy  # no type stubs inside Blender
+mathutils: Any = _mathutils
 terrain_math: Any = _terrain_math  # imported by path inside Blender
 
 COLUMN_MIN_M = 2.0
 BOUNDARY_LIFT_M = 0.15
+SKY_STRENGTH = 0.25  # the sky's light beside the Sun lamp's
+HAZE = (0.3, 0.5, 0.9, 1.0)  # behind the site, as the camera sees it
 
 
 def main(argv: list[str]) -> None:
@@ -145,15 +149,46 @@ def _camera_and_light(grid: dict[str, Any]) -> None:
     b.context.scene.collection.objects.link(camera)
     b.context.scene.camera = camera
     sun = b.data.objects.new("Sun", b.data.lights.new("Sun", type="SUN"))
-    sun.rotation_euler = (math.radians(40), math.radians(15), math.radians(30))
-    sun.data.energy = 3.0
+    turn = mathutils.Euler((math.radians(40), math.radians(15), math.radians(30)))
+    sun.rotation_euler = turn
+    sun.data.energy = 4.0
+    sun.data.color = (1.0, 0.95, 0.88)  # mid-morning: a little warm
+    sun.data.angle = math.radians(0.53)  # the sun's own width: soft-edged shadows
     b.context.scene.collection.objects.link(sun)
+    _sky(turn.to_matrix() @ mathutils.Vector((0.0, 0.0, 1.0)))
+
+
+def _sky(towards_sun: Any) -> None:
+    """A clear daylight sky lights the site, its sun where the Sun lamp shines
+    from (the lamp draws the sun's light and shadows, so the sky draws no sun
+    disc). The camera, looking down, would see the sky below the horizon, so
+    behind the site it sees a hazy blue instead."""
+    world = b.data.worlds.new("Sky")
+    world.use_nodes = True
+    nodes, links = world.node_tree.nodes, world.node_tree.links
+    sky = nodes.new("ShaderNodeTexSky")
+    sky.sky_type = "MULTIPLE_SCATTERING"
+    sky.sun_disc = False
+    sky.sun_elevation = math.asin(towards_sun.z)
+    sky.sun_rotation = math.atan2(towards_sun.x, towards_sun.y)
+    lit = nodes["Background"]
+    lit.inputs["Strength"].default_value = SKY_STRENGTH
+    links.new(sky.outputs["Color"], lit.inputs["Color"])
+    seen = nodes.new("ShaderNodeBackground")
+    seen.inputs["Color"].default_value = HAZE
+    mix = nodes.new("ShaderNodeMixShader")
+    links.new(nodes.new("ShaderNodeLightPath").outputs["Is Camera Ray"], mix.inputs["Fac"])
+    links.new(lit.outputs["Background"], mix.inputs[1])
+    links.new(seen.outputs["Background"], mix.inputs[2])
+    links.new(mix.outputs["Shader"], nodes["World Output"].inputs["Surface"])
+    b.context.scene.world = world
 
 
 def _render(png_path: str) -> None:
     scene = b.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.samples = 64
+    scene.view_settings.look = "AgX - Medium High Contrast"  # daylight, not haze
     scene.render.resolution_x, scene.render.resolution_y = 1280, 960
     scene.render.filepath = png_path
     use_gpu(scene)
