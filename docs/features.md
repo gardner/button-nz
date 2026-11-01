@@ -89,7 +89,7 @@ https://button.nz. How they fit together on the page is in
 
 | Feature | What it does | Where |
 |---|---|---|
-| **Experiments from live runs** | Experiment A (does Muse understand LiDAR: 49% from the photo alone, 83% choosing its own views) and C (what feedback buys: 56% accepted one shot, 100% with the evaluator), and the design-model comparison | `bench/`, [results](results/README.md) |
+| **Experiments from live runs** | Experiment A (does Muse understand LiDAR: 49% from the photo alone, 83% choosing its own views and querying exact elevations) and C (what feedback buys: 56% accepted one shot, 100% with the evaluator), and the design-model comparison | `bench/`, [results](results/README.md) |
 | **Sample artifacts** | Packs a design and the designs it revises (pass the latest revision), with the survey they were checked against and every verdict. It refuses an accepted attempt missing any required file (trace, scene, script, Blender file, measurements, GLB, render), a link, and a survey that doesn't match what the designs were checked against; failed attempts are packed as they are | `button_nz.sample` |
 | **Demo recording** | Records the live app in a headless browser and cuts it, with the speed shown wherever it's sped up | `scripts/demo/` |
 

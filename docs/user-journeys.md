@@ -150,9 +150,12 @@ one of their own.
 5. For depth they turn to the [README](../README.md) (how it works, the Meta
    models) and [docs/results](results/README.md):
    - the experiments, from live runs: one shot against feedback, and the
-     photo alone against Muse's own LiDAR views;
-   - the town screen: 762 of Reefton's 1,320 residential sections have room
-     for a real prefab.
+     photo alone against Muse choosing its own LiDAR views and querying
+     exact elevations;
+   - the town screen: of Reefton's 1,320 residential sections, 762 have room
+     for a real prefab on LINZ's 2015–16 building outlines (with 0.6 m eaves),
+     and 409 also clear everything over 2 m on the newer LiDAR. It's a screen,
+     not a verdict.
 
 **What can go wrong:** the day's 30 design runs are used, and the page says
 when the next frees up; the finished designs stay open to read. The survey is
