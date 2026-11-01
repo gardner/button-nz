@@ -383,12 +383,12 @@ describe("Explore", () => {
     expect(screen.queryByText(/Tap one/)).toBeNull();
   });
 
-  it("credits Reefton's aerial photos while the town is on show, not once a site is", async () => {
+  it("credits Reefton's aerial photos while the town is on show, until a ready site credits its own", async () => {
     serve({
       "GET /api/town/reefton": [TOWN],
       "GET /api/addresses": [ADDRESSES],
-      "POST /api/sites": [SITE_READY],
-      "GET /api/sites/35-victory-street-reefton": [SITE_READY],
+      "POST /api/sites": [SITE_BUILDING],
+      "GET /api/sites/35-victory-street-reefton": [SITE_BUILDING, SITE_READY],
     });
     render(<Explore pollMs={5} />);
     await vi.waitFor(() =>
@@ -403,6 +403,11 @@ describe("Explore", () => {
     fireEvent.click(
       await screen.findByRole("option", { name: /35 Victory Street, Reefton/ }),
     );
+    // While it builds, the map still shows the town's photos.
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Reading the LiDAR",
+    );
+    expect(FakeMap.last?.sources.has("town-credit")).toBe(true);
     expect(await screen.findByText("Your site")).toBeTruthy();
     // A site elsewhere (Petone) isn't Reefton's: the site credits its own.
     expect(FakeMap.last?.sources.has("town-credit")).toBe(false);
