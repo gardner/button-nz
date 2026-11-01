@@ -33,6 +33,7 @@ INSIDE = {
 
 def runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "scene.json").write_text(json.dumps(scene), encoding="utf-8")  # as run.py does
     png = out_dir / "design.png"
     png.write_bytes(b"\x89PNG design")
     (out_dir / "design.py").write_text(script, encoding="utf-8")
@@ -102,6 +103,29 @@ def test_a_designs_map_draws_its_walls_and_distances_in_lon_lat(tmp_path: Path) 
     assert setback["required"] == 2.0
     assert abs(setback["metres"] - 3.0) < 0.05  # 3 m in from the title's west edge
     assert abs(distances["section_boundary_setback"]["metres"] - 6.0) < 0.05
+
+
+def test_the_map_and_products_stand_where_the_designs_scene_put_them(tmp_path: Path) -> None:
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+
+    def drawn() -> list[BaseGeometry]:
+        layers = server.client.get(f"/designs/{job['id']}/map").json()
+        (product, *_) = server.client.get(f"/designs/{job['id']}/products").json()["fits"]
+        (placed,) = product["placed_footprint"]["features"]
+        walls = layers["walls"]["features"][0]["geometry"]
+        line = layers["distances"]["features"][0]["geometry"]
+        return [nztm(shape(g)) for g in (walls, line, placed["geometry"])]
+
+    before = drawn()
+    scene_path = tmp_path / "runs" / job["id"] / "attempt-1" / "scene.json"
+    scene = json.loads(scene_path.read_text())
+    x, y = scene["frame"]["origin_nztm"]
+    scene["frame"]["origin_nztm"] = [x + 100, y]  # the site's manifest no longer says this
+    scene_path.write_text(json.dumps(scene))
+    after = drawn()
+    moved = [a.centroid.x - b.centroid.x for a, b in zip(after, before, strict=True)]
+    assert moved == pytest.approx([100, 100, 100], abs=0.01)  # walls, title line, product
 
 
 def test_a_design_with_no_accepted_attempt_has_no_map(tmp_path: Path) -> None:

@@ -22,7 +22,6 @@ from shapely.ops import nearest_points
 
 from button_nz.agent.proposal import parse_measurements
 from button_nz.api.jobs import SURVEY_USED
-from button_nz.demo_site import DemoSite
 from button_nz.evaluation.checks import MIN_SEPARATION_M
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -30,24 +29,36 @@ from button_nz.perception.confirm import Survey
 from button_nz.sites.layers import collection
 
 
-def walls_and_outline(attempt: Path, site: DemoSite) -> tuple[Polygon, Polygon]:
-    """The attempt's walls and outline, in NZTM: measured in the site's frame,
-    centred on its parcels as every design scene is."""
+def scene_frame(attempt: Path) -> LocalFrame:
+    """The frame the attempt was made and measured in, as its scene recorded it."""
+    x, y = _scene(attempt)["frame"]["origin_nztm"]
+    return LocalFrame(origin=(float(x), float(y)))
+
+
+def _scene(attempt: Path) -> dict[str, Any]:
+    scene: dict[str, Any] = json.loads((attempt / "scene.json").read_text(encoding="utf-8"))
+    return scene
+
+
+def walls_and_outline(attempt: Path) -> tuple[Polygon, Polygon]:
+    """The attempt's walls and outline, in NZTM: measured in its scene's frame."""
     raw = json.loads((attempt / "measurements.json").read_text(encoding="utf-8"))
     measured = parse_measurements(raw)
     if measured.footprint is None:
         raise ValueError(f"{attempt} has no measured footprint")
-    frame = LocalFrame.centred_on(site.extent_nztm)
+    frame = scene_frame(attempt)
     walls = Polygon([frame.to_nztm(p) for p in measured.footprint])
     plan: Ring = measured.outline or measured.footprint
     return walls, Polygon([frame.to_nztm(p) for p in plan])
 
 
-def design_layers(attempt: Path, site: DemoSite, survey: Path | None) -> dict[str, Any]:
-    """The layers of the accepted ``attempt`` of a design on ``site``, whose
-    survey is ``survey``; the design's run folder holds what it was checked against."""
-    walls, outline = walls_and_outline(attempt, site)
-    parcels = [Polygon(p.ring) for p in site.parcels]
+def design_layers(attempt: Path, survey: Path | None) -> dict[str, Any]:
+    """The layers of the accepted ``attempt`` of a design on a site whose survey
+    is ``survey``. The attempt's scene holds the frame and parcels it was made
+    and checked in, and its run folder the buildings: the site may have changed."""
+    walls, outline = walls_and_outline(attempt)
+    frame = scene_frame(attempt)
+    parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in _scene(attempt)["parcels"]]
     title = union_all(parcels)
     internal = union_all([p.boundary for p in parcels]).difference(title.boundary.buffer(1e-6))
     buildings = _confirmed(attempt.parent / SURVEY_USED, survey)
