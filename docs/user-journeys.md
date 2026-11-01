@@ -101,8 +101,9 @@ design it changed stays in the history to go back to.
 
 1. Under an accepted design they press **Which real prefabs fit?**
 2. They see the prefabs whose published outside footprint fits inside the
-   design's walls, tried square to its walls (other angles aren't tried, so
-   a fit can be missed but never invented), largest first:
+   design's walls, tried square to its walls and to its minimum rotated
+   rectangle (other angles aren't tried, so a fit can be missed but never
+   invented), largest first:
    - size, floor area and its basis, and bedrooms and bathrooms;
    - the price, or "not published";
    - what the price leaves out, and what the supplier says about the West
