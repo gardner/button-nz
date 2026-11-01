@@ -62,7 +62,7 @@ Each object, what it holds, and where it comes from.
 | Object | Holds | Source | Kept in |
 |---|---|---|---|
 | **Site** | Name, title, parcels, extent, rasters and vectors with licences and capture dates, open items | LINZ and Buller District Council open data, pinned and verified | `data/demo-site/site.json`, `parcels.geojson` |
-| **Survey** | Features SAM 3.1 found on the aerial photo, each with its concept, mask, area, height and LiDAR status | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
+| **Survey** | Features SAM 3.1 found on the aerial photo, each a polygon (SAM's mask isn't kept) with its concept, score, area, height where the LiDAR has one, status and note | `python -m button_nz.perception.survey` | `DATA/survey.geojson` |
 | **Decision** | Building, keep clear or ignore, per feature; whether every building is listed | The owner, in the app | `DATA/button.db` (decisions, surveys) |
 | **Design** (job) | Brief, whether it may observe, status, timestamps, accepted attempt, parent and instruction (a revision), placed product | The owner's brief or change | `DATA/button.db` (jobs) |
 | **Attempt** | Verdict, feedback, LiDAR views asked for, the model's script and its measured result | The design loop | `DATA/button.db` (attempts), `DATA/runs/<job>/attempt-<n>/` |

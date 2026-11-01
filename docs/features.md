@@ -19,7 +19,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **SAM 3.1 survey** | Segments the aerial photo one concept at a time (building, shed, tree, hedge, garden bed, driveway, path, car). Each mask becomes a polygon on the national grid | `perception/sam.py`, `perception/survey.py` |
-| **Checked against the LiDAR** | Each feature's height is read from the nDSM. "Agrees", "conflict" or "unlabelled raised ground" says whether the photo and the LiDAR agree; a disagreement goes to the owner, never guessed | `perception/survey.py` |
+| **Checked against the LiDAR** | Where the LiDAR can see it, each feature's height is read from the nDSM, and its status says whether the photo and the LiDAR agree: "agrees", "conflict" (the owner decides), "unlabelled" (raised ground no label covers), "transient" (a parked car, not part of the site) or "unchecked" (no rule for the concept, or too small for 1 m cells, so no height). Nothing is guessed | `perception/features.py`, `perception/survey.py` |
 | **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `FeaturesPanel.tsx`, `api/features.py` |
 | **Buildings complete** | The owner says every building is listed. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `FeaturesPanel.tsx`, `perception/confirm.py` |
 | **A fixed survey** | A public server can fix the survey as the owner decided it: shown with who decided, and closed to changes | `serve --survey-decided-by` |
