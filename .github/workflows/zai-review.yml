@@ -179,6 +179,10 @@ jobs:
           file="$RUNNER_TEMP/claude-execution-output.json"
           [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
           "$RUNNER_TEMP/trusted/review-metrics.sh" "$file" | tee -a "$GITHUB_STEP_SUMMARY"
+          # Claude Code prices an unknown model at Anthropic's rates: the cost
+          # above is not what Z.ai charges (its own usage page has that).
+          echo "_Cost is Claude Code's estimate at Anthropic prices, not Z.ai's bill._" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The full transcript is kept for retrospectives (scripts/review-traces.sh),
       # encrypted: anyone can download artifacts from this public repo, and a
