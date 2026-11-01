@@ -300,6 +300,8 @@ def _ring(feature: Feature) -> Ring:
     if geometry.get("type") != "Polygon":
         raise SiteError(f"parcel {_props(feature).get('id')} isn't a simple polygon")
     rings = cast("list[list[list[float]]]", geometry["coordinates"])
+    if len(rings) > 1:  # land inside it isn't on the title: never fill it in
+        raise SiteError(f"parcel {_props(feature).get('id')} has land within it that isn't its own")
     return tuple((float(x), float(y)) for x, y, *_ in rings[0])
 
 

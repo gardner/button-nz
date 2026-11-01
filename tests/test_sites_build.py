@@ -230,3 +230,17 @@ def test_a_courtyard_building_keeps_its_hole(tmp_path: Path) -> None:
     build_site(7, tmp_path, sources(), lambda _: None)
     (outline,) = json.loads((tmp_path / "buildings.geojson").read_text())["features"]
     assert outline["id"] == "9" and len(outline["geometry"]["coordinates"]) == 2
+
+
+def test_a_parcel_with_land_within_it_that_isnt_its_own_is_refused(tmp_path: Path) -> None:
+    hole = [
+        [X0 + 5, Y0 + 5],
+        [X0 + 10, Y0 + 5],
+        [X0 + 10, Y0 + 10],
+        [X0 + 5, Y0 + 10],
+        [X0 + 5, Y0 + 5],
+    ]
+    holed = parcel(1, A, "354613")
+    holed["geometry"]["coordinates"] = [A, hole]
+    with pytest.raises(SiteError, match="isn't its own"):
+        build_site(7, tmp_path, sources([holed]), lambda _: None)
