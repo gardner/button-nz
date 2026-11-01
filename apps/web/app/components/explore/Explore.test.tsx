@@ -238,6 +238,31 @@ describe("Explore", () => {
     );
   });
 
+  it("comes back to the town's own 3D zoom from a close-up while a new site builds", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      [`GET /api/sites/${SITE_READY.id}`]: [SITE_READY],
+      "GET /api/addresses": [ADDRESSES],
+      "POST /api/sites": [{ ...SITE_BUILDING, id: "addr-42" }],
+    });
+    window.history.replaceState(null, "", `/?site=${SITE_READY.id}`);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.landed.at(-1)).toEqual(SITE_READY.bounds),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    const map = FakeMap.last!;
+    await vi.waitFor(() => expect(map.pitch).toBe(60));
+    map.zoom = 19.5; // a close-up of the site
+    fireEvent.change(screen.getByRole("combobox"), {
+      target: { value: "35 Victory" },
+    });
+    fireEvent.click(
+      await screen.findByRole("option", { name: /35 Victory Road, Laingholm/ }),
+    );
+    await vi.waitFor(() => expect(map.zoom).toBe(15.8));
+  });
+
   it("asks again for the town when it fails for a moment, but not when refused", async () => {
     const fetch = vi
       .fn()

@@ -417,6 +417,9 @@ describe("a ready site", () => {
     ])
       expect(map.layers.get(layer)).toMatchObject({ paint: own });
     await vi.waitFor(() => expect(map.pitch).toBe(60));
+    // The orbit reframes when the map changes shape.
+    act(() => map.fire("resize"));
+    expect(map.jumps.at(-1)).toMatchObject({ zoom: 19.5 });
     const start = map.bearing;
     await vi.waitFor(() => expect(map.bearing).not.toBe(start));
     act(() => map.fire("mousedown"));
@@ -556,20 +559,27 @@ describe("a ready site", () => {
   });
 
   it("keeps the picked feature's outline above the buildings and trees standing in 3D", async () => {
-    open();
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
       "GET /api/town/reefton": TOWN,
       [`GET /api/sites/${SITE}`]: SITE_READY,
       [`GET /api/sites/${SITE}/map`]: SITE_MAP,
       [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
     });
     render(<Explore pollMs={5} />);
     await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("site-selected-line")).toBe(true),
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
     );
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
     fireEvent.click(screen.getByRole("button", { name: "3D" }));
     const order = FakeMap.last?.order ?? [];
     expect(order.indexOf("site-canopy-extrusion")).toBeGreaterThan(-1);
+    // The design's distance line stays above its walls in either view.
+    expect(order.indexOf("design-distances-line")).toBeGreaterThan(
+      order.indexOf("design-walls-extrusion"),
+    );
     expect(order.indexOf("site-selected-line")).toBeGreaterThan(
       order.indexOf("site-canopy-extrusion"),
     );

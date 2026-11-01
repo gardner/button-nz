@@ -133,7 +133,7 @@ function TownView({ three, loaded }: { three: boolean; loaded: boolean }) {
       const [w, s, e, n] = REEFTON;
       map.easeTo({
         center: [(w + e) / 2, (s + n) / 2],
-        zoom: Math.max(map.getZoom(), TOWN_ZOOM_3D),
+        zoom: TOWN_ZOOM_3D, // the town's own, not a site's close-up
         pitch: PITCH_3D,
         padding,
         duration,

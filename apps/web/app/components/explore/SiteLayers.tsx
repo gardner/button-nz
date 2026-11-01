@@ -186,7 +186,7 @@ export function DesignLayers({
           data={measured(map.outline)}
           extrusion={EAVES_3D}
         />
-        <Distances map={map} />
+        <Distances key="distances-3d" map={map} />
       </>
     );
   return (
@@ -209,11 +209,13 @@ export function DesignLayers({
         fill={{ "fill-color": SITE_COLOURS.walls, "fill-opacity": 0.85 }}
         line={{ "line-color": "#422006", "line-width": 1.5 }}
       />
-      <Distances map={map} />
+      <Distances key="distances-2d" map={map} />
     </>
   );
 }
 
+/** Keyed with the view, so it is added again after the design's layers
+ * and stays above them. */
 function Distances({ map }: { map: DesignMap }) {
   return (
     <GeoLayer

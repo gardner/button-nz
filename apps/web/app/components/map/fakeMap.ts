@@ -128,6 +128,12 @@ export class FakeMap {
   easeTo(options: { pitch?: number; bearing?: number; zoom?: number }) {
     this.move(options);
   }
+  /** Jumps, at once: what each jump asked for. */
+  jumps: unknown[] = [];
+  jumpTo(options: { zoom?: number }) {
+    this.jumps.push(options);
+    if (options.zoom !== undefined) this.zoom = options.zoom;
+  }
   getPitch() {
     return this.pitch;
   }
@@ -141,7 +147,7 @@ export class FakeMap {
     this.bearing = bearing;
   }
   cameraForBounds() {
-    return { center: [171.862, -42.1159], zoom: 19 };
+    return { center: [171.862, -42.1159], zoom: 19.5 };
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

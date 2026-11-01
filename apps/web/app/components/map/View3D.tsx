@@ -52,16 +52,16 @@ export function Orbit({
       stopped = true;
       cancelAnimationFrame(frame);
     };
-    const padding = framing(right);
     const [w, s, e, n] = bounds;
-    const zoom = map.cameraForBounds(bounds, { padding })?.zoom;
-    map.easeTo({
-      center: [(w + e) / 2, (s + n) / 2],
-      zoom,
-      padding,
-      pitch: PITCH_3D,
-      duration: 2500,
-    });
+    const center: [number, number] = [(w + e) / 2, (s + n) / 2];
+    const view = () => {
+      const padding = framing(right);
+      return { padding, zoom: map.cameraForBounds(bounds, { padding })?.zoom };
+    };
+    map.easeTo({ center, ...view(), pitch: PITCH_3D, duration: 2500 });
+    // Framed again, at once, when the map changes shape; the turn goes on.
+    const reframe = () => map.jumpTo({ center, ...view() });
+    map.on("resize", reframe);
     map.once("moveend", () => {
       if (!stopped) frame = requestAnimationFrame(spin);
     });
@@ -69,6 +69,7 @@ export function Orbit({
     return () => {
       stop();
       for (const type of STOP) map.off(type, stop);
+      map.off("resize", reframe);
     };
     // Fly again only when the bounds really change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
