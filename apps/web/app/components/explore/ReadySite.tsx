@@ -80,7 +80,7 @@ export function ReadySite({
       />
       <DesignDock chain={chain} />
       {accepted && shown && (
-        <Accepted job={shown} chain={chain} onAsked={askedPrefabs} />
+        <Accepted job={shown} chain={chain} onPrefabs={askedPrefabs} />
       )}
     </>
   );
@@ -131,15 +131,19 @@ function designBounds(map: DesignMap): Bounds | null {
 function Accepted({
   job,
   chain,
-  onAsked,
+  onPrefabs,
 }: {
   job: Job;
   chain: ReturnType<typeof useDesignChain>;
-  onAsked: (jobId: string) => void;
+  onPrefabs: (jobId: string | null) => void;
 }) {
   return (
     <>
-      <PrefabSection job={job} chain={chain} onAsked={() => onAsked(job.id)} />
+      <PrefabSection
+        job={job}
+        chain={chain}
+        onShown={(on) => onPrefabs(on ? job.id : null)}
+      />
       <div className="lg:fixed lg:bottom-4 lg:right-4 lg:z-10">
         <HeroMedia
           job={job}
@@ -150,12 +154,13 @@ function Accepted({
   );
 }
 
-/** Tells the page how far the shown design has got, and whether its prefabs
- * were asked for; returns what to call when they are. */
+/** Tells the page how far the shown design has got, and whether its prefab
+ * list is on the page; returns what to call as it comes (a job id) and goes
+ * (null). */
 function useProgress(
   shown: Job | undefined,
   onProgress: (progress: Progress) => void,
-): (jobId: string) => void {
+): (jobId: string | null) => void {
   const design = designState(shown);
   const [askedFor, setAskedFor] = useState<string | null>(null);
   const prefabs = askedFor !== null && askedFor === shown?.id;

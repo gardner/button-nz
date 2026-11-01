@@ -15,11 +15,11 @@ import { PrefabPanel } from "./PrefabPanel";
 export function PrefabSection({
   job,
   chain,
-  onAsked,
+  onShown,
 }: {
   job: Job;
   chain: ReturnType<typeof useDesignChain>;
-  onAsked: () => void;
+  onShown: (shown: boolean) => void;
 }) {
   const [hovered, setHovered] = useState<Product | null>(null);
   return (
@@ -36,7 +36,7 @@ export function PrefabSection({
         key={job.id}
         jobId={job.id}
         busy={chain.busy}
-        onAsked={onAsked}
+        onShown={onShown}
         onHover={setHovered}
         onPlace={(p) => {
           setHovered(null);

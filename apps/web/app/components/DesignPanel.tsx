@@ -88,7 +88,7 @@ function DesignView({
 }
 
 /** Which real product this design places, and the walls it must have. */
-function Placing({ product }: { product: PlacedProduct }) {
+export function Placing({ product }: { product: PlacedProduct }) {
   return (
     <p className="font-medium">
       Placing the {product.name}: walls {product.lengthM} × {product.widthM} m

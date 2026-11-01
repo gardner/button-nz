@@ -24,7 +24,7 @@ function panel(overrides: Partial<Parameters<typeof PrefabPanel>[0]> = {}) {
     busy: false,
     onPlace: vi.fn(),
     onHover: vi.fn(),
-    onAsked: vi.fn(),
+    onShown: vi.fn(),
     ...overrides,
   };
   render(<PrefabPanel {...props} />);
@@ -42,7 +42,7 @@ describe("PrefabPanel", () => {
     expect(await screen.findByText("AirHome Vista")).toBeTruthy();
     expect(screen.getByText(/12.2 × 4 m · 48 m²/)).toBeTruthy();
     expect(screen.getByText("$190,000")).toBeTruthy();
-    expect(props.onAsked).toHaveBeenCalled();
+    expect(props.onShown).toHaveBeenCalledWith(true);
   });
 
   it("says a price isn't published, the area's basis, and what the supplier says of the West Coast", async () => {
@@ -57,6 +57,59 @@ describe("PrefabPanel", () => {
     expect(
       screen.getByText(/West Coast: West Coast is on its region list/),
     ).toBeTruthy();
+  });
+
+  it("says the list is shown only once it is, and not after it goes", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((r) => (answer = r))),
+    );
+    const onShown = vi.fn();
+    const { unmount } = render(
+      <PrefabPanel
+        jobId="abc123"
+        busy={false}
+        onPlace={vi.fn()}
+        onHover={vi.fn()}
+        onShown={onShown}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(onShown).not.toHaveBeenCalledWith(true);
+    answer(new Response(JSON.stringify(PRODUCTS)));
+    expect(await screen.findByText("AirHome Vista")).toBeTruthy();
+    expect(onShown).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(onShown).toHaveBeenLastCalledWith(false);
+  });
+
+  it("says nothing is shown when the request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({ detail: "down" }), { status: 503 }),
+        ),
+      ),
+    );
+    const onShown = vi.fn();
+    render(
+      <PrefabPanel
+        jobId="abc123"
+        busy={false}
+        onPlace={vi.fn()}
+        onHover={vi.fn()}
+        onShown={onShown}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(await screen.findByText(/Couldn't find prefabs/)).toBeTruthy();
+    expect(onShown).not.toHaveBeenCalledWith(true);
   });
 
   it("shows where a product would stand while it is pointed at", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getProducts } from "@/lib/api";
 import type { Product, Products } from "@/lib/products";
@@ -21,24 +21,35 @@ export function PrefabPanel({
   busy,
   onPlace,
   onHover,
-  onAsked,
+  onShown,
 }: {
   jobId: string;
   busy: boolean;
   onPlace: (product: Product) => void;
   onHover: (product: Product | null) => void;
-  onAsked: () => void;
+  /** Whether the list is on the page: true once it is, false when it goes. */
+  onShown: (shown: boolean) => void;
 }) {
   const [found, setFound] = useState<Products | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const shown = useRef(onShown);
+  useEffect(() => {
+    shown.current = onShown; // the newest, for the unmount below
+  });
+  useEffect(() => () => shown.current(false), []);
 
   function ask() {
     setAsking(true);
     setProblem(null);
-    onAsked();
     getProducts(jobId)
-      .then(setFound, (e: Error) => setProblem(e.message))
+      .then(
+        (f) => {
+          setFound(f);
+          shown.current(true);
+        },
+        (e: Error) => setProblem(e.message),
+      )
       .finally(() => setAsking(false));
   }
 

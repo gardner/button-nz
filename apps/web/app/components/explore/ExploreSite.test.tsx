@@ -354,6 +354,32 @@ describe("a ready site", () => {
     expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
   });
 
+  it("names the prefab a design is placing", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        product: {
+          id: "airhome-vista",
+          name: "AirHome Vista",
+          length_m: 12.2,
+          width_m: 4,
+        },
+      },
+    });
+    render(<Explore pollMs={5} />);
+    expect(
+      await screen.findByText("Placing the AirHome Vista: walls 12.2 × 4 m"),
+    ).toBeTruthy();
+  });
+
   it("doesn't open a design linked from another site", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
