@@ -103,6 +103,22 @@ describe("useSite", () => {
     window.history.replaceState(null, "", "/");
   });
 
+  it("asks again for a picked address when its POST fails for a moment", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ detail: "the API is restarting" }, 502))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(respond(SITE_READY, 202));
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458, "an address"));
+    await waitFor(() => expect(result.current.site?.status).toBe("ready"));
+    expect(result.current.problem).toBeNull();
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(3);
+  });
+
   it("stops following when the site is gone for good, and says why", async () => {
     const fetch = vi
       .fn()

@@ -28,9 +28,9 @@ export const ATTRIBUTION =
 export const PANEL = "data-map-panel";
 
 /** Padding that keeps what is framed clear of the panel, measured as it is
- * now: beside it when the panel leaves the map's wider part free, under it
- * (a phone, where it spans the width) otherwise, never leaving the map less
- * than 40% of the height. `right` is kept clear on the right as well. */
+ * now: beside it or under it, wherever there is more room (beside on a
+ * wide or landscape screen, under on a portrait phone), never leaving the
+ * map less than 40% of the height. `right` is kept clear on the right as well. */
 export function framing(right = 40): {
   top: number;
   bottom: number;
@@ -42,7 +42,10 @@ export function framing(right = 40): {
   const box = document.querySelector(`[${PANEL}]`)?.getBoundingClientRect();
   if (!box || box.width === 0)
     return { top: 90, bottom: 40, left: margin, right };
-  if (box.right < width / 2)
+  const height = window.innerHeight;
+  const beside = (width - box.right) * height; // the room right of it
+  const under = (height - box.bottom) * width; // the room below it
+  if (beside > under)
     return {
       top: 90,
       bottom: 40,
@@ -50,7 +53,7 @@ export function framing(right = 40): {
       // The hero stands on the right from 1024 px; below that it's in the panel.
       right: width < 1024 ? margin : right,
     };
-  const top = Math.min(box.bottom + margin, window.innerHeight * 0.6);
+  const top = Math.min(box.bottom + margin, height * 0.6);
   return { top, bottom: 40, left: margin, right: margin };
 }
 
