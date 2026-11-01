@@ -23,8 +23,8 @@ export function TownOverview({ town, name }: { town: Town; name: string }) {
   const room = sections.filter((f) => f.properties.category !== "none").length;
   const missing = town.missing.ids.length;
   return (
-    <section className="rounded-2xl bg-zinc-950/80 p-5 text-white shadow-2xl backdrop-blur">
-      <p className="text-3xl font-semibold leading-tight">
+    <section className="rounded-2xl bg-zinc-950/80 p-4 text-white shadow-2xl backdrop-blur">
+      <p className="text-xl font-semibold leading-snug">
         <span className="text-emerald-400">{COUNT.format(room)}</span>{" "}
         {missing === 0
           ? `of ${name}'s ${COUNT.format(total)} sections`
