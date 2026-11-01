@@ -66,7 +66,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **A sourced catalogue** | 17 New Zealand prefab products of up to 70 m² from 6 suppliers, from their own pages: outside footprint, area and its basis, rooms, price (or "not published"), exclusions, West Coast delivery, sources | `data/catalogue/products.json`, `catalogue/products.py` |
-| **Which prefabs fit** | Products whose published footprint fits inside an accepted design's walls, largest first. Products whose figures aren't labelled are listed as unchecked, never as fitting | `catalogue/fit.py`, `ProductsPanel.tsx` |
+| **Which prefabs fit** | Products whose published footprint fits inside an accepted design's walls, square to one of its walls or to its minimum rotated rectangle (other angles aren't tried, so a fit can be missed, never invented), largest first. Products whose figures aren't labelled are listed as unchecked, never as fitting | `catalogue/fit.py`, `ProductsPanel.tsx` |
 | **Place a prefab** | "Place it on the site" designs again with the product's footprint as the walls. The evaluator checks the walls are that footprint, by area, to 0.10 m, before every other check. A product whose figures only bound a stepped plan (Lockwood Ara) can't be placed | `evaluation/checks.py` (`product_footprint`), `api/app.py` |
 | **Next steps** | What the exemption asks of the owner next: a PIM from Buller District Council, licensed people, a ground test, and records to the council within 20 working days | `ProductsPanel.tsx`, [suppliers.md](suppliers.md) |
 
