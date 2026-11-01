@@ -49,7 +49,8 @@ with the evidence.
 2. They press **Design**. The page shows the design queued, then running.
 3. Muse Spark looks at the site through the LiDAR views it asks for, writes a
    Blender script, and sandboxed Blender builds and measures it. Each attempt
-   appears as it finishes, with its render and each check's result.
+   appears as it finishes, with each check's result and, if it produced a
+   model, its render.
 4. If a check fails ("0.50 m from the boundary; at least 2 m required"),
    Muse sees that measurement and its own render, and tries again, up to
    three attempts.
@@ -128,7 +129,8 @@ one of their own.
 
 1. The judge opens a link to a finished revision (`button.nz/?design=<id>`).
    It is already there, after the designs it revises: every attempt, every
-   check, the 3D model, the AI visual, before and after. (A link opens a
+   check, the 3D model, before and after, and the AI visual where its check
+   passed. (A link opens a
    design and what came before it, not later revisions, so the team links
    the latest.)
 2. They read the site panel: real parcels, real LiDAR, sources and,
