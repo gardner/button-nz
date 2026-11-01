@@ -82,6 +82,19 @@ describe("useSite", () => {
     expect(result.current.problem).toContain("LINZ"); // and didn't clear it
   });
 
+  it("forgets the last pick's failure as soon as a new pick starts", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(respond({ detail: "LINZ didn't answer" }, 502))
+      .mockReturnValueOnce(new Promise<Response>(() => {})); // the next, still on its way
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useSite(5));
+    act(() => result.current.fromAddress(1907458));
+    await waitFor(() => expect(result.current.problem).toContain("LINZ"));
+    act(() => result.current.fromAddress(42));
+    expect(result.current.problem).toBeNull();
+  });
+
   it("keeps a newer pick when an older site's poll answers after it", async () => {
     let answerPick: (r: Response) => void = () => {};
     const fetch = vi.fn((url: string, init?: RequestInit) => {

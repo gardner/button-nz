@@ -45,6 +45,14 @@ export function SearchBox({
     return () => clearTimeout(timer);
   }, [query, searching]);
 
+  // The list lies in the panel's flow, so the panel may need to scroll to it.
+  useEffect(() => {
+    if (active < 0) return;
+    document
+      .getElementById(`${listId}-${active}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active, listId]);
+
   function pick(address: Address) {
     asked.current++; // whatever is on its way is no longer wanted
     setPicked(address.address);
@@ -69,7 +77,7 @@ export function SearchBox({
 
   const open = searching && found !== null;
   return (
-    <div className="relative">
+    <div>
       <input
         role="combobox"
         aria-label="Find an address"
@@ -102,7 +110,7 @@ export function SearchBox({
           id={listId}
           role="listbox"
           aria-label="Addresses"
-          className="absolute z-10 mt-2 w-full overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-2xl"
+          className="mt-2 w-full overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-2xl"
         >
           {found.length === 0 ? (
             <li className="px-5 py-3 text-zinc-500">

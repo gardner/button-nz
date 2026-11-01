@@ -26,6 +26,12 @@ export function useSite(pollMs: number) {
   // checks it, so a late answer about an older site never replaces a newer one.
   const picked = useRef(0);
 
+  /** A new pick starts with no reason left over from the last one. */
+  function forget() {
+    setPickProblem(null);
+    setPollProblem(null);
+  }
+
   function pick(request: () => Promise<SiteState>) {
     const ask = ++picked.current;
     request().then(
@@ -80,7 +86,13 @@ export function useSite(pollMs: number) {
   return {
     site,
     problem: pickProblem ?? pollProblem,
-    fromAddress: (addressId: number) => pick(() => createSite(addressId)),
-    fromParcel: (parcelId: number) => pick(() => createSiteForParcel(parcelId)),
+    fromAddress: (addressId: number) => {
+      forget();
+      pick(() => createSite(addressId));
+    },
+    fromParcel: (parcelId: number) => {
+      forget();
+      pick(() => createSiteForParcel(parcelId));
+    },
   };
 }
