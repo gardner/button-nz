@@ -73,7 +73,7 @@ export function parseSiteMap(raw: unknown): SiteMap {
       features: features.features.map((f) => ({
         ...f,
         properties: {
-          id: String(f.id),
+          id: text(f.properties, "id"), // #88 writes it in the properties
           concept: text(f.properties, "concept"),
           status: oneOf(f.properties, "status", STATUSES),
           decision: optional(f.properties, "decision", (p, k) =>
