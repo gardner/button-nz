@@ -10,9 +10,9 @@ https://button.nz. How they fit together on the page is in
 
 | Feature | What it does | Where |
 |---|---|---|
-| **A real, verified site** | 35 Victory Street, Reefton: four sections on one title, with the parcels, the 1 m LiDAR DEM and DSM, and the 7.5 cm aerial photo pinned to exact tiles. Each dataset records its source, licence, attribution and capture dates | `data/demo-site/`, `button_nz.demo_site` |
+| **A real, verified site** | 35 Victory Street, Reefton: four sections on one title, with the parcels, the 1 m LiDAR DEM and DSM, and the 7.5 cm aerial photo pinned to exact tiles. Each dataset records its source, licence and attribution, and its capture dates where they are known | `data/demo-site/`, `button_nz.demo_site` |
 | **Site plan** | The parcels drawn north up over the aerial photo, with the surveyed features and a key | `SitePanel.tsx`, `api/aerial.py` |
-| **Sources and open items** | Every dataset's licence and dates, and what is still to confirm, on the page | `SitePanel.tsx` |
+| **Sources and open items** | Every dataset's licence, its capture dates where recorded (the parcels have none), and what is still to confirm, on the page | `SitePanel.tsx` |
 
 ## The survey
 
@@ -21,7 +21,7 @@ https://button.nz. How they fit together on the page is in
 | **SAM 3.1 survey** | Segments the aerial photo one concept at a time (building, shed, tree, hedge, garden bed, driveway, path, car). Each mask becomes a polygon on the national grid | `perception/sam.py`, `perception/survey.py` |
 | **Checked against the LiDAR** | Each feature's height is read from the nDSM. "Agrees", "conflict" or "unlabelled raised ground" says whether the photo and the LiDAR agree; a disagreement goes to the owner, never guessed | `perception/survey.py` |
 | **The owner decides** | Each feature is an existing building, an area to keep clear, or nothing to the design. Nothing SAM finds constrains a design until a person decides | `FeaturesPanel.tsx`, `api/features.py` |
-| **Buildings complete** | The owner says every building is listed. Until then, separation from existing buildings is "unknown", never a pass | `FeaturesPanel.tsx`, `perception/confirm.py` |
+| **Buildings complete** | The owner says every building is listed. Until then, separation never passes: a design within 2 m of a confirmed building still fails, and otherwise it is "unknown" | `FeaturesPanel.tsx`, `perception/confirm.py` |
 | **A fixed survey** | A public server can fix the survey as the owner decided it: shown with who decided, and closed to changes | `serve --survey-decided-by` |
 
 ## Designing

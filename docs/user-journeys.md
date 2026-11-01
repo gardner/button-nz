@@ -125,9 +125,11 @@ suppliers mostly don't publish theirs.
 **Goal:** within a minute, a real result and a reason to trust it. Within ten,
 one of their own.
 
-1. The judge opens a link to a finished design (`button.nz/?design=<id>`).
-   The design and its revisions are already there: every attempt, every
-   check, the 3D model, the AI visual, before and after.
+1. The judge opens a link to a finished revision (`button.nz/?design=<id>`).
+   It is already there, after the designs it revises: every attempt, every
+   check, the 3D model, the AI visual, before and after. (A link opens a
+   design and what came before it, not later revisions, so the team links
+   the latest.)
 2. They read the site panel: real parcels, real LiDAR, sources and capture
    dates. They see the survey as the owner decided it, and who decided it.
 3. They write their own brief and press **Design**, and watch it run live:
