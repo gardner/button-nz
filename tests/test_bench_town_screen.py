@@ -63,4 +63,8 @@ def test_the_outlines_capture_dates_come_from_the_outlines() -> None:
     by_title = {s["title"]: s for s in listed}
     dates = by_title["LINZ NZ Building Outlines"]["dates"]
     assert dates == "Captured from aerial photos of 2015-12-26 to 2016-06-01"
-    assert "no licence stated" in by_title["Buller District Council zones (Residential)"]["licence"]
+    for layer in (
+        "Buller District Council zones (Residential)",
+        "Buller District Council property parcels",
+    ):
+        assert by_title[layer]["licence"].startswith("not stated")  # BDC states none

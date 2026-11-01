@@ -46,6 +46,13 @@ class Building:
     ring: Ring
 
 
+# Buller District Council's ArcGIS items state no licence, so none is claimed:
+# a use beyond reading them needs BDC's word, or the same data from a licensed
+# source (the demo parcels match LINZ's CC BY 4.0 NZ Primary Parcels: data/README.md).
+BDC_LICENCE = "not stated (the layer's ArcGIS item states none)"
+BDC_ATTRIBUTION = "Buller District Council"
+
+
 @dataclass(frozen=True)
 class PropertyLayers:
     addresses: FeatureLayer
@@ -58,8 +65,8 @@ class PropertyLayers:
             addresses=FeatureLayer(f"{endpoints.linz_addresses_url}/0", "CC-BY-4.0", LINZ, client),
             parcels=FeatureLayer(
                 f"{endpoints.buller_property_url}/1",
-                "CC-BY-4.0",
-                "Buller District Council; LINZ, Crown copyright reserved",
+                BDC_LICENCE,
+                BDC_ATTRIBUTION,
                 client,
             ),
             buildings=FeatureLayer(f"{endpoints.linz_buildings_url}/0", "CC-BY-4.0", LINZ, client),

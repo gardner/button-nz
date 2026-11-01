@@ -39,14 +39,12 @@ states it.
 
 ## Parcel licence
 
-The parcels come from Buller District Council's property layer, which states
-no licence on its ArcGIS item. They are LINZ's NZ Primary Parcels: the four
-demo parcels have the same ids and match LINZ's
-[`LINZ_NZ_Primary_Parcels`](https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer)
-to within 7 mm (checked 1 November 2026). LINZ publishes them under CC BY 4.0.
-BDC's zone layer, which the town screen uses to choose residential sections,
-states no licence either; the screen publishes counts and parcel outlines,
-not the zones.
+Buller District Council's property and zone layers state no licence on their
+ArcGIS items, so none is claimed for them (`geo.property.BDC_LICENCE`). The
+four demo parcels have the same ids as LINZ's
+[NZ Primary Parcels](https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_NZ_Primary_Parcels/FeatureServer),
+published under CC BY 4.0, and match them to within 7 mm (checked 1 November
+2026). That is a fact about those four, not BDC's licence.
 
 ## Still open
 
