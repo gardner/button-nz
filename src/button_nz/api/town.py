@@ -9,7 +9,10 @@ read once and kept; a section LINZ has no parcel for is listed in ``missing``,
 never drawn from another source. Each section's ``category`` is the screen's with 0.6 m
 eaves: ``clear`` if a real prefab fits clear of everything over 2 m on the
 LiDAR, ``outlines`` if one fits only judged against LINZ's building outlines,
-else ``none``.
+else ``none``. Under ``buildings``, each LINZ building outline touching a
+screened section has its ``height_m`` above the ground: the 90th percentile of
+the nDSM from the LiDAR tiles the screen read (null where no cell's centre
+falls inside it). The town map has no terrain, so heights count from the ground.
 
 Tiles are fetched with the server's ``LINZ_BASEMAP_API_KEY``, which never
 leaves it; only real WebMercatorQuad tiles are asked for.
@@ -17,6 +20,7 @@ leaves it; only real WebMercatorQuad tiles are asked for.
 
 import hashlib
 import json
+import math
 import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -24,10 +28,15 @@ from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, HTTPException, Response
+from shapely import STRtree, union_all
 from shapely.geometry import mapping, shape
+from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.arcgis import ArcGISError, FeatureLayer
+from button_nz.geo.geometry import BBox
 from button_nz.geo.lonlat import lonlat
+from button_nz.geo.terrain import TerrainGrid
+from button_nz.sites.heights import height_above
 
 RESULTS = Path(__file__).resolve().parents[3] / "docs" / "results" / "town-screen" / "results.jsonl"
 TOWNS = {"reefton": RESULTS}
@@ -40,6 +49,9 @@ MAX_ZOOM = 22
 MISSING = "not in LINZ's NZ Primary Parcels"
 ONE_DAY_S = 86400
 
+type Outlines = Callable[[BBox], dict[str, Any]]  # LINZ building outlines (NZTM GeoJSON)
+type TownLidar = Callable[[BBox], TerrainGrid]  # the DEM and nDSM over a whole-metre bbox
+
 
 def category(row: Mapping[str, Any]) -> str:
     if row.get("clear_eaves"):
@@ -48,8 +60,16 @@ def category(row: Mapping[str, Any]) -> str:
 
 
 class TownMaps:
-    def __init__(self, towns: Mapping[str, Path], parcels: FeatureLayer, cache: Path) -> None:
+    def __init__(
+        self,
+        towns: Mapping[str, Path],
+        parcels: FeatureLayer,
+        cache: Path,
+        outlines: Outlines,
+        lidar: TownLidar,
+    ) -> None:
         self.towns, self.parcels, self.cache = towns, parcels, cache
+        self.outlines, self.lidar = outlines, lidar
         self._lock = threading.Lock()
 
     def layer(self, slug: str) -> dict[str, Any]:
@@ -90,7 +110,59 @@ class TownMaps:
             if int(r["parcel_id"]) in outlines
         ]
         missing = {"ids": [i for i in ids if i not in outlines], "reason": MISSING}
-        return {"type": "FeatureCollection", "features": features, "missing": missing}
+        buildings = self._buildings(list(outlines.values()))
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "missing": missing,
+            "buildings": buildings,
+        }
+
+    def _buildings(self, sections: list[BaseGeometry]) -> dict[str, Any]:
+        """The LINZ outlines touching ``sections``, each with its height."""
+        tree = STRtree(sections)
+        found = self.outlines(_bounds(sections))["features"]
+        on = [
+            (f, g)
+            for f in found
+            for g in (shape(f["geometry"]),)
+            if len(tree.query(g, predicate="intersects"))
+        ]
+        if not on:
+            return {"type": "FeatureCollection", "features": []}
+        grid = self.lidar(_whole_metres(_bounds([g for _, g in on])))
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "id": f.get("id"),
+                    "properties": {"height_m": _rounded(height_above(grid, g))},
+                    "geometry": mapping(lonlat(g)),
+                }
+                for f, g in on
+            ],
+        }
+
+
+def _bounds(geometries: list[BaseGeometry]) -> BBox:
+    x0, y0, x1, y1 = union_all(geometries).bounds
+    return (x0, y0, x1, y1)
+
+
+def _whole_metres(bbox: BBox) -> BBox:
+    """``bbox`` widened to whole metres: the LiDAR's grid."""
+    x0, y0, x1, y1 = bbox
+    return (
+        float(math.floor(x0)),
+        float(math.floor(y0)),
+        float(math.ceil(x1)),
+        float(math.ceil(y1)),
+    )
+
+
+def _rounded(height: float | None) -> float | None:
+    return None if height is None else round(height, 2)
 
 
 def town_router(maps: TownMaps) -> APIRouter:

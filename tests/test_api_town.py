@@ -1,16 +1,20 @@
 """Tests for the town map and the aerial tiles over HTTP (button_nz.api.town)."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
+import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from button_nz.api.town import TownMaps, tiles_router, town_router
 from button_nz.geo.arcgis import FeatureLayer
+from button_nz.geo.geometry import BBox
+from button_nz.geo.terrain import TerrainGrid
 
 X, Y = 1505930.0, 5336780.0
 
@@ -54,8 +58,52 @@ def parcels_layer(seen: list[str], held: tuple[int, ...] = (1, 2, 3)) -> Feature
     )
 
 
-def town_app(tmp_path: Path, seen: list[str], held: tuple[int, ...] = (1, 2, 3)) -> TestClient:
-    maps = TownMaps({"reefton": results(tmp_path)}, parcels_layer(seen, held), tmp_path / "town")
+def outline(id_: str, west: float, south: float) -> dict[str, object]:
+    ring = [[west, south], [west + 6, south], [west + 6, south + 8], [west, south + 8]]
+    return {
+        "type": "Feature",
+        "id": id_,
+        "properties": {},
+        "geometry": {"type": "Polygon", "coordinates": [[*ring, ring[0]]]},
+    }
+
+
+def outlines(asked: list[BBox]) -> Callable[[BBox], dict[str, object]]:
+    """A house on section 1, and a shed 500 m away on no screened section."""
+
+    def found(bbox: BBox) -> dict[str, object]:
+        asked.append(bbox)
+        house, shed = outline("11", X + 25, Y + 5), outline("12", X + 500, Y)
+        return {"type": "FeatureCollection", "features": [house, shed]}
+
+    return found
+
+
+def lidar(asked: list[BBox]) -> Callable[[BBox], TerrainGrid]:
+    """A flat town at 200 m with everything standing 4.5 m tall."""
+
+    def grid(bbox: BBox) -> TerrainGrid:
+        asked.append(bbox)
+        x0, y0, x1, y1 = bbox
+        shape = (round(y1 - y0), round(x1 - x0))
+        return TerrainGrid(bbox, 1.0, np.full(shape, 200.0), np.full(shape, 4.5), ("fake",))
+
+    return grid
+
+
+def town_app(
+    tmp_path: Path,
+    seen: list[str],
+    held: tuple[int, ...] = (1, 2, 3),
+    asked: list[BBox] | None = None,
+) -> TestClient:
+    maps = TownMaps(
+        {"reefton": results(tmp_path)},
+        parcels_layer(seen, held),
+        tmp_path / "town",
+        outlines([] if asked is None else asked),
+        lidar([] if asked is None else asked),
+    )
     app = FastAPI()
     app.include_router(town_router(maps))
     return TestClient(app)
@@ -82,6 +130,20 @@ def test_the_town_is_read_once_and_kept(tmp_path: Path) -> None:
     client.get("/town/reefton")
     assert len(seen) == 1
     assert len(list((tmp_path / "town").glob("reefton-*.geojson"))) == 1
+
+
+def test_the_buildings_on_the_towns_sections_carry_their_heights(tmp_path: Path) -> None:
+    asked: list[BBox] = []
+    town = town_app(tmp_path, [], asked=asked).get("/town/reefton").json()
+    (house,) = town["buildings"]["features"]  # the shed is on no screened section
+    assert house["id"] == "11" and house["properties"] == {"height_m": 4.5}
+    lon, lat = house["geometry"]["coordinates"][0][0]
+    assert 171 < lon < 172 and -43 < lat < -42
+    sections, grid = asked
+    assert sections == (X + 20, Y, X + 80, Y + 30)  # the outlines over the sections
+    x0, y0, x1, y1 = grid  # the LiDAR over the house, in whole metres
+    assert x0 <= X + 25 and y0 <= Y + 5 and x1 >= X + 31 and y1 >= Y + 13
+    assert x1 - x0 < 10 and float(x0).is_integer()
 
 
 def test_a_section_linz_has_no_parcel_for_is_named_not_drawn(tmp_path: Path) -> None:

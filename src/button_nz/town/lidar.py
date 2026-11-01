@@ -8,7 +8,7 @@ DEM and DSM tiles are joined into one local raster each (``mosaic``), which
 """
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ from shapely import Polygon, box, union_all
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.geo.geometry import BBox
-from button_nz.geo.terrain import TerrainGrid
+from button_nz.geo.terrain import TerrainGrid, read_terrain
 from button_nz.geo.tiles import tiles_covering
 
 TALL_M = 2.0
@@ -61,6 +61,19 @@ def mosaic(urls: Sequence[str], bbox: BBox, path: Path) -> Path:
         for source in sources:
             source.close()
     return path
+
+
+def west_coast_lidar(cache: Path) -> Callable[[BBox], TerrainGrid]:
+    """The West Coast DEM and nDSM over a whole-metre bbox, the screen's own
+    tiles joined into ``cache`` (one at a time: each read replaces the last)."""
+
+    def read(bbox: BBox) -> TerrainGrid:
+        cache.mkdir(parents=True, exist_ok=True)
+        dem = mosaic(tile_urls(bbox, "dem_1m"), bbox, cache / "dem.tif")
+        dsm = mosaic(tile_urls(bbox, "dsm_1m"), bbox, cache / "dsm.tif")
+        return read_terrain(str(dem), str(dsm), bbox, margin_m=0.0)
+
+    return read
 
 
 def tall_cells(grid: TerrainGrid, bounds: BBox, threshold: float = TALL_M) -> BaseGeometry:
