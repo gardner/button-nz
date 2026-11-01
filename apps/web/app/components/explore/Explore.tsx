@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { passing } from "@/lib/fields";
 import { type SiteState, type Town, getTown } from "@/lib/sites";
@@ -8,6 +8,7 @@ import { type SiteState, type Town, getTown } from "@/lib/sites";
 import { BaseMap, REEFTON } from "../map/BaseMap";
 import { FitTo } from "../map/FitTo";
 import { GeoLayer, type Paint } from "../map/GeoLayer";
+import { Tilt, ViewToggle } from "../map/View3D";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -37,24 +38,45 @@ const TOWN_LINE: Paint<"line"> = {
   "line-width": 0.6,
 };
 
+/** How close the town comes in 3D, for its buildings to show. */
+const TOWN_ZOOM_3D = 15.8;
+
+/** The town's buildings stood up in 3D, as tall as the LiDAR says, light so
+ * they stand out from the sections' colours, warmer the taller. */
+const TOWN_BUILDINGS_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": [
+    "interpolate",
+    ["linear"],
+    ["get", "heightM"],
+    2,
+    "#fafaf9",
+    8,
+    "#fef3c7",
+    16,
+    "#fdba74",
+  ],
+  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-base": 0,
+  "fill-extrusion-opacity": 0.9,
+};
+
 /** Map-first: Reefton's sections coloured by the town screen, any address
  * found and its site built live, then surveyed, designed and checked on the
  * map, with the journey's progress always on show. */
 export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
   const { site, problem, opening, fromAddress } = useSite(pollMs);
   const town = useTown("reefton", pollMs);
-  const [progress, setProgress] = useState<Progress>({});
-  const step = stepOf({ site: site?.status, ...progress });
+  const { progress, three, setThree, onProgress } = useJourney();
+  // An accepted design in 3D is flown round (ReadySite's Orbit): no tilt here.
+  const orbiting = three && progress.design === "accepted";
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-zinc-950 text-white">
       <BaseMap bounds={REEFTON}>
         {town.data && (
-          <GeoLayer
-            id="town"
-            data={town.data.sections}
-            fill={site ? TOWN_FILL_BEHIND : TOWN_FILL}
-            line={TOWN_LINE}
-          />
+          <TownLayers town={town.data} behind={site !== null} three={three} />
+        )}
+        {!orbiting && (
+          <Tilt three={three} zoom={site ? undefined : TOWN_ZOOM_3D} />
         )}
         {/* The town is framed again once its headline fills the panel. */}
         <FitTo bounds={site?.bounds ?? (town.data ? REEFTON : null)} />
@@ -62,26 +84,92 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-[560px] max-w-full bg-gradient-to-r from-zinc-950/85 via-zinc-950/50 to-transparent"
         />
-        <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-4">
-          <p className="hidden rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur md:block">
-            Button <span className="text-emerald-400">NZ</span>
-          </p>
-          <div className="pointer-events-auto">
-            <Stepper current={step} />
-          </div>
-          <span className="hidden w-32 md:block" aria-hidden />
-        </header>
+        <Header
+          step={stepOf({ site: site?.status, ...progress })}
+          three={three}
+          onThree={setThree}
+        />
         <SidePanel
           site={site}
           problem={problem}
           opening={opening}
           town={town}
           pollMs={pollMs}
+          three={three}
           onAddress={fromAddress}
-          onProgress={setProgress}
+          onProgress={onProgress}
         />
       </BaseMap>
     </main>
+  );
+}
+
+/** How far the journey has got, for the stepper, and whether the map is in
+ * 3D: it goes 3D when a design is accepted, to see it stand there. */
+function useJourney() {
+  const [progress, setProgress] = useState<Progress>({});
+  const [three, setThree] = useState(false);
+  const wasAccepted = useRef(false);
+  const onProgress = useCallback((now: Progress) => {
+    setProgress(now);
+    const accepted = now.design === "accepted";
+    if (accepted && !wasAccepted.current) setThree(true);
+    wasAccepted.current = accepted;
+  }, []);
+  return { progress, three, setThree, onProgress };
+}
+
+/** The town's sections, stepped back once a site is chosen, and in 3D its
+ * buildings standing (none round a site, whose LiDAR surface shows them). */
+function TownLayers({
+  town,
+  behind,
+  three,
+}: {
+  town: Town;
+  behind: boolean;
+  three: boolean;
+}) {
+  return (
+    <>
+      <GeoLayer
+        id="town"
+        data={town.sections}
+        fill={behind ? TOWN_FILL_BEHIND : TOWN_FILL}
+        line={TOWN_LINE}
+      />
+      {three && !behind && (
+        <GeoLayer
+          id="town-buildings"
+          data={town.buildings}
+          extrusion={TOWN_BUILDINGS_3D}
+        />
+      )}
+    </>
+  );
+}
+
+function Header({
+  step,
+  three,
+  onThree,
+}: {
+  step: ReturnType<typeof stepOf>;
+  three: boolean;
+  onThree: (three: boolean) => void;
+}) {
+  return (
+    <header className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between gap-4 p-4">
+      <p className="hidden rounded-full bg-zinc-950/70 px-4 py-2 text-lg font-semibold tracking-tight shadow-lg backdrop-blur md:block">
+        Button <span className="text-emerald-400">NZ</span>
+      </p>
+      <div className="pointer-events-auto">
+        <Stepper current={step} />
+      </div>
+      <div className="pointer-events-auto">
+        <ViewToggle three={three} onChange={onThree} />
+      </div>
+    </header>
   );
 }
 
@@ -93,6 +181,7 @@ function SidePanel({
   opening,
   town,
   pollMs,
+  three,
   onAddress,
   onProgress,
 }: {
@@ -101,6 +190,7 @@ function SidePanel({
   opening: string | null;
   town: ReturnType<typeof useTown>;
   pollMs: number;
+  three: boolean;
   onAddress: (addressId: number, address: string) => void;
   onProgress: (progress: Progress) => void;
 }) {
@@ -134,6 +224,7 @@ function SidePanel({
           site={site}
           held={opening !== null}
           pollMs={pollMs}
+          three={three}
           onProgress={onProgress}
         />
       )}
@@ -153,11 +244,13 @@ function SiteSection({
   site,
   held,
   pollMs,
+  three,
   onProgress,
 }: {
   site: SiteState;
   held: boolean;
   pollMs: number;
+  three: boolean;
   onProgress: (progress: Progress) => void;
 }) {
   if (site.status !== "ready")
@@ -175,6 +268,7 @@ function SiteSection({
         key={site.id}
         site={site}
         pollMs={pollMs}
+        three={three}
         onProgress={onProgress}
       />
     </fieldset>

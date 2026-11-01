@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 
 import type { Job } from "@/lib/api";
 import { type Bounds, boundsOf } from "@/lib/geo";
-import { type DesignMap, EMPTY_SITE_MAP, type SiteMap } from "@/lib/siteMap";
+import {
+  type DesignMap,
+  EMPTY_SITE_MAP,
+  type SiteMap,
+  terrainTiles,
+} from "@/lib/siteMap";
 import type { SiteState } from "@/lib/sites";
 
 import { useDesignChain } from "../useDesignChain";
 import { useSurvey } from "../useSurvey";
 import { FitTo } from "../map/FitTo";
+import { Orbit, Terrain } from "../map/View3D";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
@@ -28,10 +34,12 @@ export type Progress = Omit<JourneyState, "site">;
 export function ReadySite({
   site,
   pollMs,
+  three,
   onProgress,
 }: {
   site: SiteState;
   pollMs: number;
+  three: boolean; // the map tilted: the LiDAR surface, the design standing
   onProgress: (progress: Progress) => void;
 }) {
   const [version, setVersion] = useState(0);
@@ -55,6 +63,8 @@ export function ReadySite({
   return (
     <>
       <SiteOverlays
+        siteId={site.id}
+        three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
         selected={selected}
@@ -85,31 +95,44 @@ export function ReadySite({
 /** What a ready site draws on the map: its rules and survey, and the
  * accepted design with its distances. */
 function SiteOverlays({
+  siteId,
+  three,
   siteMap,
   designMap,
   selected,
   onFeature,
 }: {
+  siteId: string;
+  three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
   selected: string | null;
   onFeature: (id: string) => void;
 }) {
+  const framed = designMap && designBounds(designMap);
   return (
     <>
+      {/* The bare earth, with the site's buildings and trees standing on it
+          as tall as the LiDAR says (SiteLayers) and the design among them. */}
+      {three && <Terrain tiles={terrainTiles(siteId)} />}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}
       <SiteLayers
         map={siteMap ?? EMPTY_SITE_MAP}
         selected={selected}
+        three={three}
         onFeature={(f) => onFeature(f.id)}
       />
       {designMap && (
         <>
-          <DesignLayers map={designMap} />
+          <DesignLayers map={designMap} three={three} />
           <DistanceLabels data={designMap.distances} />
-          <FitTo bounds={designBounds(designMap)} right={HERO_WIDTH + 40} />
+          {three && framed ? (
+            <Orbit bounds={framed} right={HERO_WIDTH + 40} />
+          ) : (
+            <FitTo bounds={framed} right={HERO_WIDTH + 40} />
+          )}
         </>
       )}
     </>

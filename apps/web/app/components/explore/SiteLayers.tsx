@@ -31,16 +31,48 @@ const DECIDED: Paint<"fill"> = {
   "fill-opacity": ["match", ["get", "decision"], "ignore", 0.15, 0.5],
 };
 
+/** In 3D the site's buildings and trees stand as tall as the LiDAR says:
+ * buildings in stone, trees in green, a little see-through so the rules on
+ * the ground show between them. */
+const BUILDINGS_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": "#d6d3d1",
+  "fill-extrusion-base": 0,
+  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-opacity": 0.85,
+};
+const CANOPY_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": "#4d7c0f",
+  "fill-extrusion-base": 0,
+  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-opacity": 0.75,
+};
+
+/** The site's buildings and trees standing (3D only). */
+function Standing({ map }: { map: SiteMap }) {
+  return (
+    <>
+      <GeoLayer
+        id="site-standing-buildings"
+        data={map.buildings}
+        extrusion={BUILDINGS_3D}
+      />
+      <GeoLayer id="site-canopy" data={map.canopy} extrusion={CANOPY_3D} />
+    </>
+  );
+}
+
 /** The site's parcels, the setback band, the halos and keep-clear areas,
  * the room left for a dwelling, and the surveyed features, which a click
  * picks out to decide. */
 export function SiteLayers({
   map,
   selected,
+  three = false,
   onFeature,
 }: {
   map: SiteMap;
   selected: string | null;
+  three?: boolean;
   onFeature: (feature: SurveyedFeature) => void;
 }) {
   const picked = {
@@ -91,6 +123,7 @@ export function SiteLayers({
         }}
         onClick={onFeature}
       />
+      {three && <Standing map={map} />}
       <GeoLayer
         id="site-selected"
         data={picked}
@@ -100,11 +133,52 @@ export function SiteLayers({
   );
 }
 
-/** An accepted design on the site: its outline (eaves too) and its walls. */
-export function DesignLayers({ map }: { map: DesignMap }) {
+/** The design stood up in place: its walls from floor to roof, in its
+ * colour, and its eaves as a thin slab at the roof. */
+const WALLS_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": SITE_COLOURS.walls,
+  "fill-extrusion-base": ["get", "baseM"],
+  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-opacity": 0.95,
+};
+const EAVES_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": "#fafaf9",
+  "fill-extrusion-base": ["-", ["get", "heightM"], 0.2],
+  "fill-extrusion-height": ["get", "heightM"],
+  "fill-extrusion-opacity": 0.7,
+};
+
+/** An accepted design on the site: its outline (eaves too) and its walls,
+ * flat, or in 3D standing in place. */
+export function DesignLayers({
+  map,
+  three,
+}: {
+  map: DesignMap;
+  three: boolean;
+}) {
+  if (three)
+    return (
+      <>
+        <GeoLayer
+          key="walls-3d"
+          id="design-walls"
+          data={map.walls}
+          extrusion={WALLS_3D}
+        />
+        <GeoLayer
+          key="eaves-3d"
+          id="design-outline"
+          data={map.outline}
+          extrusion={EAVES_3D}
+        />
+        <Distances map={map} />
+      </>
+    );
   return (
     <>
       <GeoLayer
+        key="outline-2d"
         id="design-outline"
         data={map.outline}
         fill={{ "fill-color": "#ffffff", "fill-opacity": 0.3 }}
@@ -115,20 +189,27 @@ export function DesignLayers({ map }: { map: DesignMap }) {
         }}
       />
       <GeoLayer
+        key="walls-2d"
         id="design-walls"
         data={map.walls}
         fill={{ "fill-color": SITE_COLOURS.walls, "fill-opacity": 0.85 }}
         line={{ "line-color": "#422006", "line-width": 1.5 }}
       />
-      <GeoLayer
-        id="design-distances"
-        data={map.distances}
-        line={{
-          "line-color": "#fde047",
-          "line-width": 3,
-          "line-dasharray": [1, 1],
-        }}
-      />
+      <Distances map={map} />
     </>
+  );
+}
+
+function Distances({ map }: { map: DesignMap }) {
+  return (
+    <GeoLayer
+      id="design-distances"
+      data={map.distances}
+      line={{
+        "line-color": "#fde047",
+        "line-width": 3,
+        "line-dasharray": [1, 1],
+      }}
+    />
   );
 }

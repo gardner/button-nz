@@ -142,8 +142,9 @@ describe("a ready site", () => {
       "✓ 2 m from the boundary",
       "? 2 m from buildings",
     ]);
+    // Accepted, the map goes 3D: the walls stand in place.
     await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("design-walls-fill")).toBe(true),
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
     );
     await vi.waitFor(() =>
       expect(
@@ -387,6 +388,56 @@ describe("a ready site", () => {
     ).toBeTruthy();
   });
 
+  it("goes 3D on acceptance: the LiDAR surface, the design standing in place, and an orbit until touched", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("design-walls-extrusion")).toBe(true),
+    );
+    const map = FakeMap.last!;
+    expect(map.sources.get("terrain")).toMatchObject({
+      type: "raster-dem",
+      encoding: "mapbox",
+      tiles: [`/api/sites/${SITE}/terrain/{z}/{x}/{y}.png`],
+    });
+    expect(map.terrain).toMatchObject({ source: "terrain" });
+    expect(map.layers.get("design-walls-extrusion")).toMatchObject({
+      paint: {
+        "fill-extrusion-base": ["get", "baseM"],
+        "fill-extrusion-height": ["get", "heightM"],
+      },
+    });
+    // On the bare earth, the site's buildings and trees stand as tall as the
+    // LiDAR says.
+    expect(map.layers.get("site-standing-buildings-extrusion")).toMatchObject({
+      paint: { "fill-extrusion-height": ["get", "heightM"] },
+    });
+    expect(map.layers.get("site-canopy-extrusion")).toMatchObject({
+      paint: { "fill-extrusion-height": ["get", "heightM"] },
+    });
+    expect(map.pitch).toBe(60);
+    const start = map.bearing;
+    await vi.waitFor(() => expect(map.bearing).not.toBe(start));
+    act(() => map.fire("mousedown"));
+    const held = map.bearing;
+    await new Promise((r) => setTimeout(r, 60));
+    expect(map.bearing).toBe(held);
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+    expect(map.terrain).toBeNull();
+    expect(map.sources.has("terrain")).toBe(false);
+    expect(map.layers.has("design-walls-extrusion")).toBe(false);
+    expect(map.layers.has("site-canopy-extrusion")).toBe(false);
+    expect(map.layers.has("site-standing-buildings-extrusion")).toBe(false);
+  });
+
   it("calls a design asked for before a survey change outdated, even if it answers after", async () => {
     open();
     let answerDesign: (r: Response) => void = () => {};
@@ -468,13 +519,14 @@ describe("a ready site", () => {
     render(<Explore pollMs={5} />);
     // The design's map answers first.
     await vi.waitFor(() =>
-      expect(FakeMap.last?.layers.has("design-walls-fill")).toBe(true),
+      expect(FakeMap.last?.layers.has("design-distances-line")).toBe(true),
     );
     answerMap(respond(SITE_MAP));
     const under = () => {
       const order = FakeMap.last?.order ?? [];
       return (
-        order.indexOf("site-features-fill") < order.indexOf("design-walls-fill")
+        order.indexOf("site-features-fill") <
+        order.indexOf("design-distances-line")
       );
     };
     await vi.waitFor(() => expect(under()).toBe(true));

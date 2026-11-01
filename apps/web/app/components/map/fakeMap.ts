@@ -5,9 +5,15 @@ type Handler = (event: unknown) => void;
 
 export class FakeMap {
   static last: FakeMap | null = null;
-  sources = new Map<string, { data: unknown; setData: (d: unknown) => void }>();
+  sources = new Map<
+    string,
+    { data?: unknown; setData: (d: unknown) => void; [key: string]: unknown }
+  >();
   layers = new Map<string, object>();
   fitted: unknown[] = [];
+  pitch = 0;
+  bearing = 0;
+  terrain: object | null = null;
   private handlers: { type: string; layer?: string; handler: Handler }[] = [];
 
   constructor(public options: object) {
@@ -34,6 +40,14 @@ export class FakeMap {
     return this;
   }
 
+  once(type: string, handler: Handler) {
+    const one: Handler = (event) => {
+      this.off(type, one);
+      handler(event);
+    };
+    return this.on(type, one);
+  }
+
   fire(type: string, layer?: string, event: unknown = {}) {
     for (const h of this.handlers)
       if (h.type === type && h.layer === layer) h.handler(event);
@@ -47,9 +61,9 @@ export class FakeMap {
     });
   }
 
-  addSource(id: string, source: { data: unknown }) {
+  addSource(id: string, source: { data?: unknown }) {
     const entry = {
-      data: source.data,
+      ...source,
       setData: (d: unknown) => (entry.data = d),
     };
     this.sources.set(id, entry);
@@ -87,6 +101,30 @@ export class FakeMap {
   fitBounds(bounds: unknown, options?: unknown) {
     this.fitted.push(bounds);
     this.fitOptions.push(options);
+  }
+  /** Moves at once, and says so when done, as a finished ease would. */
+  easeTo(options: { pitch?: number; bearing?: number }) {
+    if (options.pitch !== undefined) this.pitch = options.pitch;
+    if (options.bearing !== undefined) this.bearing = options.bearing;
+    queueMicrotask(() => this.fire("moveend"));
+  }
+  getPitch() {
+    return this.pitch;
+  }
+  getZoom() {
+    return 14;
+  }
+  getBearing() {
+    return this.bearing;
+  }
+  setBearing(bearing: number) {
+    this.bearing = bearing;
+  }
+  cameraForBounds() {
+    return { center: [171.862, -42.1159], zoom: 19 };
+  }
+  setTerrain(terrain: object | null) {
+    this.terrain = terrain;
   }
   /** As MapLibre's: removing it drops its style, so later calls throw. */
   style: object | undefined = {};

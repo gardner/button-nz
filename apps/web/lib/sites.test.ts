@@ -103,6 +103,7 @@ describe("getTown", () => {
       ids: [],
       reason: "not in LINZ's NZ Primary Parcels",
     });
+    expect(town.buildings.features[0].properties).toEqual({ heightM: 6.5 });
     expect(town.sections.features.map((f) => f.properties.category)).toEqual([
       "clear",
       "outlines",

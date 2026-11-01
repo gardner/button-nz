@@ -25,6 +25,8 @@ export interface GeoLayerProps<P> {
   fill?: Paint<"fill">;
   /** Drawn as `<id>-line`, above the fill, if given. */
   line?: Paint<"line">;
+  /** Stood up as `<id>-extrusion`, above the fill, if given. */
+  extrusion?: Paint<"fill-extrusion">;
   /** A click on one of its features, with that feature's properties. */
   onClick?: (properties: P, lngLat: [number, number]) => void;
 }
@@ -36,6 +38,7 @@ export function GeoLayer<P>({
   data,
   fill,
   line,
+  extrusion,
   onClick,
 }: GeoLayerProps<P>) {
   const map = useMap();
@@ -55,9 +58,20 @@ export function GeoLayer<P>({
     });
     if (fill)
       map.addLayer({ id: `${id}-fill`, type: "fill", source: id, paint: fill });
+    if (extrusion)
+      map.addLayer({
+        id: `${id}-extrusion`,
+        type: "fill-extrusion",
+        source: id,
+        paint: extrusion,
+      });
     if (line)
       map.addLayer({ id: `${id}-line`, type: "line", source: id, paint: line });
-    const target = fill ? `${id}-fill` : `${id}-line`;
+    const target = fill
+      ? `${id}-fill`
+      : extrusion
+        ? `${id}-extrusion`
+        : `${id}-line`;
     const clicked = (event: MapLayerMouseEvent) => {
       const index = event.features?.[0]?.properties?.index;
       const feature =
@@ -78,7 +92,7 @@ export function GeoLayer<P>({
       // The map can go first (its parent's cleanup runs before this one):
       // removing it drops its style, and with it its layers and sources.
       if (!(map as { style?: unknown }).style) return;
-      for (const layer of [`${id}-line`, `${id}-fill`])
+      for (const layer of [`${id}-line`, `${id}-extrusion`, `${id}-fill`])
         if (map.getLayer(layer)) map.removeLayer(layer);
       if (map.getSource(id)) map.removeSource(id);
     };
@@ -91,13 +105,18 @@ export function GeoLayer<P>({
   }, [map, id, data]);
 
   // A changed look is applied to the layers already on the map.
-  const look = JSON.stringify([fill, line]);
+  const look = JSON.stringify([fill, line, extrusion]);
   useEffect(() => {
     if (!map) return;
-    const [newFill, newLine] = JSON.parse(look) as [typeof fill, typeof line];
+    const [newFill, newLine, newExtrusion] = JSON.parse(look) as [
+      typeof fill,
+      typeof line,
+      typeof extrusion,
+    ];
     for (const [layer, paint] of [
       [`${id}-fill`, newFill],
       [`${id}-line`, newLine],
+      [`${id}-extrusion`, newExtrusion],
     ] as const) {
       if (!paint || !map.getLayer(layer)) continue;
       for (const [key, value] of Object.entries(paint))

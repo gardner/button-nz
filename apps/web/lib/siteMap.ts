@@ -14,18 +14,31 @@ import {
 } from "./features";
 import { type Fields, number, oneOf, optional, text } from "./fields";
 import { type FeatureCollection, parseCollection } from "./geo";
-import { request } from "./http";
+import { API, request } from "./http";
 
 export interface SurveyedFeature {
   id: string;
   concept: string;
   status: FeatureStatus;
   decision: Decision | null; // null until a person decides
+  heightM: number | null; // its LiDAR height above the ground, where it has one
+}
+
+/** How tall a thing stands, in metres above the ground under it (#86 v1.1). */
+export interface Tall {
+  heightM: number;
+}
+
+/** A thing that can be stood up on the map: from `baseM` to `heightM`
+ * above the ground under it. */
+export interface Raised extends Tall {
+  baseM: number;
 }
 
 export interface SiteMap {
   parcels: FeatureCollection<null>;
-  buildings: FeatureCollection<null>; // LINZ outlines
+  buildings: FeatureCollection<Raised>; // LINZ outlines, as tall as the LiDAR says
+  canopy: FeatureCollection<Tall>; // trees: the LiDAR over 2 m, outside the buildings
   features: FeatureCollection<SurveyedFeature>;
   setback: FeatureCollection<null>; // the 2 m band inside the title boundary
   halos: FeatureCollection<null>; // 2 m around confirmed buildings
@@ -40,19 +53,12 @@ export interface Distance {
 }
 
 export interface DesignMap {
-  outline: FeatureCollection<null>; // all it covers from above, eaves too
-  walls: FeatureCollection<null>;
+  outline: FeatureCollection<Raised>; // all it covers from above, eaves too
+  walls: FeatureCollection<Raised>; // from its floor to its roof
   distances: FeatureCollection<Distance>;
 }
 
-const PLAIN = [
-  "parcels",
-  "buildings",
-  "setback",
-  "halos",
-  "keep_clear",
-  "room",
-] as const;
+const PLAIN = ["parcels", "setback", "halos", "keep_clear", "room"] as const;
 
 export async function getSiteMap(siteId: string): Promise<SiteMap> {
   return parseSiteMap(
@@ -68,6 +74,8 @@ export function parseSiteMap(raw: unknown): SiteMap {
   const features = parseCollection(map.features, "features", (p) => p);
   return {
     ...plain,
+    buildings: parseCollection(map.buildings, "buildings", raised),
+    canopy: parseCollection(map.canopy, "canopy", tall),
     features: {
       type: "FeatureCollection",
       features: features.features.map((f) => ({
@@ -79,6 +87,7 @@ export function parseSiteMap(raw: unknown): SiteMap {
           decision: optional(f.properties, "decision", (p, k) =>
             oneOf(p, k, DECISIONS),
           ),
+          heightM: optional(f.properties, "height_m", number),
         },
       })),
     },
@@ -90,14 +99,29 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
     `/designs/${encodeURIComponent(jobId)}/map`,
   )) as Fields;
   return {
-    outline: parseCollection(map.outline, "outline", () => null),
-    walls: parseCollection(map.walls, "walls", () => null),
+    outline: parseCollection(map.outline, "outline", raised),
+    walls: parseCollection(map.walls, "walls", raised),
     distances: parseCollection(map.distances, "distances", (p) => ({
       check: text(p, "check"),
       metres: number(p, "metres"),
       required: number(p, "required"),
     })),
   };
+}
+
+export function tall(p: Fields): Tall {
+  return { heightM: number(p, "height_m") };
+}
+
+function raised(p: Fields): Raised {
+  return { heightM: number(p, "height_m"), baseM: number(p, "base_m") };
+}
+
+/** Terrain-RGB tiles of a site's bare earth (DEM), metres above its
+ * ground: 404 outside its bounds, where the map is flat (#86 v1.1). The
+ * buildings and trees stand on it as extrusions, crisper than a draped DSM. */
+export function terrainTiles(siteId: string): string {
+  return `${API}/sites/${encodeURIComponent(siteId)}/terrain/{z}/{x}/{y}.png`;
 }
 
 const NONE = { type: "FeatureCollection" as const, features: [] };
@@ -107,6 +131,7 @@ const NONE = { type: "FeatureCollection" as const, features: [] };
 export const EMPTY_SITE_MAP: SiteMap = {
   parcels: NONE,
   buildings: NONE,
+  canopy: NONE,
   features: NONE,
   setback: NONE,
   halos: NONE,

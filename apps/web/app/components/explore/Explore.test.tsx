@@ -157,6 +157,28 @@ describe("Explore", () => {
     expect(FakeMap.last?.fitOptions[1]).toMatchObject({ duration: 0 });
   });
 
+  it("stands the town's buildings up in 3D, and lays them down in 2D", async () => {
+    serve({ "GET /api/town/reefton": [TOWN] });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("town-fill")).toBe(true),
+    );
+    const map = FakeMap.last!;
+    expect(map.layers.has("town-buildings-extrusion")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    expect(map.layers.get("town-buildings-extrusion")).toMatchObject({
+      type: "fill-extrusion",
+      paint: { "fill-extrusion-height": ["get", "heightM"] },
+    });
+    expect(map.pitch).toBe(60);
+    expect(
+      screen.getByRole("button", { name: "3D" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "2D" }));
+    expect(map.layers.has("town-buildings-extrusion")).toBe(false);
+    expect(map.pitch).toBe(0);
+  });
+
   it("asks again for the town when it fails for a moment, but not when refused", async () => {
     const fetch = vi
       .fn()
