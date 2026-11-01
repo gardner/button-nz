@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from PIL import Image
 
 from button_nz.blender_worker.demo import build_demo_scene
 from button_nz.blender_worker.run import build_scene
@@ -59,6 +60,19 @@ def test_builds_a_metric_scene(tmp_path: Path) -> None:
     # above the 10 m datum; its top is the highest ground plus 6 m.
     assert column_top[1] == pytest.approx(2.4 + 6.0, abs=0.01)
     assert out.png.stat().st_size > 10_000
+
+
+def test_the_site_is_lit_by_a_daylight_sky(tmp_path: Path) -> None:
+    dem = np.full((40, 50), 10.0)
+    grid = TerrainGrid((0.0, 0.0, 50.0, 40.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    scene = scene_input(grid, LocalFrame.centred_on(grid.bbox), [])
+
+    out = build_scene(scene, tmp_path)
+
+    with Image.open(out.png) as image:
+        top = np.asarray(image.convert("RGB"))[:40]  # above the terrain
+    red, _, blue = top.reshape(-1, 3).mean(axis=0)
+    assert blue > 120 and blue > red  # a blue sky, not black
 
 
 def test_builds_the_demo_site(tmp_path: Path) -> None:

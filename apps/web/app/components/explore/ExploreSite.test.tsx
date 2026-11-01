@@ -403,6 +403,26 @@ describe("a ready site", () => {
     expect(screen.getByText(/survey changed after this design/)).toBeTruthy();
   });
 
+  it("shows Muse at work while a design runs, with the step it is on", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        live: { attempt: 1, phase: "rendering", detail: "", observations: [] },
+      },
+    });
+    render(<Explore pollMs={5} />);
+    const panel = await screen.findByRole("region", { name: "Muse at work" });
+    expect(panel.textContent).toMatch(/Blender builds and renders it/);
+  });
+
   it("names the prefab a design is placing", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

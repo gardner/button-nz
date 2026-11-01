@@ -30,19 +30,25 @@ import bpy  # pyright: ignore[reportMissingImports]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_scene as _build_scene  # noqa: E402  # pyright: ignore[reportMissingImports]
 import design_io as _design_io  # noqa: E402  # pyright: ignore[reportMissingImports]
+import finishes as _finishes  # noqa: E402  # pyright: ignore[reportMissingImports]
+import surface_math as _surface_math  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 b: Any = bpy  # no type stubs inside Blender
 build_scene: Any = _build_scene
 design_io: Any = _design_io
+finishes: Any = _finishes
+surface_math: Any = _surface_math
 MAX_TRIANGLES = 200_000
 NOT_FINITE = "Some of the Dwelling's vertices aren't finite numbers (NaN or inf)."
-# The Dwelling is rendered opaque in the host's colours (the scene's
-# ``dwelling_colours``), whatever material the script gave: level faces in its
+# The Dwelling is rendered opaque in the host's finishes (the scene's
+# ``dwelling_finishes``), whatever material the script gave: level faces in its
 # upper half (roof planes, soffits) take the roof's, the rest (walls, floor,
 # decks) the walls'. These are for a scene written before the host set them
-# (button_nz.blender_worker.scene_input.DEFAULT_COLOURS).
-DWELLING_RGBA = (0.8, 0.75, 0.65, 1.0)
-ROOF_RGBA = (0.06, 0.07, 0.08, 1.0)
+# (button_nz.blender_worker.scene_input.DEFAULT_FINISHES).
+DEFAULT_FINISHES = {
+    "walls": {"rgba": [0.8, 0.75, 0.65, 1.0], "texture": "white_planks_clean"},
+    "roof": {"rgba": [0.06, 0.07, 0.08, 1.0], "texture": "corrugated_iron"},
+}
 ROOF_NORMAL_Z = 0.5  # a face this near level, in the upper half, is roof (either winding)
 UNREADABLE = "Your saved design couldn't be read ({reason}). Don't write to the results channel."
 TOO_DETAILED = (
@@ -74,10 +80,8 @@ def main(argv: list[str]) -> None:
     if measurements["error"] is not None:  # e.g. too detailed: don't render it either
         design_io.write_json(path, measurements)
         return
-    colours: dict[str, list[float]] = scene.get("dwelling_colours") or {}
-    walls = tuple(colours.get("walls", DWELLING_RGBA))
-    roof = tuple(colours.get("roof", ROOF_RGBA))
-    _bake(dwelling, measurements["triangles"], walls, roof)  # exactly what was measured
+    look: dict[str, Any] = scene.get("dwelling_finishes") or DEFAULT_FINISHES
+    _bake(dwelling, measurements["triangles"], look)  # exactly what was measured
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)  # the design is done: the silhouette is extra
@@ -192,16 +196,11 @@ def _add_triangles(obj: Any, world: Any, triangles: list[list[list[float]]]) -> 
     return None
 
 
-def _bake(
-    dwelling: Any,
-    triangles: list[list[list[float]]],
-    walls: tuple[float, ...],
-    roof: tuple[float, ...],
-) -> None:
+def _bake(dwelling: Any, triangles: list[list[list[float]]], look: dict[str, Any]) -> None:
     """Replace the model's Dwelling in the scene with a plain mesh of exactly the
-    measured triangles in the host's opaque colours, roof faces apart from walls:
-    no modifier, instancer setting or material can make the render differ from
-    what was checked."""
+    measured triangles in the host's opaque finishes, roof faces apart from
+    walls, with UVs in metres: no modifier, instancer setting or material can
+    make the render differ from what was checked."""
     b.context.scene.collection.objects.unlink(dwelling)
     dwelling.name = "Dwelling.model"
     vertices = [tuple(point) for triangle in triangles for point in triangle]
@@ -209,14 +208,26 @@ def _bake(
     mesh = b.data.meshes.new("Dwelling")
     mesh.from_pydata(vertices, [], faces)
     mesh.update()
-    mesh.materials.append(build_scene.material("Dwelling walls", walls))
-    mesh.materials.append(build_scene.material("Dwelling roof", roof))
+    parts = (look["walls"], look["roof"])  # material 0, 1
+    mesh.materials.append(finishes.material("Dwelling walls", parts[0]))
+    mesh.materials.append(finishes.material("Dwelling roof", parts[1]))
+    _roof_apart(mesh, triangles)
+    turned = [finishes.turned(part) for part in parts]
+    uvs: list[float] = []
+    for triangle, polygon in zip(triangles, mesh.polygons, strict=True):
+        for u, v in surface_math.face_uvs(*triangle):
+            uvs += (-v, u) if turned[polygon.material_index] else (u, v)
+    mesh.uv_layers.new(name="UVMap").data.foreach_set("uv", uvs)  # loops follow the corners
+    b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
+
+
+def _roof_apart(mesh: Any, triangles: list[list[list[float]]]) -> None:
+    """Give roof faces material 1: level faces in the Dwelling's upper half."""
     heights = [point[2] for triangle in triangles for point in triangle]
     eaves = (min(heights, default=0.0) + max(heights, default=0.0)) / 2  # floors, decks below
     for polygon in mesh.polygons:
         level = abs(polygon.normal.z) > ROOF_NORMAL_Z
         polygon.material_index = 1 if level and polygon.center.z > eaves else 0
-    b.context.scene.collection.objects.link(b.data.objects.new("Dwelling", mesh))
 
 
 def _plain(value: Any) -> Any:

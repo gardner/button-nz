@@ -13,7 +13,8 @@ export const JOB = {
   parent_id: null, // an original design, not a revision of one
   instruction: null,
   product: null, // it places no catalogue product
-  illustrating: false, // no AI visual still to come
+  illustrating: false,
+  live: null, // no AI visual still to come
   attempts: [
     {
       number: 1,

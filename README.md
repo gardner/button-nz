@@ -87,8 +87,12 @@ for the full plan.
    0.10 m) before every other check runs on it. The brief also gives the
    product's roof as its supplier builds it, and the render shows the
    product's colours (`appearance` in the catalogue, each with its basis:
-   published palette or illustrative). The trusted pass still renders
-   exactly the measured triangles, in colours the host sets, never the model.
+   published palette or illustrative) over the CC0 texture closest to its
+   cladding and roofing: weatherboard, timber, sheet panels, corrugated or
+   5-rib metal (`blender_worker/textures`, from Poly Haven). The trusted pass
+   still renders exactly the measured triangles, in finishes the host sets,
+   never the model, with texture coordinates in metres so every finish is
+   shown at true scale.
 
 ## Meta models
 
@@ -159,6 +163,8 @@ parcels and zones, whose layers state no licence
 | Building outlines | LINZ NZ Building Outlines (none on these parcels) | 2015-12 to 2016-06 |
 
 The API's `/site` lists every source with its licence and capture dates.
+The render's cladding and roofing textures are CC0 1.0, from Poly Haven
+([credits](src/button_nz/blender_worker/textures/README.md)).
 Source code is under the GNU GPL (see `LICENSE`).
 
 ## Limitations

@@ -7,7 +7,7 @@ scene never carries seven-digit NZTM coordinates. Heights are relative to
 """
 
 from collections.abc import Sequence
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -33,18 +33,37 @@ class HeightGrid(TypedDict):
     heights: list[float]
 
 
-class DwellingColours(TypedDict):
-    """The trusted render's colours for the Dwelling, linear RGBA: its roof
-    (faces that point up) and its walls. Set by the host, never by the model."""
+# The CC0 texture sets in blender_worker/textures (textures.json describes them).
+TextureName = Literal[
+    "white_planks_clean",
+    "japanese_cedar_planks",
+    "groove_panel",
+    "box_profile_metal_sheet",
+    "corrugated_iron",
+]
 
-    walls: list[float]
-    roof: list[float]
+
+class Finish(TypedDict):
+    """A surface of the Dwelling in the trusted render: a linear RGBA colour
+    over a texture."""
+
+    rgba: list[float]
+    texture: TextureName
 
 
-# Bespoke designs: warm white walls, a dark grey roof.
-DEFAULT_COLOURS: DwellingColours = {
-    "walls": [0.8, 0.75, 0.65, 1.0],
-    "roof": [0.06, 0.07, 0.08, 1.0],
+class DwellingFinishes(TypedDict):
+    """The trusted render's finishes for the Dwelling: its roof (level faces
+    in its upper half) and its walls (the rest). Set by the host, never by the
+    model."""
+
+    walls: Finish
+    roof: Finish
+
+
+# Bespoke designs: warm white weatherboard, a dark grey corrugated roof.
+DEFAULT_FINISHES: DwellingFinishes = {
+    "walls": {"rgba": [0.8, 0.75, 0.65, 1.0], "texture": "white_planks_clean"},
+    "roof": {"rgba": [0.06, 0.07, 0.08, 1.0], "texture": "corrugated_iron"},
 }
 
 
@@ -54,12 +73,12 @@ class SceneInput(TypedDict):
     ndsm: HeightGrid
     parcels: list[list[list[float]]]
     sources: list[str]
-    dwelling_colours: NotRequired[DwellingColours]
+    dwelling_finishes: NotRequired[DwellingFinishes]
 
 
-def with_colours(scene: SceneInput, colours: DwellingColours) -> SceneInput:
-    """``scene`` with the Dwelling's render colours."""
-    return {**scene, "dwelling_colours": colours}
+def with_finishes(scene: SceneInput, finishes: DwellingFinishes) -> SceneInput:
+    """``scene`` with the Dwelling's render finishes."""
+    return {**scene, "dwelling_finishes": finishes}
 
 
 def scene_input(

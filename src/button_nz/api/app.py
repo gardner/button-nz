@@ -73,6 +73,15 @@ class AttemptView(BaseModel):
     checks: list[dict[str, Any]] | None
 
 
+class LiveView(BaseModel):
+    """What a running design is doing now, for the owner to watch."""
+
+    attempt: int
+    phase: str  # thinking, observing, rendering or checking
+    detail: str  # the LiDAR view asked for, when observing
+    observations: list[str]  # the views made so far in this attempt: URLs
+
+
 class ProductView(BaseModel):
     id: str
     name: str
@@ -96,6 +105,7 @@ class JobView(BaseModel):
     site_id: str  # the site it is designed on
     attempts: list[AttemptView]
     illustrating: bool  # done, and its AI visual is still being made: look again
+    live: LiveView | None  # while it runs: its current step
 
 
 def create_app(
@@ -305,7 +315,26 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
         site_id=job.site_id or DEMO_SITE_ID,
         attempts=attempts,
         illustrating=_illustrating(worker, job),
+        live=_live(worker, job),
     )
+
+
+def _live(worker: Worker, job: Job) -> LiveView | None:
+    step = worker.step(job.id)
+    if step is None:
+        return None
+    files = _files(worker, job, step.attempt)
+    views = sorted((n for n in files if n.startswith("observation-")), key=_view_number)
+    return LiveView(
+        attempt=step.attempt,
+        phase=str(step.phase),
+        detail=step.detail,
+        observations=[files[n] for n in views],
+    )
+
+
+def _view_number(name: str) -> int:
+    return int(name.removeprefix("observation-").removesuffix(".png"))
 
 
 def _product_view(product: Placed) -> ProductView:

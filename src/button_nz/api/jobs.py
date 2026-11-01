@@ -22,11 +22,10 @@ from pathlib import Path
 from typing import Any
 
 from button_nz.agent.conversation import Model
-from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, design
+from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, Step, design
 from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
-from button_nz.blender_worker.scene_input import DwellingColours
 from button_nz.evaluation import Footprint
 from button_nz.perception.confirm import Decision, Survey, confirmed, effective, title_of
 from button_nz.perception.visual import VISUAL_JSON, Visual, save
@@ -65,6 +64,7 @@ class Worker:
         self.runner = runner
         self.max_attempts = max_attempts
         self.illustrator = illustrator
+        self._steps: dict[str, Step] = {}  # each running job's current step
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -152,7 +152,17 @@ class Worker:
         except OSError:
             log.exception("could not save the visual of %s", accepted.directory)
 
+    def step(self, job_id: str) -> Step | None:
+        """What job ``job_id`` is doing now, while it runs."""
+        return self._steps.get(job_id)
+
     def _design(self, job: Job) -> Attempt | None:
+        try:
+            return self._run_design(job)
+        finally:
+            self._steps.pop(job.id, None)
+
+    def _run_design(self, job: Job) -> Attempt | None:
         def record(attempt: Attempt) -> None:
             self.store.add_attempt(
                 AttemptRecord(
@@ -170,6 +180,7 @@ class Worker:
             runner=self.runner,
             allow_observations=job.allow_observations,
             on_attempt=record,
+            on_step=lambda step: self._steps.__setitem__(job.id, step),
             revising=self._revising(job),
             product=self._placing(job),
             **self._look(job),
@@ -177,16 +188,12 @@ class Worker:
         return result.accepted
 
     def _look(self, job: Job) -> dict[str, Any]:
-        """The placed product's roof in words and render colours; the defaults
+        """The placed product's roof in words and render finishes; the defaults
         for a bespoke design, or one placed before products had an appearance."""
         look = None if job.product is None else job.product.appearance
         if look is None:
             return {}
-        colours = look.colours()
-        return {
-            "roof": look.roof_description(),
-            "colours": DwellingColours(walls=colours["walls"], roof=colours["roof"]),
-        }
+        return {"roof": look.roof_description(), "finishes": look.finishes()}
 
     def _placing(self, job: Job) -> Footprint | None:
         """The footprint of the product ``job`` places, as it was when placed."""

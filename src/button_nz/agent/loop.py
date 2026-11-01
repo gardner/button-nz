@@ -10,6 +10,7 @@ Every attempt is kept under ``runs_dir`` for inspection.
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
@@ -19,10 +20,10 @@ from button_nz.agent.proposal import DesignError, parse_measurements, to_proposa
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import (
-    DEFAULT_COLOURS,
-    DwellingColours,
+    DEFAULT_FINISHES,
+    DwellingFinishes,
     SceneInput,
-    with_colours,
+    with_finishes,
 )
 from button_nz.evaluation import Check, Footprint, InvalidProposal, Report, Status, evaluate
 
@@ -92,6 +93,26 @@ class DesignResult:
         return last
 
 
+class Phase(StrEnum):
+    THINKING = "thinking"  # the model is asked for its next move
+    OBSERVING = "observing"  # a LiDAR view it asked for is being made
+    RENDERING = "rendering"  # Blender runs its script
+    CHECKING = "checking"  # the evaluator measures what was rendered
+
+
+@dataclass(frozen=True)
+class Step:
+    """What a run has started on: shown to the owner while they wait."""
+
+    attempt: int
+    phase: Phase
+    detail: str = ""  # the view asked for, when observing
+
+
+def _no_step(_: Step) -> None:
+    pass
+
+
 def design(
     brief: str,
     site: DesignSite,
@@ -106,7 +127,8 @@ def design(
     revising: Revision | None = None,
     product: Footprint | None = None,
     roof: str | None = None,
-    colours: DwellingColours = DEFAULT_COLOURS,
+    finishes: DwellingFinishes = DEFAULT_FINISHES,
+    on_step: Callable[[Step], None] = _no_step,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
     change it as the owner asks. Before each attempt the model may request up to
@@ -118,13 +140,14 @@ def design(
     ``on_attempt`` sees each attempt as it ends. Placing a real ``product``, the
     brief gives its footprint (and its ``roof``, in words, where known), and
     every attempt is checked to be it. Every render uses the host's
-    ``colours`` for the Dwelling's roof and walls."""
+    ``finishes`` for the Dwelling's roof and walls. ``on_step`` hears each step
+    as it starts."""
     local = site.frame.to_local
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     prompt = system_prompt(site.scene, keep_clear, buildings)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
-    scene = with_colours(site.scene, colours)  # the render's colours: the host's, never the model's
+    scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
     if revising is not None:
         conversation += [
@@ -136,14 +159,23 @@ def design(
     for number in range(1, max_attempts + 1):
         directory = runs_dir / f"attempt-{number}"
         directory.mkdir(parents=True, exist_ok=True)
-        ask = _Ask(model, site, conversation, directory, allow_observations, max_observations)
+        ask = _Ask(
+            model,
+            site,
+            conversation,
+            directory,
+            allow_observations,
+            max_observations,
+            number,
+            on_step,
+        )
         script = ask.script()
         if script is None:
             attempt = Attempt(number, "", ask.error, None, directory, ask.observed)
             _write_attempt(attempt)
         else:
             attempt = _attempt(
-                number, script, site, scene, runner, directory, ask.observed, product
+                number, script, site, scene, runner, directory, ask.observed, product, on_step
             )
         attempts.append(attempt)
         if on_attempt is not None:
@@ -174,11 +206,14 @@ class _Ask:
     directory: Path
     allow_observations: bool
     max_observations: int
+    number: int  # the attempt's
+    on_step: Callable[[Step], None]
     error: str = ""
     observed: tuple[str, ...] = ()
 
     def script(self) -> str | None:
         for _ in range(self.max_observations + 2):
+            self.on_step(Step(self.number, Phase.THINKING))
             try:
                 action = self.model.propose(self.conversation, self._may_observe())
             except ModelReplyError as error:
@@ -205,6 +240,7 @@ class _Ask:
             text, image = "No observations left for this attempt; submit a design.", None
         else:
             self.observed += (request.tool,)
+            self.on_step(Step(self.number, Phase.OBSERVING, request.tool))
             text, image = self._observe(request)
             text += f"\n\n{self._left()} left for this attempt."
         self.conversation.append(Turn("observation", text, image))
@@ -237,7 +273,9 @@ def _attempt(
     directory: Path,
     observations: tuple[str, ...],
     product: Footprint | None,
+    on_step: Callable[[Step], None],
 ) -> Attempt:
+    on_step(Step(number, Phase.RENDERING))
     outputs = runner(scene, script, directory)
     report: Report | None = None
     judged = False
@@ -246,6 +284,7 @@ def _attempt(
         datum = site.scene["frame"]["datum_m"]
         proposal = to_proposal(measurements, site.frame, datum)
         judged = True  # from here on, it is the evaluator speaking
+        on_step(Step(number, Phase.CHECKING))
         report = evaluate(proposal, site.context, product)
         feedback = describe(report)
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt

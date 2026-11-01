@@ -1,11 +1,13 @@
 """Tests for button_nz.api.store: durable design jobs and their attempts."""
 
+import json
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from button_nz.api.store import AttemptRecord, JobStatus, Store
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES
 
 
 @pytest.fixture
@@ -121,3 +123,37 @@ def test_a_suggestion_adopted_never_replaces_a_decision_already_made(tmp_path: P
     store.decide("s1", "1", "building")  # the owner's, made first (another tab)
     store.adopt("s1", {"1": "ignore", "2": "keep_clear"})  # a list confirmed on a stale view
     assert store.decisions("s1") == {"1": "building", "2": "keep_clear"}
+
+
+@pytest.mark.parametrize(
+    "textures",
+    [
+        {},  # snapshotted before products had textures
+        {"walls_texture": "a_retired_finish", "roof_texture": "box_profile_metal_sheet"},
+    ],
+)
+def test_a_placed_look_keeps_its_colours_and_takes_the_default_for_a_texture_it_lacks(
+    store: Store, textures: dict[str, str]
+) -> None:
+    job = store.create_job("A studio.", allow_observations=True)
+    look = {
+        "roof_forms": ["mono"],
+        "roof_pitch_deg": None,
+        "walls": "#e8e6df",
+        "roof": "#3b3e36",
+        "basis": "published palette",
+    } | textures
+    placed = {"id": "vista", "name": "AirHome Vista", "length_m": 12.2, "width_m": 4.0}
+    with sqlite3.connect(store.path) as db:
+        db.execute(
+            "UPDATE jobs SET product = ? WHERE id = ?",
+            (json.dumps(placed | {"appearance": look}), job.id),
+        )
+
+    product = store.get_job(job.id).product
+
+    assert product is not None and product.appearance is not None
+    assert product.appearance.walls == "#e8e6df"
+    assert product.appearance.walls_texture == DEFAULT_FINISHES["walls"]["texture"]
+    roof = textures.get("roof_texture", DEFAULT_FINISHES["roof"]["texture"])
+    assert product.appearance.roof_texture == roof  # one still offered is kept
