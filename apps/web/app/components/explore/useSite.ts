@@ -32,7 +32,10 @@ export function useSite(pollMs: number) {
     setPollProblem(null);
   }
 
-  function pick(request: () => Promise<SiteState>) {
+  function pick(
+    request: () => Promise<SiteState>,
+    onFailure?: (e: Error) => void,
+  ) {
     const ask = ++picked.current;
     request().then(
       (state) => {
@@ -45,14 +48,31 @@ export function useSite(pollMs: number) {
         if (ask !== picked.current) return;
         setPickProblem(e.message);
         setRetries((n) => n + 1); // keep following the site still on show
+        onFailure?.(e);
       },
     );
   }
 
+  // A site opened from a link, asked for again after a failure that passes.
+  // A pick of the person's own stops it: only the newest ask can fail.
+  const [linked] = useState(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("site"),
+  );
+  const [linkTries, setLinkTries] = useState(0);
   useEffect(() => {
-    const linked = new URLSearchParams(window.location.search).get("site");
-    if (linked !== null) pick(() => getSite(linked));
-  }, []);
+    if (linked === null) return;
+    const timer = setTimeout(
+      () =>
+        pick(
+          () => getSite(linked),
+          (e) => passing(e) && setLinkTries((n) => n + 1),
+        ),
+      linkTries === 0 ? 0 : pollMs,
+    );
+    return () => clearTimeout(timer);
+  }, [linked, linkTries]); // eslint-disable-line react-hooks/exhaustive-deps -- pollMs only paces
 
   const building = site?.status === "building";
   useEffect(() => {
@@ -68,7 +88,7 @@ export function useSite(pollMs: number) {
         (e: Error) => {
           if (ask !== picked.current) return;
           setPollProblem(e.message);
-          if (!(e instanceof ApiError) || e.transient) setRetries((n) => n + 1);
+          if (passing(e)) setRetries((n) => n + 1);
         },
       );
     }, pollMs);
@@ -97,4 +117,10 @@ export function useSite(pollMs: number) {
       pick(() => createSiteForParcel(parcelId));
     },
   };
+}
+
+/** A failure worth trying again: the API restarting, a timeout, or the
+ * connection dropping, but not a refusal. */
+function passing(e: Error): boolean {
+  return !(e instanceof ApiError) || e.transient;
 }

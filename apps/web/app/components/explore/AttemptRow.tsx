@@ -67,10 +67,12 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
           </div>
         )}
         <div className="flex min-w-0 flex-col gap-1.5">
-          <p className="flex items-center gap-2 text-sm">
-            <span className="font-semibold">Attempt {attempt.number}</span>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            <span className="whitespace-nowrap font-semibold">
+              Attempt {attempt.number}
+            </span>
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${VERDICT[attempt.status]}`}
+              className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${VERDICT[attempt.status]}`}
             >
               {VERDICT_WORD[attempt.status]}
             </span>
