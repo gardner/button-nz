@@ -24,7 +24,8 @@ LiDAR of the ground and everything on it, and 7.5 cm aerial photographs.
 
 Anyone opens https://button.nz and, in one session:
 
-1. **Finds their property by its address** (or, in Reefton, taps it on the map), anywhere in New Zealand where
+1. **Finds their property by its address** (or, in Reefton, taps its section
+   on the map, even one with no address), anywhere in New Zealand where
    LINZ has 1 m LiDAR, a recent aerial photo (0.3 m or finer) and the title's
    parcels. The site is built live, once, from open data; where one of those
    is missing, it says which rather than guessing:
@@ -74,6 +75,13 @@ Anyone opens https://button.nz and, in one session:
   AI-illustrated.
 - **Muse Wonder 1.0** was compared with Spark as the design agent. Both had
   every run accepted; Spark was faster, so it designs.
+- **SAM 3D Objects** (an experiment, not in the app): can it rebuild a real
+  house from our aerial photo, and does the measured LiDAR, given in place of
+  its own depth estimate, make that accurate? The held-out truth, scorer and
+  a conventional baseline are being prepared
+  ([write-up](experiments/sam3d-lidar/README.md)).
+  **Results pending:** SAM 3D's weights are gated, and access hasn't been
+  granted yet.
 
 ## What we measured
 
@@ -102,6 +110,16 @@ From live runs on the demo site ([docs/results](results/README.md)):
   Of the 745 properties with a LINZ building outline, 439 and 235: room for
   a flat in the backyard. It's a screen, not a verdict: hazards, slope, the
   district plan and services aren't checked.
+- **On real sections, not just the demo** ([results](results/README.md)):
+  6 Reefton sections built from their addresses and designed on the live
+  app (a seventh had no address), before and after Muse was told which title edges face which road and
+  where a plain rectangle fits. Accepted on the first attempt: 5 of 6, then
+  6 of 6. "As far from the street as the rules allow" went from 2.34 m to
+  21.15 m at 7 Smith Street and from 3.67 m to 24.95 m at 81 Main Street.
+  One design per brief and site: an indication, not proof.
+- **The AI visual is checked, and often refused.** On 12 accepted designs,
+  Muse Image's picture passed SAM 3.1's silhouette check 7 to 8 times in 12
+  across runs; a refused picture is never shown.
 - **What it could mean** ([report](results/impact/report.md)): if a quarter
   of the 439 backyards with room added a flat, Reefton would have 109 more
   homes, 18% more than its 603 private dwellings in the 2023 Census,
@@ -136,6 +154,8 @@ From live runs on the demo site ([docs/results](results/README.md)):
   confirmed as legal boundaries.
 - Prefab fits use each product's stated dimensions; most suppliers don't
   publish eaves, so a fit isn't a setback verdict for that product.
+- The AI visual is refused when it doesn't match the design's silhouette,
+  which happened on 4 or 5 of 12 designs per run.
 
 ## What's next
 

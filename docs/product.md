@@ -22,16 +22,21 @@ answer the first question.
 
 ## What Button NZ does
 
-An owner opens their property and, in one session:
+An owner opens https://button.nz, finds their property by its address (or, in
+Reefton, taps it on the town map), and, in one session:
 
-1. **Sees what is there.** Button NZ reads the title, a 1 m LiDAR model of the
-   ground and everything standing on it, and a 7.5 cm aerial photo. Meta's
-   SAM 3.1 picks out the sheds, trees and garden beds, and each is checked
+1. **Sees what is there.** Button NZ builds the site from public data: the
+   title's parcels, a 1 m LiDAR model of the ground and everything standing on
+   it, and the region's best recent aerial photo. It works wherever that data
+   exists, and where it doesn't, it says what's missing. Meta's SAM 3.1 picks
+   out the buildings, sheds, trees and garden beds, and each is checked
    against the LiDAR heights. Where the photo and the LiDAR disagree, the owner
    is asked, not guessed for.
-2. **Says what matters.** The owner confirms which things are buildings,
-   which areas to keep clear (the big tree, the vegetable garden), and that
-   the list is complete.
+2. **Says what matters.** Plain cases come with a suggestion (a tree mostly
+   on the neighbour's land is ignored, a shed the LiDAR confirms is a
+   building), and the owner confirms or changes each: which things are
+   buildings, which areas to keep clear (the big tree, the vegetable garden),
+   and that the list is complete.
 3. **Describes what they want**, in their own words: "a small one-bedroom
    studio that keeps the trees and gets the afternoon sun."
 4. **Gets a checked concept.**
@@ -47,6 +52,24 @@ An owner opens their property and, in one session:
      behind it.
 5. **Changes it in plain words**, "move it 3 m further from the street", and
    compares before and after. Every revision is checked again.
+6. **Finds a real prefab.** The concept shows which of 17 real New Zealand
+   prefabs fit, with the price where the supplier publishes one and what it
+   leaves out. One tap places the product on the site: Muse designs again to
+   its exact footprint, and every check runs again. The next steps go with
+   it: the council's project information memorandum, and the licensed people
+   the exemption needs.
+
+## At town scale
+
+The same fit code runs over a whole town. In Reefton, 622 of 959 residential
+properties have room for a real prefab under the exemption's siting rules,
+judged against LINZ's 2015–16 building outlines; 326 do also clear of
+everything over 2 m on the 2020–24 LiDAR, trees included
+([report](results/town-screen/report.md)). If a quarter of the 439 backyards
+with room added a flat, Reefton would have 109 more homes, 18% more than
+today ([report](results/impact/report.md)). That's a screen and a scenario,
+not a verdict or a forecast: hazards, slope, the district plan and services
+aren't checked.
 
 ## Why it can be trusted
 
@@ -64,10 +87,11 @@ An owner opens their property and, in one session:
 
 ## Where it goes next
 
-- **Matching real products:** match a concept to real prefab products, and to
-  the professionals a project needs next (a surveyor, a designer, the council).
-- **More of the country:** more councils and more rules. Wherever the LiDAR
-  and parcel data exist, the pipeline already works.
+- **More rules:** the district plan's rules for each zone, and the natural
+  hazards in the council's project information memorandum. Today it checks
+  only the exemption's measurable conditions.
+- **Supplier quotes** for the ten catalogue products with no published price,
+  and more suppliers.
 - **Handover:** a package for a designer or the council, with the evidence,
   the chosen concept and the open questions.
 

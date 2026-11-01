@@ -5,17 +5,29 @@ into evidence-backed 3D housing concepts: Meta's models read the site and
 design a small dwelling for it in Blender, and an independent evaluator checks
 each design against New Zealand's granny-flat rules before anyone sees it.
 
-The demo site is 35 Victory Street, Reefton (Buller District), built from
-public LiDAR, aerial photography and parcel data. See [docs/plan.md](docs/plan.md)
-for the full plan.
+It's live at **https://button.nz**: open to anyone, with at most 30 design
+runs a day. Search any New Zealand address, or tap a section on Reefton's town
+map. A site is built live from national open data wherever LINZ has 1 m LiDAR,
+a recent aerial photo and the title's parcels. The demo site, 35 Victory
+Street, Reefton (Buller District), is pinned to the exact data it was verified
+against.
+
+- **For judges:** [docs/submission.md](docs/submission.md) is the submission
+  checklist, and [docs/pitch.md](docs/pitch.md) the submission text.
+- **The evidence:** [docs/results](docs/results/README.md) holds every
+  experiment's report and log.
+- **The product:** [docs/product.md](docs/product.md), and
+  [docs/features.md](docs/features.md) for what's built and where.
+- **The full plan:** [docs/plan.md](docs/plan.md).
 
 ## How it works
 
 ```
- LINZ / Buller open data             Meta Model API
- ───────────────────────             ──────────────
- parcels, 1 m LiDAR DEM + DSM,       SAM 3.1 ─────────┐
- 7.5 cm aerial photo                                  │
+ LINZ open data (any address)        Meta Model API
+ ────────────────────────────        ──────────────
+ title's parcels, roads, outlines,   SAM 3.1 ─────────┐
+ newest 1 m LiDAR DEM + DSM,                          │
+ region's best recent aerial photo                    │
         │                                             ▼
         ├──► terrain scene (Blender) ──┐   site survey: trees, sheds, beds,
         │                              │   cross-checked against the LiDAR
@@ -38,20 +50,42 @@ for the full plan.
                     fit its footprint, and who to call next
 ```
 
-1. **Site data.** The demo site record (`data/demo-site/site.json`) pins the
-   parcels and the raster tiles it was verified against. The LiDAR DEM and DSM
+1. **Site data.** `button_nz.sites` builds a site from a LINZ address, or
+   from a tapped section whose title has no address:
+   - the parcel under the address and every parcel on the same title(s), from
+     LINZ NZ Primary Parcels, with the LINZ building outlines around them;
+   - which title edges face a road, named from LINZ NZ Addresses: Roads, and
+     which is the address's own street (`sites/frontages.py`);
+   - the newest 1 m LiDAR DEM and DSM that both cover the site, found in
+     LINZ's national elevation catalogue (`sites/stac.py`);
+   - the region's aerial photo at 0.3 m or finer since 2015, preferring
+     12.5 cm or finer, then the newest.
+
+   Where any of these is missing, the build says which and stops: nothing is
+   filled in. A site of more than 12 parcels, or wider than 200 m, is refused
+   as more than a section. Each site is built once and kept. The demo site's
+   record (`data/demo-site/site.json`) instead pins the Buller District Council
+   parcels and the exact raster tiles it was verified against. The DEM and DSM
    become a georeferenced terrain scene in Blender (NZTM2000 metres around a
    local origin), and their difference, the nDSM, shows what stands above the
    ground.
 2. **Perception.** SAM 3.1 segments the aerial photograph one concept at a time
    ("tree", "shed", "garden bed", …). Each mask becomes an NZTM polygon and is
    checked against the nDSM: a shed should stand up, a driveway shouldn't.
-   Disagreements, and raised ground nothing labelled, go to the owner. Nothing
-   SAM finds constrains a design until the owner confirms it as an existing
-   building, an area to keep clear, or neither.
+   Each feature is a building, an area to keep clear, or neither. The app
+   suggests a decision where the evidence is plain (`perception/confirm.py`):
+   a feature mostly off the title, a parked car or open ground is ignored, a
+   building the LiDAR agrees with is a building, and vegetation is kept clear.
+   What the LiDAR disputes, and raised ground nothing labelled, gets no
+   suggestion: the owner is asked. The owner's decision always wins, and only
+   the owner can say every building is listed.
 3. **Design.** Muse Spark gets the brief, the site in local coordinates, the
-   confirmed buildings and keep-clear areas, and a contract for the script
-   (one `Dwelling` mesh, built on the terrain). Before each attempt it may ask
+   buildings and keep-clear areas, which title edges face which road and which
+   is the street, and a contract for the script (one `Dwelling` mesh, built on
+   the terrain). It is also told where a plain rectangle fits
+   (`agent/room.py`): the room inside the setbacks, 2 m from the listed
+   buildings and off the keep-clear areas, and its two largest rectangles,
+   square to the title. Before each attempt it may ask
    for LiDAR views of the site: hillshade, contours, slope or height maps,
    cross-sections between two points, or elevation statistics over an area.
    It then writes a complete Blender Python script as a tool call.
@@ -108,31 +142,46 @@ for the full plan.
 All of them are called through the Meta Model API (`https://api.meta.ai/v1`)
 with `META_API_KEY`.
 
+**SAM 3D Objects** is an experiment, not part of the app: can it reconstruct a
+real house from our aerial photography, and does giving it the measured LiDAR
+instead of its own depth estimate make that accurate
+([write-up](docs/experiments/sam3d-lidar/README.md), #125)? The inputs, the
+held-out truth, the scorer and a conventional baseline are being prepared
+(#138). **Its results are pending**: SAM 3D's weights are gated on Hugging
+Face, and access hasn't been granted yet.
+
 ## Evaluation
 
-Two experiments are run on the demo site from real model calls only. Their
-reports are written from the logged results, and nothing is filled in by hand.
-The reports and their logs are in [docs/results](docs/results/README.md).
+Every result comes from a live run, and each report is written by its
+benchmark from its own log; nothing is filled in by hand. The reports and
+their logs are in [docs/results](docs/results/README.md), which states each
+run's code commit and what the samples can and can't show.
 
 - **Experiment A: does Muse understand LiDAR?** (`button_nz.bench.lidar_qa`)
-  - Objective questions about the terrain: which way a slope faces, the height
-    difference between two points, relief within a square, the steepest of
-    several squares, and the tallest feature.
+  - Objective questions about the demo site's terrain: which way a slope
+    faces, the height difference between two points, relief within a square,
+    the steepest of several squares, and the tallest feature.
   - Answers are computed from the DEM and nDSM.
   - Five conditions: the aerial photograph alone; with contours; with nDSM
     and slope maps; with every map; and with the observation tools the model
     can call itself.
 - **Experiment C: what does feedback buy?** (`button_nz.bench.design_ablation`)
-  - Each design brief is run under four conditions:
+  - Each design brief is run on the demo site under four conditions:
     - one shot;
     - execution errors only;
     - the evaluator's verdict and render;
     - the verdict plus the LiDAR tools.
   - Measured: acceptance, execution and repair rates, attempts, and time.
-
-The [town screen](docs/results/town-screen/report.md)
-(`button_nz.bench.town_screen`) uses no model: it counts the Reefton sections
-with room for a real prefab under the exemption's siting rules.
+  - `--model` compares design models (Muse Wonder against Spark).
+- **Many real sections** (`button_nz.bench.batch`): drives the live API as
+  the app does, building Reefton sections from their addresses and designing
+  on each. Run before and after Muse was told the title's frontages and room.
+- **The AI visual** (`button_nz.bench.visual_check`): how often Muse Image's
+  picture passes its SAM 3.1 silhouette check, on recorded designs.
+- **Town screen** (`button_nz.bench.town_screen`) uses no model: it counts
+  Reefton's properties with room for a real prefab under the exemption's
+  siting rules. **Impact** (`button_nz.bench.impact`) turns that count into
+  housing scenarios against the 2023 Census.
 
 ## Security
 
@@ -150,11 +199,26 @@ API serves only named artifacts, as regular files, never through a symlink.
 
 ## Data and licences
 
-All site data is CC BY 4.0, attributed to Toitū Te Whenua Land Information
-New Zealand, Aerial Surveys, West Coast Regional Council and (for the urban
-aerial photos) Buller District Council, except Buller District Council's
-parcels and zones, whose layers state no licence
-([data/README.md](data/README.md), "Parcel licence").
+Every site records each dataset it was built from, with its licence,
+attribution and capture dates where known; `GET /sites/{id}` (and `/site` for
+the demo site) returns them, and the map credits them.
+
+**Any address** is built from LINZ's national open data, all CC BY 4.0,
+attributed to Toitū Te Whenua Land Information New Zealand (and, for LiDAR and
+aerials, the providers each collection names):
+
+| Data | Source |
+|---|---|
+| Addresses and roads | LINZ NZ Addresses; LINZ NZ Addresses: Roads |
+| Parcels and titles | LINZ NZ Primary Parcels |
+| Building outlines | LINZ NZ Building Outlines |
+| 1 m LiDAR DEM and DSM | the newest LINZ elevation collection covering the site (`nz-elevation` on AWS) |
+| Aerial photo | the region's best recent LINZ imagery collection (`nz-imagery` on AWS) |
+| Basemap | LINZ Basemaps aerial tiles (needs `LINZ_BASEMAP_API_KEY`) |
+
+**The demo site** is pinned to these, all CC BY 4.0 except Buller District
+Council's parcels and zones, whose layers state no licence, so none is claimed
+([data/README.md](data/README.md), "Parcel licence"):
 
 | Data | Source | Captured |
 |---|---|---|
@@ -163,97 +227,156 @@ parcels and zones, whose layers state no licence
 | Parcels | Buller District Council property parcels | |
 | Building outlines | LINZ NZ Building Outlines (none on these parcels) | 2015-12 to 2016-06 |
 
-The API's `/site` lists every source with its licence and capture dates.
+The owner gave permission on 31 October 2026 to publish imagery and renders of
+the demo site.
+
+**The town screen** uses Buller District Council's parcels and Residential
+zones, LINZ's building outlines and the West Coast LiDAR; **the impact
+scenarios** add Stats NZ's 2023 Census place summary for Reefton (CC BY 4.0).
+Each report lists its sources.
+
+**Prefabs:** the catalogue's dimensions and prices are from each supplier's
+own pages, cited per product ([docs/suppliers.md](docs/suppliers.md)).
 The render's cladding and roofing textures are CC0 1.0, from Poly Haven
 ([credits](src/button_nz/blender_worker/textures/README.md)).
+
 Source code is under the GNU GPL (see `LICENSE`).
 
 ## Limitations
 
-- **One site.** The pipeline takes any NZTM site with LiDAR coverage, but only
-  the demo site has been verified end to end.
+- **Where it works.** A site needs LINZ 1 m LiDAR, a recent aerial photo
+  (0.3 m or finer, since 2015) and a parcel with a record of title. Where one
+  is missing, the build says which and stops. A site of more than 12 parcels
+  or wider than 200 m is refused. The demo site is the one verified
+  end to end by hand; other sites are built and designed on live, as they
+  come.
 - **What the checks cover.** They cover the Schedule 1A granny-flat
-  exemption's measurable conditions, not a building consent. Whether the lines
-  between sections on one title count as legal boundaries is unconfirmed, so a
-  design close to one is "unknown", not "pass".
-- **Imagery age.** The LiDAR (2020–24) and the aerial photos (2024–25) were
-  captured years apart, and the site may have changed since. That is why the
-  owner confirms the survey.
-- **Open item** in `site.json`: the owner's own survey of the site. The
-  owner says nothing is built on it, so the two features the survey took for
-  sheds are not buildings. The owner gave permission on 31 October 2026 to
-  publish imagery and renders of the site.
+  exemption's measurable conditions, not a building consent, the district
+  plan, natural hazards or services. Whether the lines between sections on
+  one title count as legal boundaries is unconfirmed, so a design close to one
+  is "unknown", not "pass".
+- **Imagery age.** The LiDAR and the aerial photo are often captured years
+  apart (on the demo site, 2020–24 and 2024–25), and LINZ's building outlines
+  can be older still, so the site may have changed. That is why the owner
+  decides the survey.
+- **Prefabs.** Fits use each product's stated dimensions; most suppliers
+  don't publish eaves, so a fit isn't a setback verdict for that product. Ten
+  of the 17 products publish no price.
+- **The AI visual** passes its silhouette check on only some designs
+  ([results](docs/results/README.md)); when it fails, no picture is shown.
+- **One shared server.** No accounts: a design is open to anyone with its
+  link, and design runs are capped per day.
+- **Open item** for the demo site: the owner's own survey. The owner says
+  nothing is built on it, so the two features the survey took for sheds are
+  not buildings; the owner decides them on the live site before the final
+  demo take ([docs/submission.md](docs/submission.md)).
 
 ## Run it
 
 To serve it for others, open or behind an access code, see [docs/deploy.md](docs/deploy.md).
 
-Python 3.14 with [uv](https://docs.astral.sh/uv/), Node with pnpm, and an
-NVIDIA GPU for Blender's Cycles.
+You need:
+
+- Linux with an NVIDIA GPU, for Blender's Cycles;
+- Python 3.14 with [uv](https://docs.astral.sh/uv/), and Node with pnpm;
+- `bwrap` (bubblewrap) and a systemd user session (`systemd-run --user`), for
+  the sandbox;
+- a Meta Model API key (`META_API_KEY`) for anything that calls a model, and
+  a LINZ Basemaps key (`LINZ_BASEMAP_API_KEY`) for the map's aerial tiles.
 
 ```bash
 uv sync
-cp .env.example .env          # set META_API_KEY; never commit .env
+cp .env.example .env          # set META_API_KEY and LINZ_BASEMAP_API_KEY; never commit .env
 uv run pre-commit install
 uv run pytest                 # the fast suite; -m blender and -m live are opt-in
 ```
 
 **Blender:** use the official blender.org build (Ubuntu's package has no
-OptiX). Unpack it under `~/.local/opt/`, and put a `blender` launcher in
-`~/.local/bin/`. `uv run pytest -m blender` runs the Blender tests.
+OptiX). Unpack it under `~/.local/opt/`, and put a `blender` launcher on the
+`PATH` (e.g. in `~/.local/bin/`). `uv run pytest -m blender` runs the Blender
+tests.
 
-**API:** this serves the demo site and runs design jobs one at a time, keeping
-jobs and their files under `var/`. Survey the site first, so the owner has
-something to confirm. This writes `var/survey.geojson`:
+**API:** this runs design jobs one at a time, keeping jobs, sites and their
+files under `var/`. Survey the demo site first, so the owner has something to
+decide. This writes `var/survey.geojson`:
 
 ```bash
 uv run --env-file .env python -m button_nz.perception.survey var
 uv run --env-file .env python -m button_nz.api.serve --port 8000
-curl localhost:8000/site
+curl localhost:8000/site                     # the demo site and its sources
+curl 'localhost:8000/addresses?q=35+victory+reefton'   # each address's id
+curl -X POST localhost:8000/sites -H 'content-type: application/json' \
+  -d '{"address_id": <an address id>}'      # the site's id; built once, in the background
+curl localhost:8000/sites/<site_id>         # its build's status and step, then the site
 curl -X POST localhost:8000/designs -H 'content-type: application/json' \
-  -d '{"brief": "A small one-bedroom studio."}'
-curl localhost:8000/designs/<id>  # status, attempts and artifact URLs
+  -d '{"brief": "A small one-bedroom studio.", "site_id": "<site_id>"}'
+curl localhost:8000/designs/<id>            # status, attempts and artifact URLs
 curl -X POST localhost:8000/designs/<id>/revisions -H 'content-type: application/json' \
   -d '{"instruction": "Move it further from the street."}'
 ```
 
-**Web app:** this proxies `/api` to the API.
+A design with no `site_id` is on the demo site. `serve` also takes
+`--daily-designs N` and `--daily-sites N` to cap runs and site builds a day,
+and `--survey-decided-by NAME --survey-id ID` (together) to fix the demo
+site's survey as the owner decided it.
+
+**Web app:** this proxies `/api` to the API (`BUTTON_API_URL`, by default
+`http://127.0.0.1:8000`). Open http://localhost:3000.
 
 ```bash
 cd apps/web && pnpm install && pnpm dev
 ```
 
-**One design from the command line:**
+**One design from the command line,** on the demo site, without the API:
 
 ```bash
 uv run --env-file .env python -m button_nz.agent.demo runs/demo "A small studio."
 ```
 
 **Benchmarks:** each writes `results.jsonl` as it goes, and `report.md` at the
-end.
+end. The commands each run used are in [docs/results](docs/results/README.md).
 
 ```bash
 uv run --env-file .env python -m button_nz.bench.lidar_qa out/lidar-qa
 uv run --env-file .env python -m button_nz.bench.design_ablation out/design-ablation
+uv run python -m button_nz.bench.town_screen out/town-screen
+uv run python -m button_nz.bench.batch --api http://127.0.0.1:8000 --sections 20 --out out/batch
+uv run --env-file .env python -m button_nz.bench.visual_check var/runs DESIGN_ID...
+```
+
+**Sample artifacts:** pack an accepted design and the designs it revises
+(pass the latest revision), with the survey they were checked against:
+
+```bash
+uv run python -m button_nz.sample var JOB_ID sample.zip --survey-decided-by "the owner"
 ```
 
 ## Layout
 
 - **`src/button_nz/`:**
   - `geo`: LINZ and Buller clients, NZTM, terrain, aerial tiles;
+  - `sites`: building a site from any address or title, from LINZ's layers
+    and STAC catalogues, its frontages, and the site store;
   - `lidar`: views and analysis;
-  - `perception`: SAM, georeferenced features, the survey and the owner's
-    decisions;
-  - `agent`: the Muse design loop;
-  - `blender_worker`: scene building and the sandbox;
+  - `perception`: SAM, georeferenced features, the survey, the owner's
+    decisions and their suggestions, and the AI visual;
+  - `agent`: the Muse design loop, and the site, frontages and room it's told;
+  - `blender_worker`: scene building, the sandbox, the trusted measuring
+    pass, the CC0 textures;
   - `evaluation`: the checks;
+  - `catalogue`: the prefab products and which fit;
+  - `town`: the town screen and its map;
   - `bench`: the experiments;
+  - `sample`: packing sample artifacts;
   - `api`: the HTTP service.
-- **`apps/web/`:** the Next.js app: site plan, survey confirmation, live
-  design runs, the 3D viewer.
+- **`apps/web/`:** the Next.js app: the town map and address search, the
+  survey, live design runs, the 2D/3D map and model viewer, revisions and
+  prefabs.
+- **`scripts/`:** deployment (`deploy/`) and the demo recording (`demo/`).
 - **`tests/`:** the pytest suite, written test-first.
-- **`data/`:** the demo site record and its provenance.
-- **`docs/`:** the plan and architecture notes.
+- **`data/`:** the demo site record and its provenance, and the prefab
+  catalogue.
+- **`docs/`:** the plan, the product, the results and the submission.
 
 ## Development
 
