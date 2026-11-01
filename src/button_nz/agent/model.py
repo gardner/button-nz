@@ -6,6 +6,7 @@ render as an image, so the model sees what it built as well as the numbers.
 """
 
 import base64
+import io
 import json
 import os
 from collections.abc import Sequence
@@ -14,6 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from openai import OpenAI
+from PIL import Image
 
 from button_nz.agent.conversation import ModelReplyError, Observe, Turn
 from button_nz.agent.observe import OBSERVATION_TOOLS
@@ -21,6 +23,7 @@ from button_nz.agent.observe import OBSERVATION_TOOLS
 __all__ = ["META_BASE_URL", "ChatModel", "ModelReplyError"]
 
 META_BASE_URL = "https://api.meta.ai/v1"
+MAX_SIDE_PX = 800  # images to the model: a render's detail, ~60% fewer tokens than 1280
 TOOL = "run_blender_script"
 TOOLS: list[dict[str, Any]] = [
     {
@@ -133,7 +136,7 @@ def _call(n: int, turn: Turn) -> dict[str, Any]:
 
 
 def _image_message(caption: str, image: Path) -> dict[str, Any]:
-    data = base64.b64encode(image.read_bytes()).decode("ascii")
+    data = base64.b64encode(_for_the_model(image)).decode("ascii")
     return {
         "role": "user",
         "content": [
@@ -141,3 +144,19 @@ def _image_message(caption: str, image: Path) -> dict[str, Any]:
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}},
         ],
     }
+
+
+def _for_the_model(image: Path) -> bytes:
+    """``image`` as sent to the model: its long side at most ``MAX_SIDE_PX``.
+    Image tokens scale with pixels (a 1280 x 960 render measured about 1,530
+    prompt tokens, 640 x 480 about 390), and every image is resent on each
+    later call of a run. The file on disk keeps its full size."""
+    raw = image.read_bytes()
+    with Image.open(io.BytesIO(raw)) as found:
+        if max(found.size) <= MAX_SIDE_PX:
+            return raw
+        smaller = found.convert("RGB")
+        smaller.thumbnail((MAX_SIDE_PX, MAX_SIDE_PX), Image.Resampling.LANCZOS)
+    out = io.BytesIO()
+    smaller.save(out, format="PNG")
+    return out.getvalue()
