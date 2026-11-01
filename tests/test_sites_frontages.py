@@ -1,10 +1,15 @@
 """Tests for button_nz.sites.frontages: which title edges face a road, and which road."""
 
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
 from shapely import LineString, Polygon
 
 from button_nz.sites.frontages import (
     Road,
     describe_frontages,
+    fetch_frontages,
     from_collection,
     frontages,
     to_collection,
@@ -73,3 +78,59 @@ def test_a_street_that_runs_along_no_edge_is_named_with_its_nearest_edge_and_dis
     assert street.distance_m == 20.0
     text = describe_frontages(found, lambda p: p)
     assert "Coal Street (the address's street) runs along no edge: 20.0 m from" in text
+
+
+class FakeLayer:
+    """A LINZ layer answering envelopes with ``near`` and ids with ``by_id``."""
+
+    def __init__(self, near: list[dict[str, Any]], by_id: list[dict[str, Any]]) -> None:
+        self.near, self.by_id = near, by_id
+        self.asked: list[str] = []
+
+    def in_envelope(self, bbox: Any) -> Any:
+        return SimpleNamespace(features=self.near)
+
+    def where(self, clause: str) -> Any:
+        self.asked.append(clause)
+        return SimpleNamespace(features=self.by_id)
+
+
+def _road_feature(rid: int, name: str, line: list[list[float]]) -> dict[str, Any]:
+    props = {"road_id": rid, "full_road_name": name}
+    return {
+        "type": "Feature",
+        "properties": props,
+        "geometry": {"type": "LineString", "coordinates": line},
+    }
+
+
+def test_a_street_far_beyond_reach_is_still_found_by_its_id() -> None:
+    far = _road_feature(1, "Coal Street", [[100, -20], [100, 50]])  # 80 m east: a rear section
+    roads = FakeLayer(near=[], by_id=[far])
+    found = fetch_frontages(FakeLayer([], []), roads, [TITLE], street_road_id=1)
+    assert [(f.road, f.street, f.adjacent, f.distance_m) for f in found] == [
+        ("Coal Street", True, False, 80.0)
+    ]
+    assert roads.asked == ["road_id = 1"]
+
+
+def test_a_street_linz_doesnt_have_is_an_error_not_a_site_without_one() -> None:
+    with pytest.raises(LookupError, match="road 1"):
+        fetch_frontages(FakeLayer([], []), FakeLayer([], []), [TITLE], street_road_id=1)
+
+
+def test_an_unnamed_lane_beside_the_title_isnt_named_after_the_street_in_front() -> None:
+    # Coal Street in front (south); a lane with no addressing road along the east side.
+    lane = Polygon([(20, 0), (26, 0), (26, 50), (20, 50)])  # from the street's edge north
+    south = Polygon([(-20, -15), (20, -15), (20, 0), (-20, 0)])
+    found = frontages([TITLE], [south, lane], [COAL], street_road_id=1)
+    by_road = {f.road: f for f in found}
+    assert by_road["Coal Street"].edges == (((0.0, 0.0), (20.0, 0.0)),)  # only the front
+    assert by_road[None].edges == (((20.0, 0.0), (20.0, 30.0)),)  # the lane: unnamed
+
+
+def test_a_short_street_near_one_end_of_a_long_edge_is_nearest_that_edge() -> None:
+    long_title = ((0.0, 0.0), (100.0, 0.0), (100.0, 20.0), (0.0, 20.0), (0.0, 0.0))
+    stub = Road(1, "Coal Street", LineString([(-5, -1), (2, -1)]))  # 1 m south, at the west end
+    (street,) = frontages([long_title], [], [stub], street_road_id=1)
+    assert street.edges == (((0.0, 0.0), (100.0, 0.0)),) and street.distance_m == 1.0

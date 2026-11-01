@@ -10,13 +10,13 @@ named road within reach is an unnamed frontage, not a guess.
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from shapely import LineString, Polygon, union_all
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 
-from button_nz.geo.arcgis import FeatureLayer
+from button_nz.geo.arcgis import FeatureSet
 from button_nz.geo.geometry import BBox, Point, Ring, bounds
 
 TOUCH_M = 0.5  # an edge this close to a road parcel runs along it
@@ -63,8 +63,8 @@ def frontages(
         along = union_all(list(road_parcels)).buffer(TOUCH_M)
         for edge in edges:
             line = LineString(edge)
-            if line.length > 0 and line.intersection(along).length / line.length >= ALONG:
-                found.setdefault(_road_of(line, roads), []).append(edge)
+            if _along(line, along):
+                found.setdefault(_road_of(line, roads, road_parcels), []).append(edge)
     names = {road.road_id: road.name for road in roads}
     fronting = [
         Frontage(None if rid is None else names[rid], rid == street_road_id, tuple(on))
@@ -78,9 +78,18 @@ def frontages(
 
 def _away(street: Road, edges: Sequence[Edge]) -> Frontage:
     """The address's street where it runs along no edge: the edge nearest it."""
-    # The edge whose middle is nearest: two edges meeting at the corner
-    # nearest the street are equally near at that corner.
-    nearest = min(edges, key=lambda e: street.centreline.distance(_middle(e)))
+
+    # The nearest edge as a whole; where two are as near (meeting at the
+    # corner nearest the street), the one with more of its length alongside
+    # the street faces it.
+    gap = min(street.centreline.distance(LineString(e)) for e in edges)
+    alongside = street.centreline.buffer(gap + 0.5)
+
+    def nearness(edge: Edge) -> tuple[float, float]:
+        line = LineString(edge)
+        return round(street.centreline.distance(line), 3), -line.intersection(alongside).length
+
+    nearest = min(edges, key=nearness)
     distance = round(street.centreline.distance(LineString(nearest)), 1)
     return Frontage(street.name, True, (nearest,), adjacent=False, distance_m=distance)
 
@@ -96,14 +105,25 @@ def _boundary(title: Sequence[Ring]) -> list[Edge]:
     return edges
 
 
-def _middle(edge: Edge) -> BaseGeometry:
-    return LineString(edge).interpolate(0.5, normalized=True)
+def _along(edge: LineString, area: BaseGeometry) -> bool:
+    """Whether most of the edge runs within ``area``."""
+    return edge.length > 0 and edge.intersection(area).length / edge.length >= ALONG
 
 
-def _road_of(edge: LineString, roads: Sequence[Road]) -> int | None:
-    """The named road nearest the edge's middle, if one is within reach."""
+def _road_of(
+    edge: LineString, roads: Sequence[Road], road_parcels: Sequence[BaseGeometry]
+) -> int | None:
+    """The named road whose centreline runs through a road parcel the edge
+    lies along, nearest the edge's middle and within reach. A road parcel no
+    named road runs through (a paper road, a lane) is unnamed, never named
+    after a road nearby."""
+    beside = [p for p in road_parcels if _along(edge, p.buffer(TOUCH_M))]
     middle = edge.interpolate(0.5, normalized=True)
-    near = [(road.centreline.distance(middle), road.road_id) for road in roads]
+    near = [
+        (road.centreline.distance(middle), road.road_id)
+        for road in roads
+        if any(road.centreline.intersects(p) for p in beside)
+    ]
     near = [(d, rid) for d, rid in near if d <= REACH_M]
     return min(near)[1] if near else None
 
@@ -169,27 +189,39 @@ def _edge(edge: Edge, local: Callable[[Point], Point]) -> str:
     return f"({ax:.2f}, {ay:.2f}) to ({bx:.2f}, {by:.2f})"
 
 
+class Layer(Protocol):
+    """What frontages read from a LINZ layer (``geo.arcgis.FeatureLayer``)."""
+
+    def in_envelope(self, bbox: BBox) -> FeatureSet: ...
+    def where(self, clause: str) -> FeatureSet: ...
+
+
 def fetch_frontages(
-    parcels: FeatureLayer, roads: FeatureLayer, title: Sequence[Ring], street_road_id: int
+    parcels: Layer, roads: Layer, title: Sequence[Ring], street_road_id: int
 ) -> tuple[Frontage, ...]:
     """The title's frontages from LINZ: the road parcels beside it (Primary
-    Parcels with ``parcel_intent`` Road) and the named roads in reach of it."""
+    Parcels with ``parcel_intent`` Road) and the named roads in reach of it.
+    The address's street is fetched by its id however far off it is (a rear
+    section's street may be well beyond reach); LINZ having no such road is a
+    ``LookupError``, never a site recorded without its street."""
     reach = _grown(bounds([p for ring in title for p in ring]), REACH_M)
     road_parcels = [
         shape(f["geometry"])
         for f in parcels.in_envelope(reach).features
         if f["properties"].get("parcel_intent") == "Road" and f.get("geometry")
     ]
-    named = [
-        Road(
-            int(f["properties"]["road_id"]),
-            str(f["properties"]["full_road_name"]),
-            shape(f["geometry"]),
-        )
-        for f in roads.in_envelope(reach).features
-        if f.get("geometry")
-    ]
+    named = [_road(f) for f in roads.in_envelope(reach).features if f.get("geometry")]
+    if not any(road.road_id == street_road_id for road in named):
+        found = roads.where(f"road_id = {int(street_road_id)}").features
+        if not found or not all(f.get("geometry") for f in found):
+            raise LookupError(f"LINZ has no road {street_road_id} for the address's street")
+        named += [_road(f) for f in found]
     return frontages(title, road_parcels, named, street_road_id)
+
+
+def _road(feature: Any) -> Road:
+    props = feature["properties"]
+    return Road(int(props["road_id"]), str(props["full_road_name"]), shape(feature["geometry"]))
 
 
 def _grown(bbox: BBox, by: float) -> BBox:
