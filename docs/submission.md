@@ -7,7 +7,7 @@ property owner or the team lead. Nothing that needs their word is assumed.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | Served behind an access code and checked end to end; **no public address until the tunnel has a hostname** (see below) |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | Served open at https://button.nz (no access code; the daily cap and the fixed survey are the limits) and checked end to end |
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | Two takes recorded; final take after Experiment A's re-run |
 | 3 | Source repository | this repository, GNU GPL (`LICENSE`) | Public |
 | 4 | Technical README | [README.md](../README.md) | Done |
@@ -22,7 +22,7 @@ GPU. Every design is a live call to the Meta Model API and a sandboxed Blender
 run. [deploy.md](deploy.md) serves it from that machine as systemd services,
 behind a Cloudflare tunnel. It adds:
 
-- an access code, carried by the link judges get;
+- an optional access code (button.nz runs without one, so judges' links carry none);
 - a daily cap on design runs;
 - the owner's survey, fixed;
 - links that open a finished design at once.
