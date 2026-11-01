@@ -110,6 +110,29 @@ def test_a_roofed_atrium_is_floor_not_a_courtyard() -> None:
     assert _walls(measured).area == pytest.approx(144.0)
 
 
+def _benched(width: float) -> list[Triangle]:
+    """An 11 m square courtyard house, its 5 m courtyard (3-8 m) with a bench
+    ``width`` wide and 0.9 m high round it: the courtyard's sides step in below
+    the wall cut, as sloping sides would."""
+    a, b = 3 + width, 8 - width
+    bench = box(3, 3, 0, 8, a, 0.9) + box(3, b, 0, 8, 8, 0.9)
+    bench += box(3, a, 0, a, b, 0.9) + box(b, a, 0, 8, b, 0.9)
+    return _courtyard_house(11, 5) + bench
+
+
+def test_a_courtyard_is_measured_no_bigger_than_it_is_near_the_floor() -> None:
+    """5 m x 5 m open at the wall cut, but 4.4 m x 4.4 m at the floor."""
+    measured = parse_measurements(measured_with(_benched(0.3)))
+    assert [Polygon(c).area for c in measured.courtyards] == pytest.approx([4.4**2])
+    assert _walls(measured).area == pytest.approx(121 - 4.4**2)
+
+
+def test_open_sky_over_more_than_a_tenth_of_the_floor_is_still_no_roof() -> None:
+    """A 1 m bench: 16 m² of floor under open sky, outside the 3 m x 3 m courtyard."""
+    with pytest.raises(DesignError, match="no roof over its walls"):
+        parse_measurements(measured_with(_benched(1.0)))
+
+
 def test_a_courtyard_is_carried_into_the_proposal_in_nztm() -> None:
     measured = parse_measurements(measured_with(_courtyard_house(12, 4)))
     proposal = to_proposal(measured, FRAME, 100.0)

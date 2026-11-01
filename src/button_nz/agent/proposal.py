@@ -99,7 +99,7 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> tuple[Ring,
     walls, _ = _one_ring(rooms[0])
     if walls is None:
         raise DesignError("The Dwelling's walls don't form a closed outline.")
-    courtyards = _courtyards(triangles, rooms[0], z_min + cut, z_min + _courtyard_cut(z_min, z_max))
+    courtyards = _courtyards(triangles, rooms[0], _courtyard_cuts(z_min, z_max, cut))
     _check_envelope(triangles, Polygon(walls), courtyards, z_min, cut)
     rings = tuple(ring for court in courtyards if (ring := _one_ring(court)[0]) is not None)
     # Walls that lean in (an A-frame, a dome) are wider near the floor: measure them
@@ -110,21 +110,29 @@ def _walls(triangles: list[Triangle], z_min: float, z_max: float) -> tuple[Ring,
     return walls, rings
 
 
-def _courtyard_cut(z_min: float, z_max: float) -> float:
-    """How high above the floor a courtyard must still be walled in."""
-    return min(COURTYARD_WALL_M, (z_max - z_min) * 3 / 4)
+def _courtyard_cuts(z_min: float, z_max: float, cut: float) -> tuple[float, ...]:
+    """The heights a courtyard must be open and walled in at: the wall cut; near
+    the floor, where the low cut measures walls that lean (sides that slope or
+    step in below the wall cut make a courtyard smaller there); and high enough
+    that a balustrade isn't a courtyard's wall."""
+    low = min(LOW_SECTION_M, (z_max - z_min) / 4)
+    high = min(COURTYARD_WALL_M, (z_max - z_min) * 3 / 4)
+    return (z_min + cut, z_min + low, z_min + high)
 
 
-def _courtyards(triangles: list[Triangle], walls: Polygon, z: float, high: float) -> list[Polygon]:
-    """The courtyards inside ``walls``: what is open to the sky both in the section
-    at ``z`` and, still walled in, at ``high`` (a balustrade isn't a courtyard's
-    wall). Each is a plain hole a room's size or more; one with anything over
-    part of its middle is left as floor (the stricter reading)."""
-    at_cut = _open_to_sky(triangles, walls, z)
-    if at_cut.is_empty:
-        return []
-    both = at_cut.intersection(_open_to_sky(triangles, walls, high))
-    return [p for p in _pieces(both) if p.area >= MIN_ROOM_M2 and not p.interiors]
+def _courtyards(
+    triangles: list[Triangle], walls: Polygon, cuts: tuple[float, ...]
+) -> list[Polygon]:
+    """The courtyards inside ``walls``: what is open to the sky, and walled in, in
+    the section at every one of ``cuts``. Each is a plain hole a room's size or
+    more; one with anything over part of its middle is left as floor (the
+    stricter reading)."""
+    open_ = _open_to_sky(triangles, walls, cuts[0])
+    for z in cuts[1:]:
+        if open_.is_empty:
+            return []
+        open_ = open_.intersection(_open_to_sky(triangles, walls, z))
+    return [p for p in _pieces(open_) if p.area >= MIN_ROOM_M2 and not p.interiors]
 
 
 def _open_to_sky(triangles: list[Triangle], walls: Polygon, z: float) -> BaseGeometry:
