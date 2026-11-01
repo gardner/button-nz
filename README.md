@@ -283,6 +283,9 @@ How the reviews work:
 - **Threads:** findings arrive as review threads, and every thread must be
   resolved before merge. Either fix it, or reply with why not and resolve it.
   The next review reads those replies.
+- **Who said it:** both reviewers post as `github-actions[bot]`. GLM's
+  findings start with "GLM review", and the workflow adds that label to any
+  GLM comment that lacks it. Claude's start with the severity.
 - **Fork and Dependabot PRs** skip the review (forks get no secrets, and the
   token must never reach a freshly bumped action), so review those by hand.
 - **Isolation:** each reviewer runs in Claude Code's Bash sandbox, with no
