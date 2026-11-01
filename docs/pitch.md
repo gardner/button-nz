@@ -99,7 +99,7 @@ From live runs on the demo site ([docs/results](results/README.md)):
     trees included: room without removing anything that tall. Lower things,
     and anything added since the LiDAR, aren't seen.
 
-  Of the 745 properties that already have a building, 439 and 235: room for
+  Of the 745 properties with a LINZ building outline, 439 and 235: room for
   a flat in the backyard. It's a screen, not a verdict: hazards, slope, the
   district plan and services aren't checked.
 - **What it could mean** ([report](results/impact/report.md)): if a quarter
