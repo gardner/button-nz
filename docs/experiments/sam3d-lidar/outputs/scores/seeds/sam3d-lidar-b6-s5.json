@@ -1,0 +1,28 @@
+{
+ "building": "b6",
+ "model": "/home/gardner/src/button-nz-results/sam3d-spike/seeds/train-b6-s5/lidar/mesh.npz",
+ "held_out_roof_points": 130,
+ "validity": {
+  "watertight": false,
+  "triangles": 342186
+ },
+ "roof_exact_median_m": 0.716,
+ "roof_exact_bias_m": 0.635,
+ "model_points": 22143,
+ "roof_rmse_m": 0.818,
+ "roof_median_m": 0.776,
+ "roof_bias_m": 0.776,
+ "roof_coverage": 1.0,
+ "height_err_m": 1.013,
+ "ground_m": 186.26,
+ "footprint_iou": 0.551,
+ "scale": [
+  1.517,
+  1.236
+ ],
+ "fitted_scale": 0.758,
+ "shape_roof_rmse_m": 0.746,
+ "shape_roof_median_m": 0.403,
+ "shape_roof_bias_m": 0.229,
+ "shape_roof_coverage": 1.0
+}

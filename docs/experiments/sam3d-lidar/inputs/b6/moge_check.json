@@ -1,0 +1,14 @@
+{
+ "model": "Ruicheng/moge-vitl",
+ "scale_to_metric": 19.913146598534745,
+ "metric_scale_raw_moge_median_depth_m": 1.8742215633392334,
+ "lidar_median_depth_m": 37.40359441960743,
+ "absrel_mask": 0.005635212156057754,
+ "absrel_image": 0.027639016703080332,
+ "err3d_mask_m_median": 1.5010483224190145,
+ "err3d_mask_m_p90": 2.367271012859975,
+ "fx_true_px": 995.5555555555555,
+ "fx_moge_px": 1370.5538330078125,
+ "roof_top_above_scene_min_lidar_m": 4.081732124024512,
+ "roof_top_above_scene_min_moge_m": 8.017801159604034
+}
