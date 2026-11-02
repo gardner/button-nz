@@ -15,14 +15,14 @@
  "roof_coverage": 0.939,
  "height_err_m": -0.089,
  "ground_m": 186.26,
- "footprint_iou": 0.844,
+ "footprint_iou": 0.843,
  "scale": [
   1.052,
   1.015
  ],
  "fitted_scale": 1.009,
- "shape_roof_rmse_m": 0.215,
- "shape_roof_median_m": 0.2,
- "shape_roof_bias_m": 0.2,
- "shape_roof_coverage": 0.982
+ "shape_roof_rmse_m": 0.218,
+ "shape_roof_median_m": 0.206,
+ "shape_roof_bias_m": 0.206,
+ "shape_roof_coverage": 0.988
 }

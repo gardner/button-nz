@@ -10,9 +10,12 @@ usage: score.py SPIKE_DIR BUILDING MODEL
             above ACTIVE_OPACITY, SAM 3D's own cut in notebook/inference.py,
             normalized_gaussian; faint floaters are not the model's surface)
 
-Every model is reduced to the same thing, points on its surface (a mesh is
-sampled at SAMPLE_PER_M2), in the local frame: metres east and north of the
-outline's centroid, z = NZVD2016 height. Then:
+Every model is reduced to the same thing, points on its surface, in the
+local frame: metres east and north of the outline's centroid, z = NZVD2016
+height. A mesh is sampled at SAMPLE_PER_M2 as if it were the outline's size
+(more densely if it is smaller, so a model 20x too small still has as many
+points as a true-size one), and sampled again at SAMPLE_PER_M2 after the
+alignment, at true size. Then:
 
 Metric layout, no alignment:
 - roof_rmse_m, roof_median_m: for each held-out building point inside the
@@ -179,8 +182,17 @@ def mesh_top_errors(verts: Array, faces: NDArray[np.int64], truth: Array) -> tup
     return err[covered], float(covered.mean())
 
 
+def size_ratio(outline: Polygon, verts: Array) -> float:
+    """How many times smaller the model is than the outline, across (at least 1)."""
+    x0, y0, x1, y1 = outline.bounds
+    model_width = float(np.max(np.ptp(verts[:, :2], axis=0)))
+    return max(1.0, max(x1 - x0, y1 - y0) / max(model_width, 1e-9))
+
+
 def footprint_iou(model: Array, outline: Polygon) -> float:
-    x0, y0, x1, y1 = outline.buffer(30).bounds
+    ox0, oy0, ox1, oy1 = outline.bounds  # the grid holds the outline and every model point
+    x0, y0 = min(ox0, model[:, 0].min()) - FOOT_CELL_M, min(oy0, model[:, 1].min()) - FOOT_CELL_M
+    x1, y1 = max(ox1, model[:, 0].max()) + FOOT_CELL_M, max(oy1, model[:, 1].max()) + FOOT_CELL_M
     nx, ny = int((x1 - x0) / FOOT_CELL_M), int((y1 - y0) / FOOT_CELL_M)
     occ = np.zeros((ny, nx), bool)
     cx = ((model[:, 0] - x0) / FOOT_CELL_M).astype(int)
@@ -309,11 +321,12 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
     held = pts["held_out"] - [ox, oy, 0, 0]  # local frame; column 3 is the class
     held_roof = held[(held[:, 3] == BUILDING) & contains_xy(outline, held[:, 0], held[:, 1])][:, :3]
     result: dict[str, Any] = {"building": building, "model": str(model_path), "held_out_roof_points": len(held_roof)}
+    verts, faces = np.empty((0, 3)), None  # a mesh's, for meshes
     if model_path.suffix == ".npy":
         model = active_points(np.load(model_path).astype(float))
     else:
         verts, faces = load_mesh(model_path, (ox, oy))
-        model = sample(verts, faces, SAMPLE_PER_M2)
+        model = sample(verts, faces, SAMPLE_PER_M2 * size_ratio(outline, verts) ** 2)
         result["validity"] = validity(verts, faces)
         exact = stats("roof_exact", mesh_top_errors(verts, faces, held_roof)[0])
         result |= {k: exact[k] for k in ("roof_exact_median_m", "roof_exact_bias_m")}
@@ -333,7 +346,10 @@ def main(spike: Path, building: str, model_path: Path) -> dict[str, Any]:
         "scale": [round(float(v), 3) for v in principal_lengths(footprint_cells(model)) / principal_lengths(outline_cells(outline))],
     }
     s, rot, t = similarity_fit(top_points(model), roof_surface(spike, outline, (ox, oy)))
-    aligned = s * model @ rot.T + t
+    if faces is None:
+        aligned = s * model @ rot.T + t
+    else:  # sampled again at true size, so its density doesn't depend on the model's scale
+        aligned = sample(s * verts @ rot.T + t, faces, SAMPLE_PER_M2)
     err2, cover2 = top_errors(aligned, held_roof)
     result |= {"fitted_scale": round(s, 3)} | stats("shape_roof", err2) | {"shape_roof_coverage": round(cover2, 3)}
     return result

@@ -207,24 +207,33 @@ measures:
 A roof error with no held-out point under the model (coverage 0) is written
 as `null`, not NaN, so every score file is strict JSON.
 
-**Self-test** ([`scripts/selftest.py`](scripts/selftest.py)): Roofer's model
-of the house, as points, distorted on purpose. Layout catches each
-distortion; shape is the same after alignment, whatever the distortion, so
-it measures shape alone:
+**Self-test** ([`scripts/selftest.py`](scripts/selftest.py), which fails if
+any of this stops holding): Roofer's model of the house, as points and as a
+mesh, distorted on purpose. Layout catches each distortion; shape is the same
+after alignment, whatever the distortion and at any scale, so it measures
+shape alone. A mesh is sampled as if it were the outline's size, and again at
+true size after the alignment, so a mesh 20× too small has as many points as
+a true-size one:
 
 | Distortion | Roof median, no alignment | Footprint IoU | Fitted scale | Roof median, after alignment |
 |---|---|---|---|---|
 | None | 0.07 m | 0.90 | 0.96 | 0.15 m |
 | Moved 3 m east, 1 m up | 0.87 m | 0.54 | 0.96 | 0.15 m |
 | Turned 10°, 1.2× | 0.49 m | 0.64 | 0.78 | 0.15 m |
-| 20× too big | 37.4 m | 0.02 | 0.048 | 0.15 m |
+| 20× too big | 37.4 m | 0.002 | 0.048 | 0.15 m |
 | 20× too small (as MoGe's raw depth is) | no model over any point | 0.01 | 18.8 | 0.15 m |
+| As a mesh, 20× too big | 42.8 m | 0.002 | 0.048 | 0.15 m |
+| As a mesh, 20× too small | no model over any point | 0.01 | 18.8 | 0.15 m |
+| A copy of the house 60 m east, beside it | 0.07 m | 0.45 | (two houses) | (two houses) |
+
+The footprint grid spans the outline and the whole model, so a model reaching
+far beyond the outline is counted in full.
 
 **The alignment has a floor, and it differs by building:** Roofer's own
 model, which no alignment should improve, scores 0.15 m after it on the house
-and 0.20 m on the building behind trees, against 0.07 and 0.11 m without it
+and 0.21 m on the building behind trees, against 0.07 and 0.11 m without it
 ([outputs/scores/](outputs/scores/)). The fit lifts the model: after it,
-Roofer's roofs sit a median 0.15 m and 0.20 m above the held-out points
+Roofer's roofs sit a median 0.15 m and 0.21 m above the held-out points
 (`shape_roof_bias_m`), against 0.07 and 0.11 m before (`roof_bias_m`). The
 likely cause is the target: the highest training point in each 1 m cell, set
 at the cell's centre, sits above the roof there when the roof slopes. The fit
@@ -255,7 +264,7 @@ training points and the LINZ outlines
 | Roof height, model less held-out | +0.09 m | −0.09 m |
 | Footprint IoU with the outline | 0.90 | 0.84 |
 | Roof error read straight above each held-out point, median | 0.03 m | 0.05 m |
-| Roof error after alignment (the alignment's floor), median / RMSE | 0.15 / 0.25 m | 0.20 / 0.22 m |
+| Roof error after alignment (the alignment's floor), median / RMSE | 0.15 / 0.25 m | 0.21 / 0.22 m |
 | Valid closed solid | yes (24 triangles) | yes (36 triangles) |
 
 A conventional method, given the same training points, gets roofs within
