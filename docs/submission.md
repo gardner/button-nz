@@ -12,7 +12,7 @@ and nothing still to be produced is given a number.
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Blocked** on the demo survey (open item 1); the recorder is ready |
 | 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
 | 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
-| 5 | Evaluation report | [docs/results](results/README.md) | **Done:** Experiments A and C, the model comparison, the batch run, the AI visual, the town screen and impact. The SAM 3D experiment is **pending** (open item 4) |
+| 5 | Evaluation report | [docs/results](results/README.md) | **Done:** Experiments A and C, the model comparison, the batch run, the AI visual, the town screen, impact and the SAM 3D experiment |
 | 6 | Sample project artifacts | `python -m button_nz.sample` (below) | **Blocked** on the final take; the packager is built and tested |
 | 7 | Product story | [docs/product.md](product.md); the submission text is [pitch.md](pitch.md) | **Done** |
 
@@ -23,16 +23,15 @@ and nothing still to be produced is given a number.
 | 1 | **Decide the demo survey** for 35 Victory Street on button.nz: check every suggestion, not only the one shed the LiDAR disputes (which has none). The shed the LiDAR agrees with arrives suggested as a building, and ticking "every building is listed" stores every suggestion as the owner's own decision; the owner says nothing is built on the site. Then tick the box. Then set `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` (the `survey_id` from `/api/site/features`) together in `deploy.env`, and rerun `install.sh` (#91) | Owner | the final take (2), the sample (6) |
 | 2 | **The submission portal's requirements:** the fields, the video's length and format, and whether a live URL is required | Owner (needs the team's login) | the video's cut, the form |
 | 3 | **Record and cut the final take** (`scripts/demo/record.py`, `cut.py`), then **package the sample** from it, and fill in pitch.md's video link | Team, once 1 is done | 2, 6 |
-| 4 | **SAM 3D results** (#125, #138): request access to `facebook/sam-3d-objects` on Hugging Face and log in; then `get_weights_and_run.sh` runs both conditions; scoring them needs the held-out truth and scorer in #138 (in review) | Owner (access); team (the run) | the SAM 3D slot below |
-| 5 | **Submit** on the portal | Owner (needs the team's login) | |
+| 4 | **Submit** on the portal | Owner (needs the team's login) | |
 
 ### SAM 3D Objects with LiDAR (#125)
 
-**Pending.** No SAM 3D output exists yet: its weights are gated on Hugging
-Face and access hasn't been granted. The held-out truth, the scorer and the
-Roofer baseline are in review in #138 ([write-up](experiments/sam3d-lidar/README.md)).
-When it has run, its measured comparison goes here and in
-[docs/results](results/README.md), from the scorer's own output.
+**Done.** The LiDAR fixes SAM 3D's placement and scale, not its shape: with
+it, roofs are 0.8–1.7 m from the held-out LiDAR, against 7–11 cm for the
+Roofer baseline from the same points, so SAM 3D stays out of the app. The
+measured comparison is in the [write-up](experiments/sam3d-lidar/README.md)
+and [docs/results](results/README.md).
 
 ## 1. Working application
 
@@ -83,7 +82,7 @@ final take.
 - **many real sections**: placement before and after the frontages and room;
 - **the AI visual**: how often it passes its silhouette check;
 - **the town screen** and **impact** scenarios for Reefton;
-- **SAM 3D Objects with LiDAR**: pending (open item 4).
+- **SAM 3D Objects with LiDAR**: placement and scale, not shape.
 
 ## 6. Sample project artifacts
 

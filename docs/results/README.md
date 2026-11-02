@@ -341,3 +341,25 @@ street's edge:
   harness then read them before the visual was made, so it counted a missing
   one as a failure; it now waits. Across both runs the visual passed 7 of 12:
   its SAM check rejects a picture whose house was moved or reshaped.
+
+## SAM 3D Objects with LiDAR (#125)
+
+Can SAM 3D Objects rebuild a real house from the aerial photo, and does the
+measured LiDAR, given in place of its own depth estimate, make that
+accurate? It ran with the official weights on two buildings, six seeds per
+condition, scored against LiDAR points held out of every input. The
+[write-up](../experiments/sam3d-lidar/README.md) has the protocol and the
+full table, which [`summarize.py`](../experiments/sam3d-lidar/scripts/summarize.py)
+builds from the score files. Medians of six seeds:
+
+| | House, no LiDAR | House, LiDAR | House, Roofer | Behind trees, no LiDAR | Behind trees, LiDAR | Behind trees, Roofer |
+|---|---|---|---|---|---|---|
+| Footprint IoU with the outline | 0.00 | 0.69 | 0.91 | 0.00 | 0.44 | 0.84 |
+| Roof error, median, no alignment | none over the points | 0.79 m | 0.07 m | none over the points | 1.70 m | 0.11 m |
+| Roof error after alignment, median | 0.41 m | 0.39 m | 0.15 m | 0.46 m | 0.46 m | 0.21 m |
+
+**Notes:**
+- Without LiDAR the model is 17–22× too small and about 24 m off. The LiDAR
+  fixes placement and scale, but after alignment its roof is no better.
+- Roofer, a conventional reconstruction from the same points, is about ten
+  times as accurate, so SAM 3D models don't go into the app's 3D view.
