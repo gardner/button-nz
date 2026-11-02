@@ -34,9 +34,12 @@ from button_nz.sites.registry import DEMO_SITE_ID
 INTERRUPTED = "interrupted by a restart"
 SURVEY_USED = "survey.json"  # in each job's run folder: what its design was checked against
 log = logging.getLogger(__name__)
-NO_SILHOUETTE = "The accepted attempt has no render and dwelling silhouette to illustrate."
+NO_SILHOUETTE = (
+    "The accepted attempt has no render, dwelling silhouette and whole outline to illustrate."
+)
 
-type Illustrator = Callable[[Path, Path], Visual]  # (design.png, dwelling-mask.png)
+# (design.png, dwelling-mask.png, dwelling-outline.png)
+type Illustrator = Callable[[Path, Path, Path], Visual]
 type SiteFor = Callable[[str], tuple[DesignSite, Path | None]]  # a site id: where, and its survey
 
 
@@ -140,10 +143,10 @@ class Worker:
         if self.illustrator is None:
             return
         try:
-            if accepted.render is None or accepted.mask is None:
+            if accepted.render is None or accepted.mask is None or accepted.outline is None:
                 visual = Visual.failed(NO_SILHOUETTE)
             else:
-                visual = self.illustrator(accepted.render, accepted.mask)
+                visual = self.illustrator(accepted.render, accepted.mask, accepted.outline)
         except Exception as error:  # the visual's failure, never the design's
             log.exception("the visual of %s failed", accepted.directory)
             visual = Visual.failed(_reason(error))

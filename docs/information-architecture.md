@@ -130,6 +130,7 @@ attempt-<n>/                each file below exists only if its step ran: an atte
   measurements.json         what the trusted pass measured
   design.glb, design.png    the measured design, exported and rendered
   dwelling-mask.png         its silhouette, for checking the AI visual
+  dwelling-outline.png      its whole outline, nothing in front of it, likewise
   visual.png, visual.json   the AI visual and its check (accepted attempts)
 ```
 
