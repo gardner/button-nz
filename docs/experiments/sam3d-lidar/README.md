@@ -363,8 +363,9 @@ from above against the training-points DSM
 view.**
 - The view already stands buildings at their measured LiDAR footprints and
   heights.
-- SAM 3D with LiDAR would put roofs 0.7–1.7 m off and footprints 15–70% too
-  big. That is about ten times worse than Roofer from the same points.
+- SAM 3D with LiDAR would put roofs 0.7–1.7 m off, with footprints whose
+  principal lengths are 1.15–1.69 times the outline's (Roofer's: 1.02–1.07).
+  That is about ten times worse than Roofer from the same points.
 - Its roof shape after alignment is no better than with no LiDAR at all, and
   5 of its 12 meshes aren't valid solids.
 
