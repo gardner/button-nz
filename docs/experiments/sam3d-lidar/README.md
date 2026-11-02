@@ -351,8 +351,8 @@ from above against the training-points DSM
   its roofs are 7–11 cm from the held-out points (3–5 cm straight above),
   against 0.8–1.7 m for SAM 3D with LiDAR. Its footprints match better
   (0.91 and 0.84), and both its models are closed solids.
-- **Half the SAM 3D meshes aren't valid solids.** Only 3–5 of each six are
-  closed (every edge on two faces), and they are 320,000–620,000-triangle
+- **Over a third of the SAM 3D meshes aren't valid solids.** Only 3–5 of
+  each six are closed (every edge on two faces; 15 of 24 in all), and they are 320,000–620,000-triangle
   surfaces with no roof planes.
 - **The Gaussians agree with the mesh.** Their centres, scored as a
   secondary record (`sam3d-*-gaussians.json`), give the same picture. For
@@ -366,7 +366,7 @@ view.**
 - SAM 3D with LiDAR would put roofs 0.7–1.7 m off and footprints 15–70% too
   big. That is about ten times worse than Roofer from the same points.
 - Its roof shape after alignment is no better than with no LiDAR at all, and
-  half its meshes aren't valid solids.
+  5 of its 12 meshes aren't valid solids.
 
 If the 3D view ever needs roof form, Roofer on the LiDAR points is the method
 to evaluate, not a generative model.
