@@ -1,28 +1,28 @@
 {
  "building": "b3",
- "model": "RESULTS/seeds/train-b3-s3/moge/mesh.npz",
+ "model": "/home/gardner/src/button-nz-results/sam3d-spike/seeds/train-b3-s3/moge/mesh.npz",
  "held_out_roof_points": 165,
  "validity": {
-  "watertight": true,
-  "triangles": 350928
+  "watertight": false,
+  "triangles": 562976
  },
  "roof_exact_median_m": null,
  "roof_exact_bias_m": null,
- "model_points": 13800,
+ "model_points": 23910,
  "roof_rmse_m": null,
  "roof_median_m": null,
  "roof_bias_m": null,
  "roof_coverage": 0.0,
- "height_err_m": 23.535,
+ "height_err_m": 23.504,
  "ground_m": 186.26,
  "footprint_iou": 0.0,
  "scale": [
   0.055,
   0.063
  ],
- "fitted_scale": 18.297,
- "shape_roof_rmse_m": 0.67,
- "shape_roof_median_m": 0.416,
- "shape_roof_bias_m": 0.369,
- "shape_roof_coverage": 1.0
+ "fitted_scale": 19.205,
+ "shape_roof_rmse_m": 0.803,
+ "shape_roof_median_m": 0.579,
+ "shape_roof_bias_m": 0.516,
+ "shape_roof_coverage": 0.994
 }

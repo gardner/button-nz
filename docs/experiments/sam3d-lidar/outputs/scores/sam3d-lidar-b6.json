@@ -1,28 +1,28 @@
 {
  "building": "b6",
- "model": "RESULTS/train-b6/lidar/mesh.npz",
+ "model": "/home/gardner/src/button-nz-results/sam3d-spike/train-b6/lidar/mesh.npz",
  "held_out_roof_points": 130,
  "validity": {
-  "watertight": true,
-  "triangles": 536436
+  "watertight": false,
+  "triangles": 540364
  },
- "roof_exact_median_m": 0.69,
- "roof_exact_bias_m": 0.674,
- "model_points": 36155,
- "roof_rmse_m": 0.804,
- "roof_median_m": 0.789,
- "roof_bias_m": 0.789,
+ "roof_exact_median_m": 0.948,
+ "roof_exact_bias_m": 0.93,
+ "model_points": 37208,
+ "roof_rmse_m": 1.041,
+ "roof_median_m": 1.135,
+ "roof_bias_m": 1.135,
  "roof_coverage": 1.0,
- "height_err_m": 1.06,
+ "height_err_m": 1.276,
  "ground_m": 186.26,
- "footprint_iou": 0.621,
+ "footprint_iou": 0.594,
  "scale": [
-  1.345,
-  1.198
+  1.411,
+  1.202
  ],
- "fitted_scale": 0.804,
- "shape_roof_rmse_m": 0.779,
- "shape_roof_median_m": 0.454,
- "shape_roof_bias_m": 0.119,
- "shape_roof_coverage": 0.977
+ "fitted_scale": 0.791,
+ "shape_roof_rmse_m": 0.874,
+ "shape_roof_median_m": 0.508,
+ "shape_roof_bias_m": 0.216,
+ "shape_roof_coverage": 0.962
 }

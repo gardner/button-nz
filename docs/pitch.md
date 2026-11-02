@@ -78,7 +78,7 @@ Anyone opens https://button.nz and, in one session:
 - **SAM 3D Objects** (an experiment, not in the app): can it rebuild a real
   house from our aerial photo, and does the measured LiDAR, given in place of
   its own depth estimate, make that accurate? No: the LiDAR fixes its
-  placement and scale, not its shape. Its roofs are 0.8–1.7 m from held-out
+  placement and scale, not its shape. Its roofs are 0.9–1.5 m from held-out
   LiDAR, against 7–11 cm for Roofer, a conventional reconstruction from the
   same points, so it stays out of the app
   ([write-up](experiments/sam3d-lidar/README.md)).

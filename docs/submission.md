@@ -28,7 +28,7 @@ and nothing still to be produced is given a number.
 ### SAM 3D Objects with LiDAR (#125)
 
 **Done.** The LiDAR fixes SAM 3D's placement and scale, not its shape: with
-it, roofs are 0.8–1.7 m from the held-out LiDAR, against 7–11 cm for the
+it, roofs are 0.9–1.5 m from the held-out LiDAR, against 7–11 cm for the
 Roofer baseline from the same points, so SAM 3D stays out of the app. The
 measured comparison is in the [write-up](experiments/sam3d-lidar/README.md)
 and [docs/results](results/README.md).

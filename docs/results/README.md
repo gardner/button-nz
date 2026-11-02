@@ -354,12 +354,12 @@ builds from the score files. Medians of six seeds:
 
 | | House, no LiDAR | House, LiDAR | House, Roofer | Behind trees, no LiDAR | Behind trees, LiDAR | Behind trees, Roofer |
 |---|---|---|---|---|---|---|
-| Footprint IoU with the outline | 0.00 | 0.69 | 0.91 | 0.00 | 0.44 | 0.84 |
-| Roof error, median, no alignment | none over the points | 0.79 m | 0.07 m | none over the points | 1.70 m | 0.11 m |
-| Roof error after alignment, median | 0.41 m | 0.39 m | 0.15 m | 0.46 m | 0.46 m | 0.21 m |
+| Footprint IoU with the outline | 0.00 | 0.64 | 0.91 | 0.00 | 0.53 | 0.84 |
+| Roof error, median, no alignment | none over the points | 0.91 m | 0.07 m | none over the points | 1.52 m | 0.11 m |
+| Roof error after alignment, median | 0.42 m | 0.44 m | 0.15 m | 0.56 m | 0.53 m | 0.21 m |
 
 **Notes:**
-- Without LiDAR the model is 17–22× too small and about 24 m off. The LiDAR
+- Without LiDAR the model is 18–22× too small and about 24 m off. The LiDAR
   fixes placement and scale, but after alignment its roof is no better.
-- Roofer, a conventional reconstruction from the same points, is about ten
-  times as accurate, so SAM 3D models don't go into the app's 3D view.
+- Roofer, a conventional reconstruction from the same points, is more than
+  ten times as accurate, so SAM 3D models don't go into the app's 3D view.

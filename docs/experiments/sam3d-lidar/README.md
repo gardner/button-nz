@@ -59,7 +59,15 @@ photographs. So we make an ordinary-looking photo from our data:
    for every pixel and record where it meets the LiDAR surface. That gives
    one metric 3D point per pixel, in the camera's coordinates.
 3. **The building's mask:** the pixels whose surface point falls inside its
-   LINZ outline (plus 1 m) and stands more than 1 m above ground.
+   LINZ outline (plus 1 m), stands more than 1 m above ground and isn't
+   vegetation. A surface point is vegetation if its nearest training point
+   is classed as vegetation (LINZ classes 3–5), or if it is more than 0.5 m
+   above the highest building-class training point in the outline: tree
+   canopy over the roof, much of which LINZ leaves unclassified. Without
+   this, the building behind the trees took in the canopy over its corner,
+   and SAM 3D was asked to model a tree as part of the building
+   ([`mask.py`](scripts/mask.py): 9,262 of its 99,996 pixels dropped; 3,727
+   of 99,811 on the house, at shrubs along its eaves).
 4. **Four conditions, each on the same photo and mask:**
 
    | Condition | What it tests |
@@ -98,7 +106,8 @@ photographs. So we make an ordinary-looking photo from our data:
      - the photo (step 1) is draped on it and rendered;
      - the pointmap (step 2) is cast onto it, so photo and pointmap agree
        pixel for pixel;
-     - the mask's height test (step 3) uses it;
+     - the mask's height test (step 3) uses it, and its vegetation test the
+       training points' classes;
      - the fitting step (condition 3) fits to the training points only;
      - Roofer (condition 4) gets the training points themselves, not a
        raster, since it finds roof planes in a point cloud.
@@ -122,7 +131,7 @@ photographs. So we make an ordinary-looking photo from our data:
   y up, z forward: OpenCV's with x and y negated). Missing pixels may be NaN.
 - **Scale:** the pipeline normalises scale and restores it on the output, so
   metric LiDAR gives a model at roughly metric scale. In the run it came out
-  about 18% (house) and 45% (behind trees) too big, against 17–22× too small
+  about 23% (house) and 37% (behind trees) too big, against 18–22× too small
   with MoGe.
 
 ## What's known already
@@ -292,14 +301,14 @@ photos made from the training points
 |---|---|---|
 | MoGe's raw scale vs metric | 19.9× too small | 19.9× too small |
 | Focal length, true vs MoGe | 996 vs 1,371 px (38% off) | 996 vs 1,254 px (26% off) |
-| Depth error on the building, after scaling to the LiDAR | 0.6% | 1.2% |
-| 3D point error on the building, median / 90th percentile | 1.51 / 2.37 m | 1.27 / 2.37 m |
-| Roof top above the scene's lowest point, each measured in its own pointmap, LiDAR vs MoGe | 4.07 vs 8.02 m | 6.02 vs 13.83 m |
+| Depth error on the building, after scaling to the LiDAR | 0.6% | 1.1% |
+| 3D point error on the building, median / 90th percentile | 1.50 / 2.37 m | 1.20 / 2.02 m |
+| Roof top above the scene's lowest point, each measured in its own pointmap, LiDAR vs MoGe | 4.08 vs 8.02 m | 4.56 vs 12.81 m |
 
 Without LiDAR the reconstruction has no real-world scale, and even at the
 LiDAR's scale MoGe's wrong focal length puts points metres out sideways, and
 its heights are wrong: measured from its own scene's lowest point, MoGe puts
-each roof about twice as high as the LiDAR does. The LiDAR pointmap removes all of this by construction. **These figures measure SAM 3D's
+each roof two to three times as high as the LiDAR does. The LiDAR pointmap removes all of this by construction. **These figures measure SAM 3D's
 input, not its output.** (An earlier lab note measured the same on photos made
 from LINZ's full DSM: 18.7–20.0× and 22–47% off.)
 
@@ -308,8 +317,11 @@ from LINZ's full DSM: 18.7–20.0× and 22–47% off.)
 SAM 3D ran with the official `facebook/sam-3d-objects` weights (all nine
 checkpoints' SHA-256 match Hugging Face's LFS ids). It ran on both buildings,
 with MoGe depth and with the LiDAR pointmap: seed 42 (the protocol run) and
-seeds 1–5. Each run took 5–10 s after an 11–16 s load, at about 19 GB peak
+seeds 1–5. Each run took 5–12 s after an 11–12 s load, at about 19 GB peak
 GPU memory on the RTX 5090. Its meshes are scored exactly as Roofer's is.
+The first run used masks without the vegetation test (step 3), which took in
+tree canopy on the building behind the trees; every SAM 3D run was redone
+with the new masks. The conclusions didn't change.
 SAM 3D figures are the median of the six seeds, with the range in brackets.
 [`scripts/summarize.py`](scripts/summarize.py) builds the full table from the
 score files ([outputs/summary.md](outputs/summary.md); per-run scores in
@@ -317,13 +329,13 @@ score files ([outputs/summary.md](outputs/summary.md); per-run scores in
 
 | | House, MoGe depth | House, LiDAR pointmap | House, Roofer | Behind trees, MoGe depth | Behind trees, LiDAR pointmap | Behind trees, Roofer |
 |---|---|---|---|---|---|---|
-| Footprint IoU with the outline | 0.00 | 0.69 (0.61–0.76) | 0.91 | 0.00 | 0.44 (0.39–0.54) | 0.84 |
-| Roof error, median, no alignment | no roof over any held-out point | 0.79 m (0.35–1.65) | 0.07 m | no roof over any held-out point | 1.70 m (0.92–2.35) | 0.11 m |
-| Same, read straight above each point | — | 0.68 m (0.32–1.44) | 0.03 m | — | 1.59 m (0.80–2.26) | 0.05 m |
-| Roof height, model less held-out | +24.1 m | +1.0 m (0.5–2.0) | +0.09 m | +23.5 m | +1.9 m (0.9–3.2) | −0.09 m |
-| Scale the alignment needed | 22.2× (21.5–22.9) | 0.85 (0.80–0.87) | 0.96 | 16.9× (16.1–18.9) | 0.69 (0.63–0.74) | 1.01 |
-| Roof error after alignment (condition 3), median | 0.41 m (0.34–0.48) | 0.39 m (0.35–0.53) | 0.15 m | 0.46 m (0.38–0.57) | 0.46 m (0.36–0.55) | 0.21 m |
-| Closed solids | 3 of 6 | 3 of 6 | yes | 5 of 6 | 4 of 6 | yes |
+| Footprint IoU with the outline | 0.00 | 0.64 (0.55–0.71) | 0.91 | 0.00 | 0.53 (0.41–0.61) | 0.84 |
+| Roof error, median, no alignment | no roof over any held-out point | 0.91 m (0.28–1.49) | 0.07 m | no roof over any held-out point | 1.52 m (0.43–2.82) | 0.11 m |
+| Same, read straight above each point | — | 0.83 m (0.36–1.35) | 0.03 m | — | 1.41 m (0.40–2.71) | 0.05 m |
+| Roof height, model less held-out | +24.1 m | +1.2 m (0.3–1.9) | +0.09 m | +23.5 m | +1.3 m (0.2–2.8) | −0.09 m |
+| Scale the alignment needed | 22.1× (20.6–23.5) | 0.81 (0.76–0.85) | 0.96 | 18.3× (16.7–19.2) | 0.73 (0.67–0.78) | 1.01 |
+| Roof error after alignment (condition 3), median | 0.42 m (0.29–0.54) | 0.44 m (0.34–0.59) | 0.15 m | 0.56 m (0.49–0.81) | 0.53 m (0.49–0.72) | 0.21 m |
+| Closed solids | 3 of 6 | 2 of 6 | yes | 2 of 6 | 3 of 6 | yes |
 
 [outputs/heights_b6.png](outputs/heights_b6.png) and
 [outputs/heights_b3.png](outputs/heights_b3.png) show the seed-42 models
@@ -332,42 +344,43 @@ from above against the training-points DSM
 
 **What it shows:**
 
-- **Without LiDAR, SAM 3D has no real-world scale.** Its model is 17–22×
+- **Without LiDAR, SAM 3D has no real-world scale.** Its model is 18–22×
   too small and sits about 24 m off, near the camera, covering none of the
   outline. That is what the MoGe check predicted: MoGe's raw depth is 19.9×
   too small.
 - **The LiDAR pointmap fixes placement and scale, not shape.** With it, the
-  model stands on the building (IoU 0.69 house, 0.44 behind trees), but its
-  roof is 0.7–1.7 m too high and its footprint too big. The footprint's
-  principal lengths are 1.31 and 1.15 times the outline's on the house,
-  1.69 and 1.35 behind the trees. After the best alignment, the roof is no
-  better than without LiDAR (0.39 against 0.41 m on the house, 0.46 against
-  0.46 m behind the trees). The spread across seeds (0.34–0.57 m) is larger
+  model stands on the building (IoU 0.64 house, 0.53 behind trees), but its
+  roof is 0.8–1.5 m too high and its footprint too big. The footprint's
+  principal lengths are 1.40 and 1.16 times the outline's on the house,
+  1.50 and 1.31 behind the trees. After the best alignment, the roof is no
+  better than without LiDAR (0.44 against 0.42 m on the house, 0.53 against
+  0.56 m behind the trees). The spread across seeds (0.29–0.81 m) is larger
   than either difference.
 - **Explicit fitting (condition 3) adds placement, not accuracy.** It
-  removes the scale and position error, but leaves 0.4–0.5 m of roof error.
+  removes the scale and position error, but leaves 0.4–0.6 m of roof error.
   Roofer's own model scores 0.15 and 0.21 m on the same alignment.
-- **Roofer is about ten times as accurate.** From the same training points,
-  its roofs are 7–11 cm from the held-out points (3–5 cm straight above),
-  against 0.8–1.7 m for SAM 3D with LiDAR. Its footprints match better
+- **Roofer is more than ten times as accurate.** From the same training
+  points, its roofs are 7–11 cm from the held-out points (3–5 cm straight
+  above), against 0.9–1.5 m for SAM 3D with LiDAR (0.8–1.4 m straight
+  above). Its footprints match better
   (0.91 and 0.84), and both its models are closed solids.
-- **Over a third of the SAM 3D meshes aren't valid solids.** Only 3–5 of
-  each six are closed (every edge on two faces; 15 of 24 in all), and they are 320,000–620,000-triangle
-  surfaces with no roof planes.
+- **More than half the SAM 3D meshes aren't valid solids.** Only 2–3 of
+  each six are closed (every edge on two faces; 10 of 24 in all), and they
+  are 340,000–580,000-triangle surfaces with no roof planes.
 - **The Gaussians agree with the mesh on seed 42**, the only seed whose
   Gaussians were scored (`sam3d-*-gaussians.json`, a secondary record). For
-  example, on the house with LiDAR, seed 42 gives: IoU 0.65 against the
-  mesh's 0.62, and roof after alignment 0.47 against 0.45 m.
+  example, on the house with LiDAR, seed 42 gives: IoU 0.63 against the
+  mesh's 0.59, and roof after alignment 0.50 against 0.51 m.
 
 **Decision: LiDAR-conditioned SAM 3D models don't go into the app's 3D
 view.**
 - The view already stands buildings at their measured LiDAR footprints and
   heights.
-- SAM 3D with LiDAR would put roofs 0.7–1.7 m off, with footprints whose
-  principal lengths are 1.15–1.69 times the outline's (Roofer's: 1.02–1.07).
-  That is about ten times worse than Roofer from the same points.
+- SAM 3D with LiDAR would put roofs 0.8–1.5 m off, with footprints whose
+  principal lengths are 1.16–1.50 times the outline's (Roofer's: 1.02–1.07).
+  That is more than ten times worse than Roofer from the same points.
 - Its roof shape after alignment is no better than with no LiDAR at all, and
-  5 of its 12 meshes aren't valid solids.
+  7 of its 12 meshes aren't valid solids.
 
 If the 3D view ever needs roof form, Roofer on the LiDAR points is the method
 to evaluate, not a generative model.
@@ -386,7 +399,7 @@ oblique photography.
   (seed 42 in `scores/`, seeds 1–5 in `scores/seeds/`), the results table
   (`summary.md`) and the height maps (`heights_b6.png`, `heights_b3.png`).
 - **SAM 3D's models aren't committed.** Each run's mesh (`mesh.npz`, about
-  20 MB, 320,000–620,000 triangles), splat (`splat.ply`, about 22 MB) and
+  20 MB, 340,000–580,000 triangles), splat (`splat.ply`, about 22 MB) and
   Gaussian centres (`scene_points.npy`) are too big. They live in
   `~/src/button-nz-results/sam3d-spike/train-{b6,b3}/{moge,lidar}/` (seed 42)
   and `.../seeds/train-{b6,b3}-s{1..5}/{moge,lidar}/`. To remake them, run

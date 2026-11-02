@@ -1,14 +1,14 @@
 {
  "model": "Ruicheng/moge-vitl",
- "scale_to_metric": 19.88236656267891,
- "metric_scale_raw_moge_median_depth_m": 1.9052374362945557,
- "lidar_median_depth_m": 37.942935044343756,
- "absrel_mask": 0.01243600674110142,
- "absrel_image": 0.04058914930194221,
- "err3d_mask_m_median": 1.2681937731807027,
- "err3d_mask_m_p90": 2.3713376687739363,
+ "scale_to_metric": 19.85747763290543,
+ "metric_scale_raw_moge_median_depth_m": 1.9055171012878418,
+ "lidar_median_depth_m": 37.91452013707135,
+ "absrel_mask": 0.010910915624230027,
+ "absrel_image": 0.04025063781304518,
+ "err3d_mask_m_median": 1.1952011621489718,
+ "err3d_mask_m_p90": 2.019168555334026,
  "fx_true_px": 995.5555555555555,
  "fx_moge_px": 1253.6129150390625,
- "roof_top_above_scene_min_lidar_m": 6.019647745350142,
- "roof_top_above_scene_min_moge_m": 13.83157962847119
+ "roof_top_above_scene_min_lidar_m": 4.5626607665499535,
+ "roof_top_above_scene_min_moge_m": 12.813629790991826
 }
