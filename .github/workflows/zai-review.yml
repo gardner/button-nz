@@ -91,7 +91,7 @@ jobs:
 
       - name: Review the pull request
         id: review
-        uses: anthropics/claude-code-action@v1.0.264
+        uses: anthropics/claude-code-action@v1.0.265
         # Only this step has the Z.ai key: not the steps that run the PR's own
         # scripts before it, nor the apt install.
         env:
