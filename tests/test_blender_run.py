@@ -227,3 +227,22 @@ def test_a_crash_before_the_design_is_finished_is_still_the_models(
     monkeypatch.setattr(run, "_run_blender", _finished_then(tmp_path, killed, unfinished))
     outputs = run._measure_pass("blender", tmp_path / "s.json", tmp_path / "d.blend", tmp_path, 60)  # pyright: ignore[reportPrivateUsage]
     assert outputs.measurements["error"] == DID_NOT_FINISH and outputs.glb is None
+
+
+def test_a_rerun_clears_the_last_runs_outputs_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pass that fails to write one of them mustn't leave the last run's in its
+    place: an old outline beside a new silhouette would check another design."""
+    out = tmp_path / "run"
+    out.mkdir()
+    outputs = ("measurements.json", "design.glb", "design.png", run.MASK, run.OUTLINE)
+    for name in outputs:
+        (out / name).write_bytes(b"the last run's")
+
+    def script_fails(*args: object) -> str:
+        return "the script failed"
+
+    monkeypatch.setattr(run, "_script_pass", script_fails)
+    run_design(SCENE, "x = 1\n", out, blender="blender")
+    assert not any((out / name).exists() for name in outputs)

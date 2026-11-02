@@ -106,7 +106,7 @@ def run_design(
     scene_path, script_path = out_dir / "scene.json", out_dir / "design.py"
     scene_path.write_text(json.dumps(scene), encoding="utf-8")
     script_path.write_text(script, encoding="utf-8")
-    for stale in ("measurements.json", "design.glb", "design.png", MASK):
+    for stale in ("measurements.json", "design.glb", "design.png", MASK, OUTLINE):
         (out_dir / stale).unlink(missing_ok=True)
     blend = scratch / "design.blend"
     error = _script_pass(blender, scene_path, script_path, blend, timeout_s)
