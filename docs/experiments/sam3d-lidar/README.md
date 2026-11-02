@@ -354,10 +354,10 @@ from above against the training-points DSM
 - **Over a third of the SAM 3D meshes aren't valid solids.** Only 3–5 of
   each six are closed (every edge on two faces; 15 of 24 in all), and they are 320,000–620,000-triangle
   surfaces with no roof planes.
-- **The Gaussians agree with the mesh.** Their centres, scored as a
-  secondary record (`sam3d-*-gaussians.json`), give the same picture. For
-  example, on the house with LiDAR: IoU 0.65 against the mesh's 0.62, and
-  roof after alignment 0.47 against 0.45 m.
+- **The Gaussians agree with the mesh on seed 42**, the only seed whose
+  Gaussians were scored (`sam3d-*-gaussians.json`, a secondary record). For
+  example, on the house with LiDAR, seed 42 gives: IoU 0.65 against the
+  mesh's 0.62, and roof after alignment 0.47 against 0.45 m.
 
 **Decision: LiDAR-conditioned SAM 3D models don't go into the app's 3D
 view.**
