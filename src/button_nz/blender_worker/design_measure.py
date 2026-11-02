@@ -16,7 +16,8 @@ evaluated transform, exported and rendered, so what is checked is what is shown.
 
 Writes ``OUT_DIR/measurements.json``, then ``design.glb``, ``design.png`` and
 ``dwelling-mask.png``: the baked Dwelling's silhouette from the render camera,
-with the site in front of it hiding what it hides.
+with the site in front of it hiding what it hides, and ``dwelling-outline.png``:
+the same with nothing hidden.
 A broken contract is recorded in the measurements for the model to fix.
 """
 
@@ -85,8 +86,9 @@ def main(argv: list[str]) -> None:
     design_io.write_json(path, measurements | {"error": design_io.DID_NOT_FINISH})
     build_scene.export(os.path.join(out_dir, "design.glb"), os.path.join(out_dir, "design.png"))
     design_io.write_json(path, measurements)  # the design is done: the silhouette is extra
-    try:  # only the AI visual needs it, and its absence is recorded there
+    try:  # only the AI visual needs them, and their absence is recorded there
         build_scene.render_silhouette(os.path.join(out_dir, "dwelling-mask.png"), "Dwelling")
+        build_scene.render_outline(os.path.join(out_dir, "dwelling-outline.png"), "Dwelling")
     except Exception as error:  # noqa: BLE001 - nothing about the design depends on it
         print(f"no silhouette: {error}", file=sys.stderr)
 

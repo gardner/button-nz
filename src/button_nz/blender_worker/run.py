@@ -30,6 +30,7 @@ BUILD_SCRIPT = Path(__file__).with_name("build_scene.py")
 SCRIPT_PASS = Path(__file__).with_name("design_script.py")  # the model's script, untrusted
 MEASURE_PASS = Path(__file__).with_name("design_measure.py")  # trusted measurement
 MASK = "dwelling-mask.png"  # written by the measure pass, beside design.png
+OUTLINE = "dwelling-outline.png"  # likewise, with nothing in front of the Dwelling
 MIN_FREE_GPU_MIB = 4096
 RESULT_LIMIT_BYTES = 256 << 20  # the most pass 1 may send back: its design file
 OUTPUT_TAIL_BYTES = 64 << 10  # Blender's output kept for error messages
@@ -48,14 +49,16 @@ class BlenderError(RuntimeError):
 
 @dataclass(frozen=True)
 class DesignOutputs:
-    """One run of a design script. ``glb``, ``png`` and ``mask`` (the Dwelling's
-    silhouette from the render camera) are None if the script failed."""
+    """One run of a design script. ``glb``, ``png``, ``mask`` (the Dwelling's
+    silhouette from the render camera) and ``outline`` (the same with nothing in
+    front of it) are None if the script failed."""
 
     measurements: Mapping[str, Any]
     script: Path
     glb: Path | None
     png: Path | None
     mask: Path | None = None
+    outline: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -103,7 +106,7 @@ def run_design(
     scene_path, script_path = out_dir / "scene.json", out_dir / "design.py"
     scene_path.write_text(json.dumps(scene), encoding="utf-8")
     script_path.write_text(script, encoding="utf-8")
-    for stale in ("measurements.json", "design.glb", "design.png", MASK):
+    for stale in ("measurements.json", "design.glb", "design.png", MASK, OUTLINE):
         (out_dir / stale).unlink(missing_ok=True)
     blend = scratch / "design.blend"
     error = _script_pass(blender, scene_path, script_path, blend, timeout_s)
@@ -161,27 +164,31 @@ def _measure_pass(
 ) -> DesignOutputs:
     """Pass 2: measurements, GLB and render of what pass 1 saved."""
     script_path, measurements_path = out_dir / "design.py", out_dir / "measurements.json"
-    glb, png, mask = out_dir / "design.glb", out_dir / "design.png", out_dir / MASK
+    glb, png = out_dir / "design.glb", out_dir / "design.png"
+    mask, outline = out_dir / MASK, out_dir / OUTLINE
     sandbox = Sandbox(inputs=(scene_path, blend), writable=out_dir, renders=True)
     args = [str(scene_path), str(blend), str(out_dir)]
     try:
         _run_blender(blender, MEASURE_PASS, args, timeout_s, sandbox)
     except BlenderError as error:
-        if _finished(measurements_path, glb, png):  # only the optional silhouette was lost
+        if _finished(measurements_path, glb, png):  # only the optional silhouettes were lost
             mask.unlink(missing_ok=True)
+            outline.unlink(missing_ok=True)
             return DesignOutputs(_read_json(measurements_path), script_path, glb, png)
         # A timeout or crash while the model's geometry is measured or rendered is
         # its to fix; a Python error is this runner's, and Blender's otherwise.
         if not (error.killed and _unfinished(measurements_path)):
             raise
-        for partial in (glb, png, mask):
+        for partial in (glb, png, mask, outline):
             partial.unlink(missing_ok=True)
         return DesignOutputs(_read_json(measurements_path), script_path, None, None)
     measurements = _read_json(measurements_path)
     if measurements.get("error"):
         return DesignOutputs(measurements, script_path, None, None)
     _require(glb, png)
-    return DesignOutputs(measurements, script_path, glb, png, mask if mask.is_file() else None)
+    return DesignOutputs(
+        measurements, script_path, glb, png, *(p if p.is_file() else None for p in (mask, outline))
+    )
 
 
 def _finished(path: Path, glb: Path, png: Path) -> bool:

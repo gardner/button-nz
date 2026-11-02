@@ -75,6 +75,7 @@ class Attempt:
     render: Path | None = None  # this attempt's render, if the runner made one
     judged: bool = False  # the evaluator reached a verdict on it (or rejected it)
     mask: Path | None = None  # the Dwelling's silhouette in the render, if the runner made one
+    outline: Path | None = None  # the same with nothing in front of it, if the runner made one
 
     @property
     def status(self) -> str:
@@ -297,7 +298,16 @@ def _attempt(
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
     attempt = Attempt(
-        number, script, feedback, report, directory, observations, outputs.png, judged, outputs.mask
+        number,
+        script,
+        feedback,
+        report,
+        directory,
+        observations,
+        outputs.png,
+        judged,
+        outputs.mask,
+        outputs.outline,
     )
     _write_attempt(attempt)
     return attempt
