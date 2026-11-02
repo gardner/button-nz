@@ -1,0 +1,28 @@
+{
+ "building": "b6",
+ "model": "RESULTS/seeds/train-b6-s5/lidar/mesh.npz",
+ "held_out_roof_points": 130,
+ "validity": {
+  "watertight": true,
+  "triangles": 351592
+ },
+ "roof_exact_median_m": 0.586,
+ "roof_exact_bias_m": 0.459,
+ "model_points": 20247,
+ "roof_rmse_m": 0.874,
+ "roof_median_m": 0.623,
+ "roof_bias_m": 0.586,
+ "roof_coverage": 1.0,
+ "height_err_m": 0.955,
+ "ground_m": 186.26,
+ "footprint_iou": 0.61,
+ "scale": [
+  1.411,
+  1.164
+ ],
+ "fitted_scale": 0.8,
+ "shape_roof_rmse_m": 0.695,
+ "shape_roof_median_m": 0.366,
+ "shape_roof_bias_m": 0.154,
+ "shape_roof_coverage": 0.923
+}

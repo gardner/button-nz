@@ -1,0 +1,28 @@
+{
+ "building": "b3",
+ "model": "RESULTS/train-b3/moge/mesh.npz",
+ "held_out_roof_points": 165,
+ "validity": {
+  "watertight": false,
+  "triangles": 357718
+ },
+ "roof_exact_median_m": null,
+ "roof_exact_bias_m": null,
+ "model_points": 14834,
+ "roof_rmse_m": null,
+ "roof_median_m": null,
+ "roof_bias_m": null,
+ "roof_coverage": 0.0,
+ "height_err_m": 23.541,
+ "ground_m": 186.26,
+ "footprint_iou": 0.0,
+ "scale": [
+  0.055,
+  0.063
+ ],
+ "fitted_scale": 16.571,
+ "shape_roof_rmse_m": 0.598,
+ "shape_roof_median_m": 0.498,
+ "shape_roof_bias_m": 0.47,
+ "shape_roof_coverage": 0.994
+}

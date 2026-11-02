@@ -1,0 +1,28 @@
+{
+ "building": "b6",
+ "model": "RESULTS/seeds/train-b6-s5/moge/mesh.npz",
+ "held_out_roof_points": 130,
+ "validity": {
+  "watertight": false,
+  "triangles": 367424
+ },
+ "roof_exact_median_m": null,
+ "roof_exact_bias_m": null,
+ "model_points": 15595,
+ "roof_rmse_m": null,
+ "roof_median_m": null,
+ "roof_bias_m": null,
+ "roof_coverage": 0.0,
+ "height_err_m": 24.111,
+ "ground_m": 186.26,
+ "footprint_iou": 0.0,
+ "scale": [
+  0.052,
+  0.029
+ ],
+ "fitted_scale": 22.044,
+ "shape_roof_rmse_m": 0.866,
+ "shape_roof_median_m": 0.414,
+ "shape_roof_bias_m": 0.282,
+ "shape_roof_coverage": 0.946
+}

@@ -5,4 +5,8 @@
 - `scores/`: each condition's scores from `scripts/score.py`, per building.
 - `surfaces-vs-linz.json`: the training-points DSM and DEM against LINZ's own rasters, from `scripts/check_surfaces.py`.
 
-SAM 3D's models (conditions 1–3) go here after the run.
+- `scores/sam3d-{moge,lidar}-{b6,b3}.json`: SAM 3D's mesh scored, seed 42; `...-gaussians.json`: its active Gaussian centres, a secondary record; `scores/seeds/`: seeds 1–5.
+- `summary.md`: the results table, from `scripts/summarize.py outputs/scores`.
+- `heights_b6.png`, `heights_b3.png`: every seed-42 model seen from above against the training-points DSM, from `scripts/render_heights.py`.
+
+SAM 3D's meshes and splats are too big to commit; the experiment README says where they are and how to remake them.

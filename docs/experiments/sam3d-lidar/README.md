@@ -1,7 +1,10 @@
 # Experiment: SAM 3D Objects conditioned on LiDAR
 
-**Status:** everything but SAM 3D itself is built and measured; SAM 3D is
-waiting for model access.
+**Status:** done. SAM 3D ran on both buildings, with and without the LiDAR
+pointmap, over six seeds each. It was scored against held-out LiDAR points
+alongside Roofer, a conventional method given the same training points.
+**Decision: LiDAR-conditioned SAM 3D models don't go into the app's 3D
+view** ([Results](#results)).
 
 - **Done:**
   - **Held-out truth:** LINZ's raw LAS/LAZ points for the scene, split into
@@ -11,16 +14,14 @@ waiting for model access.
     photos, pointmaps and masks ([inputs/](inputs/)).
   - **The scorer**, shape and layout, self-tested on known distortions
     ([below](#the-scorer)).
+  - **Conditions 1–3, SAM 3D**, run with the official weights and scored
+    ([Results](#results)). Condition 3 is the scorer's alignment, fitted to
+    the training points.
   - **Condition 4, Roofer**, run and scored: its roofs sit 7–11 cm (median)
     from the held-out points by the scorer's measure, 3–5 cm read straight
     above each point ([below](#condition-4-roofer)).
-  - **Condition 3, the fitted model**, is the scorer's alignment (fitted to
-    the training points), so it's scored with condition 2.
-- **Blocked:** SAM 3D's weights on Hugging Face (`facebook/sam-3d-objects`)
-  are gated, and Meta approves access by hand. Once approved, one script
-  runs and scores conditions 1–3 ([How to run it](#how-to-run-it)).
-- **Not yet measured:** roof-plane topology (Roofer reports its own planes;
-  SAM 3D's splats have none to count).
+- **Not measured:** roof-plane topology. Roofer reports its own planes;
+  SAM 3D's meshes are dense marching-cubes surfaces with no planes to count.
 
 ## The question
 
@@ -110,7 +111,7 @@ photographs. So we make an ordinary-looking photo from our data:
    (an orthophoto draped on a 1 m surface), with no real walls. Results
    apply to synthetic oblique inputs, not to real oblique photography.
 
-### How the pointmap goes in (verified in the code, not yet run)
+### How the pointmap goes in (verified in the code and the run)
 
 - **Call path:** `Inference.__call__(image, mask, seed, pointmap=...)` in
   `notebook/inference.py`, then `InferencePipelinePointMap.run(pointmap=...)`,
@@ -120,7 +121,9 @@ photographs. So we make an ordinary-looking photo from our data:
 - **Format:** an H×W×3 float tensor in PyTorch3D camera coordinates (x left,
   y up, z forward: OpenCV's with x and y negated). Missing pixels may be NaN.
 - **Scale:** the pipeline normalises scale and restores it on the output, so
-  metric LiDAR should give a metric model.
+  metric LiDAR gives a model at roughly metric scale. In the run it came out
+  about 18% (house) and 45% (behind trees) too big, against 17–22× too small
+  with MoGe.
 
 ## What's known already
 
@@ -300,13 +303,95 @@ each roof about twice as high as the LiDAR does. The LiDAR pointmap removes all 
 input, not its output.** (An earlier lab note measured the same on photos made
 from LINZ's full DSM: 18.7–20.0× and 22–47% off.)
 
+## Results
+
+SAM 3D ran with the official `facebook/sam-3d-objects` weights (all nine
+checkpoints' SHA-256 match Hugging Face's LFS ids). It ran on both buildings,
+with MoGe depth and with the LiDAR pointmap: seed 42 (the protocol run) and
+seeds 1–5. Each run took 5–10 s after an 11–16 s load, at about 19 GB peak
+GPU memory on the RTX 5090. Its meshes are scored exactly as Roofer's is.
+SAM 3D figures are the median of the six seeds, with the range in brackets.
+[`scripts/summarize.py`](scripts/summarize.py) builds the full table from the
+score files ([outputs/summary.md](outputs/summary.md); per-run scores in
+[outputs/scores/](outputs/scores/)).
+
+| | House, MoGe depth | House, LiDAR pointmap | House, Roofer | Behind trees, MoGe depth | Behind trees, LiDAR pointmap | Behind trees, Roofer |
+|---|---|---|---|---|---|---|
+| Footprint IoU with the outline | 0.00 | 0.69 (0.61–0.76) | 0.91 | 0.00 | 0.44 (0.39–0.54) | 0.84 |
+| Roof error, median, no alignment | no roof over any held-out point | 0.79 m (0.35–1.65) | 0.07 m | no roof over any held-out point | 1.70 m (0.92–2.35) | 0.11 m |
+| Same, read straight above each point | — | 0.68 m (0.32–1.44) | 0.03 m | — | 1.59 m (0.80–2.26) | 0.05 m |
+| Roof height, model less held-out | +24.1 m | +1.0 m (0.5–2.0) | +0.09 m | +23.5 m | +1.9 m (0.9–3.2) | −0.09 m |
+| Scale the alignment needed | 22.2× (21.5–22.9) | 0.85 (0.80–0.87) | 0.96 | 16.9× (16.1–18.9) | 0.69 (0.63–0.74) | 1.01 |
+| Roof error after alignment (condition 3), median | 0.41 m (0.34–0.48) | 0.39 m (0.35–0.53) | 0.15 m | 0.46 m (0.38–0.57) | 0.46 m (0.36–0.55) | 0.21 m |
+| Closed solids | 3 of 6 | 3 of 6 | yes | 5 of 6 | 4 of 6 | yes |
+
+[outputs/heights_b6.png](outputs/heights_b6.png) and
+[outputs/heights_b3.png](outputs/heights_b3.png) show the seed-42 models
+from above against the training-points DSM
+([`render_heights.py`](scripts/render_heights.py)).
+
+**What it shows:**
+
+- **Without LiDAR, SAM 3D has no real-world scale.** Its model is 17–22×
+  too small and sits about 24 m off, near the camera, covering none of the
+  outline. That is what the MoGe check predicted: MoGe's raw depth is 19.9×
+  too small.
+- **The LiDAR pointmap fixes placement and scale, not shape.** With it, the
+  model stands on the building (IoU 0.69 house, 0.44 behind trees), but its
+  roof is 0.7–1.7 m too high and its footprint too big. The footprint's
+  principal lengths are 1.31 and 1.15 times the outline's on the house,
+  1.69 and 1.35 behind the trees. After the best alignment, the roof is no
+  better than without LiDAR (0.39 against 0.41 m on the house, 0.46 against
+  0.46 m behind the trees). The spread across seeds (0.34–0.57 m) is larger
+  than either difference.
+- **Explicit fitting (condition 3) adds placement, not accuracy.** It
+  removes the scale and position error, but leaves 0.4–0.5 m of roof error.
+  Roofer's own model scores 0.15 and 0.21 m on the same alignment.
+- **Roofer is about ten times as accurate.** From the same training points,
+  its roofs are 7–11 cm from the held-out points (3–5 cm straight above),
+  against 0.8–1.7 m for SAM 3D with LiDAR. Its footprints match better
+  (0.91 and 0.84), and both its models are closed solids.
+- **Half the SAM 3D meshes aren't valid solids.** Only 3–5 of each six are
+  closed (every edge on two faces), and they are 320,000–620,000-triangle
+  surfaces with no roof planes.
+- **The Gaussians agree with the mesh.** Their centres, scored as a
+  secondary record (`sam3d-*-gaussians.json`), give the same picture. For
+  example, on the house with LiDAR: IoU 0.65 against the mesh's 0.62, and
+  roof after alignment 0.47 against 0.45 m.
+
+**Decision: LiDAR-conditioned SAM 3D models don't go into the app's 3D
+view.**
+- The view already stands buildings at their measured LiDAR footprints and
+  heights.
+- SAM 3D with LiDAR would put roofs 0.7–1.7 m off and footprints 15–70% too
+  big. That is about ten times worse than Roofer from the same points.
+- Its roof shape after alignment is no better than with no LiDAR at all, and
+  half its meshes aren't valid solids.
+
+If the 3D view ever needs roof form, Roofer on the LiDAR points is the method
+to evaluate, not a generative model.
+
+**Limits of this result:** two buildings in one scene, from synthetic
+oblique photos (an orthophoto draped on a 1 m surface, with smeared walls),
+scored against LINZ's 2020–22 LiDAR. It says nothing about SAM 3D on real
+oblique photography.
+
 ## Example inputs and outputs
 
 - [`inputs/`](inputs/): for each building (`b6`, the house; `b3`, the
   building behind trees), the virtual oblique photo, its mask over it, and
   MoGe's depth error against the LiDAR pointmap, with the numbers.
-- [`outputs/`](outputs/): Roofer's LoD 2.2 models and every condition's
-  scores. SAM 3D's models go here after the run.
+- [`outputs/`](outputs/): Roofer's LoD 2.2 models, every run's scores
+  (seed 42 in `scores/`, seeds 1–5 in `scores/seeds/`), the results table
+  (`summary.md`) and the height maps (`heights_b6.png`, `heights_b3.png`).
+- **SAM 3D's models aren't committed.** Each run's mesh (`mesh.npz`, about
+  20 MB, 320,000–620,000 triangles), splat (`splat.ply`, about 22 MB) and
+  Gaussian centres (`scene_points.npy`) are too big. They live in
+  `~/src/button-nz-results/sam3d-spike/train-{b6,b3}/{moge,lidar}/` (seed 42)
+  and `.../seeds/train-{b6,b3}-s{1..5}/{moge,lidar}/`. To remake them, run
+  [`get_weights_and_run.sh`](scripts/get_weights_and_run.sh) for seed 42.
+  For the other seeds, run `run_sam3d.py REPO SCENE_DIR SEED` on a copy of
+  each building's scene directory.
 
 All imagery comes from LINZ open data (aerial photos and LiDAR, CC BY 4.0).
 No supplier or third-party imagery is used.
@@ -317,7 +402,7 @@ The setup lives outside the repo, in `~/src/sam3d-spike/`. Its weights and
 third-party code are untrusted downloads, kept apart from the project.
 
 1. Request access at https://huggingface.co/facebook/sam-3d-objects (the
-   owner, with a Hugging Face account).
+   owner, with a Hugging Face account; granted for this run).
 2. Once approved: `~/src/sam3d-spike/env/bin/hf auth login`.
 3. `~/src/sam3d-spike/scripts/get_weights_and_run.sh`
    ([copy](scripts/get_weights_and_run.sh)). It downloads the weights, runs
@@ -336,13 +421,11 @@ scoring; the SAM 3D env and Blender for the rest), not the app's.
 - The working environment is a micromamba env with Python 3.11, torch
   2.8.0+cu128 and CUDA 12.8 (built with gcc 12).
 - pytorch3d, kaolin and gsplat are built from source for the 5090.
-- SAM 3D asks for at least 32 GB of VRAM. GPU 0 is taken by another service,
-  so it runs on GPU 1.
+- SAM 3D asks for at least 32 GB of VRAM; it peaked at about 19 GB here.
+  GPU 0 is taken by another service, so it runs on GPU 1.
 
 ## Risks and limits
 
-- **Model access:** approval is manual and may not arrive before the
-  5 November deadline.
 - **Smeared walls:** the virtual photo's walls are smeared. The DSM is 1 m
   and the aerial looks straight down, so roofs look right but walls are
   partly invented. SAM 3D's training on everyday objects may not suit

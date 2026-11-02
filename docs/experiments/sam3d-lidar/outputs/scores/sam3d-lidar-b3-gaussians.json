@@ -1,0 +1,22 @@
+{
+ "building": "b3",
+ "model": "RESULTS/train-b3/lidar/scene_points.npy",
+ "held_out_roof_points": 165,
+ "model_points": 173207,
+ "roof_rmse_m": 2.126,
+ "roof_median_m": 2.17,
+ "roof_bias_m": 2.17,
+ "roof_coverage": 1.0,
+ "height_err_m": 1.914,
+ "ground_m": 186.26,
+ "footprint_iou": 0.441,
+ "scale": [
+  1.618,
+  1.411
+ ],
+ "fitted_scale": 0.694,
+ "shape_roof_rmse_m": 0.581,
+ "shape_roof_median_m": 0.482,
+ "shape_roof_bias_m": 0.469,
+ "shape_roof_coverage": 1.0
+}
