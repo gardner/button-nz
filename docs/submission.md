@@ -3,17 +3,36 @@
 Submissions close **Wednesday 4 November 2026, 9:00 PM ET**, which is
 **Thursday 5 November, 3:00 PM NZDT**. Below are the seven artifacts plan §15
 requires, where each one is, and what is still open. "Owner" means the
-property owner or the team lead. Nothing that needs their word is assumed.
+property owner or the team lead. Nothing that needs their word is assumed,
+and nothing still to be produced is given a number.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | Served open at https://button.nz (no access code; the daily cap and the fixed survey are the limits) and checked end to end |
-| 2 | Demo video | `scripts/demo/` records and cuts it from one live run | Two takes recorded; final take after Experiment A's re-run |
-| 3 | Source repository | this repository, GNU GPL (`LICENSE`) | Public |
-| 4 | Technical README | [README.md](../README.md) | Done |
-| 5 | Evaluation report | [docs/results](results/README.md) | Done: Experiments A and C, and the model comparison |
-| 6 | Sample project artifacts | each design run's attempt folder (below) | Produced by every attempt whose script ran; to be packaged |
-| 7 | Product story | [docs/product.md](product.md) | Done |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address. The smoke check (`check.sh`) passes only once the survey is fixed (open item 1) |
+| 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Blocked** on the demo survey (open item 1); the recorder is ready |
+| 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
+| 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
+| 5 | Evaluation report | [docs/results](results/README.md) | **Done:** Experiments A and C, the model comparison, the batch run, the AI visual, the town screen and impact. The SAM 3D experiment is **pending** (open item 4) |
+| 6 | Sample project artifacts | `python -m button_nz.sample` (below) | **Blocked** on the final take; the packager is built and tested |
+| 7 | Product story | [docs/product.md](product.md); the submission text is [pitch.md](pitch.md) | **Done** |
+
+## Open items
+
+| # | What | Owner | Unblocks |
+|---|---|---|---|
+| 1 | **Decide the demo survey** for 35 Victory Street on button.nz: check every suggestion, not only the one shed the LiDAR disputes (which has none). The shed the LiDAR agrees with arrives suggested as a building, and ticking "every building is listed" stores every suggestion as the owner's own decision; the owner says nothing is built on the site. Then tick the box. Then set `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` (the `survey_id` from `/api/site/features`) together in `deploy.env`, and rerun `install.sh` (#91) | Owner | the final take (2), the sample (6) |
+| 2 | **The submission portal's requirements:** the fields, the video's length and format, and whether a live URL is required | Owner (needs the team's login) | the video's cut, the form |
+| 3 | **Record and cut the final take** (`scripts/demo/record.py`, `cut.py`), then **package the sample** from it, and fill in pitch.md's video link | Team, once 1 is done | 2, 6 |
+| 4 | **SAM 3D results** (#125, #138): request access to `facebook/sam-3d-objects` on Hugging Face and log in; then `get_weights_and_run.sh` runs both conditions; scoring them needs the held-out truth and scorer in #138 (in review) | Owner (access); team (the run) | the SAM 3D slot below |
+| 5 | **Submit** on the portal | Owner (needs the team's login) | |
+
+### SAM 3D Objects with LiDAR (#125)
+
+**Pending.** No SAM 3D output exists yet: its weights are gated on Hugging
+Face and access hasn't been granted. The held-out truth, the scorer and the
+Roofer baseline are in review in #138 ([write-up](experiments/sam3d-lidar/README.md)).
+When it has run, its measured comparison goes here and in
+[docs/results](results/README.md), from the scorer's own output.
 
 ## 1. Working application
 
@@ -29,8 +48,9 @@ behind a Cloudflare tunnel. It adds:
 
 `META_API_KEY` stays on the server, read by the API's service only. Plan §15's
 deployed demonstration is live at https://button.nz, through the team's
-Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it.
-Its survey is fixed once the owner has decided it (open item 2).
+Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it,
+and fails until the survey is fixed.
+Its survey is fixed once the owner has decided it (open item 1).
 
 ## 2. Demo video
 
@@ -40,16 +60,17 @@ with captions. Long live waits are sped up, with the speed on screen, and the
 closing card's numbers come from the reports. See
 [scripts/demo/README.md](../scripts/demo/README.md).
 
-The takes so far show:
+The final take (`record.py`, updated for the map-first page in #97):
 
-- the SAM 3.1 survey, with the team entering answers in the owner's place
-  (the team's decisions, pending the owner's confirmation, and captioned so);
-- Muse designing;
-- a failed attempt and its repair;
-- every check with its measurement;
-- the labelled AI visual;
-- the 3D model;
-- a plain-words revision, with before and after.
+- shows the survey as the owner decided it (a survey that isn't fixed fails
+  the take before any paid call);
+- enters a brief, designs, and waits for the AI visual;
+- views the design in 3D, revises it, and shows before and after;
+- shows the real prefabs that fit, and places the largest on the site.
+
+Earlier takes showed the team's survey decisions, captioned as such; the
+owner says those are wrong for this site, so the submission's video is the
+final take.
 
 ## 5. Evaluation report
 
@@ -58,7 +79,11 @@ The takes so far show:
 - **Experiment C** on the surveyed and the plain site;
 - **the design-model comparison**;
 - **Experiment A**: the full run after the reminder fix (#60), with the first
-  run kept for the record.
+  run kept for the record;
+- **many real sections**: placement before and after the frontages and room;
+- **the AI visual**: how often it passes its silhouette check;
+- **the town screen** and **impact** scenarios for Reefton;
+- **SAM 3D Objects with LiDAR**: pending (open item 4).
 
 ## 6. Sample project artifacts
 
@@ -78,30 +103,27 @@ the chosen sample's folders before packaging them.
 | `observation-<k>.png` | the LiDAR views the model asked for |
 | `visual.png`, `visual.json` | the AI visual and its silhouette check (accepted designs only) |
 
-**To do:** package one demo run's folders, the accepted design and its
-revision, as the sample, with
+**To do (open item 3):** package the final take's folders, the accepted
+design and its revision, as the sample, with
 `python -m button_nz.sample DATA JOB_ID sample.zip --survey-decided-by "the owner"`.
-Before the final take, fix the survey: set `BUTTON_SURVEY_DECIDED_BY` and
-`BUTTON_SURVEY_ID` (its `survey_id` from `/api/site/features`) together in
-`deploy.env` and rerun `install.sh` (#91).
 The sample command also packs the survey with its decisions, every attempt's verdict
 (`sample.json`) and a README naming the sources and their licences. The owner gave permission on 31 October 2026 to
 publish imagery and renders of the site. Package the sample from the final
-take, which uses the owner's survey (open item 2 below), not from the takes
+take, which uses the owner's survey (open item 1), not from the takes
 so far: those measure separation from the two sheds, which the owner says
 aren't buildings.
 
-## Open: needs the owner
+## Notes
 
-1. **The submission portal's requirements**, which need the team's login:
-   video length and format, the fields, and whether a deployed URL is
-   required.
-2. **The owner's own survey of the site.** The owner says nothing is built on
-   it, so the two features `data/demo-site/decisions.json` marks as buildings
-   (the team's decisions) are not. The takes so far show those decisions; the
-   final take uses the owner's.
-3. **Quotes for the prefabs (#11).** The suppliers, products and local
-   professionals are researched and sourced in [suppliers.md](suppliers.md).
-   An accepted design shows the catalogue products that fit and the next
-   steps; ten of the 17 have no published price, which only a quote from
-   the supplier can give.
+- **Prefab quotes (#11):** ten of the 17 catalogue products have no published
+  price, which only a quote from the supplier can give. Not needed for the
+  submission; the app says "not published".
+- **Site builds aren't capped on button.nz.** `install.sh` passes
+  `--daily-designs` to the API but not `--daily-sites`, and each new site is
+  billed SAM 3.1 calls. Whether to cap them before judging is the owner's
+  call; it would be a change to `install.sh` and a redeploy.
+- **The demo site's survey so far:** the takes and Experiment C used the
+  team's decisions (`data/demo-site/decisions.json`), which mark two features
+  as buildings. The owner says nothing is built on the site, so the final take
+  uses the owner's decisions, and the results say which decisions each run
+  used.

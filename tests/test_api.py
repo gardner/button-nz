@@ -50,16 +50,22 @@ def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "scene.json").write_text(json.dumps(scene), encoding="utf-8")  # as run.py does
     png, mask = out_dir / "design.png", out_dir / "dwelling-mask.png"
+    outline = out_dir / "dwelling-outline.png"
     png.write_bytes(b"\x89PNG design")
     mask.write_bytes(b"\x89PNG mask")
+    outline.write_bytes(b"\x89PNG outline")
     (out_dir / "design.py").write_text(script, encoding="utf-8")
     measurements = {"good": GOOD, "near": NEAR}[script]
     (out_dir / "measurements.json").write_text(json.dumps(measurements), encoding="utf-8")
-    return DesignOutputs(measurements, out_dir / "design.py", None, png, mask)
+    return DesignOutputs(measurements, out_dir / "design.py", None, png, mask, outline)
 
 
 def maskless_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
-    return replace(fake_runner(scene, script, out_dir), mask=None)
+    return replace(fake_runner(scene, script, out_dir), mask=None, outline=None)
+
+
+def outlineless_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+    return replace(fake_runner(scene, script, out_dir), outline=None)
 
 
 class FakeIllustrator:
@@ -67,17 +73,17 @@ class FakeIllustrator:
 
     def __init__(self, visual: Visual | None = None, error: Exception | None = None) -> None:
         self.visual, self.error = visual, error
-        self.calls: list[tuple[Path, Path]] = []
+        self.calls: list[tuple[Path, Path, Path]] = []
 
-    def __call__(self, render: Path, mask: Path) -> Visual:
-        self.calls.append((render, mask))
+    def __call__(self, render: Path, mask: Path, outline: Path) -> Visual:
+        self.calls.append((render, mask, outline))
         if self.error is not None:
             raise self.error
         assert self.visual is not None
         return self.visual
 
 
-ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual", 1)
+ACCEPTED_VISUAL = Visual(VISUAL_MODEL, True, 0.83, None, b"\x89PNG visual", 1, (40, 30, 340, 255))
 
 
 def broken_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
@@ -174,6 +180,7 @@ def test_a_finished_design_shows_every_attempt_and_its_files(service: Service) -
     [
         "attempts/1/design.py",
         "attempts/1/dwelling-mask.png",
+        "attempts/1/dwelling-outline.png",
         "attempts/2/visual.txt",
         "attempts/1/measurements.json",
         "attempts/1/..%2F..%2Fbutton.db",
@@ -298,7 +305,8 @@ def test_an_accepted_design_gets_an_ai_visual(tmp_path: Path) -> None:
     job_id = service.queue()
     service.worker.run_next()
     attempt = tmp_path / "runs" / job_id / "attempt-2"
-    assert illustrator.calls == [(attempt / "design.png", attempt / "dwelling-mask.png")]
+    silhouettes = (attempt / "dwelling-mask.png", attempt / "dwelling-outline.png")
+    assert illustrator.calls == [(attempt / "design.png", *silhouettes)]
     first, second = service.client.get(f"/designs/{job_id}").json()["attempts"]
     assert "visual.png" not in first["files"]  # only the accepted attempt is illustrated
     assert service.client.get(second["files"]["visual.png"]).content == b"\x89PNG visual"
@@ -310,6 +318,8 @@ def test_an_accepted_design_gets_an_ai_visual(tmp_path: Path) -> None:
         "min_iou": 0.6,
         "reason": None,
         "edits": 1,
+        "window": [40, 30, 340, 255],
+        "outline_iou": None,
     }
 
 
@@ -351,6 +361,19 @@ def test_an_attempt_without_a_silhouette_is_not_illustrated(tmp_path: Path) -> N
     assert record["accepted"] is False and "silhouette" in record["reason"]
 
 
+def test_an_attempt_without_a_whole_outline_is_not_illustrated(tmp_path: Path) -> None:
+    """Checked against what shows of the dwelling alone, a house the illustration
+    no longer hides behind trees would fail: no outline, no check (#133)."""
+    illustrator = FakeIllustrator(ACCEPTED_VISUAL)
+    service = Service(tmp_path, runner=outlineless_runner, illustrator=illustrator)
+    job_id = service.queue()
+    service.worker.run_next()
+    assert illustrator.calls == []
+    files = service.client.get(f"/designs/{job_id}").json()["attempts"][1]["files"]
+    record = service.client.get(files["visual.json"]).json()
+    assert record["accepted"] is False and "outline" in record["reason"]
+
+
 def test_a_design_with_nothing_accepted_gets_no_visual(tmp_path: Path) -> None:
     illustrator = FakeIllustrator(ACCEPTED_VISUAL)
     model = ScriptedModel("near", "near", "near")
@@ -368,7 +391,7 @@ def test_a_design_is_done_before_its_visual_is_made(tmp_path: Path) -> None:
     seen: list[tuple[str, int | None]] = []
     service: Service | None = None
 
-    def illustrator(render: Path, mask: Path) -> Visual:
+    def illustrator(render: Path, mask: Path, outline: Path) -> Visual:
         assert service is not None
         job = service.store.get_job(job_id)
         seen.append((job.status, job.accepted_attempt))
@@ -390,7 +413,7 @@ def test_a_job_says_while_its_visual_is_being_made(tmp_path: Path) -> None:
     during: list[bool] = []
     service: Service | None = None
 
-    def illustrator(render: Path, mask: Path) -> Visual:
+    def illustrator(render: Path, mask: Path, outline: Path) -> Visual:
         assert service is not None
         during.append(service.client.get(f"/designs/{job_id}").json()["illustrating"])
         return ACCEPTED_VISUAL

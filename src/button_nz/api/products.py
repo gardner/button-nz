@@ -96,7 +96,7 @@ def _walls(attempt: Path) -> Polygon:
     """The accepted attempt's walls, as measured: an accepted attempt always has them,
     and never changes, so they are measured once."""
     raw = json.loads((attempt / "measurements.json").read_text(encoding="utf-8"))
-    footprint = parse_measurements(raw).footprint
-    if footprint is None:
+    walls = parse_measurements(raw).walls()  # an open courtyard is no room for a product
+    if walls is None:
         raise DesignError(f"{attempt} was accepted without a measured footprint")
-    return Polygon(footprint)
+    return walls

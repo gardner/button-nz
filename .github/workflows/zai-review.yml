@@ -80,6 +80,13 @@ jobs:
           mkdir "$RUNNER_TEMP/trusted"
           git show "HEAD^1:scripts/review-metrics.sh" > "$RUNNER_TEMP/trusted/review-metrics.sh"
           chmod +x "$RUNNER_TEMP/trusted/review-metrics.sh"
+          # Added by #142: until that PR merges, the base has no copy, and the
+          # labelling step says so and fails rather than skip the check.
+          if git show "HEAD^1:scripts/label-glm-comments.sh" > "$RUNNER_TEMP/trusted/label-glm-comments.sh"; then
+            chmod +x "$RUNNER_TEMP/trusted/label-glm-comments.sh"
+          else
+            rm "$RUNNER_TEMP/trusted/label-glm-comments.sh"
+          fi
           git show "HEAD^1:.github/review-trace-key.asc" > "$RUNNER_TEMP/trusted/review-trace-key.asc"
 
       - name: Review the pull request
@@ -202,6 +209,24 @@ jobs:
           # above is not what Z.ai charges (its own usage page has that).
           echo "_Cost is Claude Code's estimate at Anthropic prices, not Z.ai's bill._" \
             | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # GLM and Claude both post as github-actions[bot]; the "GLM review"
+      # prefix is the only way to tell their findings apart. Every comment GLM
+      # posted (by comment_id, from its transcript) gets the prefix if it lacks
+      # it, with a warning (#142).
+      - name: Label GLM's comments
+        if: always() && steps.review.outcome != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          file="$RUNNER_TEMP/claude-execution-output.json"
+          [[ -f "$file" ]] || { echo "::error::The review left no transcript." >&2; exit 1; }
+          script="$RUNNER_TEMP/trusted/label-glm-comments.sh"
+          [[ -x "$script" ]] || {
+            echo "::error::scripts/label-glm-comments.sh isn't on the base branch yet, so GLM's comments weren't checked." >&2
+            exit 1
+          }
+          "$script" "$GITHUB_REPOSITORY" "$file"
 
       # The full transcript is kept for retrospectives (scripts/review-traces.sh),
       # encrypted: anyone can download artifacts from this public repo, and a

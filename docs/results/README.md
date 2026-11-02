@@ -182,6 +182,101 @@ one (it passed both times; three samples each way all passed). Each run is
 one sample per design, and the one-edit rate varied from 5 to
 8 of 12 between runs, so differences of one or two designs are noise.
 
+### A close-up of the dwelling
+
+In every recorded render the dwelling is tiny: its box is 50 to 161 px of
+the 1280 px width, 0.25% to 0.9% of the picture. Muse Image now illustrates
+a close-up: a window of the render with the render's shape, three times
+the dwelling's box, scaled up to the render's size. SAM checks it against
+the silhouette, cut and scaled the same way, at the same IoU 0.60, and the
+close-up is what is shown. Nothing is pasted back into a wider picture, so
+nothing can cover a moved house. The two runs below were made back to back
+on the 12 designs: the code before (23e8e7f) first, then the close-up
+(6f018f1).
+
+| Design | Whole render, up to two edits (edits, IoU) | Close-up, up to two edits (edits, IoU) |
+|---|---|---|
+| 4ee3c533 | passed (2, 0.64) | passed (1, 0.97) |
+| 14e33e79 | failed (2, 0.12) | passed (1, 0.95) |
+| 2814a497 | passed (1, 0.60) | passed (1, 0.93) |
+| 7b219d6b | passed (1, 0.78) | passed (1, 0.83) |
+| 02003a9b | passed (1, 0.72) | passed (1, 0.97) |
+| 3ca9262c | failed (2, 0.23) | passed (1, 0.98) |
+| 1f3ae911 | failed (2, 0.53) | passed (1, 0.92) |
+| b6d7a54d | passed (1, 0.65) | failed (2, 0.37) |
+| fb1d8b45 | passed (2, 0.72) | passed (1, 0.97) |
+| c5832e90 | failed (2, 0.42) | failed (2, 0.44) |
+| 910c6d05 | passed (1, 0.75) | passed (1, 0.93) |
+| 1b52b41d | passed (1, 0.91) | passed (1, 0.97) |
+| **Passed** | **8 of 12** (6 on the first edit) | **10 of 12** (10 on the first edit) |
+
+- **The first edit passes far more often:** 10 of 12 against 6, and the
+  accepted pictures overlap the silhouette more closely (IoU 0.83 to 0.98,
+  median 0.96, against 0.60 to 0.91). Two of the three designs that had
+  failed every time passed, 14e33e79 at 0.95 and 1f3ae911 at 0.92.
+- **Two still fail.** c5832e90 failed in every run; trees stand in front of
+  its dwelling, so its silhouette is the part that shows. b6d7a54d has the
+  tallest box in frame (121 px), and its close-up was the largest window.
+  It had passed in two earlier runs and failed in two, so one run says
+  little about it.
+- **What's shown changes.** The visual is now a close-up of the dwelling
+  and its section, not the whole drone view with the landscape and sky.
+  The page shows it in a 400 px panel, where the whole-render dwelling was
+  15 to 50 px wide.
+- Each run is one sample per design: 8 against 10 alone is within the noise
+  noted above, but the first-edit rate (6 against 10) and the IoUs point the
+  same way.
+
+### The dwelling's whole outline, when trees stand in front of it
+
+c5832e90 failed in every run because the check compared unlike things.
+`dwelling-mask.png` is the dwelling's *visible* pixels, and LiDAR blocks in
+front of it hide over half of it: 5,810 px of the 12,485 px its whole outline
+covers from the same camera. Muse Image is asked to redraw those blocks as
+what they most resemble, and it drew them as lower shrubs, so the whole house
+showed, its roof right on the render's. SAM's house then overlapped the
+visible part with IoU 0.46 and the whole outline with 0.93: the house was in
+place, and was rejected for showing what the render's trees had hidden.
+
+The measure pass now also renders `dwelling-outline.png`, the Dwelling with
+every other object hidden. The check accepts a house that overlaps either
+the visible silhouette or the whole outline with IoU 0.60 or more. Both are
+the dwelling's own pixels from the render camera, so a moved or resized
+house fails both, as before. To measure it, the 12 recorded designs'
+outlines were re-rendered by the measure pass from each attempt's scene and
+saved design; every re-rendered visible mask matched the recorded one pixel
+for pixel. Only two designs have anything in front of the dwelling:
+c5832e90 (47% of its outline visible) and 7b219d6b (86%). For the other ten
+the outline is the silhouette, and nothing changes. Before (master 5493beb)
+and after (this change), back to back:
+
+| Design | Before (edits, IoU) | After (edits, IoU silhouette / outline) |
+|---|---|---|
+| 4ee3c533 | passed (1, 0.99) | passed (1, 0.98 / 0.98) |
+| 14e33e79 | passed (1, 0.86) | passed (1, 0.96 / 0.96) |
+| 2814a497 | passed (1, 0.97) | passed (1, 0.94 / 0.94) |
+| 7b219d6b | passed (1, 0.84) | passed (1, 0.85 / 0.98) |
+| 02003a9b | passed (1, 0.94) | passed (1, 0.92 / 0.92) |
+| 3ca9262c | passed (1, 0.79) | passed (1, 0.98 / 0.98) |
+| 1f3ae911 | passed (1, 0.97) | passed (1, 0.94 / 0.94) |
+| b6d7a54d | passed (2, 0.97) | passed (2, 0.92 / 0.92) |
+| fb1d8b45 | passed (1, 0.98) | passed (1, 0.98 / 0.98) |
+| c5832e90 | failed (2, 0.47) | passed (1, 0.46 / 0.96) |
+| 910c6d05 | passed (1, 0.94) | passed (1, 0.94 / 0.94) |
+| 1b52b41d | passed (1, 0.99) | passed (1, 0.96 / 0.96) |
+| **Passed** | **11 of 12** | **12 of 12** |
+
+- **c5832e90 passes for the first time** (outline IoU 0.96 on the first
+  edit); before, it failed both edits again (0.47). 7b219d6b also matched
+  its outline better than its visible part (0.98 against 0.85).
+- **b6d7a54d's failures are real, and random.** Three first edits made for
+  diagnosis scored 0.87, 0.82 and 0.07; the failure drew a bigger house
+  moved about half its width. Nothing hides this dwelling, so the outline
+  changes nothing for it; the second edit is what covers it, and it passed
+  on its second edit in both runs here.
+- Each run is one sample per design; only c5832e90's result is down to the
+  change, and it had failed in all six runs without it, this one included.
+
 ## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
 
 **Reefton** ([report](impact/report.md), code 8a0721e). If some share of the

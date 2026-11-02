@@ -8,6 +8,7 @@ unclosed, so its section is empty.
 """
 
 from collections.abc import Sequence
+from typing import cast
 
 from shapely import LineString, MultiLineString, Polygon, polygonize, union_all
 from shapely.geometry.base import BaseGeometry
@@ -61,11 +62,18 @@ def _clip_above(triangle: Triangle, z: float) -> list[tuple[float, float]]:
 
 def section(triangles: Sequence[Triangle], z: float) -> BaseGeometry:
     """The area the mesh encloses at height ``z`` (empty if it isn't closed there)."""
+    found = faces(triangles, z)
+    return union_all(found) if found else Polygon()
+
+
+def faces(triangles: Sequence[Triangle], z: float) -> list[Polygon]:
+    """The section at ``z`` in the pieces its rings divide it into: every area
+    they close, walls and the rooms or courtyards inside them alike."""
     segments = [cut for t in triangles if (cut := _cut(t, z)) is not None]
     if not segments:
-        return Polygon()
+        return []
     lines = union_all(MultiLineString(segments))  # noded, shared segments merged
-    return union_all(list(polygonize([lines]).geoms))
+    return [cast("Polygon", face) for face in polygonize([lines]).geoms]
 
 
 def _cut(triangle: Triangle, z: float) -> LineString | None:
