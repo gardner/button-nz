@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PRODUCTS } from "@/lib/fixtures";
@@ -28,6 +28,32 @@ describe("PrefabsMeanwhile", () => {
     );
     const link = screen.getAllByRole("link")[0];
     expect(link.getAttribute("href")).toBe(first.url);
+  });
+
+  it("shows a sketch of each prefab we can draw, and says why for one we can't", async () => {
+    const catalogue = [...PRODUCTS.fits, ...PRODUCTS.unchecked];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && catalogue))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [vista, nile, nook] = await screen.findAllByRole("listitem");
+    const picture = (item: HTMLElement) =>
+      within(item).getByRole("img").getAttribute("aria-label");
+    expect(picture(vista)).toBe("Sketch of the Vista: 12.2 × 4 m, mono roof");
+    expect(picture(nile)).toContain("gable roof (or mono)");
+    expect(
+      within(vista).getByRole("img").querySelectorAll("polygon").length,
+    ).toBeGreaterThan(2);
+    expect(picture(nook)).toBe(
+      "No sketch of the Nook 60: its figures aren't a published footprint",
+    );
+    expect(within(nook).getByRole("img").querySelector("polygon")).toBeNull();
+    expect(
+      screen.getByText(/sketches.*published sizes.*one scale/i),
+    ).toBeTruthy();
   });
 
   it("doesn't call unlabelled figures a footprint, nor an unpublished price 'on request'", async () => {

@@ -125,6 +125,15 @@ export const PRODUCTS = {
         "decking, landscaping, delivery, installation and any other costs",
       west_coast:
         "Delivers anywhere in NZ (Christchurch factory); West Coast not named",
+      appearance: {
+        roof_forms: ["mono"],
+        roof_pitch_deg: null,
+        walls: "#e8e6df",
+        roof: "#3b3e36",
+        walls_texture: "white_planks_clean",
+        roof_texture: "corrugated_iron",
+        basis: "illustrative, from the supplier's render",
+      },
       sources: [
         "https://www.airhome.co.nz/airhome-vista/",
         "https://www.airhome.co.nz/faq/",
@@ -149,6 +158,15 @@ export const PRODUCTS = {
       price_basis: "price on application; prices incl GST",
       excludes: "not listed",
       west_coast: "West Coast is on its region list",
+      appearance: {
+        roof_forms: ["gable", "mono"],
+        roof_pitch_deg: null,
+        walls: "#f2f1ec",
+        roof: "#4a4f52",
+        walls_texture: "white_planks_clean",
+        roof_texture: "corrugated_iron",
+        basis: "illustrative, from the supplier's render",
+      },
       sources: ["https://southpeakhomes.co.nz/floor-plans/nile/"],
     },
   ],
@@ -172,6 +190,15 @@ export const PRODUCTS = {
       price_basis: "not published",
       excludes: "delivery and foundations",
       west_coast: "not stated",
+      appearance: {
+        roof_forms: ["gable"],
+        roof_pitch_deg: 20,
+        walls: "#eee8da",
+        roof: "#3c3f41",
+        walls_texture: "white_planks_clean",
+        roof_texture: "corrugated_iron",
+        basis: "illustrative, from the supplier's render",
+      },
       sources: [
         "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nook-60.html",
       ],

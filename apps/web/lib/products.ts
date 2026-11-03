@@ -8,14 +8,29 @@ import {
   ApiError,
   asList,
   asText,
+  type Fields,
   flag,
   list,
   number,
+  oneOf,
   optional,
   record,
   text,
 } from "./fields";
 import { type FeatureCollection, parseCollection } from "./geo";
+
+export const ROOF_FORMS = ["mono", "gable", "hip", "flat"] as const;
+export type RoofForm = (typeof ROOF_FORMS)[number];
+
+/** How a product looks, from its supplier's material: the roof forms it
+ * comes with (the one its material shows first), the pitch where published,
+ * and its wall and roof colours, as `#rrggbb`. */
+export interface Appearance {
+  roofForms: RoofForm[];
+  roofPitchDeg: number | null; // null: not published
+  walls: string;
+  roof: string;
+}
 
 export interface Product {
   id: string;
@@ -34,6 +49,7 @@ export interface Product {
   excludes: string;
   westCoast: string; // what the supplier says about delivering to the West Coast
   sources: string[];
+  appearance: Appearance;
   placeable: boolean; // its footprint is a known rectangle: it can be placed on a site
   placedFootprint: FeatureCollection<null> | null; // where it would stand in the walls, if sent
 }
@@ -79,6 +95,7 @@ function parseProduct(raw: unknown): Product {
     excludes: text(product, "excludes"),
     westCoast: text(product, "west_coast"),
     sources: list(product, "sources").map(link),
+    appearance: appearance(record(product.appearance, "appearance")),
     placeable: flag(product, "placeable"),
     placedFootprint:
       product.placed_footprint == null // absent today; null where none was placed
@@ -89,6 +106,25 @@ function parseProduct(raw: unknown): Product {
             () => null,
           ),
   };
+}
+
+function appearance(looks: Fields): Appearance {
+  return {
+    roofForms: list(looks, "roof_forms").map((form) =>
+      oneOf({ roof_form: form }, "roof_form", ROOF_FORMS),
+    ),
+    roofPitchDeg: optional(looks, "roof_pitch_deg", number),
+    walls: colour(looks, "walls"),
+    roof: colour(looks, "roof"),
+  };
+}
+
+/** A colour, only ever as `#rrggbb`: it is painted into an SVG. */
+function colour(fields: Fields, key: string): string {
+  const value = text(fields, key);
+  if (!/^#[0-9a-fA-F]{6}$/.test(value))
+    throw new ApiError(`expected ${key} to be a #rrggbb colour`);
+  return value;
 }
 
 /** A supplier's page, shown as a link: only https, never a script. */
