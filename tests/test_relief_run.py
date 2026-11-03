@@ -83,4 +83,4 @@ def test_the_quick_tiers_write_their_views(tmp_path: Path) -> None:
     for tier in ("depth", "parallax"):
         for name in tiers[tier]["files"].values():
             assert (tmp_path / name).stat().st_size > 0
-    assert set(tiers["parallax"]["files"]) == {"still", "clip", "video"}
+    assert set(tiers["parallax"]["files"]) == {"still", "video"}

@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image
 
 from button_nz.relief import SiteRelief
-from button_nz.relief.clip import Frame, webp, write_mp4
+from button_nz.relief.clip import Frame, write_mp4
 from button_nz.relief.depth import depth_map
 from button_nz.relief.flyover import FlyoverSettings, render_flyover
 from button_nz.relief.parallax import oblique, sway_path
@@ -89,21 +89,18 @@ def _parallax(relief: SiteRelief, out_dir: Path) -> TierOutput:
     frames = [oblique(relief.aerial, relief.heights, relief.pixel_m, t, b) for t, b in path]
     still = oblique(relief.aerial, relief.heights, relief.pixel_m, PARALLAX_TILT_DEG, 0.0)
     Image.fromarray(still, "RGB").save(out_dir / "parallax.png")
-    (out_dir / "parallax.webp").write_bytes(webp(frames, PARALLAX_FPS))
     write_mp4(frames, PARALLAX_FPS, out_dir / "parallax.mp4")
-    files = {"still": "parallax.png", "clip": "parallax.webp", "video": "parallax.mp4"}
+    files = {"still": "parallax.png", "video": "parallax.mp4"}
     return TierOutput(files, {"frames": float(len(frames))})
 
 
 def flyover_tier(settings: FlyoverSettings, blender: str = "blender") -> Tier:
     def make(relief: SiteRelief, out_dir: Path) -> TierOutput:
         paths = render_flyover(relief, out_dir, settings, blender)
-        frames = [_rgb(path) for path in paths]
-        still = paths[round(len(paths) * 0.4)]  # the tilt done, before the orbit
-        Image.open(still).convert("RGB").save(out_dir / "flyover.png")
-        (out_dir / "flyover.webp").write_bytes(webp(frames, settings.fps))
+        frames = [_rgb(path) for path in paths]  # the still: the tilt done, before the orbit
+        Image.fromarray(frames[round(len(frames) * 0.4)], "RGB").save(out_dir / "flyover.png")
         write_mp4(frames, settings.fps, out_dir / "flyover.mp4")
-        files = {"still": "flyover.png", "clip": "flyover.webp", "video": "flyover.mp4"}
+        files = {"still": "flyover.png", "video": "flyover.mp4"}
         return TierOutput(files, {"frames": float(len(frames))})
 
     return Tier("flyover", make)
