@@ -291,3 +291,21 @@ street's edge:
   harness then read them before the visual was made, so it counted a missing
   one as a failure; it now waits. Across both runs the visual passed 7 of 12:
   its SAM check rejects a picture whose house was moved or reshaped.
+
+## Relief views: the photo made 3D by its own LiDAR (`button_nz.bench.relief`, #149)
+
+**On the demo site** ([report](relief/report.md), code a1a3326). The aerial
+and the 1 m DSM share a grid, so every view is measured: no depth is
+estimated and nothing is generated. Times count from when the site's data
+is in memory (reading it from LINZ took 5.2 s first), on one RTX 5090.
+
+| Tier | What it is | Ready after (s) |
+|---|---|---|
+| depth | the DSM on the photo's pixels, as a 16-bit depth map for video editors | 0.08 |
+| parallax | the photo lifted onto its heights, a 4 s tilt-and-sway clip (numpy, no GPU) | 1.95 |
+| flyover | the photo draped on the DSM in Blender, a 4 s fly-over at 1280 x 720 | 9.71 |
+
+So an owner can see the photo stand up in 3D in about 2 s, and the
+fly-over replaces it within 10 s. A photo taken straight down never saw a
+wall: walls are the roof edge's colour stretched down and shaded darker, and
+trees look moulded rather than leafy, at the LiDAR's 1 m.

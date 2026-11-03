@@ -1,0 +1,41 @@
+{
+ "tiers": [
+  {
+   "tier": "depth",
+   "status": "ready",
+   "files": {
+    "depth16": "depth16.png",
+    "preview": "depth.png"
+   },
+   "facts": {
+    "low_m": 0.0018834471702575684,
+    "high_m": 16.802452266216278
+   },
+   "seconds": 0.081
+  },
+  {
+   "tier": "parallax",
+   "status": "ready",
+   "files": {
+    "still": "parallax.png",
+    "video": "parallax.mp4"
+   },
+   "facts": {
+    "frames": 60.0
+   },
+   "seconds": 1.864
+  },
+  {
+   "tier": "flyover",
+   "status": "ready",
+   "files": {
+    "still": "flyover.png",
+    "video": "flyover.mp4"
+   },
+   "facts": {
+    "frames": 96.0
+   },
+   "seconds": 7.769
+  }
+ ]
+}
