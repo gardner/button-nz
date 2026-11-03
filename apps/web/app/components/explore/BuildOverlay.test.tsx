@@ -289,4 +289,39 @@ describe("SiteBuildView", () => {
     );
     expect(screen.getByRole("region")).not.toBeNull();
   });
+
+  it("shows nothing of the last build's work once a rebuild starts", async () => {
+    const fetch = vi.fn(() => Promise.resolve(respond(WIRE_PARCELS)));
+    vi.stubGlobal("fetch", fetch);
+    const { rerender } = render(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    await waitFor(() => expect(layer("parcels")).not.toBeNull());
+    rerender(
+      <SiteBuildView site={site("failed")} pollMs={5} readyHoldMs={50} />,
+    );
+    fetch.mockImplementation(() => new Promise(() => {}));
+    rerender(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    expect(layer("parcels")).toBeNull();
+  });
+
+  it("forgets why the last build's progress couldn't be shown", async () => {
+    const fetch = vi.fn(() => Promise.resolve(respond({}, 500)));
+    vi.stubGlobal("fetch", fetch);
+    const { rerender } = render(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    const region = screen.getByRole("region");
+    await waitFor(() => expect(region.textContent).toContain("Couldn't show"));
+    rerender(
+      <SiteBuildView site={site("failed")} pollMs={5} readyHoldMs={50} />,
+    );
+    fetch.mockImplementation(() => new Promise(() => {}));
+    rerender(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    expect(screen.getByRole("region").textContent).not.toContain("Couldn't");
+  });
 });

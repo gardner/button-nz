@@ -46,17 +46,17 @@ export function SiteBuildView({
   const building = site.status === "building";
   const [open, setOpen] = useState(building);
   // A site that stopped and is built again (a retry keeps its id) opens
-  // again; one dismissed stays hidden while the same build goes on.
+  // again, with nothing of its last build; one dismissed stays hidden while
+  // the same build goes on.
   const [wasBuilding, setWasBuilding] = useState(building);
+  const [builds, setBuilds] = useState(0);
   if (building !== wasBuilding) {
     setWasBuilding(building);
-    if (building) setOpen(true);
+    if (building) {
+      setOpen(true);
+      setBuilds(builds + 1);
+    }
   }
-  const { progress, problem } = useProgress(
-    open ? site.id : null,
-    building,
-    pollMs,
-  );
   const ready = site.status === "ready";
   useEffect(() => {
     if (!open || !ready) return;
@@ -65,26 +65,47 @@ export function SiteBuildView({
   }, [open, ready, readyHoldMs]);
   if (!open) return null;
   return (
+    <BuildRun
+      key={builds}
+      site={site}
+      pollMs={pollMs}
+      onDismiss={() => setOpen(false)}
+    />
+  );
+}
+
+/** One build of `site`, its progress its own. */
+function BuildRun({
+  site,
+  pollMs,
+  onDismiss,
+}: {
+  site: SiteState;
+  pollMs: number;
+  onDismiss: () => void;
+}) {
+  const { progress, problem } = useProgress(
+    site.id,
+    site.status === "building",
+    pollMs,
+  );
+  return (
     <BuildOverlay
       status={site.status}
       step={site.step}
       error={site.error ?? problem}
       progress={progress}
-      onDismiss={() => setOpen(false)}
+      onDismiss={onDismiss}
     />
   );
 }
 
 /** The build's progress, asked for every `pollMs` while it builds, and once
  * more when it stops, for the last step's work. */
-function useProgress(siteId: string | null, building: boolean, pollMs: number) {
-  const [shown, setShown] = useState<{
-    id: string;
-    progress: BuildProgress;
-  } | null>(null);
+function useProgress(siteId: string, building: boolean, pollMs: number) {
+  const [progress, setProgress] = useState<BuildProgress | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
-    if (siteId === null) return;
     let gone = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const again = () => {
@@ -92,9 +113,9 @@ function useProgress(siteId: string | null, building: boolean, pollMs: number) {
     };
     const ask = () =>
       getProgress(siteId).then(
-        (progress) => {
+        (shown) => {
           if (gone) return;
-          setShown({ id: siteId, progress });
+          setProgress(shown);
           setProblem(null);
           again();
         },
@@ -110,10 +131,7 @@ function useProgress(siteId: string | null, building: boolean, pollMs: number) {
       clearTimeout(timer);
     };
   }, [siteId, building, pollMs]);
-  return {
-    progress: shown?.id === siteId ? shown.progress : null,
-    problem,
-  };
+  return { progress, problem };
 }
 
 /** A large square over the map's corner: each step's work as it arrives,
