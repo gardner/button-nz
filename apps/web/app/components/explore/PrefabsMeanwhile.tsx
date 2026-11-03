@@ -53,29 +53,36 @@ export function PrefabsMeanwhile() {
             className="flex items-center gap-3 rounded-lg bg-white/5 px-2 py-1.5"
           >
             <Sketch product={p} scale={scale} />
-            <span className="flex-1">
-              <a
-                href={p.url}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium hover:underline"
-              >
-                {p.model}
-              </a>{" "}
-              <span className="text-zinc-400">
-                · {p.supplier} · {sizeOf(p)} · {p.bedrooms} bed
-              </span>
-            </span>
-            <span className="flex shrink-0 flex-col items-end text-zinc-300">
-              <span className="tabular-nums">
-                {p.priceNzd === null
-                  ? "price not published"
-                  : NZD.format(p.priceNzd)}
-              </span>
-              {p.priceNzd !== null && (
-                <span className="text-xs text-zinc-500">{p.priceBasis}</span>
-              )}
-            </span>
+            {/* One column beside the sketch, its price under its name, so a
+                long price basis wraps rather than widening the panel. */}
+            <div className="min-w-0 flex-1">
+              <p>
+                <a
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium hover:underline"
+                >
+                  {p.model}
+                </a>{" "}
+                <span className="text-zinc-400">
+                  · {p.supplier} · {sizeOf(p)} · {p.bedrooms} bed
+                </span>
+              </p>
+              <p className="text-zinc-300">
+                <span className="tabular-nums">
+                  {p.priceNzd === null
+                    ? "price not published"
+                    : NZD.format(p.priceNzd)}
+                </span>
+                {p.priceNzd !== null && (
+                  <span className="text-xs text-zinc-500">
+                    {" "}
+                    · {p.priceBasis}
+                  </span>
+                )}
+              </p>
+            </div>
           </li>
         ))}
       </ul>

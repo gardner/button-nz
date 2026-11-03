@@ -94,6 +94,28 @@ describe("PrefabsMeanwhile", () => {
     expect(item.textContent).toMatch(/\$182,000.*from; incl GST/);
   });
 
+  it("keeps each row to its sketch and one column of words that wraps, so a long price basis can't widen the panel", async () => {
+    const long = {
+      ...PRODUCTS.fits[0],
+      price_nzd: 159900,
+      price_basis: "standard; premium $189,100; GST basis not stated",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && [long]))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [item] = await screen.findAllByRole("listitem");
+    const [picture, words, ...more] = Array.from(item.children);
+    expect(picture.getAttribute("role")).toBe("img");
+    expect(more).toHaveLength(0);
+    expect(words.className).toMatch(/\bmin-w-0\b/);
+    expect(words.className).not.toMatch(/\bshrink-0\b/);
+    expect(words.textContent).toMatch(/Vista.*\$159,900.*GST basis not stated/);
+  });
+
   it("says when the catalogue couldn't load, rather than showing nothing", async () => {
     vi.stubGlobal(
       "fetch",
