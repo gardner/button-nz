@@ -261,9 +261,10 @@ def _requested(service: SiteService, address_id: int) -> SiteRecord:
 
 def _rebuilt(sites: Sites, site_id: str) -> SiteRecord:
     """Failed site ``site_id``, queued to build again, its last build's progress
-    cleared now: it may wait behind other builds before its own starts."""
-    sites.store.rebuild(site_id)
+    cleared now: it may wait behind other builds before its own starts. It is
+    cleared first, so it is never written by this and the builder at once."""
     BuildProgress(sites.sites_dir / site_id)
+    sites.store.rebuild(site_id)
     return sites.store.get(site_id)
 
 

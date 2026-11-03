@@ -24,6 +24,7 @@ from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.sites.progress import read_progress
 from button_nz.sites.registry import (
     DEMO_ADDRESS_ID,
     DEMO_SITE_ID,
@@ -395,6 +396,25 @@ def test_a_failed_site_asked_for_again_shows_nothing_of_its_last_build(tmp_path:
         server.client.post("/sites", json=asked)  # queued again, not yet started
         shown = server.client.get(f"/sites/{site_id}/progress").json()
         assert shown["frame"] is None and shown["survey"] is None
+
+
+def test_a_retrys_progress_is_cleared_before_the_builder_can_take_it(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    server = Server(tmp_path)
+    site_id = server.client.post("/sites", json={"address_id": 7}).json()["id"]
+    server.builder.run_next()
+    server.sites_store.finish(site_id, SiteStatus.FAILED, "LINZ went away")
+    shown_when_queued: list[dict[str, Any]] = []
+    rebuild = server.sites_store.rebuild
+
+    def queued(site: str) -> None:  # the moment the builder could take it
+        shown_when_queued.append(read_progress(tmp_path / "sites" / site))
+        rebuild(site)
+
+    monkeypatch.setattr(server.sites_store, "rebuild", queued)
+    server.client.post("/sites", json={"address_id": 7})
+    assert [shown["frame"] for shown in shown_when_queued] == [None]
 
 
 def test_a_build_without_lidar_shows_its_parcels_and_no_terrain(tmp_path: Path) -> None:
