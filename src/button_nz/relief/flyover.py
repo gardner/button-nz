@@ -70,7 +70,7 @@ def flyover_spec(
     distance = fitting_distance(
         2 * half_w, 2 * half_h, settings.width / settings.height, settings.lens_mm, SENSOR_MM
     )
-    target = (0.0, 0.0, float(np.median(relief.surface)))
+    target = (0.0, 0.0, relief.centre_m)
     poses = flyover_path(
         settings.frames,
         target,
@@ -93,5 +93,6 @@ def flyover_spec(
         "clip_end_m": 4 * distance,
         "samples": settings.samples,
         "background": list(BACKGROUND),
-        "wall_shade": WALL_SHADE,
+        # Blender shades light, not the photo's sRGB values: 2.2 is sRGB's gamma.
+        "wall_shade": WALL_SHADE**2.2,
     }

@@ -14,7 +14,9 @@ the same ``bbox``, and the camera's ``poses``; one PNG is written per pose.
 The terrain has one vertex per DSM cell centre and is unlit: its colour is
 the photo's, which already carries the day's light. Its brightness is the
 face's upward normal mapped from ``wall_shade`` (a wall) to 1 (flat ground),
-so walls read as walls, as in the parallax tier.
+so walls read as walls, as in the parallax tier. ``wall_shade`` scales
+linear light, so the host passes the parallax tier's sRGB shade to the
+power 2.2 for the two to match.
 """
 
 import json

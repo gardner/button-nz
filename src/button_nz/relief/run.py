@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image
 
 from button_nz.relief import SiteRelief
+from button_nz.relief.camera import tilted_frame
 from button_nz.relief.clip import Frame, write_mp4
 from button_nz.relief.depth import depth_map
 from button_nz.relief.flyover import FlyoverSettings, render_flyover
@@ -85,23 +86,25 @@ def _depth(relief: SiteRelief, out_dir: Path) -> TierOutput:
 
 
 def _parallax(relief: SiteRelief, out_dir: Path) -> TierOutput:
+    def view(tilt_deg: float, bearing_deg: float) -> Frame:
+        photo, heights = relief.aerial, relief.heights
+        return oblique(photo, heights, relief.pixel_m, tilt_deg, bearing_deg, relief.centre_m)
+
     path = sway_path(PARALLAX_FRAMES, PARALLAX_TILT_DEG, PARALLAX_SWAY_DEG, 0.0)
-    frames = [oblique(relief.aerial, relief.heights, relief.pixel_m, t, b) for t, b in path]
-    still = oblique(relief.aerial, relief.heights, relief.pixel_m, PARALLAX_TILT_DEG, 0.0)
-    Image.fromarray(still, "RGB").save(out_dir / "parallax.png")
-    write_mp4(frames, PARALLAX_FPS, out_dir / "parallax.mp4")
+    Image.fromarray(view(PARALLAX_TILT_DEG, 0.0), "RGB").save(out_dir / "parallax.png")
+    write_mp4((view(*pose) for pose in path), PARALLAX_FPS, out_dir / "parallax.mp4")
     files = {"still": "parallax.png", "video": "parallax.mp4"}
-    return TierOutput(files, {"frames": float(len(frames))})
+    return TierOutput(files, {"frames": float(len(path))})
 
 
 def flyover_tier(settings: FlyoverSettings, blender: str = "blender") -> Tier:
     def make(relief: SiteRelief, out_dir: Path) -> TierOutput:
         paths = render_flyover(relief, out_dir, settings, blender)
-        frames = [_rgb(path) for path in paths]  # the still: the tilt done, before the orbit
-        Image.fromarray(frames[round(len(frames) * 0.4)], "RGB").save(out_dir / "flyover.png")
-        write_mp4(frames, settings.fps, out_dir / "flyover.mp4")
+        still = _rgb(paths[tilted_frame(len(paths))])  # the tilt done, before the orbit
+        Image.fromarray(still, "RGB").save(out_dir / "flyover.png")
+        write_mp4((_rgb(path) for path in paths), settings.fps, out_dir / "flyover.mp4")
         files = {"still": "flyover.png", "video": "flyover.mp4"}
-        return TierOutput(files, {"frames": float(len(frames))})
+        return TierOutput(files, {"frames": float(len(paths))})
 
     return Tier("flyover", make)
 

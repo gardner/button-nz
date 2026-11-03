@@ -23,7 +23,7 @@ def _relief() -> SiteRelief:
     surface = np.zeros((10, 12))
     surface[4:6, 5:8] = 3.0  # a shed
     aerial = np.full((40, 48, 3), 120, dtype=np.uint8)
-    return SiteRelief(aerial, surface, 1.0, 0.25, (0.0, 0.0, 12.0, 10.0))
+    return SiteRelief(aerial, surface, 1.0, 0.25)
 
 
 def _manifest(out: Path) -> dict[str, Any]:

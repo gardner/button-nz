@@ -21,6 +21,8 @@ import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
 
+from button_nz.relief.camera import ease
+
 BACKGROUND = (226, 232, 238)  # beyond the photo: a pale sky
 WALL_SHADE = 0.75
 FULL_SHADE_TILT_DEG = 30.0  # straight down a wall can't be seen: its shade fades in to here
@@ -34,16 +36,17 @@ def oblique(
     pixel_m: float,
     tilt_deg: float,
     bearing_deg: float,
+    centre_m: float,
 ) -> NDArray[np.uint8]:
     """``photo`` (north up) over ``heights`` (metres, on its pixels), the same
-    size, with the site's median height at the centre of the frame."""
+    size, with the middle of the photo at ``centre_m`` up at the frame's centre."""
     if heights.shape != photo.shape[:2]:
         raise ValueError(f"heights are {heights.shape}, not the photo's {photo.shape[:2]}")
     colours, lifted, valid = _turned(photo, heights, bearing_deg)
     tilt = math.radians(tilt_deg)
     rows = photo.shape[0]
     down = np.arange(rows, dtype=np.float64)[:, None] + 0.5 - rows / 2
-    lift = (lifted - float(np.median(heights))) / pixel_m
+    lift = (lifted - centre_m) / pixel_m
     screen = np.where(valid, down * math.cos(tilt) - lift * math.sin(tilt) + rows / 2, np.inf)
     seen = min(1.0, tilt_deg / FULL_SHADE_TILT_DEG)
     shaded = _shaded(colours, lifted, valid, pixel_m, seen)
@@ -56,22 +59,19 @@ def oblique(
 def sway_path(frames: int, tilt_deg: float, sway_deg: float, bearing_deg: float) -> list[Pose]:
     """A loop: rise from straight down to ``tilt_deg`` (the first quarter),
     sway ``sway_deg`` either side of ``bearing_deg`` (the middle half), then
-    settle back down (the last quarter)."""
+    settle back down (the last quarter), stopping a frame short of the first
+    so it doesn't show twice as the clip loops."""
     path: list[Pose] = []
     for frame in range(frames):
-        t = frame / (frames - 1)
+        t = frame / frames
         if t < 0.25:
-            path.append((tilt_deg * _ease(t / 0.25), bearing_deg))
+            path.append((tilt_deg * ease(t / 0.25), bearing_deg))
         elif t <= 0.75:
             turn = math.sin(2 * math.pi * (t - 0.25) / 0.5)
             path.append((tilt_deg, bearing_deg + sway_deg * turn))
         else:
-            path.append((tilt_deg * _ease((1 - t) / 0.25), bearing_deg))
+            path.append((tilt_deg * ease((1 - t) / 0.25), bearing_deg))
     return path
-
-
-def _ease(t: float) -> float:
-    return (1 - math.cos(math.pi * t)) / 2
 
 
 def _turned(

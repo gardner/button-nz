@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from button_nz.relief.camera import CameraPose, fitting_distance, flyover_path
+from button_nz.relief.camera import CameraPose, fitting_distance, flyover_path, tilted_frame
 
 
 def _looks(pose: CameraPose) -> NDArray[np.float64]:
@@ -49,3 +49,11 @@ def test_the_distance_fits_the_site_in_the_frame() -> None:
     assert fitting_distance(40.0, 36.0, aspect=16 / 9, lens_mm=18, sensor_mm=36) == pytest.approx(
         32.0
     )
+
+
+@pytest.mark.parametrize("frames", [4, 10, 96])
+def test_the_tilted_frame_is_the_first_with_the_tilt_done(frames: int) -> None:
+    path = flyover_path(frames, (0.0, 0.0, 0.0), 10.0, tilt_deg=40, orbit_deg=60, bearing_deg=0)
+    index = tilted_frame(frames)
+    assert path[index].rotation[0] == pytest.approx(math.radians(40))
+    assert path[index - 1].rotation[0] < math.radians(40) - 1e-9

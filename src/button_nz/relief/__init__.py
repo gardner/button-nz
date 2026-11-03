@@ -20,20 +20,17 @@ from functools import cached_property
 import numpy as np
 from numpy.typing import NDArray
 
-from button_nz.geo.geometry import BBox
-
 
 @dataclass(frozen=True, eq=False)
 class SiteRelief:
     """The aerial (rows x cols x RGB, north up, ``pixel_m`` per pixel) over the
-    same ``bbox`` as ``surface``: the DSM's heights above the site's datum, one
+    same ground as ``surface``: the DSM's heights above the site's datum, one
     per ``cell_m`` cell, row 0 the north edge."""
 
     aerial: NDArray[np.uint8]
     surface: NDArray[np.float64]
     cell_m: float
     pixel_m: float
-    bbox: BBox
 
     def __post_init__(self) -> None:
         rows, cols = self.surface.shape
@@ -41,6 +38,11 @@ class SiteRelief:
         expected = (round(rows * scale), round(cols * scale), 3)
         if self.aerial.shape != expected:
             raise ValueError(f"the aerial is {self.aerial.shape}, not {expected}: the grid's")
+
+    @cached_property
+    def centre_m(self) -> float:
+        """The surface's median height: what the views centre on."""
+        return float(np.median(self.surface))
 
     @cached_property
     def heights(self) -> NDArray[np.float64]:

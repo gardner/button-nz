@@ -17,7 +17,7 @@ def _relief(surface: NDArray[np.float64], pixel_m: float = 0.25) -> SiteRelief:
     rows, cols = surface.shape
     scale = round(1.0 / pixel_m)
     aerial = np.zeros((rows * scale, cols * scale, 3), dtype=np.uint8)
-    return SiteRelief(aerial, surface, 1.0, pixel_m, (0.0, 0.0, float(cols), float(rows)))
+    return SiteRelief(aerial, surface, 1.0, pixel_m)
 
 
 def _stripes(rows: int, cols: int) -> NDArray[np.uint8]:
@@ -48,7 +48,7 @@ class TestHeights:
 
     def test_the_aerial_must_cover_the_grid(self) -> None:
         with pytest.raises(ValueError, match="aerial"):
-            SiteRelief(np.zeros((10, 10, 3), np.uint8), np.zeros((4, 5)), 1.0, 0.25, (0, 0, 5, 4))
+            SiteRelief(np.zeros((10, 10, 3), np.uint8), np.zeros((4, 5)), 1.0, 0.25)
 
 
 class TestDepthMap:
@@ -77,11 +77,11 @@ class TestOblique:
     def test_straight_down_is_the_photo(self) -> None:
         photo = _stripes(40, 30)
         heights = np.random.default_rng(1).uniform(0, 5, (40, 30))
-        assert np.array_equal(oblique(photo, heights, 0.25, tilt_deg=0, bearing_deg=0), photo)
+        assert np.array_equal(oblique(photo, heights, 0.25, 0, 0, centre_m=2.0), photo)
 
     def test_a_tilt_foreshortens_flat_ground(self) -> None:
         photo = _stripes(100, 10)
-        view = oblique(photo, np.zeros((100, 10)), 0.25, tilt_deg=60, bearing_deg=0)
+        view = oblique(photo, np.zeros((100, 10)), 0.25, 60, 0, centre_m=0.0)
         # cos 60 = 0.5: the ground's 100 rows fill the middle 50.
         assert np.all(view[:24] == BACKGROUND) and np.all(view[76:] == BACKGROUND)
         assert np.array_equal(view[50, 0], photo[50, 0])
@@ -91,7 +91,7 @@ class TestOblique:
         photo[40:44] = (200, 0, 0)  # a red roof, 1 m deep
         heights = np.zeros((80, 10))
         heights[40:44] = 4.0  # 4 m up
-        view = oblique(photo, heights, 0.25, tilt_deg=30, bearing_deg=0)
+        view = oblique(photo, heights, 0.25, 30, 0, centre_m=0.0)
         red = np.flatnonzero(np.all(view[:, 5] == (200, 0, 0), axis=1))
         shaded = np.flatnonzero(np.all(view[:, 5] == (round(200 * WALL_SHADE), 0, 0), axis=1))
         # The roof rises by 4 sin 30 = 2 m on screen: 8 rows, less the foreshortening.
@@ -105,28 +105,33 @@ class TestOblique:
     def test_flat_ground_and_slopes_away_are_not_shaded(self) -> None:
         photo = np.full((40, 10, 3), 200, dtype=np.uint8)
         heights = np.tile(np.linspace(5.0, 0.0, 40)[:, None], (1, 10))  # falls towards the camera
-        view = oblique(photo, heights, 0.25, tilt_deg=30, bearing_deg=180)  # looking down it
+        view = oblique(photo, heights, 0.25, 30, 180, centre_m=2.5)  # looking down it
         ground = view[np.any(view != BACKGROUND, axis=2)]
         assert np.all(ground == 200)
 
     def test_bearing_turns_the_view(self) -> None:
         photo = np.zeros((20, 20, 3), dtype=np.uint8)
         photo[:, :10] = (0, 0, 255)  # west half blue
-        view = oblique(photo, np.zeros((20, 20)), 0.25, tilt_deg=0, bearing_deg=90)
+        view = oblique(photo, np.zeros((20, 20)), 0.25, 0, 90, centre_m=0.0)
         # Looking east, west is at the bottom of the frame.
         assert np.all(view[15, 5:15] == (0, 0, 255)) and np.all(view[4, 5:15] == (0, 0, 0))
 
     def test_needs_heights_on_the_photos_pixels(self) -> None:
         with pytest.raises(ValueError, match="heights"):
-            oblique(np.zeros((4, 4, 3), np.uint8), np.zeros((3, 4)), 0.25, 10, 0)
+            oblique(np.zeros((4, 4, 3), np.uint8), np.zeros((3, 4)), 0.25, 10, 0, centre_m=0.0)
 
 
 class TestSwayPath:
     def test_rises_from_flat_sways_and_settles_back(self) -> None:
         path = sway_path(60, tilt_deg=30, sway_deg=10, bearing_deg=20)
         assert len(path) == 60
-        assert path[0] == (0.0, 20.0) and path[-1][0] == pytest.approx(0.0, abs=1e-9)
+        assert path[0] == (0.0, 20.0)
+        # Settling back, the last frame stops one step short of the first, so it loops smoothly.
+        assert 0.0 < path[-1][0] < path[-2][0] < 2.0
         assert max(tilt for tilt, _ in path) == pytest.approx(30.0)
         bearings = [bearing for _, bearing in path]
         assert min(bearings) == pytest.approx(10.0, abs=0.5)
         assert max(bearings) == pytest.approx(30.0, abs=0.5)
+
+    def test_one_frame_is_straight_down(self) -> None:
+        assert sway_path(1, tilt_deg=30, sway_deg=10, bearing_deg=20) == [(0.0, 20.0)]

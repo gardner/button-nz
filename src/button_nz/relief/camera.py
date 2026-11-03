@@ -33,12 +33,17 @@ def flyover_path(
     poses: list[CameraPose] = []
     for frame in range(frames):
         t = frame / max(frames - 1, 1)
-        tilt = tilt_deg * _ease(min(t / TILT_SHARE, 1.0))
-        orbit = orbit_deg * _ease(max(t - TILT_SHARE, 0.0) / (1 - TILT_SHARE))
+        tilt = tilt_deg * ease(min(t / TILT_SHARE, 1.0))
+        orbit = orbit_deg * ease(max(t - TILT_SHARE, 0.0) / (1 - TILT_SHARE))
         poses.append(
             _pose(target, distance_m, math.radians(tilt), math.radians(bearing_deg + orbit))
         )
     return poses
+
+
+def tilted_frame(frames: int) -> int:
+    """The first frame of ``flyover_path`` with the tilt done, before the orbit."""
+    return math.ceil(round(TILT_SHARE * (frames - 1), 9))  # 9 places: absorb float noise
 
 
 def fitting_distance(
@@ -65,5 +70,6 @@ def _pose(target: Vector, distance_m: float, tilt: float, bearing: float) -> Cam
     return CameraPose(location, (tilt, 0.0, -bearing))
 
 
-def _ease(t: float) -> float:
+def ease(t: float) -> float:
+    """From 0 to 1 as ``t`` does, starting and stopping gently."""
     return (1 - math.cos(math.pi * t)) / 2

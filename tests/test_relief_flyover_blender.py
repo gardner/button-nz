@@ -18,7 +18,7 @@ def test_renders_every_frame_starting_from_the_photo(tmp_path: Path) -> None:
     aerial = np.zeros((80, 80, 3), dtype=np.uint8)
     aerial[:] = (40, 160, 40)  # grass
     aerial[32:48, 32:48] = (200, 30, 30)  # its red roof
-    relief = SiteRelief(aerial, surface, 1.0, 0.25, (0.0, 0.0, 20.0, 20.0))
+    relief = SiteRelief(aerial, surface, 1.0, 0.25)
     settings = FlyoverSettings(frames=3, width=64, height=36, tilt_deg=40, orbit_deg=60)
     frames = render_flyover(relief, tmp_path, settings)
     assert len(frames) == 3
