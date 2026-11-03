@@ -85,6 +85,7 @@ name = "button-nz"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "av" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "meta-sam-parser" },
@@ -99,7 +100,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "av" },
     { name = "httpx" },
     { name = "playwright" },
     { name = "pre-commit" },
@@ -111,6 +111,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "av", specifier = ">=19.0.2" },
     { name = "fastapi", specifier = ">=0.162.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "meta-sam-parser", specifier = ">=0.1.0" },
@@ -125,7 +126,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "av", specifier = ">=19.0.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "playwright", specifier = ">=1.64.1" },
     { name = "pre-commit", specifier = ">=4.7.0" },
