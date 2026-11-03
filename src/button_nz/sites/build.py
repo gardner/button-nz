@@ -90,9 +90,9 @@ def build_site(
 ) -> None:
     """Build the site at LINZ address ``address_id`` into ``directory``,
     telling ``step`` which step it is on."""
-    directory.mkdir(parents=True, exist_ok=True)
+    progress = BuildProgress(directory)  # cleared before the title is looked for
     step("parcels")
-    _build(find_title(sources, address_id), address_id, directory, sources, step)
+    _build(find_title(sources, address_id), address_id, directory, sources, step, progress)
 
 
 def build_title_site(
@@ -101,9 +101,10 @@ def build_title_site(
     """Build the site of LINZ parcel ``parcel_id``'s title, for a title with no
     address (a vacant section, say), named ``name`` (``title_site_name``),
     into ``directory``."""
-    directory.mkdir(parents=True, exist_ok=True)
+    progress = BuildProgress(directory)
     step("parcels")
-    _build(title_of_parcel(sources, parcel_id, name), None, directory, sources, step)
+    title = title_of_parcel(sources, parcel_id, name)
+    _build(title, None, directory, sources, step, progress)
 
 
 def _build(
@@ -112,8 +113,8 @@ def _build(
     directory: Path,
     sources: Sources,
     step: Callable[[str], None],
+    progress: BuildProgress,  # what the app shows of each step, as it finishes
 ) -> None:
-    progress = BuildProgress(directory)  # what the app shows of each step, as it finishes
     _write(directory / "parcels.geojson", _parcels_file(title))
     _write(directory / "frontages.geojson", to_collection(_frontages_of(title, sources)))
     outlines = sources.buildings.in_envelope(_grown(title.extent, TERRAIN_MARGIN_M))
@@ -433,6 +434,8 @@ def _outline_rings(features: Sequence[Feature]) -> list[Ring]:
     """Each outline's outer ring, one for each part of a multipolygon."""
     rings: list[Ring] = []
     for feature in features:
+        if not feature.get("geometry"):  # no shape, left out as outlines_collection does
+            continue
         found = shape(cast("dict[str, Any]", feature["geometry"]))
         for part in getattr(found, "geoms", [found]):
             rings.append(tuple((float(x), float(y)) for x, y, *_ in part.exterior.coords))
