@@ -361,3 +361,35 @@ def test_a_title_whose_parcel_cant_be_read_is_refused_with_why(
     monkeypatch.setattr(api_sites, "title_site_name", bad)
     refused = Server(tmp_path).client.post("/sites", json={"parcel_id": 3})
     assert refused.status_code == 422 and "land within it" in refused.json()["detail"]
+
+
+def test_a_sites_build_shows_each_steps_work_as_it_goes(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    created = server.client.post("/sites", json={"address_id": 7}).json()
+    before = server.client.get(f"/sites/{created['id']}/progress")
+    assert before.status_code == 200 and before.json()["frame"] is None
+    assert before.headers["cache-control"] == "no-store"
+    server.builder.run_next()
+    shown = server.client.get(f"/sites/{created['id']}/progress").json()
+    assert len(shown["parcels"]) == 2 and len(shown["frame"]) == 4
+    assert shown["terrain"]["url"] == f"/sites/{created['id']}/progress/terrain.png"
+    assert shown["aerial"]["url"] == f"/sites/{created['id']}/progress/aerial.png"
+    assert shown["survey"]["asking"] is None
+    for layer in ("terrain", "aerial"):
+        png = server.client.get(shown[layer]["url"])
+        assert png.headers["content-type"] == "image/png" and png.content[:4] == b"\x89PNG"
+
+
+def test_a_build_without_lidar_shows_its_parcels_and_no_terrain(tmp_path: Path) -> None:
+    server = Server(tmp_path, lidar=False)
+    site = server.build()
+    shown = server.client.get(f"/sites/{site['id']}/progress").json()
+    assert shown["parcels"] and shown["terrain"] is None
+    assert server.client.get(f"/sites/{site['id']}/progress/terrain.png").status_code == 404
+
+
+def test_progress_is_only_for_sites_that_exist_and_layers_it_has(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    assert server.client.get("/sites/nowhere/progress").status_code == 404
+    site = server.build()
+    assert server.client.get(f"/sites/{site['id']}/progress/site.json").status_code == 404

@@ -24,6 +24,9 @@ type Raster = Any
 rio: Any = rasterio
 
 
+MARGIN_M = 20.0  # how far past its extent a site's terrain is read
+
+
 @dataclass(frozen=True, eq=False)
 class TerrainGrid:
     """Cells of ``cell_m`` metres covering ``bbox``; row 0 is the north edge."""
@@ -44,7 +47,9 @@ class _Grid:
     height: int
 
 
-def read_terrain(dem_path: str, dsm_path: str, extent: BBox, margin_m: float = 20.0) -> TerrainGrid:
+def read_terrain(
+    dem_path: str, dsm_path: str, extent: BBox, margin_m: float = MARGIN_M
+) -> TerrainGrid:
     """Read the DEM and DSM cells covering ``extent`` plus ``margin_m``, rounded
     outwards to whole cells. Paths may be local files or URLs to COGs."""
     dem: Raster

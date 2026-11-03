@@ -5,6 +5,7 @@
     GET  /sites/{id}                     its status, step and error; once ready, the site
     GET  /sites/{id}/aerial.png          its aerial photo
     GET  /sites/{id}/map                 its map layers, in lon/lat (``sites.layers``)
+    GET  /sites/{id}/progress            what its build has found so far (``api.progress``)
 
 and its survey under ``/sites/{id}/features`` (``api.features``). The demo
 site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
@@ -29,6 +30,7 @@ from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.limits import DailyCap
+from button_nz.api.progress import progress_router
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
 from button_nz.demo_site import DemoSite, load_demo_site, site_title
@@ -213,6 +215,7 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
         return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 
     router.include_router(_terrain_router(sites))
+    router.include_router(progress_router(sites))
     return router
 
 

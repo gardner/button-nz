@@ -36,10 +36,11 @@ from button_nz.demo_site import load_demo_site
 from button_nz.geo.arcgis import Feature, FeatureLayer
 from button_nz.geo.geometry import BBox, Point, Ring, bounds
 from button_nz.geo.property import LINZ, find_address
-from button_nz.geo.terrain import TerrainGrid, read_terrain
+from button_nz.geo.terrain import MARGIN_M, TerrainGrid, read_terrain
 from button_nz.perception.survey import CONCEPTS, PIXEL_M, Segment, survey, write_survey
 from button_nz.sites.blocks import block, parcels_in, pieces
 from button_nz.sites.frontages import Frontage, fetch_frontages, to_collection
+from button_nz.sites.progress import BuildProgress, write_whole
 from button_nz.sites.stac import Catalogues, Collection, lidar_pairs
 
 MAX_PARCELS = 12
@@ -112,18 +113,24 @@ def _build(
     sources: Sources,
     step: Callable[[str], None],
 ) -> None:
+    progress = BuildProgress(directory)  # what the app shows of each step, as it finishes
     _write(directory / "parcels.geojson", _parcels_file(title))
     _write(directory / "frontages.geojson", to_collection(_frontages_of(title, sources)))
     outlines = sources.buildings.in_envelope(_grown(title.extent, TERRAIN_MARGIN_M))
     _write(directory / "buildings.geojson", outlines_collection(outlines.features))
+    frame = _grown(title.extent, MARGIN_M)  # what the terrain and aerial will cover
+    progress.parcels(frame, [_ring(f) for f in title.parcels], _outline_rings(outlines.features))
     step("terrain")
     dem, dsm, grid = _terrain(title.extent, directory, sources)
+    progress.terrain(grid)
     step("aerial")
     aerial, aerial_tiles, photo = _aerial(dem.region, grid, title.extent, sources)
-    (directory / "aerial.png").write_bytes(photo)
+    write_whole(directory / "aerial.png", photo)
+    progress.aerial(grid.bbox)
     step("survey")
     site = union_all([Polygon(_ring(f)) for f in title.parcels])
-    found = survey(sources.segment, aerial_pixels(photo), grid, grid.bbox, PIXEL_M, within=site)
+    watched = progress.watching(sources.segment, grid, grid.bbox, PIXEL_M)
+    found = survey(watched, aerial_pixels(photo), grid, grid.bbox, PIXEL_M, within=site)
     reach = _grown(title.extent, TERRAIN_MARGIN_M)
     lidar = [*cast("list[str]", dem.tiles_for(reach)), *cast("list[str]", dsm.tiles_for(reach))]
     write_survey(directory, found, _survey_meta(aerial, lidar))
@@ -420,6 +427,16 @@ def outlines_collection(features: Sequence[Feature]) -> dict[str, Any]:
             if f.get("geometry")
         ],
     }
+
+
+def _outline_rings(features: Sequence[Feature]) -> list[Ring]:
+    """Each outline's outer ring, one for each part of a multipolygon."""
+    rings: list[Ring] = []
+    for feature in features:
+        found = shape(cast("dict[str, Any]", feature["geometry"]))
+        for part in getattr(found, "geoms", [found]):
+            rings.append(tuple((float(x), float(y)) for x, y, *_ in part.exterior.coords))
+    return rings
 
 
 def titles_of(feature: Feature) -> list[str]:
