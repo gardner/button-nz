@@ -32,7 +32,8 @@ const READY_HOLD_MS = 3000; // how long "Site ready" stays before stepping aside
 
 /** The build of a site opened while it was building, shown step by step
  * until a moment after it is ready, or until the owner hides it. Give it
- * `key={site.id}`: each site starts open only if it is building. */
+ * `key={site.id}`: each site starts open only if it is building, and opens
+ * again whenever it is built again. */
 export function SiteBuildView({
   site,
   pollMs,
@@ -42,8 +43,15 @@ export function SiteBuildView({
   pollMs: number;
   readyHoldMs?: number;
 }) {
-  const [open, setOpen] = useState(site.status === "building");
   const building = site.status === "building";
+  const [open, setOpen] = useState(building);
+  // A site that stopped and is built again (a retry keeps its id) opens
+  // again; one dismissed stays hidden while the same build goes on.
+  const [wasBuilding, setWasBuilding] = useState(building);
+  if (building !== wasBuilding) {
+    setWasBuilding(building);
+    if (building) setOpen(true);
+  }
   const { progress, problem } = useProgress(
     open ? site.id : null,
     building,

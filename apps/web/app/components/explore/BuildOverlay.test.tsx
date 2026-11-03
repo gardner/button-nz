@@ -255,4 +255,38 @@ describe("SiteBuildView", () => {
     );
     expect(screen.queryByRole("region")).toBeNull();
   });
+
+  it("opens again when a site that stopped is built again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(respond(WIRE_PARCELS))),
+    );
+    const { rerender } = render(
+      <SiteBuildView site={site("failed")} pollMs={5} readyHoldMs={50} />,
+    );
+    expect(screen.queryByRole("region")).toBeNull();
+    rerender(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    await waitFor(() => expect(layer("parcels")).not.toBeNull());
+  });
+
+  it("opens again for a rebuild after it was dismissed", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => {})),
+    );
+    const { rerender } = render(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    rerender(
+      <SiteBuildView site={site("failed")} pollMs={5} readyHoldMs={50} />,
+    );
+    expect(screen.queryByRole("region")).toBeNull();
+    rerender(
+      <SiteBuildView site={site("building")} pollMs={5} readyHoldMs={50} />,
+    );
+    expect(screen.getByRole("region")).not.toBeNull();
+  });
 });
