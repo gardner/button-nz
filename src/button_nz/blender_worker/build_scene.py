@@ -222,6 +222,14 @@ def render_silhouette(png_path: str, name: str) -> None:
     b.ops.render.render(write_still=True)
 
 
+def render_outline(png_path: str, name: str) -> None:
+    """``render_silhouette`` with every other object hidden: the whole of
+    ``name`` from the camera, nothing in front of it."""
+    for obj in b.context.scene.objects:
+        obj.hide_render = obj.name != name
+    render_silhouette(png_path, name)
+
+
 def _emission(name: str, value: float) -> Any:
     """An unlit material of grey ``value``: the same in the render, whatever the light."""
     material = b.data.materials.new(name)

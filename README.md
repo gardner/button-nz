@@ -145,10 +145,16 @@ with `META_API_KEY`.
 **SAM 3D Objects** is an experiment, not part of the app: can it reconstruct a
 real house from our aerial photography, and does giving it the measured LiDAR
 instead of its own depth estimate make that accurate
-([write-up](docs/experiments/sam3d-lidar/README.md), #125)? The inputs, the
-held-out truth, the scorer and a conventional baseline are being prepared
-(#138). **Its results are pending**: SAM 3D's weights are gated on Hugging
-Face, and access hasn't been granted yet.
+([write-up](docs/experiments/sam3d-lidar/README.md), #125)? Run with the
+official weights, six seeds per condition, and scored against measured LiDAR
+held out of every input, the answer is no: **the LiDAR fixes SAM 3D's
+placement and scale, not its shape.** Without LiDAR the model is 18–22× too
+small and 24 m off. With it the model stands on the building (footprint IoU
+0.64 and 0.53), but its roof is 0.9–1.5 m from the held-out points, and
+after the best alignment no better than without LiDAR (0.44–0.53 m against
+0.42–0.56 m). Roofer, a conventional reconstruction from the same points, is
+more than ten times as accurate (0.07–0.11 m). So SAM 3D models don't go into
+the app's 3D view.
 
 ## Evaluation
 

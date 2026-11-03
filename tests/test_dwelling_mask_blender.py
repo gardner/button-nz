@@ -37,8 +37,18 @@ def _open(tmp_path: Path, script: str, ndsm: NDArray[np.float64] | None = None) 
 
 
 def _mask(out: DesignOutputs) -> NDArray[np.bool_]:
-    assert out.mask is not None and out.png is not None
-    with Image.open(out.mask) as mask, Image.open(out.png) as render:
+    assert out.mask is not None
+    return _white(out, out.mask)
+
+
+def _outline(out: DesignOutputs) -> NDArray[np.bool_]:
+    assert out.outline is not None
+    return _white(out, out.outline)
+
+
+def _white(out: DesignOutputs, png: Path) -> NDArray[np.bool_]:
+    assert out.png is not None
+    with Image.open(png) as mask, Image.open(out.png) as render:
         assert mask.size == render.size  # same camera, same resolution
         values = np.asarray(mask.convert("L"))
     assert set(np.unique(values)) <= {0, 255}  # white is the Dwelling, black the rest
@@ -80,3 +90,19 @@ def test_a_partly_hidden_dwelling_shows_only_its_visible_part(tmp_path: Path) ->
     whole = _mask(_open(tmp_path / "whole", IN_VIEW)).sum()
     part = _mask(_open(tmp_path / "part", IN_VIEW, low)).sum()
     assert 0 < part < 0.8 * whole
+
+
+def test_the_outline_is_the_whole_dwelling_whatever_stands_in_front(tmp_path: Path) -> None:
+    """Muse Image redraws what stands in front, and may draw it lower so the whole
+    house shows: the check needs the outline nothing hides too (#133)."""
+    low = np.zeros_like(_DEM)
+    low[27:29, 5:45] = 9.0  # hides its south wall from the camera, not its roof
+    whole = _open(tmp_path / "whole", IN_VIEW)
+    part = _open(tmp_path / "part", IN_VIEW, low)
+    assert np.array_equal(_outline(whole), _mask(whole))  # nothing hides it
+    assert np.array_equal(_outline(part), _mask(whole))
+    assert not (_mask(part) & ~_outline(part)).any()  # what shows is part of it
+
+
+def test_a_dwelling_out_of_view_has_an_empty_outline(tmp_path: Path) -> None:
+    assert not _outline(_open(tmp_path, OUT_OF_VIEW)).any()

@@ -6,9 +6,13 @@ window around the dwelling, ``CONTEXT`` times its box, scaled up to the
 render's size. It asks for a photograph of the same scene. Image models move,
 shrink and invent things, so the result is checked before anyone sees it: SAM
 3.1 finds the houses in the illustration, resized to the render's size, and
-the one that best overlaps the Dwelling's silhouette from the render camera
-(``dwelling-mask.png``, from the trusted pass), cut and scaled as the render
-was, must overlap it with an IoU of at least ``MIN_IOU``. The close-up is what
+one of them must overlap the Dwelling from the render camera, cut and scaled
+as the render was, with an IoU of at least ``MIN_IOU``: either its visible
+silhouette (``dwelling-mask.png``, from the trusted pass), or its whole outline
+(``dwelling-outline.png``, the same with nothing in front of it). Muse Image
+redraws what stands in front of the house, so it may hide what the render hid or
+show the whole house; either way the house must be where, and as big as, the
+design is. The close-up is what
 is checked and what is shown: nothing is pasted back into a wider picture. A
 rejected edit is made again, up to ``EDITS`` in all, each checked the same way.
 Even then it is an illustration, not the design: show it labelled AI-illustrated.
@@ -95,8 +99,10 @@ NOT_VISIBLE = "The dwelling isn't visible from the render camera, so there is no
 NO_HOUSE = "SAM 3.1 found no house in the illustration."
 MOVED = (
     "The building in the illustration overlaps the design's silhouette with IoU {iou:.2f}, "
-    "under {min:.2f}: it was moved, resized or reshaped."
+    "and its whole outline with {outline:.2f}, both under {min:.2f}: it was moved, resized "
+    "or reshaped."
 )
+NOT_INSIDE = "The dwelling's silhouette isn't inside its whole outline: they aren't of one render."
 
 
 Box = tuple[int, int, int, int]  # left, top, right, bottom, in pixels
@@ -115,6 +121,7 @@ class Visual:
     png: bytes | None  # the illustration at the render's size: accepted ones only
     edits: int  # how many edits were made and checked: the last is the one recorded here
     window: Box | None = None  # the render's pixels illustrated; None if none were
+    outline_iou: float | None = None  # as ``iou``, with the dwelling's whole outline
 
     def __post_init__(self) -> None:
         if self.accepted != (self.png is not None):
@@ -133,28 +140,41 @@ class Visual:
             "reason": self.reason,
             "edits": self.edits,
             "window": None if self.window is None else list(self.window),
+            "outline_iou": self.outline_iou,
         }
+
+
+@dataclass(frozen=True)
+class Dwelling:
+    """The dwelling in the close-up: what of it shows, and its whole outline."""
+
+    silhouette: NDArray[np.bool_]
+    outline: NDArray[np.bool_]
 
 
 def illustrate(
     render_png: Path,
     mask_png: Path,
+    outline_png: Path,
     image_client: OpenAI,
     segmenter: Segmenter,
     model: str = VISUAL_MODEL,
 ) -> Visual:
     """Illustrate a close-up of the render and check the building in it against
-    the silhouette, up to ``EDITS`` times: the first illustration that passes, or
-    the last rejection."""
+    the silhouette and the whole outline, up to ``EDITS`` times: the first
+    illustration that passes, or the last rejection."""
     with Image.open(render_png) as render:
         size = render.size
         silhouette = _silhouette(mask_png, size)
+        outline = _silhouette(outline_png, size)
+        if (silhouette & ~outline).any():
+            raise VisualError(NOT_INSIDE)
         if not silhouette.any():
             return Visual(model, False, None, NOT_VISIBLE, None, 0)
         window = close_up(silhouette)
         scene = _png(render.convert("RGB").crop(window).resize(size, LANCZOS))
-    shown = _scaled(silhouette, window, size)
-    visual = _edits(scene, shown, image_client, segmenter, model)
+    dwelling = Dwelling(_scaled(silhouette, window, size), _scaled(outline, window, size))
+    visual = _edits(scene, dwelling, image_client, segmenter, model)
     return replace(visual, window=window)
 
 
@@ -178,20 +198,20 @@ def close_up(silhouette: NDArray[np.bool_]) -> Box:
 
 def _edits(
     scene: bytes,
-    silhouette: NDArray[np.bool_],
+    dwelling: Dwelling,
     image_client: OpenAI,
     segmenter: Segmenter,
     model: str,
 ) -> Visual:
     """Up to ``EDITS`` illustrations of ``scene``, each checked against
-    ``silhouette``, of the same size."""
-    size = (int(silhouette.shape[1]), int(silhouette.shape[0]))
-    prompt = _prompt(silhouette)
+    ``dwelling``, of the same size."""
+    size = (int(dwelling.silhouette.shape[1]), int(dwelling.silhouette.shape[0]))
+    prompt = _prompt(dwelling.silhouette)
     visual = Visual.failed(NO_HOUSE)  # replaced by the first edit's check
     for edits in range(1, EDITS + 1):
         try:
             illustration = _edit(scene, prompt, image_client, model)
-            visual = _check(illustration.resize(size, LANCZOS), silhouette, segmenter, model, edits)
+            visual = _check(illustration.resize(size, LANCZOS), dwelling, segmenter, model, edits)
         except (APIError, VisualError, SegmentationError) as error:
             if edits == 1:  # nothing measured yet: the failure is the record
                 raise
@@ -203,28 +223,31 @@ def _edits(
 
 def _check(
     illustration: Image.Image,
-    silhouette: NDArray[np.bool_],
+    dwelling: Dwelling,
     segmenter: Segmenter,
     model: str,
     edits: int,
 ) -> Visual:
-    """Whether a house SAM finds in ``illustration`` overlaps ``silhouette`` enough."""
+    """Whether a house SAM finds in ``illustration`` overlaps the dwelling's
+    silhouette, or its whole outline, enough."""
     masks = segmenter.masks(np.asarray(illustration), CONCEPT)
     if not masks:
-        return Visual(model, False, 0.0, NO_HOUSE, None, edits)
-    best = max(iou(mask.pixels, silhouette) for mask in masks)
-    if best < MIN_IOU:
-        return Visual(model, False, best, MOVED.format(iou=best, min=MIN_IOU), None, edits)
-    return Visual(model, True, best, None, _png(illustration), edits)
+        return Visual(model, False, 0.0, NO_HOUSE, None, edits, outline_iou=0.0)
+    shown = max(iou(mask.pixels, dwelling.silhouette) for mask in masks)
+    whole = max(iou(mask.pixels, dwelling.outline) for mask in masks)
+    if max(shown, whole) < MIN_IOU:
+        reason = MOVED.format(iou=shown, outline=whole, min=MIN_IOU)
+        return Visual(model, False, shown, reason, None, edits, outline_iou=whole)
+    return Visual(model, True, shown, None, _png(illustration), edits, outline_iou=whole)
 
 
-def illustrate_from_env(render_png: Path, mask_png: Path) -> Visual:
+def illustrate_from_env(render_png: Path, mask_png: Path, outline_png: Path) -> Visual:
     """``illustrate`` with a Meta Model API client using the ``META_API_KEY`` key."""
     key = os.environ.get("META_API_KEY")
     if not key:
         raise KeyError("META_API_KEY is not set: get a Meta Model API key")
     client = visual_client(key)
-    return illustrate(render_png, mask_png, client, Segmenter(client))
+    return illustrate(render_png, mask_png, outline_png, client, Segmenter(client))
 
 
 def visual_client(key: str) -> OpenAI:

@@ -190,16 +190,16 @@ def test_garbled_results_are_the_models_feedback(tmp_path: Path, passes: Path) -
 
 
 def _finished_then(tmp_path: Path, failure: BlenderError, measured: Mapping[str, object]):
-    """A pass 2 that writes ``measured``, the GLB, the render and half a mask,
-    then fails with ``failure`` (as if the silhouette render crashed or timed out)."""
+    """A pass 2 that writes ``measured``, the GLB, the render, the mask and half
+    an outline, then fails with ``failure`` (as if the silhouette render crashed or timed out)."""
 
     def fake(
         blender: str, script: Path, args: list[str], timeout_s: float, sandbox: object
     ) -> None:
         out = Path(args[2])
         (out / "measurements.json").write_text(json.dumps(measured), encoding="utf-8")
-        for name in ("design.glb", "design.png", run.MASK):
-            (out / name).write_bytes(b"partial" if name == run.MASK else b"done")
+        for name in ("design.glb", "design.png", run.MASK, run.OUTLINE):
+            (out / name).write_bytes(b"partial" if name == run.OUTLINE else b"done")
         raise failure
 
     return fake
@@ -209,12 +209,14 @@ def _finished_then(tmp_path: Path, failure: BlenderError, measured: Mapping[str,
 def test_a_failed_silhouette_keeps_the_finished_design(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: BlenderError
 ) -> None:
-    """The design was measured, exported and rendered: only the optional mask is lost."""
+    """The design was measured, exported and rendered: only the optional
+    silhouettes are lost, both of them, since the check needs the pair."""
     monkeypatch.setattr(run, "_run_blender", _finished_then(tmp_path, failure, {"error": None}))
     outputs = run._measure_pass("blender", tmp_path / "s.json", tmp_path / "d.blend", tmp_path, 60)  # pyright: ignore[reportPrivateUsage]
     assert outputs.measurements["error"] is None
     assert outputs.glb is not None and outputs.png is not None
     assert outputs.mask is None and not (tmp_path / run.MASK).exists()
+    assert outputs.outline is None and not (tmp_path / run.OUTLINE).exists()
 
 
 def test_a_crash_before_the_design_is_finished_is_still_the_models(
@@ -225,3 +227,22 @@ def test_a_crash_before_the_design_is_finished_is_still_the_models(
     monkeypatch.setattr(run, "_run_blender", _finished_then(tmp_path, killed, unfinished))
     outputs = run._measure_pass("blender", tmp_path / "s.json", tmp_path / "d.blend", tmp_path, 60)  # pyright: ignore[reportPrivateUsage]
     assert outputs.measurements["error"] == DID_NOT_FINISH and outputs.glb is None
+
+
+def test_a_rerun_clears_the_last_runs_outputs_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pass that fails to write one of them mustn't leave the last run's in its
+    place: an old outline beside a new silhouette would check another design."""
+    out = tmp_path / "run"
+    out.mkdir()
+    outputs = ("measurements.json", "design.glb", "design.png", run.MASK, run.OUTLINE)
+    for name in outputs:
+        (out / name).write_bytes(b"the last run's")
+
+    def script_fails(*args: object) -> str:
+        return "the script failed"
+
+    monkeypatch.setattr(run, "_script_pass", script_fails)
+    run_design(SCENE, "x = 1\n", out, blender="blender")
+    assert not any((out / name).exists() for name in outputs)

@@ -21,12 +21,14 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.tiles import tiles_covering
 from button_nz.perception.features import Mask
 from button_nz.sites.build import (
+    MAX_PARCELS,
     MAX_SIDE_M,
     NoLidar,
     SiteError,
     Sources,
     build_site,
     build_title_site,
+    find_title,
     title_site_name,
 )
 from button_nz.sites.stac import ELEVATION, IMAGERY, Catalogues, Collection
@@ -213,9 +215,12 @@ def no_masks(image: NDArray[np.uint8], concept: str) -> list[Mask]:
 
 
 def sources(
-    parcels: list[dict[str, Any]] = PARCELS, lidar: bool = True, gappy_newer: bool = False
+    parcels: list[dict[str, Any]] = PARCELS,
+    lidar: bool = True,
+    gappy_newer: bool = False,
+    point: list[float] = POINT,
 ) -> Sources:
-    found = layers(parcels)
+    found = layers(parcels, point)
     return Sources(
         addresses=found["LINZ_NZ_Addresses"],
         parcels=found["LINZ_NZ_Primary_Parcels"],
@@ -364,3 +369,97 @@ def test_a_parcel_with_no_title_is_never_built(tmp_path: Path) -> None:
     untitled = [parcel(4, A, None)]
     with pytest.raises(SiteError, match="record of title"):
         build_title_site(4, "Lot 4", tmp_path, sources(untitled), lambda _: None)
+
+
+def _box(x0: float, y0: float, x1: float, y1: float) -> list[list[float]]:
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]
+
+
+def _split(pid: int, x0: float, x1: float) -> dict[str, Any]:
+    """A parcel a 4 m lane (y 12-16) cuts in two, as LINZ gives it: a MultiPolygon."""
+    south, north = _box(X0 + x0, Y0, X0 + x1, Y0 + 12), _box(X0 + x0, Y0 + 16, X0 + x1, Y0 + 40)
+    found = parcel(pid, south, "354613")
+    found["geometry"] = {"type": "MultiPolygon", "coordinates": [[south], [north]]}
+    return found
+
+
+SPLIT = [_split(1, 0, 20), _split(2, 20, 40)]  # one title, both parcels cut by the lane
+
+
+def test_a_title_a_road_cuts_in_two_is_built_on_the_addresss_side(tmp_path: Path) -> None:
+    """33 Davis Street, Reefton (#136): a lane cuts both parcels on its title."""
+    build_site(7, tmp_path, sources(SPLIT, point=[X0 + 10, Y0 + 6]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1, 2]
+    assert site.extent_nztm == (X0, Y0, X0 + 40, Y0 + 12)  # the south block only
+    (left_out,) = [item for item in site.open_items if "doesn't touch" in item]
+    assert "960 m²" in left_out  # the north block: 40 x 24 m
+
+
+def test_the_side_of_the_road_is_the_one_the_address_is_on(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(SPLIT, point=[X0 + 30, Y0 + 30]), lambda _: None)
+    assert load_demo_site(tmp_path).extent_nztm == (X0, Y0 + 16, X0 + 40, Y0 + 40)
+
+
+def test_a_title_site_a_road_cuts_in_two_is_built_on_one_block_of_its_parcel(
+    tmp_path: Path,
+) -> None:
+    found = sources(SPLIT)
+    build_title_site(1, "Lot 1", tmp_path, found, lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert site.extent_nztm in ((X0, Y0, X0 + 40, Y0 + 12), (X0, Y0 + 16, X0 + 40, Y0 + 40))
+    assert 1 in [p.parcel_id for p in site.parcels]
+    assert title_site_name(found.addresses, found.parcels, 1).startswith("Lot 1")
+
+
+def test_a_title_in_one_piece_leaves_nothing_out(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(), lambda _: None)
+    assert not any("doesn't touch" in item for item in load_demo_site(tmp_path).open_items)
+
+
+def test_a_title_site_is_built_on_the_block_of_the_parcel_it_is_named_for(tmp_path: Path) -> None:
+    """Lot 1 (small) and Lot 2 (large) on one title, a neighbour between them:
+    the site keyed and named by Lot 1 holds Lot 1."""
+    small = parcel(1, _box(X0, Y0, X0 + 10, Y0 + 10), "354613")
+    large = parcel(2, _box(X0 + 30, Y0, X0 + 70, Y0 + 40), "354613")
+    build_title_site(1, "Lot 1", tmp_path, sources([small, large]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1]
+    (left_out,) = [item for item in site.open_items if "doesn't touch" in item]
+    assert "1,600 m²" in left_out and "road" not in left_out  # only what was measured
+
+
+def test_a_split_parcel_with_land_within_it_is_refused_before_it_is_named() -> None:
+    holed = _split(1, 0, 20)
+    hole = _box(X0 + 5, Y0 + 20, X0 + 10, Y0 + 25)
+    holed["geometry"]["coordinates"][1].append(hole)
+    found = sources([holed])
+    with pytest.raises(SiteError, match="isn't its own"):
+        title_site_name(found.addresses, found.parcels, 1)
+
+
+def test_a_parcel_in_touching_pieces_counts_once_toward_a_sections_parcels() -> None:
+    """A section's most parcels, one of them a MultiPolygon whose parts both
+    touch the rest (land wrapping a right-of-way): a section, not one more."""
+    lots = [
+        parcel(i, _box(X0 + 10 * i, Y0, X0 + 10 * i + 10, Y0 + 30), "354613")
+        for i in range(1, MAX_PARCELS)
+    ]
+    wrapped = parcel(MAX_PARCELS, _box(X0, Y0, X0 + 10, Y0 + 15), "354613")
+    halves = [[_box(X0, Y0, X0 + 10, Y0 + 15)], [_box(X0, Y0 + 15, X0 + 10, Y0 + 30)]]
+    wrapped["geometry"] = {"type": "MultiPolygon", "coordinates": halves}
+    title = find_title(sources([*lots, wrapped], point=[X0 + 15, Y0 + 15]), 7)
+    assert len({p["properties"]["id"] for p in title.parcels}) == MAX_PARCELS
+
+
+def test_a_parcel_in_pieces_sharing_an_edge_is_one_parcel_of_the_site(tmp_path: Path) -> None:
+    """Their seam is no boundary: one ring, so the checks see no internal line
+    and the open items don't ask whether it is a legal boundary."""
+    one = parcel(1, _box(X0, Y0, X0 + 20, Y0 + 15), "354613")
+    halves = [[_box(X0, Y0, X0 + 20, Y0 + 15)], [_box(X0, Y0 + 15, X0 + 20, Y0 + 30)]]
+    one["geometry"] = {"type": "MultiPolygon", "coordinates": halves}
+    build_site(7, tmp_path, sources([one]), lambda _: None)
+    site = load_demo_site(tmp_path)
+    assert [p.parcel_id for p in site.parcels] == [1]
+    assert site.extent_nztm == (X0, Y0, X0 + 20, Y0 + 30)
+    assert not any("legal boundaries" in item for item in site.open_items)

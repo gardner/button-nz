@@ -42,6 +42,7 @@ from button_nz.perception.visual import (
 TREES = (Path(__file__).parent / "data" / "sam-tree.txt").read_text(encoding="utf-8")
 SHAPE = (900, 1200)  # the render's rows x columns
 GRASS, HOUSE, NEIGHBOUR = (90, 120, 60), (250, 250, 250), (200, 60, 60)
+TREE = (30, 70, 30)
 Draw = Callable[[Image.Image], Image.Image | None]  # what Muse Image makes of a picture
 
 
@@ -55,6 +56,9 @@ def _box(top: int, bottom: int, left: int, right: int) -> NDArray[np.bool_]:
 # box is the window (400, 325)-(700, 550), shown four times bigger.
 DWELLING = _box(400, 475, 500, 600)
 WINDOW = (400, 325, 700, 550)
+# A tree in front of the dwelling's lower middle, hiding 44% of it: what shows
+# still spans the dwelling's whole box, so the close-up is the same.
+FRONT_TREE = _box(420, 500, 520, 580)
 
 
 def _png(image: Image.Image) -> bytes:
@@ -63,15 +67,26 @@ def _png(image: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
-def _files(tmp_path: Path, silhouette: NDArray[np.bool_]) -> tuple[Path, Path]:
-    """The render, grass with the dwelling painted in, and its silhouette."""
-    render, mask = tmp_path / "design.png", tmp_path / "dwelling-mask.png"
+def _files(
+    tmp_path: Path, silhouette: NDArray[np.bool_], tree: NDArray[np.bool_] | None = None
+) -> tuple[Path, Path, Path]:
+    """The render, grass with the dwelling painted in and ``tree`` standing in
+    front of it; the dwelling's visible silhouette; and its whole outline."""
+    render = tmp_path / "design.png"
+    mask, outline = tmp_path / "dwelling-mask.png", tmp_path / "dwelling-outline.png"
+    tree = np.zeros(SHAPE, dtype=np.bool_) if tree is None else tree
     pixels = np.empty((*SHAPE, 3), dtype=np.uint8)
     pixels[:] = GRASS
     pixels[silhouette] = HOUSE
+    pixels[tree] = TREE
     render.write_bytes(_png(Image.fromarray(pixels, "RGB")))
-    mask.write_bytes(_png(Image.fromarray(silhouette.astype(np.uint8) * 255, "L")))
-    return render, mask
+    mask.write_bytes(_mask_png(silhouette & ~tree))
+    outline.write_bytes(_mask_png(silhouette))
+    return render, mask, outline
+
+
+def _mask_png(pixels: NDArray[np.bool_]) -> bytes:
+    return _png(Image.fromarray(pixels.astype(np.uint8) * 255, "L"))
 
 
 def _sent(content: bytes) -> Image.Image:
@@ -126,6 +141,15 @@ def blank(image: Image.Image) -> Image.Image:
 
 def nothing(image: Image.Image) -> None:
     return None
+
+
+def unhidden(image: Image.Image) -> Image.Image:
+    """The tree in front drawn lower, so the whole dwelling shows where it is: in
+    the close-up, the middle third each way (as ``_sent_close_up``)."""
+    pixels = np.array(image)
+    pixels[_house(image, TREE)] = GRASS
+    pixels[300:600, 400:800] = HOUSE
+    return Image.fromarray(pixels, "RGB")
 
 
 class ColourSam(Segmenter):
@@ -189,8 +213,8 @@ class Api:
         self.segmentations.append(json.loads(request.content))
         return httpx2.Response(200, json=_sam_reply(TREES))
 
-    def illustrate(self, render: Path, mask: Path) -> Visual:
-        return illustrate(render, mask, self.client, self.segmenter)
+    def illustrate(self, render: Path, mask: Path, outline: Path) -> Visual:
+        return illustrate(render, mask, outline, self.client, self.segmenter)
 
 
 def test_iou_is_overlap_over_union() -> None:
@@ -379,10 +403,37 @@ def test_a_dwelling_the_camera_cannot_see_is_not_illustrated(tmp_path: Path) -> 
 
 
 def test_a_silhouette_of_another_size_is_an_error(tmp_path: Path) -> None:
-    render, mask = _files(tmp_path, DWELLING)
+    render, mask, outline = _files(tmp_path, DWELLING)
     mask.write_bytes(_png(Image.new("L", (10, 10))))
     with pytest.raises(VisualError, match="10 x 10"):
-        Api().illustrate(render, mask)
+        Api().illustrate(render, mask, outline)
+
+
+def test_an_outline_of_another_size_is_an_error(tmp_path: Path) -> None:
+    render, mask, outline = _files(tmp_path, DWELLING)
+    outline.write_bytes(_png(Image.new("L", (10, 10))))
+    with pytest.raises(VisualError, match="10 x 10"):
+        Api().illustrate(render, mask, outline)
+
+
+def test_a_missing_outline_is_an_error_not_a_check_on_the_silhouette_alone(
+    tmp_path: Path,
+) -> None:
+    render, mask, outline = _files(tmp_path, DWELLING, FRONT_TREE)
+    outline.unlink()
+    api = Api(unhidden)
+    with pytest.raises(FileNotFoundError):
+        api.illustrate(render, mask, outline)
+    assert api.edits == []
+
+
+def test_a_silhouette_outside_the_outline_is_an_error(tmp_path: Path) -> None:
+    """The two are the same Dwelling from the same camera: what shows of it is
+    inside its whole outline, or they aren't of the same render."""
+    render, mask, outline = _files(tmp_path, DWELLING)
+    outline.write_bytes(_mask_png(_box(400, 475, 700, 800)))
+    with pytest.raises(VisualError, match="outline"):
+        Api().illustrate(render, mask, outline)
 
 
 def test_an_edit_without_an_image_is_an_error(tmp_path: Path) -> None:
@@ -391,7 +442,7 @@ def test_an_edit_without_an_image_is_an_error(tmp_path: Path) -> None:
 
 
 def test_an_accepted_visual_is_saved_with_its_record(tmp_path: Path) -> None:
-    visual = Visual(VISUAL_MODEL, True, 0.82, None, b"\x89PNG visual", 1, WINDOW)
+    visual = Visual(VISUAL_MODEL, True, 0.82, None, b"\x89PNG visual", 1, WINDOW, 0.9)
     save(visual, tmp_path)
     assert (tmp_path / "visual.png").read_bytes() == b"\x89PNG visual"
     record = json.loads((tmp_path / "visual.json").read_text(encoding="utf-8"))
@@ -403,6 +454,7 @@ def test_an_accepted_visual_is_saved_with_its_record(tmp_path: Path) -> None:
         "reason": None,
         "edits": 1,
         "window": [400, 325, 700, 550],  # the render's pixels it shows
+        "outline_iou": 0.9,
     }
 
 
@@ -428,3 +480,42 @@ def test_only_an_accepted_visual_carries_an_image() -> None:
         Visual(VISUAL_MODEL, False, 0.2, "It moved.", b"\x89PNG", 1)
     with pytest.raises(ValueError, match="accepted"):
         Visual(VISUAL_MODEL, True, 0.9, None, None, 1)
+
+
+def test_a_dwelling_partly_hidden_and_still_hidden_is_accepted(tmp_path: Path) -> None:
+    """The illustration keeps the tree in front: SAM's house is what shows of it."""
+    visual = Api().illustrate(*_files(tmp_path, DWELLING, FRONT_TREE))
+    assert visual.accepted and visual.iou is not None and visual.iou > 0.95  # the tree's edge
+    assert visual.outline_iou is not None and visual.outline_iou < MIN_IOU
+
+
+def test_a_dwelling_the_illustration_unhides_is_checked_against_its_whole_outline(
+    tmp_path: Path,
+) -> None:
+    """Muse Image redraws the trees, and drew them lower: the whole house showed,
+    in place, and was rejected against the 47% of it the render shows (#133,
+    c5832e90: IoU 0.46, 0.93 against the whole outline)."""
+    visual = Api(unhidden).illustrate(*_files(tmp_path, DWELLING, FRONT_TREE))
+    assert visual.accepted and visual.outline_iou == pytest.approx(1.0, abs=0.02)
+    assert visual.iou is not None and visual.iou < MIN_IOU
+    assert visual.record()["outline_iou"] == visual.outline_iou
+
+
+def test_an_unhidden_dwelling_that_moved_is_rejected(tmp_path: Path) -> None:
+    def unhidden_and_moved(image: Image.Image) -> Image.Image:
+        return moved(unhidden(image))
+
+    visual = Api(unhidden_and_moved).illustrate(*_files(tmp_path, DWELLING, FRONT_TREE))
+    assert not visual.accepted and visual.png is None
+    assert visual.iou is not None and visual.outline_iou is not None
+    assert max(visual.iou, visual.outline_iou) < MIN_IOU
+    assert visual.reason is not None and "outline" in visual.reason
+
+
+def test_an_unhidden_dwelling_drawn_bigger_is_rejected(tmp_path: Path) -> None:
+    def unhidden_and_enlarged(image: Image.Image) -> Image.Image:
+        return enlarged(unhidden(image))
+
+    visual = Api(unhidden_and_enlarged).illustrate(*_files(tmp_path, DWELLING, FRONT_TREE))
+    assert not visual.accepted and visual.outline_iou is not None
+    assert visual.outline_iou < MIN_IOU

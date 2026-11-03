@@ -1,0 +1,28 @@
+{
+ "building": "b6",
+ "model": "/home/gardner/src/button-nz-results/sam3d-spike/train-b6/moge/mesh.npz",
+ "held_out_roof_points": 130,
+ "validity": {
+  "watertight": false,
+  "triangles": 557508
+ },
+ "roof_exact_median_m": null,
+ "roof_exact_bias_m": null,
+ "model_points": 27409,
+ "roof_rmse_m": null,
+ "roof_median_m": null,
+ "roof_bias_m": null,
+ "roof_coverage": 0.0,
+ "height_err_m": 24.121,
+ "ground_m": 186.26,
+ "footprint_iou": 0.0,
+ "scale": [
+  0.052,
+  0.029
+ ],
+ "fitted_scale": 20.618,
+ "shape_roof_rmse_m": 0.814,
+ "shape_roof_median_m": 0.54,
+ "shape_roof_bias_m": 0.319,
+ "shape_roof_coverage": 0.915
+}

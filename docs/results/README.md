@@ -227,6 +227,56 @@ on the 12 designs: the code before (23e8e7f) first, then the close-up
   noted above, but the first-edit rate (6 against 10) and the IoUs point the
   same way.
 
+### The dwelling's whole outline, when trees stand in front of it
+
+c5832e90 failed in every run because the check compared unlike things.
+`dwelling-mask.png` is the dwelling's *visible* pixels, and LiDAR blocks in
+front of it hide over half of it: 5,810 px of the 12,485 px its whole outline
+covers from the same camera. Muse Image is asked to redraw those blocks as
+what they most resemble, and it drew them as lower shrubs, so the whole house
+showed, its roof right on the render's. SAM's house then overlapped the
+visible part with IoU 0.46 and the whole outline with 0.93: the house was in
+place, and was rejected for showing what the render's trees had hidden.
+
+The measure pass now also renders `dwelling-outline.png`, the Dwelling with
+every other object hidden. The check accepts a house that overlaps either
+the visible silhouette or the whole outline with IoU 0.60 or more. Both are
+the dwelling's own pixels from the render camera, so a moved or resized
+house fails both, as before. To measure it, the 12 recorded designs'
+outlines were re-rendered by the measure pass from each attempt's scene and
+saved design; every re-rendered visible mask matched the recorded one pixel
+for pixel. Only two designs have anything in front of the dwelling:
+c5832e90 (47% of its outline visible) and 7b219d6b (86%). For the other ten
+the outline is the silhouette, and nothing changes. Before (master 5493beb)
+and after (this change), back to back:
+
+| Design | Before (edits, IoU) | After (edits, IoU silhouette / outline) |
+|---|---|---|
+| 4ee3c533 | passed (1, 0.99) | passed (1, 0.98 / 0.98) |
+| 14e33e79 | passed (1, 0.86) | passed (1, 0.96 / 0.96) |
+| 2814a497 | passed (1, 0.97) | passed (1, 0.94 / 0.94) |
+| 7b219d6b | passed (1, 0.84) | passed (1, 0.85 / 0.98) |
+| 02003a9b | passed (1, 0.94) | passed (1, 0.92 / 0.92) |
+| 3ca9262c | passed (1, 0.79) | passed (1, 0.98 / 0.98) |
+| 1f3ae911 | passed (1, 0.97) | passed (1, 0.94 / 0.94) |
+| b6d7a54d | passed (2, 0.97) | passed (2, 0.92 / 0.92) |
+| fb1d8b45 | passed (1, 0.98) | passed (1, 0.98 / 0.98) |
+| c5832e90 | failed (2, 0.47) | passed (1, 0.46 / 0.96) |
+| 910c6d05 | passed (1, 0.94) | passed (1, 0.94 / 0.94) |
+| 1b52b41d | passed (1, 0.99) | passed (1, 0.96 / 0.96) |
+| **Passed** | **11 of 12** | **12 of 12** |
+
+- **c5832e90 passes for the first time** (outline IoU 0.96 on the first
+  edit); before, it failed both edits again (0.47). 7b219d6b also matched
+  its outline better than its visible part (0.98 against 0.85).
+- **b6d7a54d's failures are real, and random.** Three first edits made for
+  diagnosis scored 0.87, 0.82 and 0.07; the failure drew a bigger house
+  moved about half its width. Nothing hides this dwelling, so the outline
+  changes nothing for it; the second edit is what covers it, and it passed
+  on its second edit in both runs here.
+- Each run is one sample per design; only c5832e90's result is down to the
+  change, and it had failed in all six runs without it, this one included.
+
 ## Impact: what it would mean for Reefton's housing (`button_nz.bench.impact`, #127)
 
 **Reefton** ([report](impact/report.md), code 8a0721e). If some share of the
@@ -291,6 +341,28 @@ street's edge:
   harness then read them before the visual was made, so it counted a missing
   one as a failure; it now waits. Across both runs the visual passed 7 of 12:
   its SAM check rejects a picture whose house was moved or reshaped.
+
+## SAM 3D Objects with LiDAR (#125)
+
+Can SAM 3D Objects rebuild a real house from the aerial photo, and does the
+measured LiDAR, given in place of its own depth estimate, make that
+accurate? It ran with the official weights on two buildings, six seeds per
+condition, scored against LiDAR points held out of every input. The
+[write-up](../experiments/sam3d-lidar/README.md) has the protocol and the
+full table, which [`summarize.py`](../experiments/sam3d-lidar/scripts/summarize.py)
+builds from the score files. Medians of six seeds:
+
+| | House, no LiDAR | House, LiDAR | House, Roofer | Behind trees, no LiDAR | Behind trees, LiDAR | Behind trees, Roofer |
+|---|---|---|---|---|---|---|
+| Footprint IoU with the outline | 0.00 | 0.64 | 0.91 | 0.00 | 0.53 | 0.84 |
+| Roof error, median, no alignment | none over the points | 0.91 m | 0.07 m | none over the points | 1.52 m | 0.11 m |
+| Roof error after alignment, median | 0.42 m | 0.44 m | 0.15 m | 0.56 m | 0.53 m | 0.21 m |
+
+**Notes:**
+- Without LiDAR the model is 18–22× too small and about 24 m off. The LiDAR
+  fixes placement and scale, but after alignment its roof is no better.
+- Roofer, a conventional reconstruction from the same points, is more than
+  ten times as accurate, so SAM 3D models don't go into the app's 3D view.
 
 ## Relief views: the photo made 3D by its own LiDAR (`button_nz.bench.relief`, #149)
 
