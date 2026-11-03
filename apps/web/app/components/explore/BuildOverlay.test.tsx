@@ -90,6 +90,20 @@ describe("BuildOverlay", () => {
     );
   });
 
+  it("keeps every layer inside the frame the LiDAR and photo cover", () => {
+    overlay(PARCELS);
+    const clip = document.querySelector("clipPath rect");
+    expect([clip?.getAttribute("y"), clip?.getAttribute("height")]).toEqual([
+      "5",
+      "30",
+    ]);
+    const clipped = document.querySelector("[data-layer=frame]");
+    expect(clipped?.getAttribute("clip-path")).toBe(
+      `url(#${document.querySelector("clipPath")?.id})`,
+    );
+    expect(clipped?.querySelector('[data-layer="parcels"]')).not.toBeNull();
+  });
+
   it("shows the LiDAR's picture over its bbox, with its range of heights", () => {
     overlay(TERRAIN);
     const terrain = layer("terrain");
@@ -118,6 +132,21 @@ describe("BuildOverlay", () => {
       survey: { ...SURVEYING.survey!, asking: null },
     });
     expect(layer("scan")).toBeNull();
+  });
+
+  it("stops scanning when the build stops partway through the survey", () => {
+    render(
+      <BuildOverlay
+        status="failed"
+        step={null}
+        error="SAM 3.1 refused the request"
+        progress={SURVEYING}
+        onDismiss={() => {}}
+      />,
+    );
+    expect(layer("scan")).toBeNull();
+    const states = screen.getAllByRole("listitem").map((c) => c.dataset.state);
+    expect(states).toEqual(["done", "todo", "todo"]);
   });
 
   it("can be dismissed", () => {

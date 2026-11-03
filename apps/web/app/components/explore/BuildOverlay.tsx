@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
+  type BBox,
   type BuildProgress,
   type Ring,
   type Square,
@@ -123,7 +124,9 @@ export function BuildOverlay({
   progress: BuildProgress | null;
   onDismiss: () => void;
 }) {
-  const square = progress?.frame ? squareFrame(progress.frame) : null;
+  // What SAM 3.1 is being asked, only while the build goes on: one that
+  // stopped partway through the survey asks nothing more.
+  const asking = status === "building" ? askingNow(progress) : null;
   return (
     <section
       aria-label="Your site, as it is built"
@@ -143,15 +146,44 @@ export function BuildOverlay({
         </button>
       </header>
       {error && <p className="text-xs text-zinc-300">{error}</p>}
-      <svg
-        viewBox={square ? `0 0 ${square.side} ${square.side}` : "0 0 1 1"}
-        className="aspect-square w-full rounded-xl bg-zinc-900/60"
-        aria-hidden
-      >
-        {square && progress && <Layers progress={progress} square={square} />}
-      </svg>
-      {progress && <Legend progress={progress} />}
+      <Picture progress={progress} asking={asking} />
+      {progress && <Legend progress={progress} asking={asking} />}
     </section>
+  );
+}
+
+function askingNow(progress: BuildProgress | null): string | null {
+  return progress?.survey?.asking ?? null;
+}
+
+/** The square every step is drawn in; until the parcels are found there is
+ * nothing to draw, and it waits, alive. */
+function Picture({
+  progress,
+  asking,
+}: {
+  progress: BuildProgress | null;
+  asking: string | null;
+}) {
+  const frame = progress?.frame ?? null;
+  const square = frame ? squareFrame(frame) : null;
+  return (
+    <svg
+      viewBox={square ? `0 0 ${square.side} ${square.side}` : "0 0 1 1"}
+      className={`aspect-square w-full rounded-xl bg-zinc-900/60 ${
+        square ? "" : "motion-safe:animate-pulse"
+      }`}
+      aria-hidden
+    >
+      {progress && frame && square && (
+        <Layers
+          progress={progress}
+          frame={frame}
+          square={square}
+          asking={asking}
+        />
+      )}
+    </svg>
   );
 }
 
@@ -163,16 +195,26 @@ function caption(status: SiteStatus, step: SiteStep | null): string {
   return doing ? `${doing}…` : "Starting…";
 }
 
+/** Every step's work, clipped to the frame the LiDAR and photo cover: the
+ * outlines around the site reach past it. */
 function Layers({
   progress,
+  frame,
   square,
+  asking,
 }: {
   progress: BuildProgress;
+  frame: BBox;
   square: Square;
+  asking: string | null;
 }) {
   const { terrain, aerial, survey } = progress;
+  const clip = useId();
   return (
-    <>
+    <g data-layer="frame" clipPath={`url(#${clip})`}>
+      <clipPath id={clip}>
+        <rect {...placed(frame, square)} />
+      </clipPath>
       {terrain && (
         <image
           data-layer="terrain"
@@ -217,8 +259,8 @@ function Layers({
         fill={0}
         drawn
       />
-      {survey?.asking && <Scan side={square.side} />}
-    </>
+      {asking && <Scan side={square.side} />}
+    </g>
   );
 }
 
@@ -237,20 +279,22 @@ function Rings({
   fill: number;
   drawn?: boolean; // drawn on, as a pen would
 }) {
+  // A dash is measured on screen once a stroke stops scaling, so a line that
+  // is drawn on is sized in metres instead: about 2.5 px across the square.
   return (
     <g
       data-layer={name}
       stroke={colour}
       fill={colour}
       fillOpacity={fill}
-      strokeWidth={drawn ? 2.5 : 1.25}
+      strokeWidth={drawn ? square.side * 0.007 : 1.25}
       className="build-fade-in"
     >
       {rings.map((ring, i) => (
         <path
           key={i}
           d={ringPath(ring, square)}
-          vectorEffect="non-scaling-stroke"
+          vectorEffect={drawn ? undefined : "non-scaling-stroke"}
           pathLength={drawn ? 1 : undefined}
           className={drawn ? "build-draw-on" : undefined}
         />
@@ -281,7 +325,13 @@ function Scan({ side }: { side: number }) {
   );
 }
 
-function Legend({ progress }: { progress: BuildProgress }) {
+function Legend({
+  progress,
+  asking,
+}: {
+  progress: BuildProgress;
+  asking: string | null;
+}) {
   const { terrain, survey } = progress;
   const found = new Map(survey?.found.map((f) => [f.concept, f.rings.length]));
   return (
@@ -297,7 +347,7 @@ function Legend({ progress }: { progress: BuildProgress }) {
           {survey.concepts.map((concept) => {
             const state = found.has(concept)
               ? "done"
-              : concept === survey.asking
+              : concept === asking
                 ? "asking"
                 : "todo";
             return (
