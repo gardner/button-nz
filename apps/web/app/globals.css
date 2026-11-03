@@ -32,3 +32,52 @@ body {
   top: 4.5rem;
   bottom: auto;
 }
+
+/* The build overlay (BuildOverlay, #152): each step's work fades in, the
+   title's parcels are drawn on, and a line sweeps the photo while SAM 3.1
+   looks it over. Nothing moves for anyone who asks for less motion. */
+@keyframes build-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes build-draw-on {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes build-scan {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.build-fade-in {
+  animation: build-fade-in 0.8s ease-out both;
+}
+
+.build-draw-on {
+  stroke-dasharray: 1;
+  animation: build-draw-on 1.4s ease-out both;
+}
+
+.build-scan {
+  transform-box: view-box;
+  animation: build-scan 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-fade-in,
+  .build-draw-on,
+  .build-scan {
+    animation: none;
+  }
+}

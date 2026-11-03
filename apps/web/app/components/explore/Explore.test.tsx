@@ -377,6 +377,41 @@ describe("Explore", () => {
     });
   });
 
+  it("shows the build's work in a large view over the map, which can be hidden", async () => {
+    serve({
+      "GET /api/town/reefton": [TOWN],
+      [`GET /api/sites/${SITE_BUILDING.id}`]: [SITE_BUILDING],
+      [`GET /api/sites/${SITE_BUILDING.id}/progress`]: [
+        {
+          frame: [1000, 2000, 1040, 2030],
+          parcels: [
+            [
+              [1010, 2010],
+              [1020, 2010],
+              [1020, 2020],
+              [1010, 2010],
+            ],
+          ],
+          buildings: [],
+          terrain: null,
+          aerial: null,
+          survey: null,
+        },
+      ],
+    });
+    window.history.replaceState(null, "", `/?site=${SITE_BUILDING.id}`);
+    render(<Explore pollMs={5} />);
+    const view = await screen.findByRole("region", {
+      name: "Your site, as it is built",
+    });
+    expect(view.textContent).toContain("Reading the LiDAR");
+    await vi.waitFor(() =>
+      expect(view.querySelector('[data-layer="parcels"] path')).not.toBeNull(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("region", { name: /as it is built/ })).toBeNull();
+  });
+
   it("builds the site of a section tapped on the town map", async () => {
     const fetch = serve({
       "GET /api/town/reefton": [TOWN],

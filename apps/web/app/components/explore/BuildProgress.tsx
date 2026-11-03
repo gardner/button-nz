@@ -1,6 +1,6 @@
 import type { SiteStatus, SiteStep } from "@/lib/sites";
 
-const STEPS: { key: SiteStep; doing: string }[] = [
+export const STEPS: { key: SiteStep; doing: string }[] = [
   { key: "parcels", doing: "Finding the title's parcels" },
   { key: "terrain", doing: "Reading the LiDAR" },
   { key: "aerial", doing: "Fetching the aerial photo" },
