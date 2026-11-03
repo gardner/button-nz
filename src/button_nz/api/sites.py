@@ -41,6 +41,7 @@ from button_nz.perception.confirm import effective
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.build import SiteError, title_site_name
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
+from button_nz.sites.progress import BuildProgress
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import (
     NoSuchSection,
@@ -251,12 +252,19 @@ def _requested(service: SiteService, address_id: int) -> SiteRecord:
             return known
         with _admit(service.cap):
             if known is not None:
-                store.rebuild(known.id)
-                record = store.get(known.id)
+                record = _rebuilt(service.sites, known.id)
             else:
                 record = store.create(address_id, address)
     service.builder.wake()
     return record
+
+
+def _rebuilt(sites: Sites, site_id: str) -> SiteRecord:
+    """Failed site ``site_id``, queued to build again, its last build's progress
+    cleared now: it may wait behind other builds before its own starts."""
+    sites.store.rebuild(site_id)
+    BuildProgress(sites.sites_dir / site_id)
+    return sites.store.get(site_id)
 
 
 def _view(sites: Sites, record: SiteRecord) -> dict[str, Any]:
@@ -347,8 +355,7 @@ def _requested_title(service: SiteService, parcel_id: int) -> SiteRecord:
             return known
         with _admit(service.cap):
             if known is not None:
-                store.rebuild(known.id)
-                record = store.get(known.id)
+                record = _rebuilt(service.sites, known.id)
             else:
                 record = store.create_title(parcel_id, name)
     service.builder.wake()

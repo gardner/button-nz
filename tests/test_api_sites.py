@@ -24,7 +24,13 @@ from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
-from button_nz.sites.registry import DEMO_ADDRESS_ID, DEMO_SITE_ID, SiteBuilder, SiteStore
+from button_nz.sites.registry import (
+    DEMO_ADDRESS_ID,
+    DEMO_SITE_ID,
+    SiteBuilder,
+    SiteStatus,
+    SiteStore,
+)
 from test_api import fake_runner, scripted, synthetic_site
 from test_api_features import write_survey
 from test_api_limits import survey_id
@@ -378,6 +384,17 @@ def test_a_sites_build_shows_each_steps_work_as_it_goes(tmp_path: Path) -> None:
     for layer in ("terrain", "aerial"):
         png = server.client.get(shown[layer]["url"])
         assert png.headers["content-type"] == "image/png" and png.content[:4] == b"\x89PNG"
+
+
+def test_a_failed_site_asked_for_again_shows_nothing_of_its_last_build(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    for asked in ({"address_id": 7}, {"parcel_id": 3}):
+        site_id = server.client.post("/sites", json=asked).json()["id"]
+        server.builder.run_next()  # a build that left its progress, then failed
+        server.sites_store.finish(site_id, SiteStatus.FAILED, "LINZ went away")
+        server.client.post("/sites", json=asked)  # queued again, not yet started
+        shown = server.client.get(f"/sites/{site_id}/progress").json()
+        assert shown["frame"] is None and shown["survey"] is None
 
 
 def test_a_build_without_lidar_shows_its_parcels_and_no_terrain(tmp_path: Path) -> None:
