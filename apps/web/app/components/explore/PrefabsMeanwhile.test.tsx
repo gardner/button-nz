@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PRODUCTS } from "@/lib/fixtures";
@@ -28,6 +28,32 @@ describe("PrefabsMeanwhile", () => {
     );
     const link = screen.getAllByRole("link")[0];
     expect(link.getAttribute("href")).toBe(first.url);
+  });
+
+  it("shows a sketch of each prefab we can draw, and says why for one we can't", async () => {
+    const catalogue = [...PRODUCTS.fits, ...PRODUCTS.unchecked];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && catalogue))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [vista, nile, nook] = await screen.findAllByRole("listitem");
+    const picture = (item: HTMLElement) =>
+      within(item).getByRole("img").getAttribute("aria-label");
+    expect(picture(vista)).toBe("Sketch of the Vista: 12.2 × 4 m, mono roof");
+    expect(picture(nile)).toContain("gable roof (or mono)");
+    expect(
+      within(vista).getByRole("img").querySelectorAll("polygon").length,
+    ).toBeGreaterThan(2);
+    expect(picture(nook)).toBe(
+      "No sketch of the Nook 60: its figures aren't a published footprint",
+    );
+    expect(within(nook).getByRole("img").querySelector("polygon")).toBeNull();
+    expect(
+      screen.getByText(/sketches.*published sizes.*one scale/i),
+    ).toBeTruthy();
   });
 
   it("doesn't call unlabelled figures a footprint, nor an unpublished price 'on request'", async () => {
@@ -66,6 +92,28 @@ describe("PrefabsMeanwhile", () => {
     render(<PrefabsMeanwhile />);
     const [item] = await screen.findAllByRole("listitem");
     expect(item.textContent).toMatch(/\$182,000.*from; incl GST/);
+  });
+
+  it("keeps each row to its sketch and one column of words that wraps, so a long price basis can't widen the panel", async () => {
+    const long = {
+      ...PRODUCTS.fits[0],
+      price_nzd: 159900,
+      price_basis: "standard; premium $189,100; GST basis not stated",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        Promise.resolve(new Response(JSON.stringify(url && [long]))),
+      ),
+    );
+    render(<PrefabsMeanwhile />);
+    const [item] = await screen.findAllByRole("listitem");
+    const [picture, words, ...more] = Array.from(item.children);
+    expect(picture.getAttribute("role")).toBe("img");
+    expect(more).toHaveLength(0);
+    expect(words.className).toMatch(/\bmin-w-0\b/);
+    expect(words.className).not.toMatch(/\bshrink-0\b/);
+    expect(words.textContent).toMatch(/Vista.*\$159,900.*GST basis not stated/);
   });
 
   it("says when the catalogue couldn't load, rather than showing nothing", async () => {

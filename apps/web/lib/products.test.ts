@@ -21,6 +21,26 @@ describe("parseProducts", () => {
     expect(found.unchecked.map((p) => p.model)).toEqual(["Nook 60"]);
   });
 
+  it("reads how each product looks: its roof forms, pitch and colours", () => {
+    const [vista, nile] = parseProducts(PRODUCTS).fits;
+    expect(vista.appearance).toEqual({
+      roofForms: ["mono"],
+      roofPitchDeg: null, // not published
+      walls: "#e8e6df",
+      roof: "#3b3e36",
+    });
+    expect(nile.appearance.roofForms).toEqual(["gable", "mono"]);
+  });
+
+  it("refuses a roof form or a colour it doesn't know", () => {
+    const form = structuredClone(PRODUCTS);
+    form.fits[0].appearance.roof_forms = ["dome"];
+    expect(() => parseProducts(form)).toThrow(/dome/);
+    const colour = structuredClone(PRODUCTS);
+    colour.fits[0].appearance.walls = "url(evil)";
+    expect(() => parseProducts(colour)).toThrow(/colour/);
+  });
+
   it("refuses a link that isn't https", () => {
     const bad = structuredClone(PRODUCTS);
     bad.fits[0].url = "javascript:alert(1)";

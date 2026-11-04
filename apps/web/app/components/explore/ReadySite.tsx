@@ -224,11 +224,13 @@ function undrawn(map: DesignMap | null): string[] {
   );
 }
 
-/** The run itself, beside the map, while the shown design is made. */
+/** The run itself, beside the map, while the shown design is made: below
+ * the top bar like the column on the left (5rem), scrolling on a short
+ * screen rather than covering the steps and the 2D/3D switch. */
 function AtWork({ job }: { job: Job | undefined }) {
   if (job?.status !== "queued" && job?.status !== "running") return null;
   return (
-    <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10 xl:w-[400px]">
+    <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10 xl:max-h-[calc(100dvh-6rem)] xl:w-[400px] xl:overflow-y-auto">
       <MuseAtWork job={job} />
     </div>
   );

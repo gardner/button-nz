@@ -423,6 +423,26 @@ describe("a ready site", () => {
     expect(panel.textContent).toMatch(/Blender builds and renders it/);
   });
 
+  it("keeps Muse at work below the top bar on a short screen, scrolling rather than covering it", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": { ...ACCEPTED, status: "running" },
+    });
+    render(<Explore pollMs={5} />);
+    const panel = await screen.findByRole("region", { name: "Muse at work" });
+    // Fixed to the bottom of the screen beside the map (xl), it can't grow
+    // into the top bar (the steps, 2D/3D) on a short one: like the column
+    // on the left, it starts below the bar (5rem) and scrolls.
+    const fixed = panel.parentElement!.className.split(" ");
+    expect(fixed).toContain("xl:fixed");
+    expect(fixed).toContain("xl:max-h-[calc(100dvh-6rem)]");
+    expect(fixed).toContain("xl:overflow-y-auto");
+  });
+
   it("names the prefab a design is placing", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
