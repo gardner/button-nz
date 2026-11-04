@@ -109,6 +109,32 @@ describe("ReliefView", () => {
     );
   });
 
+  it("makes a failed view again when asked to try again", async () => {
+    const broken = { tier: "flyover", status: "failed", error: "no GPU" };
+    const fetch = answers({ making: false, tiers: [PARALLAX, broken] });
+    render(<ReliefView siteId="s" pollMs={5} />);
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "See it in 3D" }));
+    const again = await screen.findByRole("button", { name: "Try again" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(respond({ making: false, tiers: [PARALLAX, FLYOVER] })),
+      ),
+    );
+    fireEvent.click(again);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/sites/s/relief", {
+      method: "POST",
+    });
+    await waitFor(() =>
+      expect(video()?.getAttribute("src")).toBe(
+        "/api/sites/s/relief/flyover.mp4",
+      ),
+    );
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("says so when the API refuses", async () => {
     vi.stubGlobal(
       "fetch",

@@ -26,31 +26,33 @@ export function ReliefView({
   siteId: string;
   pollMs: number;
 }) {
-  const [asked, setAsked] = useState(false);
-  const { relief, problem } = useRelief(siteId, asked, pollMs);
-  if (!asked)
+  const [tries, setTries] = useState(0); // none until it's asked for
+  const { relief, problem } = useRelief(siteId, tries, pollMs);
+  const again = () => setTries((t) => t + 1);
+  if (tries === 0)
     return (
-      <button
-        type="button"
-        onClick={() => setAsked(true)}
-        className="self-start rounded-xl bg-zinc-950/85 px-4 py-2 text-sm font-medium text-emerald-300 shadow-xl backdrop-blur hover:bg-zinc-900"
-      >
+      <button type="button" onClick={again} className={BUTTON}>
         See it in 3D
       </button>
     );
-  return <Shown relief={relief} problem={problem} />;
+  return <Shown relief={relief} problem={problem} onRetry={again} />;
 }
 
-/** The best clip made so far, captioned, and each view that couldn't be. */
+const BUTTON =
+  "self-start rounded-xl bg-zinc-950/85 px-4 py-2 text-sm font-medium text-emerald-300 shadow-xl backdrop-blur hover:bg-zinc-900";
+
+/** The best clip made so far, captioned, each view that couldn't be made,
+ * and, once nothing is being made, a way to try those again. */
 function Shown({
   relief,
   problem,
+  onRetry,
 }: {
   relief: Relief | null;
   problem: string | null;
+  onRetry: () => void;
 }) {
-  const clip = relief && shownClip(relief);
-  const flying = relief?.making === true && clip?.tier === "parallax";
+  const { clip, flying, retry } = shownState(relief, problem);
   return (
     <figure className="rounded-2xl bg-zinc-950/85 p-3 shadow-2xl backdrop-blur">
       {clip ? (
@@ -76,8 +78,27 @@ function Shown({
           Couldn&apos;t show it in 3D: {problem}
         </p>
       )}
+      {retry && (
+        <button type="button" onClick={onRetry} className={`mt-2 ${BUTTON}`}>
+          Try again
+        </button>
+      )}
     </figure>
   );
+}
+
+/** The clip to play; whether the fly-over is still rendering behind the
+ * parallax clip; and whether there's anything to try again, once nothing
+ * is being made. */
+function shownState(relief: Relief | null, problem: string | null) {
+  if (!relief) return { clip: null, flying: false, retry: problem !== null };
+  const clip = shownClip(relief);
+  const failed = relief.tiers.some((t) => t.status === "failed");
+  return {
+    clip,
+    flying: relief.making && clip?.tier === "parallax",
+    retry: !relief.making && (failed || problem !== null),
+  };
 }
 
 function ClipVideo({ clip }: { clip: Clip }) {
@@ -107,13 +128,13 @@ function Failures({ relief }: { relief: Relief }) {
     ));
 }
 
-/** Once `asked`, the relief started, then asked for every `pollMs` while
+/** Each try (from 1), the relief started, then asked for every `pollMs` while
  * it's being made. */
-function useRelief(siteId: string, asked: boolean, pollMs: number) {
+function useRelief(siteId: string, tries: number, pollMs: number) {
   const [relief, setRelief] = useState<Relief | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
-    if (!asked) return;
+    if (tries === 0) return;
     let gone = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Each ask, and again if it fails in passing (the API restarting, say).
@@ -137,6 +158,6 @@ function useRelief(siteId: string, asked: boolean, pollMs: number) {
       gone = true;
       clearTimeout(timer);
     };
-  }, [siteId, asked, pollMs]);
+  }, [siteId, tries, pollMs]);
   return { relief, problem };
 }
