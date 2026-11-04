@@ -1,30 +1,33 @@
 {
- "code": "54ad6d5",
+ "code": "42d6d4f",
  "tiers": [
   {
    "tier": "depth",
+   "version": 1,
    "status": "ready",
    "facts": {
     "low_m": 0.0018834471702575684,
     "high_m": 16.802452266216278
    },
-   "seconds": 0.083
+   "seconds": 0.081
   },
   {
    "tier": "parallax",
+   "version": 1,
    "status": "ready",
    "facts": {
     "frames": 60.0
    },
-   "seconds": 2.008
+   "seconds": 2.037
   },
   {
    "tier": "flyover",
+   "version": 2,
    "status": "ready",
    "facts": {
-    "frames": 96.0
+    "frames": 288.0
    },
-   "seconds": 7.75
+   "seconds": 21.287
   }
  ]
 }

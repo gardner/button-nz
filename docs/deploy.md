@@ -11,15 +11,16 @@ rewrite.
 | | What it does | Where |
 |---|---|---|
 | Access code | If `BUTTON_ACCESS_CODE` is set, every page and `/api` request needs it. A link with `?code=` sets an HttpOnly, Secure cookie and drops the code from the address; anything else gets a 401 page. Empty, the app is open to anyone. | `apps/web/proxy.ts`, `lib/access.ts` |
-| Daily cap | At most `BUTTON_DAILY_DESIGNS` design runs, originals and revisions, start in any 24 hours. One past it is refused (429, with when the next frees up), never queued. Each run is Meta Model API calls and a GPU Blender run. | `serve --daily-designs`, `api/limits.py` |
+| Daily cap (off by default) | If `BUTTON_DAILY_DESIGNS` is set, at most that many design runs, originals and revisions, start in any 24 hours. One past it is refused (429, with when the next frees up), never queued. Each run is Meta Model API calls and a GPU Blender run. Empty, as `install.sh` writes it and as button.nz runs, there is no cap. | `serve --daily-designs`, `api/limits.py` |
 | Fixed survey | The survey is served with who decided it, and changes to it are refused (403), so one visitor can't change what everyone's designs are checked against. It's pinned to the survey decided (`BUTTON_SURVEY_ID`, its `survey_id` from `/api/site/features`): a survey file replaced since is refused (409, naming both ids), and designs on it fail with that reason, rather than being served or designed on undecided. Left empty, the survey stays open for the owner to decide in the app first. | `serve --survey-decided-by --survey-id`, `api/fixed.py` |
 | Design links | `/?design=<id>` opens that design and the designs it revises; the address bar follows the design on show. A judge can open a finished design at once. | `useDesignChain.ts` |
 
 Run locally, as in the README, none of these is on.
 
 An empty `BUTTON_ACCESS_CODE` serves the app to anyone, as button.nz is served
-for judging. The daily cap and the fixed survey are then the only limits: the
-cap bounds what all visitors can spend together. Set
+for judging, with no daily cap on design runs or site builds. The fixed survey
+is then the only limit; a cap, if set, bounds what all visitors can spend
+together. Set
 `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` before emptying the code, or
 anyone can change the survey.
 
@@ -32,7 +33,8 @@ scripts/deploy/install.sh   # builds, writes the units, starts the services
 ```
 
 `deploy.env` has the access code (generated), the data directory, the daily
-cap and who decided the survey. The model key is read from the repository's
+design cap (empty: none) and who decided the survey. Run `install.sh` again
+after changing any of them. The model key is read from the repository's
 `.env` by the API's unit only; the web app's unit never gets it. Run
 `install.sh` again after pulling new code. `systemctl --user status
 button-api button-web button-tunnel` and `journalctl --user -u button-api`
@@ -100,5 +102,5 @@ Designs are model-written Blender scripts. They run in the sandbox
 - size-limited scratch space;
 - memory and process caps.
 
-A visitor's brief reaches the model, never a shell. The daily cap bounds what
-the visitors can spend together.
+A visitor's brief reaches the model, never a shell. Nothing bounds what the
+visitors can spend together unless `BUTTON_DAILY_DESIGNS` is set.

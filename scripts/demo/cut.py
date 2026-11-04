@@ -11,7 +11,7 @@ caller's, taken from real reports. See README.md for both formats.
 """
 
 import argparse
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Literal, Self
 
@@ -20,6 +20,8 @@ import numpy as np
 from av.container import InputContainer, OutputContainer
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
+
+from subtitles import Cue, speed_label, spoken, srt, words
 
 HERE = Path(__file__).resolve().parent
 SANS = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
@@ -79,12 +81,25 @@ class Beat(BaseModel):
         return self
 
 
+class Still(BaseModel):
+    """An opening shot of one image, e.g. an AI visual from a real run, for
+    ``seconds``, fitted to the recording, always captioned with what it is and
+    where it came from, and optionally headlined."""
+
+    model_config = ConfigDict(frozen=True)
+    image: Path
+    seconds: float = Field(gt=0)
+    caption: str = Field(min_length=1)
+    lines: list[CardLine] = []
+    at: Place = "bottom"
+
+
 class Plan(BaseModel):
     """The opening beats, the title card (none if empty), and the segments,
     in recording order."""
 
     title: list[CardLine]
-    opening: list[Beat] = []
+    opening: list[Beat | Still] = []
     segments: list[Segment]
 
     @model_validator(mode="after")
@@ -116,10 +131,6 @@ def segment_frames(segment: Segment, fps: int, limit: int | None = None) -> rang
     if limit is not None:
         stop = min(stop, limit)
     return range(round(segment.start * fps), stop, segment.speed)
-
-
-def speed_label(speed: int) -> str | None:
-    return f"{speed}× speed · live run" if speed > 1 else None
 
 
 def card(lines: list[CardLine], size: tuple[int, int], fonts: Fonts) -> Image.Image:
@@ -247,25 +258,63 @@ def pick[T](items: Iterable[T], indices: Iterable[int]) -> Iterator[T]:
 
 
 def raw_images(source: InputContainer) -> Iterator[Image.Image]:
-    for frame in source.decode(video=0):
+    stream = source.streams.video[0]
+    stream.thread_type = "AUTO"  # VP9 decodes on every core: most of a cut's time
+    for frame in source.decode(stream):
         yield Image.fromarray(frame.to_ndarray(format="rgb24"))
+
+
+def indexed_images(
+    source: InputContainer, start: float, fps: int
+) -> Iterator[tuple[int, Image.Image]]:
+    """From the keyframe at or before ``start`` on: each frame with its index
+    in the recording (its time × ``fps``), so a span is read without decoding
+    everything before it."""
+    stream = source.streams.video[0]
+    stream.thread_type = "AUTO"
+    source.seek(int(start / float(stream.time_base or 1)), stream=stream, backward=True)
+    for frame in source.decode(stream):
+        yield round(frame.time * fps), Image.fromarray(frame.to_ndarray(format="rgb24"))
+
+
+def pick_indexed[T](frames: Iterable[tuple[int, T]], indices: Iterable[int]) -> Iterator[T]:
+    """The frames whose own index is in ``indices`` (non-decreasing), in order;
+    one asked for that isn't there is skipped."""
+    wanted = iter(indices)
+    want = next(wanted, None)
+    for index, item in frames:
+        while want is not None and want < index:
+            want = next(wanted, None)
+        if want is None:
+            return
+        if want == index:
+            yield item
 
 
 class Mp4:
     """An H.264 stream at ``fps`` in an open output container."""
 
-    def __init__(self, sink: OutputContainer, size: tuple[int, int], fps: int) -> None:
+    def __init__(
+        self, sink: OutputContainer, size: tuple[int, int], fps: int, preview: bool = False
+    ) -> None:
+        """At ``size``, or, for a quick draft (``preview``), half of it, fast."""
         self.sink = sink
+        self.size = (size[0] // 4 * 2, size[1] // 4 * 2) if preview else size
         # PyAV's stubs leave add_stream's **kwargs and Packet's parameter untyped.
         self.stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
-        self.stream.width, self.stream.height = size
+        self.stream.width, self.stream.height = self.size
         self.stream.pix_fmt = "yuv420p"
-        self.stream.options = {"crf": "20", "preset": "medium"}
+        self.stream.options = {
+            "crf": "30" if preview else "20",
+            "preset": "ultrafast" if preview else "medium",
+        }
 
     frames = 0  # written so far: where the next frame falls in the cut
 
     def write(self, image: Image.Image, times: int = 1) -> None:
         self.frames += times
+        if image.size != self.size:
+            image = image.resize(self.size, Image.Resampling.BILINEAR)
         frame = av.VideoFrame.from_ndarray(np.asarray(image.convert("RGB")), format="rgb24")
         for _ in range(times):
             self._mux(frame)
@@ -277,27 +326,54 @@ class Mp4:
         self.sink.mux(self.stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
 
 
+def still_frame(
+    image: Image.Image, still: Still, size: tuple[int, int], fonts: Fonts, narrated: bool = False
+) -> Image.Image:
+    """A still: fitted to ``size``, headlined if it has lines, then captioned.
+    Narrated, the headline is spoken instead, but the caption stays: it says
+    what the image is and where it came from, which footage alone can't."""
+    shown = fitted(image, size)
+    if still.lines and not narrated:
+        shown = headlined(shown, still.lines, 1, fonts, still.at)
+    return captioned(shown, still.caption, 1, fonts)
+
+
+def still_frames(still: Still, fps: int) -> int:
+    """How many frames ``still`` is shown for at ``fps``; refused if none."""
+    frames = round(still.seconds * fps)
+    if frames < 1:
+        raise ValueError(f"a still of {still.seconds} s makes no frame at {fps} fps")
+    return frames
+
+
 def write_beat(
     mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int, narrated: bool = False
 ) -> None:
-    """An opening beat: its span of ``raw``, read on its own, headlined."""
+    """An opening beat: its span of ``raw``, read from the keyframe before it,
+    headlined; narrated, only its speed label."""
     span = Segment(start=beat.start, end=beat.end, speed=beat.speed, caption="")
     with av.open(str(raw)) as source:
-        for image in pick(raw_images(source), segment_frames(span, fps)):
-            shown = labelled(image.convert("RGB"), beat.speed, fonts) if narrated else None
-            mp4.write(shown or headlined(image, beat.lines, beat.speed, fonts, beat.at))
+        frames = indexed_images(source, beat.start, fps)
+        for image in pick_indexed(frames, segment_frames(span, fps)):
+            if narrated:
+                mp4.write(labelled(image.convert("RGB"), beat.speed, fonts))
+            else:
+                mp4.write(headlined(image, beat.lines, beat.speed, fonts, beat.at))
 
 
-def write_intro(
-    mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int, narrated: bool = False
-) -> None:
+def intro_frame(image: Image.Image, size: tuple[int, int], fonts: Fonts) -> Image.Image:
+    """An intro frame, fitted, and always captioned as not the live run: that
+    is provenance, so a narrated cut keeps it too."""
+    return captioned(fitted(image, size), INTRO_CAPTION, 1, fonts)
+
+
+def write_intro(mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int) -> None:
     """The intro clip, fitted to ``size`` at ``fps``, every frame captioned."""
     with av.open(str(intro)) as source:
         rate = source.streams.video[0].average_rate
         images = list(raw_images(source))
     for index in resampled(len(images), float(rate), fps):
-        frame = fitted(images[index], size)
-        mp4.write(frame if narrated else captioned(frame, INTRO_CAPTION, 1, fonts))
+        mp4.write(intro_frame(images[index], size, fonts))
 
 
 def cut(
@@ -308,68 +384,61 @@ def cut(
     fonts: Fonts,
     fps: int,
     intro: Path | None = None,
+    preview: bool = False,
     narrated: bool = False,
     subtitles: Path | None = None,
 ) -> None:
     """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order,
-    for the segments, and once more, on its own, for each opening beat.
+    for the segments, and each opening beat's span on its own; at half size,
+    fast, for a draft (``preview``). A still too short for a frame is refused
+    first.
 
-    ``narrated``: no words over the footage (headlines, captions, facts),
+    ``narrated``: no headlines, segment captions or facts over the footage,
     only the speed label; the words go to ``subtitles`` (SRT), timed to the
-    cut, for a voice-over. The cards stay."""
+    cut, for a voice-over. What says where footage came from stays on screen
+    (a still's caption, the intro's): it's provenance, not narration. The
+    cards stay."""
+    for still in plan.opening:
+        if isinstance(still, Still):
+            still_frames(still, fps)
     cues: list[Cue] = []
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
-        mp4 = Mp4(sink, size, fps)
+        mp4 = Mp4(sink, size, fps, preview)
         for beat in plan.opening:
             start = mp4.frames
-            write_beat(mp4, raw, beat, fonts, fps, narrated)
-            cues.append((start, mp4.frames, _words(beat.lines)))
+            if isinstance(beat, Still):
+                with Image.open(beat.image) as image:
+                    shown = still_frame(image, beat, size, fonts, narrated)
+                    mp4.write(shown, still_frames(beat, fps))
+                said = "\n".join(filter(None, [words(beat.lines), beat.caption]))
+                cues.append((start, mp4.frames, said))
+            else:
+                write_beat(mp4, raw, beat, fonts, fps, narrated)
+                cues.append((start, mp4.frames, spoken(words(beat.lines), beat.speed)))
         if plan.title:
-            cues.append((mp4.frames, mp4.frames + 4 * fps, _words(plan.title)))
+            cues.append((mp4.frames, mp4.frames + 4 * fps, words(plan.title)))
             mp4.write(card(plan.title, size, fonts), 4 * fps)
         if intro is not None:
             start = mp4.frames
-            write_intro(mp4, intro, size, fonts, fps, narrated)
+            write_intro(mp4, intro, size, fonts, fps)
             cues.append((start, mp4.frames, INTRO_CAPTION))
         plan_shots = shots(plan, fps)
         shown = pick(raw_images(source), [index for index, _ in plan_shots])
         for image, (_, segment) in zip(shown, plan_shots, strict=False):
-            text = "\n".join(filter(None, [segment.caption, _words(segment.lines)]))
+            said = "\n".join(filter(None, [segment.caption, words(segment.lines)]))
+            text = spoken(said, segment.speed)
             if cues and cues[-1][2] == text and cues[-1][1] == mp4.frames:
                 cues[-1] = (cues[-1][0], mp4.frames + 1, text)  # one cue, not a cue a frame
             else:
                 cues.append((mp4.frames, mp4.frames + 1, text))
             mp4.write(segment_frame(image, segment, fonts, narrated))
-        cues.append((mp4.frames, mp4.frames + 7 * fps, _words(outro)))
+        cues.append((mp4.frames, mp4.frames + 7 * fps, words(outro)))
         mp4.write(card(outro, size, fonts), 7 * fps)
         mp4.flush()
     if subtitles is not None:
         subtitles.write_text(srt([c for c in cues if c[2]], fps), encoding="utf-8")
-
-
-type Cue = tuple[int, int, str]
-"""Words shown or spoken from one frame of the cut up to another."""
-
-
-def srt(cues: Sequence[Cue], fps: int) -> str:
-    """``cues`` as SubRip subtitles, each timed by its frames at ``fps``."""
-
-    def stamp(frame: int) -> str:
-        ms = round(frame * 1000 / fps)
-        return (
-            f"{ms // 3_600_000:02d}:{ms // 60_000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
-        )
-
-    return "\n".join(
-        f"{n}\n{stamp(a)} --> {stamp(b)}\n{text}\n" for n, (a, b, text) in enumerate(cues, 1)
-    )
-
-
-def _words(lines: Sequence[CardLine]) -> str:
-    """A card's or headline's words, one line each, without the spacers."""
-    return "\n".join(line.text for line in lines if line.text)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -382,6 +451,7 @@ def main(argv: list[str] | None = None) -> None:
         "--intro", type=Path, help="a clip after the title, e.g. the relief fly-over's MP4"
     )
     parser.add_argument("--fps", type=int, default=15, help="the raw recording's frame rate")
+    parser.add_argument("--preview", action="store_true", help="half size, fast: a draft")
     parser.add_argument(
         "--narrated", action="store_true", help="no words over the footage: they go to --srt"
     )
@@ -399,6 +469,7 @@ def main(argv: list[str] | None = None) -> None:
         fonts,
         args.fps,
         intro=args.intro,
+        preview=args.preview,
         narrated=args.narrated,
         subtitles=args.srt,
     )

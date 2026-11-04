@@ -1,7 +1,8 @@
 """Tier 2: the aerial draped on the DSM in Blender, flown over.
 
-The camera starts straight over the site's centre, at the height that fits
-the site in the frame, then tilts down and orbits (``camera.flyover_path``).
+The camera is tilted towards the site's centre, as far from it as fits the
+site in the frame from straight overhead, and orbits it once at an even
+speed (``camera.flyover_path``), so the clip loops without a jump.
 Blender (``blender_worker/relief_flyover.py``) renders one PNG per pose, on
 the GPU: a run that leaves any frame missing raises, never a short clip.
 """
@@ -29,13 +30,12 @@ WORK_DIRS = (INPUT_DIR, FRAMES_DIR)
 
 @dataclass(frozen=True)
 class FlyoverSettings:
-    frames: int = 96
+    frames: int = 288  # one turn in 12 s: 1.25 degrees a frame
     fps: int = 24
     width: int = 1280
     height: int = 720
     tilt_deg: float = 40.0
-    orbit_deg: float = 60.0
-    bearing_deg: float = 0.0  # the way it looks once tilted: 0 is north
+    bearing_deg: float = 0.0  # the way it looks at the first frame: 0 is north
     lens_mm: float = 35.0
     samples: int = 8  # unlit, so only edges need them
 
@@ -75,14 +75,7 @@ def flyover_spec(
         2 * half_w, 2 * half_h, settings.width / settings.height, settings.lens_mm, SENSOR_MM
     )
     target = (0.0, 0.0, relief.centre_m)
-    poses = flyover_path(
-        settings.frames,
-        target,
-        distance,
-        settings.tilt_deg,
-        settings.orbit_deg,
-        settings.bearing_deg,
-    )
+    poses = flyover_path(settings.frames, target, distance, settings.tilt_deg, settings.bearing_deg)
     return {
         "surface": str(inputs / "surface.npy"),
         "aerial": str(inputs / "aerial.png"),

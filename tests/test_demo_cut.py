@@ -16,20 +16,26 @@ from demo.cut import (
     CardLine,
     Plan,
     Segment,
+    Still,
     captioned,
     card,
     cut,
     fitted,
     headlined,
+    indexed_images,
+    intro_frame,
     load_card,
     load_plan,
     pick,
+    pick_indexed,
     resampled,
     segment_frame,
     segment_frames,
     speed_label,
-    srt,
+    still_frame,
+    still_frames,
 )
+from demo.subtitles import srt
 
 WHITE = (255, 255, 255)
 
@@ -165,17 +171,40 @@ def test_the_intro_caption_says_it_is_not_the_live_run() -> None:
     assert "not the live run" in INTRO_CAPTION
 
 
-def _clip(path: Path, size: tuple[int, int], fps: int, frames: int) -> None:
+def _numbered(index: int, size: tuple[int, int]) -> np.ndarray:
+    """A black frame with ``index`` in six white-or-black blocks along its top
+    edge, which ``_index`` reads back, even darkened under a headline."""
+    width, height = size[0] // 8, size[1] // 6
+    pixels = np.zeros((size[1], size[0], 3), np.uint8)
+    for bit in range(6):
+        if index >> bit & 1:
+            pixels[:height, bit * width : (bit + 1) * width] = 255
+    return pixels
+
+
+def _index(image: Image.Image) -> int:
+    width, height = image.width // 8, image.height // 6
+    bits = [_rgb(image, (bit * width + width // 2, height // 2))[0] > 65 for bit in range(6)]
+    return sum(1 << bit for bit, on in enumerate(bits) if on)
+
+
+def _clip(path: Path, size: tuple[int, int], fps: int, frames: int, gop: int | None = None) -> None:
+    """``frames`` numbered frames at ``fps``, a keyframe every ``gop`` if given."""
     with av.open(str(path), "w") as sink:
         stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
         stream.width, stream.height = size
         stream.pix_fmt = "yuv420p"
-        for _ in range(frames):
-            frame = av.VideoFrame.from_ndarray(
-                np.zeros((size[1], size[0], 3), np.uint8), format="rgb24"
-            )
+        if gop is not None:
+            stream.options = {"g": str(gop)}
+        for index in range(frames):
+            frame = av.VideoFrame.from_ndarray(_numbered(index, size), format="rgb24")
             sink.mux(stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
         sink.mux(stream.encode(None))  # pyright: ignore[reportUnknownMemberType]
+
+
+def _images(path: Path) -> list[Image.Image]:
+    with av.open(str(path)) as source:
+        return [Image.fromarray(f.to_ndarray(format="rgb24")) for f in source.decode(video=0)]
 
 
 def _frames(path: Path) -> tuple[int, tuple[int, int]]:
@@ -201,7 +230,9 @@ def test_a_plan_may_open_on_beats_from_anywhere_in_the_run(tmp_path: Path) -> No
     segment = {"start": 0.0, "end": 5.0, "speed": 1, "caption": "c"}
     path.write_text(json.dumps({"title": [], "opening": [beat], "segments": [segment]}))
     plan = load_plan(path)
-    assert plan.opening[0].start == 900.0  # after every segment: an opening isn't in order
+    opened = plan.opening[0]
+    assert isinstance(opened, Beat)
+    assert opened.start == 900.0  # after every segment: an opening isn't in order
     assert plan.title == []
 
 
@@ -328,3 +359,136 @@ def test_a_narrated_cut_writes_its_words_as_subtitles(tmp_path: Path) -> None:
     assert cues[0] == "1\n00:00:00,000 --> 00:00:01,000\nWhy"
     assert cues[1] == "2\n00:00:01,000 --> 00:00:02,000\nHow"
     assert cues[2].startswith("3\n00:00:02,000 --> 00:00:09,000\nx")  # the closing card
+
+
+def test_pick_indexed_keeps_the_frames_asked_for_by_their_own_index() -> None:
+    frames = iter([(3, "d"), (4, "e"), (5, "f"), (6, "g"), (8, "i")])
+    assert list(pick_indexed(frames, [4, 6, 7])) == ["e", "g"]  # 7 isn't there
+
+
+def test_a_preview_cut_is_half_the_size(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan(title=[], segments=[Segment(start=0, end=1, speed=1, caption="c")])
+    cut(raw, out, plan, [line], _font, 15, preview=True)
+    assert _frames(out) == (15 + 105, (32, 24))
+
+
+def test_indexed_images_seeks_to_the_keyframe_before_and_numbers_each_frame(
+    tmp_path: Path,
+) -> None:
+    raw = tmp_path / "raw.mp4"
+    _clip(raw, (64, 48), 15, 60, gop=15)  # keyframes at 0, 15, 30 and 45
+    with av.open(str(raw)) as source:
+        frames = list(indexed_images(source, 3.5, 15))
+    assert [index for index, _ in frames] == list(range(45, 60))  # from the keyframe at 3 s
+    assert [_index(image) for _, image in frames] == list(range(45, 60))  # the frames they say
+
+
+def test_a_beat_read_by_seeking_shows_the_frames_of_its_span(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (320, 240), 15, 60, gop=15)  # 4 s, so the beat at 3 s seeks mid-file
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"start": 3.0, "end": 4.0, "speed": 1, "lines": [line.model_dump()]}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    shown = _images(out)
+    assert len(shown) == 15 + 15 + 105
+    assert [_index(image) for image in shown[:15]] == list(range(45, 60))  # the beat, darkened
+    assert _index(shown[15]) == 0  # then the live run from its start
+
+
+def test_a_plan_may_open_on_stills_among_its_beats(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    still = {"image": "visual.png", "seconds": 1.5, "caption": "Muse Image; surroundings imagined"}
+    path.write_text(json.dumps({"title": [], "opening": [still], "segments": []}))
+    opened = load_plan(path).opening[0]
+    assert isinstance(opened, Still) and opened.seconds == 1.5
+
+
+def test_a_still_frame_is_fitted_captioned_and_headlined() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    still = Still(
+        image=Path("x.png"),
+        seconds=1,
+        caption="c",
+        lines=[CardLine(text="Ours", size=12)],
+        at="bottom",
+    )
+    shown = still_frame(red, still, (640, 400), _font)
+    assert shown.size == (640, 400)  # fitted to the recording
+    assert _rgb(shown, (5, 200)) == BACKGROUND  # letterboxed
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band
+    assert 100 < _rgb(shown, (320, 100))[0] < 130  # darkened: 255 blended 0.6 toward 24 is 116
+    assert _rgb(shown, (320, 265))[0] < 60  # the headline's panel, low down
+
+
+def test_a_still_without_lines_is_not_darkened() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    shown = still_frame(red, Still(image=Path("x.png"), seconds=1, caption="c"), (640, 400), _font)
+    assert _rgb(shown, (320, 100)) == (255, 0, 0)
+    assert _rgb(shown, (5, 390))[0] < 80  # still captioned
+
+
+@pytest.mark.parametrize("caption", [{}, {"caption": ""}])
+def test_a_still_without_a_caption_is_refused_when_the_plan_loads(caption: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        Still.model_validate({"image": "x.png", "seconds": 1.0, **caption})
+
+
+def test_a_still_is_shown_for_its_seconds_at_the_frame_rate() -> None:
+    assert still_frames(Still(image=Path("x.png"), seconds=1.5, caption="c"), 15) == 22
+
+
+def test_a_still_too_short_for_one_frame_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 15)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": "x.png", "seconds": 0.03, "caption": "c"}],
+            "segments": [],
+        }
+    )
+    with pytest.raises(ValueError, match="no frame"):
+        cut(raw, out, plan, [CardLine(text="x", size=8)], _font, 15)
+    assert not out.exists()
+
+
+def test_a_cut_opens_on_a_still(tmp_path: Path) -> None:
+    raw, out, image = tmp_path / "raw.mp4", tmp_path / "cut.mp4", tmp_path / "still.png"
+    _clip(raw, (64, 48), 15, 30)
+    Image.new("RGB", (32, 32), (0, 128, 0)).save(image)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": str(image), "seconds": 1.0, "caption": "c"}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 15 + 105, (64, 48))
+
+
+def test_a_sped_up_segments_subtitle_says_its_speed(tmp_path: Path) -> None:
+    raw, out, subs = tmp_path / "raw.mp4", tmp_path / "cut.mp4", tmp_path / "cut.srt"
+    _clip(raw, (64, 48), 15, 30)
+    plan = Plan(title=[], segments=[Segment(start=0, end=2, speed=2, caption="Muse writes")])
+    cut(raw, out, plan, [CardLine(text="x", size=8)], _font, 15, narrated=True, subtitles=subs)
+    first = subs.read_text().split("\n\n")[0]
+    assert first == "1\n00:00:00,000 --> 00:00:01,000\nMuse writes\n2× speed · live run"
+
+
+def test_an_intro_frame_says_it_is_not_the_live_run_even_narrated() -> None:
+    white = Image.new("RGB", (320, 200), WHITE)
+    shown = intro_frame(white, (640, 400), _font)
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band, narrated or not

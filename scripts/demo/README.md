@@ -155,6 +155,16 @@ uv run python scripts/demo/cut.py out/demo-raw.webm out/demo.mp4 --plan out/plan
   --outro out/outro.json --narrated --srt out/demo.srt
 ```
 
+**`--preview`** cuts a quick draft: half size, x264 `ultrafast`. The final cut leaves it out.
+
+An opening item may also be a **still**: `{"image": PATH, "seconds": 1.5,
+"caption": "…", "lines": […], "at": "bottom"}`. The image is fitted to the
+recording, captioned with what it is and where it came from, and headlined if
+it has lines. Use stills for artifacts from real runs, such as Muse Image's
+visuals, and say so in the caption. The caption is required, and a still must
+last at least one frame at `--fps`; the cut refuses one that doesn't before it
+writes anything.
+
 **`--intro`** (optional) plays a clip between the title card and the live
 run: the demo site's relief fly-over (#149), its LINZ aerial photo draped on
 its own LiDAR. Every intro frame is letterboxed to the recording's size,

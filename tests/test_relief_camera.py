@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from button_nz.relief.camera import CameraPose, fitting_distance, flyover_path, tilted_frame
+from button_nz.relief.camera import CameraPose, fitting_distance, flyover_path
 
 
 def _looks(pose: CameraPose) -> NDArray[np.float64]:
@@ -18,26 +18,35 @@ def _looks(pose: CameraPose) -> NDArray[np.float64]:
     return rz @ ry @ rx @ np.array([0.0, 0.0, -1.0])
 
 
-def test_starts_straight_overhead() -> None:
-    first = flyover_path(10, (1.0, 2.0, 3.0), 50.0, tilt_deg=40, orbit_deg=90, bearing_deg=0)[0]
-    assert first.location == pytest.approx((1.0, 2.0, 53.0))
-    assert _looks(first) == pytest.approx([0.0, 0.0, -1.0])
+def test_holds_its_tilt_from_the_first_frame() -> None:
+    for pose in flyover_path(8, (1.0, 2.0, 3.0), 50.0, tilt_deg=40, bearing_deg=0):
+        assert pose.rotation[0] == pytest.approx(math.radians(40))
+    first = flyover_path(8, (0.0, 0.0, 0.0), 10.0, tilt_deg=45, bearing_deg=0)[0]
+    assert _looks(first) == pytest.approx([0.0, math.sqrt(0.5), -math.sqrt(0.5)])  # north
 
 
 def test_looks_at_the_target_from_every_frame() -> None:
     target = (5.0, -3.0, 10.0)
-    for pose in flyover_path(12, target, 40.0, tilt_deg=45, orbit_deg=120, bearing_deg=30):
+    for pose in flyover_path(12, target, 40.0, tilt_deg=45, bearing_deg=30):
         towards = np.subtract(target, pose.location)
         assert np.linalg.norm(towards) == pytest.approx(40.0)
         assert _looks(pose) == pytest.approx(towards / 40.0, abs=1e-9)
 
 
-def test_tilts_down_then_orbits() -> None:
-    path = flyover_path(11, (0.0, 0.0, 0.0), 10.0, tilt_deg=45, orbit_deg=90, bearing_deg=0)
-    tilted = path[4]  # the tilt is done by 40% of the way
-    assert _looks(tilted) == pytest.approx([0.0, math.sqrt(0.5), -math.sqrt(0.5)])  # north
-    last = path[-1]  # orbited 90 degrees clockwise: looking east
-    assert _looks(last) == pytest.approx([math.sqrt(0.5), 0.0, -math.sqrt(0.5)])
+def test_orbits_once_clockwise_at_an_even_speed() -> None:
+    path = flyover_path(8, (0.0, 0.0, 0.0), 10.0, tilt_deg=45, bearing_deg=0)
+    east = path[2]  # a quarter of the way: a quarter turn clockwise
+    assert _looks(east) == pytest.approx([math.sqrt(0.5), 0.0, -math.sqrt(0.5)])
+    bearings = [-pose.rotation[2] for pose in path]
+    assert np.diff(bearings) == pytest.approx([math.radians(45)] * 7)
+
+
+def test_its_last_frame_is_one_step_before_its_first() -> None:
+    path = flyover_path(10, (0.0, 0.0, 0.0), 10.0, tilt_deg=40, bearing_deg=20)
+    steps = [_looks(b) - _looks(a) for a, b in zip(path, path[1:] + path[:1], strict=True)]
+    lengths = [float(np.linalg.norm(step)) for step in steps]
+    assert lengths == pytest.approx([lengths[0]] * 10)  # the wrap is a step like any other
+    assert lengths[0] > 0.1
 
 
 def test_the_distance_fits_the_site_in_the_frame() -> None:
@@ -49,11 +58,3 @@ def test_the_distance_fits_the_site_in_the_frame() -> None:
     assert fitting_distance(40.0, 36.0, aspect=16 / 9, lens_mm=18, sensor_mm=36) == pytest.approx(
         32.0
     )
-
-
-@pytest.mark.parametrize("frames", [4, 10, 96])
-def test_the_tilted_frame_is_the_first_with_the_tilt_done(frames: int) -> None:
-    path = flyover_path(frames, (0.0, 0.0, 0.0), 10.0, tilt_deg=40, orbit_deg=60, bearing_deg=0)
-    index = tilted_frame(frames)
-    assert path[index].rotation[0] == pytest.approx(math.radians(40))
-    assert path[index - 1].rotation[0] < math.radians(40) - 1e-9

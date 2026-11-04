@@ -13,7 +13,7 @@ from button_nz.agent.conversation import ModelReplyError, Observe
 from button_nz.agent.loop import DesignResult, DesignSite, Phase, Revision, Step, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
-from button_nz.evaluation import SiteContext, Status
+from button_nz.evaluation import Footprint, SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
@@ -408,3 +408,50 @@ def test_muse_is_told_where_a_plain_rectangle_fits(site: DesignSite, tmp_path: P
     # The 40 x 20 m parcel, 2 m in from every side, on a 25 cm grid.
     assert re.search(r"1: 35\.\d x 15\.\d m", contract)
     assert "rather than cut a corner" in contract
+
+
+def test_muse_is_asked_for_a_compact_plan_not_a_long_narrow_box(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """The largest rectangle on a long section is long and narrow; filled, it
+    looked out of place. A typical NZ cottage is at most about twice as long as wide."""
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    contract = model.seen[0][0].text
+    assert "at most about twice its width" in contract
+    assert "not a size to fill" in contract
+
+
+def test_the_compact_plan_gives_way_to_the_brief_and_a_narrow_room(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """On a section 4 m wide a 60 m² brief can't be twice as long as wide; a brief
+    may ask for a long plan outright."""
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    contract = model.seen[0][0].text
+    assert "unless the brief asks for that shape" in contract
+    assert "too narrow for the brief's size at that proportion" in contract
+
+
+def test_a_deck_is_suggested_where_it_suits_not_required(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    contract = model.seen[0][0].text
+    assert "Where the brief and the site suit one, add a deck" in contract
+    assert "sunny (north) or living side" in contract
+    assert "counts toward the setbacks" in contract
+    assert "nothing below the floor's underside" in contract
+    assert "can do without" in contract
+
+
+def test_a_placed_product_keeps_its_footprint_without_the_compact_plan(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """A real prefab's walls are fixed: it may be long and narrow."""
+    model = ScriptedModel("good")
+    product = Footprint("Long Cabin", 6.0, 5.0)
+    design("Add it.", site, model, tmp_path, 1, runner=fake_runner, product=product)
+    contract = model.seen[0][0].text
+    assert "twice its width" not in contract
+    assert "add a deck" in contract
