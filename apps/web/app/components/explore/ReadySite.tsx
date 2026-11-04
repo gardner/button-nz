@@ -17,6 +17,7 @@ import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
 import { PrefabSection } from "./PrefabSection";
+import { ReliefView } from "./ReliefView";
 import { SurveyPanel } from "./SurveyPanel";
 import { MuseAtWork } from "./MuseAtWork";
 import { DesignLayers, SiteLayers } from "./SiteLayers";
@@ -79,6 +80,7 @@ export function ReadySite({
           ...undrawn(accepted ? designMap.map : null),
         ]}
       />
+      <ReliefView siteId={site.id} pollMs={pollMs} />
       <SurveyPanel
         control={survey}
         selected={selected}
