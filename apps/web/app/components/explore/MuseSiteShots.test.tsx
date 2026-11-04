@@ -138,6 +138,17 @@ describe("MuseAtWork, the site's own pictures", () => {
     expect(map.getAttribute("src")).toBe("/town-screen-reefton.png");
   });
 
+  it("leaves a lone fly-over playing as the turns go by, rather than starting it again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(0);
+    serve(FLYOVER);
+    const place = { ...PLACE, site: { ...SITE, aerial: null } };
+    render(<MuseAtWork job={running("rendering")} place={place} />);
+    const video = await screen.findByLabelText("Your site, fly-over");
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(screen.getByLabelText("Your site, fly-over")).toBe(video);
+  });
+
   it("shows no town map beside the national rule, on a site elsewhere", async () => {
     serve();
     const place = {

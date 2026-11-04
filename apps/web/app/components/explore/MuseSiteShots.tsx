@@ -63,8 +63,10 @@ export function SiteShots({ shots }: { shots: readonly SiteShot[] }) {
       aria-label={`Your site: ${caption}`}
       className="flex min-h-48 flex-1 flex-col items-center gap-2 lg:min-h-0"
     >
+      {/* Keyed by the picture: each fades in as it comes round, and one
+          left alone (the only one) isn't started again every turn. */}
       <div
-        key={turn}
+        key={shot.kind}
         className="build-fade-in flex min-h-0 w-full flex-1 justify-center"
       >
         <Shot shot={shot} />

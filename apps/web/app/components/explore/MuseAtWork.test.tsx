@@ -124,7 +124,9 @@ describe("MuseAtWork, large", () => {
       },
     };
     render(<MuseAtWork job={job} place={REEFTON} />);
-    const names = screen.getAllByRole("img").map((i) => i.getAttribute("alt"));
+    const names = screen
+      .getAllByRole("img", { name: /LiDAR view|render/ })
+      .map((i) => i.getAttribute("alt"));
     expect(names).toEqual([
       "LiDAR view 1 of attempt 2", // the stage
       "LiDAR view 2 of attempt 1", // the filmstrip, in order
