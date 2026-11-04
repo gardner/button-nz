@@ -79,12 +79,25 @@ class Beat(BaseModel):
         return self
 
 
+class Still(BaseModel):
+    """An opening shot of one image, e.g. an AI visual from a real run, for
+    ``seconds``, fitted to the recording, captioned with what it is, and
+    optionally headlined."""
+
+    model_config = ConfigDict(frozen=True)
+    image: Path
+    seconds: float = Field(gt=0)
+    caption: str = ""
+    lines: list[CardLine] = []
+    at: Place = "bottom"
+
+
 class Plan(BaseModel):
     """The opening beats, the title card (none if empty), and the segments,
     in recording order."""
 
     title: list[CardLine]
-    opening: list[Beat] = []
+    opening: list[Beat | Still] = []
     segments: list[Segment]
 
     @model_validator(mode="after")
@@ -268,6 +281,16 @@ class Mp4:
         self.sink.mux(self.stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
 
 
+def still_frame(
+    image: Image.Image, still: Still, size: tuple[int, int], fonts: Fonts
+) -> Image.Image:
+    """A still: fitted to ``size``, headlined if it has lines, then captioned."""
+    shown = fitted(image, size)
+    if still.lines:
+        shown = headlined(shown, still.lines, 1, fonts, still.at)
+    return captioned(shown, still.caption, 1, fonts) if still.caption else shown
+
+
 def write_beat(mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int) -> None:
     """An opening beat: its span of ``raw``, read on its own, headlined."""
     span = Segment(start=beat.start, end=beat.end, speed=beat.speed, caption="")
@@ -301,7 +324,11 @@ def cut(
         size = (video.width, video.height)
         mp4 = Mp4(sink, size, fps)
         for beat in plan.opening:
-            write_beat(mp4, raw, beat, fonts, fps)
+            if isinstance(beat, Still):
+                with Image.open(beat.image) as image:
+                    mp4.write(still_frame(image, beat, size, fonts), round(beat.seconds * fps))
+            else:
+                write_beat(mp4, raw, beat, fonts, fps)
         if plan.title:
             mp4.write(card(plan.title, size, fonts), 4 * fps)
         if intro is not None:
