@@ -108,7 +108,7 @@ on one origin. Everything below is relative to `/api`.
 ```
 
 The town layer and the aerial tiles are served for the map-first UI (#86);
-nothing on today's page uses them yet. A public server adds two limits: a daily cap on design runs (429 past it), and
+nothing on today's page uses them yet. A public server can add two limits: an optional daily cap on design runs (429 past it; off on button.nz), and
 a survey fixed as the owner decided it (403 on changes). See
 [deploy.md](deploy.md).
 

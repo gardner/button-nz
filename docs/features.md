@@ -85,7 +85,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **Deployed** | The API, the web app and a Cloudflare tunnel run as systemd services on the GPU machine; nothing listens beyond 127.0.0.1 | `scripts/deploy/`, [deploy.md](deploy.md) |
-| **Daily cap** | At most 30 design runs (originals, revisions and placements) start in any 24 hours; one past it is refused with when the next frees up | `api/limits.py` |
+| **Daily cap** | Off by default, and off on button.nz. If set (`--daily-designs`, `BUTTON_DAILY_DESIGNS`), at most that many design runs (originals, revisions and placements) start in any 24 hours; one past it is refused with when the next frees up | `api/limits.py` |
 | **Optional access code** | A code can gate every page and API request. `install.sh` generates one; button.nz runs with `BUTTON_ACCESS_CODE` emptied, so it is open to anyone | `apps/web/proxy.ts`, `lib/access.ts` |
 | **Smoke test** | Checks a served URL as a visitor reaches it, in either mode: with a code it checks the gate too; with "" it checks the open server. Either way the page, the site, a fixed survey and, if given, a finished design | `scripts/deploy/check.sh` |
 

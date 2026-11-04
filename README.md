@@ -5,12 +5,11 @@ into evidence-backed 3D housing concepts: Meta's models read the site and
 design a small dwelling for it in Blender, and an independent evaluator checks
 each design against New Zealand's granny-flat rules before anyone sees it.
 
-It's live at **https://button.nz**: open to anyone, with at most 30 design
-runs a day. Search any New Zealand address, or tap a section on Reefton's town
-map. A site is built live from national open data wherever LINZ has 1 m LiDAR,
-a recent aerial photo and the title's parcels. The demo site, 35 Victory
-Street, Reefton (Buller District), is pinned to the exact data it was verified
-against.
+It's live at **https://button.nz**, open to anyone. Search any New Zealand
+address, or tap a section on Reefton's town map. A site is built live from
+national open data wherever LINZ has 1 m LiDAR, a recent aerial photo and the
+title's parcels. The demo site, 35 Victory Street, Reefton (Buller District),
+is pinned to the exact data it was verified against.
 
 - **For judges:** [docs/submission.md](docs/submission.md) is the submission
   checklist, and [docs/pitch.md](docs/pitch.md) the submission text.
@@ -69,6 +68,18 @@ against.
    become a georeferenced terrain scene in Blender (NZTM2000 metres around a
    local origin), and their difference, the nDSM, shows what stands above the
    ground.
+
+   While a site builds, the app shows each step's result as it finishes, in
+   an overlay on the map (`sites/progress.py`): the title's parcels, a
+   hillshade of the DSM, the aerial photo, and SAM's outlines as each concept
+   answers. A build that fails keeps what it found and says why.
+
+   Once the site is ready, **See it in 3D** (`button_nz.relief`) makes its
+   aerial photo look 3D from its own LiDAR, quickest first: a depth map, a
+   parallax clip of the photo lifted onto its heights, then a fly-over of the
+   photo draped on the DSM in Blender. Every height is LiDAR and every colour
+   the photo. A photo taken straight down never saw a wall, so walls are the
+   roof edge's colour stretched down, and the caption says so.
 2. **Perception.** SAM 3.1 segments the aerial photograph one concept at a time
    ("tree", "shed", "garden bed", …). Each mask becomes an NZTM polygon and is
    checked against the nDSM: a shed should stand up, a driveway shouldn't.
@@ -92,7 +103,9 @@ against.
 4. **Build and measure.** The script runs in headless Blender inside a
    sandbox (below). A second, trusted Blender pass reloads only the model's
    objects, checks the contract, measures every triangle actually rendered,
-   and exports the GLB and a Cycles render.
+   and exports the GLB and a Cycles render. In the app's 3D map the design is
+   its walls and a roof slab on its outline, in the finishes its render used
+   (`sites/design_map.py`).
 5. **Evaluate.** `button_nz.evaluation` measures the geometry itself, never
    the model's claims: on the title, setbacks from the title boundary and
    internal section lines, separation from confirmed buildings, internal floor
@@ -115,7 +128,11 @@ against.
    accepted footprint are shown, with what their price leaves out. The other
    three are listed as unchecked, never as fitting. The next steps go with
    them: the licensed professionals the exemption needs, and the council's
-   records.
+   records. While Muse designs, the app lists the catalogue ("Meanwhile"),
+   with a sketch of each product drawn from its published footprint and roof
+   form, all to one scale (`lib/prefabSketch.ts`). What isn't published, such
+   as the wall height, is drawn as illustrative and labelled so. A product
+   with no known footprint or roof gets no sketch, and says why.
 9. **Place a real prefab.** Any product that fits can be placed on the site.
    Muse designs again, with the product's outside footprint as the walls, and
    the evaluator checks they are that footprint (`product_footprint`, to
@@ -184,6 +201,9 @@ run's code commit and what the samples can and can't show.
   on each. Run before and after Muse was told the title's frontages and room.
 - **The AI visual** (`button_nz.bench.visual_check`): how often Muse Image's
   picture passes its SAM 3.1 silhouette check, on recorded designs.
+- **Relief views** (`button_nz.bench.relief`) use no model: how soon each
+  "See it in 3D" tier is ready on the demo site
+  ([report](docs/results/relief/report.md)).
 - **Town screen** (`button_nz.bench.town_screen`) uses no model: it counts
   Reefton's properties with room for a real prefab under the exemption's
   siting rules. **Impact** (`button_nz.bench.impact`) turns that count into
@@ -246,6 +266,11 @@ own pages, cited per product ([docs/suppliers.md](docs/suppliers.md)).
 The render's cladding and roofing textures are CC0 1.0, from Poly Haven
 ([credits](src/button_nz/blender_worker/textures/README.md)).
 
+**The demo video's music** is original, generated with
+[MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) (MiniMax-Music3
+Community License) from a description of a style in words; its prompt and
+settings are in [scripts/demo/README.md](scripts/demo/README.md).
+
 Source code is under the GNU GPL (see `LICENSE`).
 
 ## Limitations
@@ -271,12 +296,15 @@ Source code is under the GNU GPL (see `LICENSE`).
 - **The AI visual** passes its silhouette check on only some designs
   ([results](docs/results/README.md)); when it fails, no picture is shown.
 - **One shared server.** No accounts: a design is open to anyone with its
-  link, and design runs are capped per day.
+  link. button.nz caps neither design runs nor site builds a day, so every
+  visitor's run is live Meta Model API calls and GPU time, one design at a
+  time.
 - **The demo site's survey** is the owner's own: they decided it on
   5 November 2026 (NZDT), and button.nz serves it fixed. The owner says
   nothing is built on the site, so the two features the survey took for sheds
   are not buildings. The final demo take and the sample use this survey
-  ([docs/submission.md](docs/submission.md)).
+  ([docs/submission.md](docs/submission.md)). The sample is on the
+  [submission-2026-11-05 release](https://github.com/gardner/button-nz/releases/tag/submission-2026-11-05).
 
 ## Run it
 
@@ -323,11 +351,13 @@ curl -X POST localhost:8000/designs/<id>/revisions -H 'content-type: application
 ```
 
 A design with no `site_id` is on the demo site. `serve` also takes
-`--daily-designs N` and `--daily-sites N` to cap runs and site builds a day,
-and `--survey-decided-by NAME --survey-id ID` (together) to fix the demo
-site's survey as the owner decided it. `--reasoning-effort` (`minimal` to
-`max`) sets the design model's effort. Unset, the API's default applies,
-which was the only setting accepted on every brief in
+`--daily-designs N` and `--daily-sites N` to cap design runs and site builds
+in any 24 hours. Neither is on unless given, and button.nz gives neither
+([docs/deploy.md](docs/deploy.md)). `--survey-decided-by NAME --survey-id ID`
+(together) fix the demo site's survey as the owner decided it.
+`--reasoning-effort` (`minimal` to `max`) sets the design model's effort.
+Unset, the API's default applies, which was the only setting accepted on
+every brief in
 [the measurement](docs/results/README.md#reasoning-effort-is-the-script-call-faster-for-less-165).
 
 **Web app:** this proxies `/api` to the API (`BUTTON_API_URL`, by default
@@ -352,7 +382,15 @@ uv run --env-file .env python -m button_nz.bench.design_ablation out/design-abla
 uv run python -m button_nz.bench.town_screen out/town-screen
 uv run python -m button_nz.bench.batch --api http://127.0.0.1:8000 --sections 20 --out out/batch
 uv run --env-file .env python -m button_nz.bench.visual_check var/runs DESIGN_ID...
+uv run python -m button_nz.bench.relief out/relief --full out/relief/full
 ```
+
+**Demo video:** [scripts/demo/README.md](scripts/demo/README.md). `record.py`
+records one live run in a headless browser, and `cut.py` cuts it. It speeds up
+the long waits and labels them so, and can open on the site's relief fly-over
+(`--intro`), on headlines over beats of the run (the plan's `opening`), and
+show a sourced fact over a long wait (a segment's `lines`). `score.py` puts
+the music under the cut.
 
 **Sample artifacts:** pack an accepted design and the designs it revises
 (pass the latest revision), with the survey they were checked against:
@@ -375,14 +413,16 @@ uv run python -m button_nz.sample var JOB_ID sample.zip --survey-decided-by "the
     pass, the CC0 textures;
   - `evaluation`: the checks;
   - `catalogue`: the prefab products and which fit;
+  - `relief`: the "See it in 3D" views of a site;
   - `town`: the town screen and its map;
   - `bench`: the experiments;
   - `sample`: packing sample artifacts;
   - `api`: the HTTP service.
 - **`apps/web/`:** the Next.js app: the town map and address search, the
-  survey, live design runs, the 2D/3D map and model viewer, revisions and
-  prefabs.
-- **`scripts/`:** deployment (`deploy/`) and the demo recording (`demo/`).
+  site-build overlay, the survey, "See it in 3D", live design runs, the 2D/3D
+  map and model viewer, revisions and prefabs.
+- **`scripts/`:** deployment (`deploy/`) and the demo video: recording,
+  cut and score (`demo/`).
 - **`tests/`:** the pytest suite, written test-first.
 - **`data/`:** the demo site record and its provenance, and the prefab
   catalogue.
