@@ -212,6 +212,15 @@ describe("watchViews", () => {
     ).toBeUndefined();
   });
 
+  it("doesn't carry an ask into the next attempt, whose views are numbered from 1 again", () => {
+    const watch = poll(
+      { ...live("observing", [], "render_contours"), attempt: 1 },
+      // Unseen: attempt 1's view, its script, its checks; attempt 2's ask.
+      live("thinking", [VIEW_1]), // attempt 2's observation-1.png
+    );
+    expect(watch.names.size).toBe(0);
+  });
+
   it("doesn't name a later view after the asked one's own view was seen landing with the ask", () => {
     const watch = poll(
       live("thinking", []),
