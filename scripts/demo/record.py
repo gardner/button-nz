@@ -14,6 +14,7 @@ fails the take before a paid call.
 """
 
 import argparse
+import math
 import re
 import sys
 import time
@@ -143,6 +144,37 @@ def map_view(run: Run, label: str) -> None:
     run.page.wait_for_timeout(3000)
 
 
+TOWN_ORBIT_S = 10.0  # the opening fly-over of the town in 3D
+ORBIT_PX = 900  # how far the drag turns the map: about a quarter turn and back up
+
+
+def orbit_path(seconds: float, fps: int = 30) -> list[tuple[float, float]]:
+    """A slow right-drag across the map, as offsets from its centre: a smooth
+    turn with a gentle rise and fall in tilt, eased in and out."""
+    steps = max(2, round(seconds * fps))
+    path: list[tuple[float, float]] = []
+    for k in range(steps + 1):
+        t = k / steps
+        eased = (1 - math.cos(math.pi * t)) / 2  # slow, then steady, then slow
+        path.append((ORBIT_PX * eased, -60 * math.sin(math.pi * t)))
+    return path
+
+
+def orbit(page: Page, seconds: float) -> None:
+    """Fly round the map: right-drag turns and tilts it in MapLibre."""
+    box = page.locator("canvas.maplibregl-canvas").first.bounding_box()
+    if box is None:
+        raise RuntimeError("no map on the page to fly round")
+    x0, y0 = box["x"] + box["width"] * 0.35, box["y"] + box["height"] * 0.6
+    page.mouse.move(x0, y0)
+    page.mouse.down(button="right")
+    for dx, dy in orbit_path(seconds):
+        page.mouse.move(x0 + dx, y0 + dy)
+        page.wait_for_timeout(1000 / 30)
+    page.mouse.up(button="right")
+    page.wait_for_timeout(1500)
+
+
 def open_town(run: Run, base_url: str) -> None:
     page = run.page
     page.goto(base_url, wait_until="networkidle")
@@ -152,7 +184,7 @@ def open_town(run: Run, base_url: str) -> None:
     page.wait_for_timeout(5000)
     map_view(run, "3D")
     run.cast.mark("the town in 3D: every building at its LiDAR height")
-    page.wait_for_timeout(6000)
+    orbit(page, TOWN_ORBIT_S)
     map_view(run, "2D")
 
 
