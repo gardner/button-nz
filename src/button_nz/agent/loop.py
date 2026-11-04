@@ -15,6 +15,7 @@ from pathlib import Path
 
 from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
 from button_nz.agent.observe import Observation, ObservationError, observe, standard_views
+from button_nz.agent.placement import describe_placements
 from button_nz.agent.prompt import describe, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
 from button_nz.agent.room import describe_room
@@ -153,6 +154,7 @@ def design(
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     places = describe_frontages(site.frontages, local) + describe_room(site.context, local)
+    places += describe_placements(site, product)
     fixed = product is not None
     prompt = system_prompt(site.scene, keep_clear, buildings, places, fixed_footprint=fixed)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"

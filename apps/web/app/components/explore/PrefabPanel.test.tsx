@@ -183,4 +183,14 @@ describe("PrefabPanel", () => {
     expect(await screen.findByText(/Not checked/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Next steps" })).toBeTruthy();
   });
+
+  it("says when a prefab may need earthworks, and still offers it", async () => {
+    serve(PRODUCTS);
+    panel();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(await screen.findByText(/May need earthworks/)).toBeTruthy();
+    expect(screen.getAllByText(/May need earthworks/)).toHaveLength(1);
+  });
 });

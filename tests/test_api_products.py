@@ -1,14 +1,23 @@
 """Tests for the prefab products that fit an accepted design, over HTTP."""
 
+import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pytest
 from fastapi.testclient import TestClient
+from numpy.typing import NDArray
 
+import button_nz.api.products as products_module
+from button_nz.agent.site import DesignSite
 from button_nz.api.app import create_app
+from button_nz.api.store import Job
 from button_nz.catalogue import Product
 from button_nz.demo_site import load_demo_site
-from test_api import ScriptedModel, Service
+from button_nz.geo.terrain import TerrainGrid
+from test_api import ScriptedModel, Service, synthetic_site
 from test_catalogue import product
 
 # The scripted "good" design's walls are 6 m x 5 m.
@@ -69,3 +78,78 @@ def test_the_whole_catalogue_can_be_browsed_before_any_design(tmp_path: Path) ->
     listed = service.client.get("/products").json()
     assert [p["id"] for p in listed] == ["too-long", "fits", "unlabelled"]  # as catalogued
     assert listed[1]["length_m"] == 5.9 and "price_nzd" in listed[1]
+
+
+def test_a_product_the_search_cant_stand_within_floor_level_stays_listed_with_a_note(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = with_products(tmp_path, FITS)
+    job_id = service.queue()
+    service.worker.run_next()  # designed on flat ground
+    monkeypatch.setattr(service.worker, "decided_site", steep)  # now steep
+    catalogue = (Product.parse(FITS),)
+    app = create_app(service.store, service.worker, load_demo_site(), products=catalogue)
+    found = TestClient(app).get(f"/designs/{job_id}/products").json()
+    (listed,) = found["fits"]  # a sampled search proves nothing: never dropped
+    note = listed["floor_level_note"]
+    assert "earthworks" in note
+    assert re.search(r"inside the design's walls the ground under it varies by \d+\.\d\d m", note)
+    assert re.search(r"at every position the search tried .* by at least \d+\.\d\d m", note)
+    assert "floor level" in found["basis"]
+    assert "unplaceable" not in found
+
+
+def test_a_product_that_can_stand_on_the_site_still_fits(tmp_path: Path) -> None:
+    service = with_products(tmp_path, FITS)  # the flat synthetic site
+    job_id = service.queue()
+    service.worker.run_next()
+    found = service.client.get(f"/designs/{job_id}/products").json()
+    assert [p["id"] for p in found["fits"]] == ["fits"]
+    assert found["fits"][0]["floor_level_note"] is None
+
+
+def steep(_: Job | None = None) -> DesignSite:
+    """The synthetic site with its ground rising 0.4 m per m eastwards."""
+    site = synthetic_site()
+    grid = site.context.terrain
+    _, cols = grid.dem.shape
+    dem: NDArray[np.float64] = grid.dem + 0.4 * np.arange(cols, dtype=np.float64)
+    steeper = TerrainGrid(grid.bbox, grid.cell_m, dem, grid.ndsm, grid.sources)
+    return replace(site, context=replace(site.context, terrain=steeper))
+
+
+def test_a_product_that_stands_where_the_design_does_has_no_note(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = with_products(tmp_path, FITS)  # flat: it stands inside the design's walls
+    job_id = service.queue()
+    service.worker.run_next()
+    # a search that missed every flat pose: the walls' own pose still counts
+    monkeypatch.setattr(products_module, "least_ground_range", missed)
+    found = service.client.get(f"/designs/{job_id}/products").json()
+    assert [p["id"] for p in found["fits"]] == ["fits"]
+    assert found["fits"][0]["floor_level_note"] is None
+
+
+def missed(*_: Any, **__: Any) -> float:
+    return 1.5
+
+
+def test_a_failure_inside_the_walls_is_noted_when_the_search_finds_no_pose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = with_products(tmp_path, FITS)
+    job_id = service.queue()
+    service.worker.run_next()
+    monkeypatch.setattr(service.worker, "decided_site", steep)
+    monkeypatch.setattr(products_module, "least_ground_range", nowhere)
+    catalogue = (Product.parse(FITS),)
+    app = create_app(service.store, service.worker, load_demo_site(), products=catalogue)
+    (listed,) = TestClient(app).get(f"/designs/{job_id}/products").json()["fits"]
+    note = listed["floor_level_note"]
+    assert re.search(r"inside the design's walls the ground under it varies by \d+\.\d\d m", note)
+    assert "the search found no other position" in note
+
+
+def nowhere(*_: Any, **__: Any) -> None:
+    return None

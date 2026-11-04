@@ -139,7 +139,9 @@ def create_app(
     for router in routers:
         app.include_router(router)
     catalogue = load_products() if products is None else products
-    app.include_router(products_router(store, worker.runs_dir, catalogue, scene_frame))
+    app.include_router(
+        products_router(store, worker.runs_dir, catalogue, scene_frame, worker.decided_site)
+    )
     placeable = {p.id: p for p in catalogue if p.placeable}
 
     @app.get("/site")

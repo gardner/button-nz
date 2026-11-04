@@ -53,6 +53,7 @@ export interface Product {
   appearance: Appearance;
   placeable: boolean; // its footprint is a known rectangle: it can be placed on a site
   placedFootprint: FeatureCollection<null> | null; // where it would stand in the walls, if sent
+  floorLevelNote: string | null; // why its floor level may not pass on the site; null: none
 }
 
 export interface Products {
@@ -98,6 +99,10 @@ function parseProduct(raw: unknown): Product {
     sources: list(product, "sources").map(link),
     appearance: appearance(record(product.appearance, "appearance")),
     placeable: flag(product, "placeable"),
+    floorLevelNote:
+      product.floor_level_note == null // absent from the catalogue; null: no note
+        ? null
+        : text(product, "floor_level_note"),
     placedFootprint:
       product.placed_footprint == null // absent today; null where none was placed
         ? null

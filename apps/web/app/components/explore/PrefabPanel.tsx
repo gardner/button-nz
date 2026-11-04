@@ -160,6 +160,9 @@ function PrefabCard({
         {p.priceBasis}. Excludes {p.excludes}.
       </p>
       <p className="text-xs text-zinc-500">West Coast: {p.westCoast}</p>
+      {p.floorLevelNote && (
+        <p className="text-xs text-amber-300">{p.floorLevelNote}</p>
+      )}
       {p.placeable ? (
         <button
           type="button"

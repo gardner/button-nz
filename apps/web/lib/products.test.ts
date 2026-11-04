@@ -21,6 +21,12 @@ describe("parseProducts", () => {
     expect(found.unchecked.map((p) => p.model)).toEqual(["Nook 60"]);
   });
 
+  it("reads a fitting product's floor-level note, and none where there is none", () => {
+    const [vista, nile] = parseProducts(PRODUCTS).fits;
+    expect(vista.floorLevelNote).toBeNull();
+    expect(nile.floorLevelNote).toMatch(/^May need earthworks/);
+  });
+
   it("reads how each product looks: its roof forms, pitch and colours", () => {
     const [vista, nile] = parseProducts(PRODUCTS).fits;
     expect(vista.appearance).toEqual({

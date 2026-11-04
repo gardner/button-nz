@@ -158,6 +158,8 @@ export const PRODUCTS = {
       price_basis: "price on application; prices incl GST",
       excludes: "not listed",
       west_coast: "West Coast is on its region list",
+      floor_level_note:
+        "May need earthworks: at every position the search tried on the site (turned every 5°), by at least 1.30 m.",
       appearance: {
         roof_forms: ["gable", "mono"],
         roof_pitch_deg: null,

@@ -50,13 +50,13 @@ def room_of(
     lines = union_all([Polygon(ring).boundary for ring in title]).difference(
         land.boundary.buffer(1e-6)
     )
-    inner = _buffer(land, -MIN_SEPARATION_M).difference(lines.buffer(LINE_M))
-    taken = [_buffer(Polygon(r), MIN_SEPARATION_M) for r in buildings]
+    inner = buffer_at_least(land, -MIN_SEPARATION_M).difference(lines.buffer(LINE_M))
+    taken = [buffer_at_least(Polygon(r), MIN_SEPARATION_M) for r in buildings]
     taken += [Polygon(r) for r in keep_clear]
     return inner.difference(union_all(taken)) if taken else inner
 
 
-def _buffer(geometry: BaseGeometry, distance: float) -> BaseGeometry:
+def buffer_at_least(geometry: BaseGeometry, distance: float) -> BaseGeometry:
     """``geometry`` buffered by at least ``distance`` everywhere: a buffer's arcs
     are chords inside the true circle, so their vertices are pushed out to
     circumscribe it (as ``town.screen`` does)."""
