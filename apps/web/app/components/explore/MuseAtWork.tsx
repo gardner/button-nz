@@ -50,8 +50,8 @@ function useViewNames(live: Live | null): ReadonlyMap<string, string> {
 }
 
 /** The small panel: the step the run is on, lit, and a filmstrip of what it
- * has made so far, every image real (the LiDAR views Muse asked for, each
- * attempt's render with its verdict). */
+ * has made so far, every image real (the LiDAR views given with the brief
+ * and those Muse asked for, each attempt's render with its verdict). */
 function MusePanel({ job, onEnlarge }: { job: Job; onEnlarge: () => void }) {
   const live = job.live;
   return (

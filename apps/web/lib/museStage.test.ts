@@ -25,12 +25,22 @@ const FAILED: Attempt = {
 };
 const PASSED: Attempt = { ...FAILED, number: 2, status: "pass", checks: [] };
 
+/** A look at the run. An ask makes the next number after the newest view by
+ * default: what the API says unless observations given with the brief made
+ * no file. */
 function live(
   phase: Live["phase"],
   observations: string[] = [],
   detail = "",
+  view = phase === "observing"
+    ? Math.max(0, ...observations.map(viewNumberOf)) + 1
+    : 0,
 ): Live {
-  return { attempt: 2, phase, detail, observations };
+  return { attempt: 2, phase, detail, view, observations };
+}
+
+function viewNumberOf(src: string): number {
+  return Number(/observation-(\d+)\.png$/.exec(src)?.[1]);
 }
 
 function job(over: Partial<Job>): Job {
@@ -184,6 +194,21 @@ describe("watchViews", () => {
     expect(watch.names.get(VIEW_1)).toBe("render_contours");
   });
 
+  it("names the first view Muse asks for after the observations given with the brief", () => {
+    // Views 1-4 came with the brief; the ground's numbers given with them
+    // took 5 and 6 and made no file, so the ask makes observation-7.png.
+    const given = [1, 2, 3, 4].map(
+      (n) => `/api/designs/j/attempts/2/observation-${n}.png`,
+    );
+    const seventh = "/api/designs/j/attempts/2/observation-7.png";
+    const watch = poll(
+      live("thinking", given),
+      live("observing", given, "render_contours", 7),
+      live("thinking", [...given, seventh]),
+    );
+    expect(watch.names.get(seventh)).toBe("render_contours");
+  });
+
   it("names a view that lands as Muse asks for the next one", () => {
     const watch = poll(
       live("observing", [], "render_contours"),
@@ -225,8 +250,8 @@ describe("watchViews", () => {
   it("doesn't name a later view after the asked one's own view was seen landing with the ask", () => {
     const watch = poll(
       live("thinking", []),
-      live("observing", [VIEW_1], "render_contours"), // its own view, already there
-      live("observing", [VIEW_1], "render_contours"),
+      live("observing", [VIEW_1], "render_contours", 1), // its own view, already there
+      live("observing", [VIEW_1], "render_contours", 1),
       live("thinking", [VIEW_1, VIEW_2]),
     );
     expect(watch.names.get(VIEW_2)).toBeUndefined();

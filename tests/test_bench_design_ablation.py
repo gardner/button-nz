@@ -70,10 +70,27 @@ def test_each_condition_is_run_and_logged(site: DesignSite, tmp_path: Path) -> N
     assert by_name["one_shot"].attempts == 1 and not by_name["one_shot"].accepted
     assert by_name["errors"].attempts == 1 and not by_name["errors"].accepted  # it ran: done
     assert by_name["evaluator"].repaired and by_name["evaluator"].attempts == 2
-    assert by_name["evaluator_lidar"].observations >= 1 and by_name["evaluator_lidar"].accepted
+    # The one view it asked for: the views given with the brief aren't counted.
+    assert by_name["evaluator_lidar"].observations == 1 and by_name["evaluator_lidar"].accepted
     assert by_name["evaluator"].verdicts == ("fail", "unknown")
     lines = (tmp_path / "results.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 4 and json.loads(lines[0])["condition"] == "one_shot"
+
+
+class NeverLooks:
+    """Designs straight away, asking for no view."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        return "good"
+
+
+def test_views_given_with_the_brief_are_not_counted_as_asked_for(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """Mean observations measures what the model asked for, as in earlier runs."""
+    lidar = [c for c in CONDITIONS if c.allow_observations]
+    (result,) = run(["A studio."], lidar, 1, site, NeverLooks(), tmp_path, fake_runner)
+    assert result.observations == 0
 
 
 def test_a_run_that_cannot_complete_is_recorded_not_dropped(

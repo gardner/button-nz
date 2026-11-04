@@ -90,20 +90,20 @@ export function viewNumber(src: string): number {
 }
 
 /** An ask for a view, in the attempt it was made in (each attempt numbers
- * its views from 1). */
+ * its views from 1), and the number of the view it makes, as the API says. */
 interface Ask {
   tool: string;
   attempt: number;
+  view: number;
 }
 
 /** The live views as seen from one look at the job to the next: which were
- * there, the ask Muse was seen making, the ask whose view is still to land
- * (with the newest view number there before it), and the tool of each view
- * whose ask was seen. */
+ * there, the ask Muse was seen making, the ask whose view is still to land,
+ * and the tool of each view whose ask was seen. */
 export interface ViewWatch {
   seen: readonly string[];
   observing: Ask | null;
-  asked: (Ask & { after: number }) | null;
+  asked: Ask | null;
   names: ReadonlyMap<string, string>;
 }
 
@@ -118,11 +118,11 @@ export const NO_VIEWS: ViewWatch = {
  * running attempt's views without saying which tool drew each, but it says
  * which one Muse is asking for while it is drawn. A view is named only when
  * that is sure: it is the only one to land since the ask was seen, in the
- * same attempt, and its number is the next after the newest view there then.
- * observation-<n>.png is the attempt's n-th ask, and asks that draw nothing
- * (exact heights are words, or an ask that failed) still count, so an ask
- * unseen between two looks, however far apart the looks are, shows as a
- * skipped number, and its view is left unnamed. */
+ * same attempt, with the number the API said that ask makes. Numbers skip
+ * where an observation draws nothing (exact heights are words, as are those
+ * given with the brief, or an ask failed), so the number can't be inferred
+ * from the views there; an ask unseen between two looks, however far apart,
+ * makes a view with another number, left unnamed. */
 export function watchViews(watch: ViewWatch, live: Live | null): ViewWatch {
   const now = live?.observations ?? [];
   const landed = now.filter((src) => !watch.seen.includes(src));
@@ -132,27 +132,27 @@ export function watchViews(watch: ViewWatch, live: Live | null): ViewWatch {
   if (asked && its) names.set(its, asked.tool);
   const observing =
     live?.phase === "observing"
-      ? { tool: live.detail, attempt: live.attempt }
+      ? { tool: live.detail, attempt: live.attempt, view: live.view }
       : null;
   return {
     seen: now,
     observing,
-    asked: nextAsk(watch, observing, now, landed, its),
+    asked: nextAsk(watch, observing, landed, its),
     names,
   };
 }
 
 /** The view `asked` drew, if one landed that can only be its: alone, in the
- * same attempt, and numbered next after the newest view there at the ask. */
+ * same attempt, and with the number the ask makes. */
 function askedFor(
-  asked: NonNullable<ViewWatch["asked"]>,
+  asked: Ask,
   live: Live | null,
   landed: readonly string[],
 ): string | null {
   const [view] = landed;
   return live?.attempt === asked.attempt &&
     landed.length === 1 &&
-    viewNumber(view) === asked.after + 1
+    viewNumber(view) === asked.view
     ? view
     : null;
 }
@@ -161,18 +161,18 @@ function askedFor(
 function nextAsk(
   watch: ViewWatch,
   observing: Ask | null,
-  now: readonly string[],
   landed: readonly string[],
   its: string | null, // the view just named as the last ask's
 ): ViewWatch["asked"] {
   if (observing === null) return null;
   const same =
     watch.observing?.tool === observing.tool &&
-    watch.observing.attempt === observing.attempt;
+    watch.observing.attempt === observing.attempt &&
+    watch.observing.view === observing.view;
   if (same)
     // The same ask, still drawn: once a view lands, it is spent (or unsure).
     return landed.length === 0 ? watch.asked : null;
   // A new ask: a view landing with it, not the last ask's, may be its own.
   if (landed.some((src) => src !== its)) return null;
-  return { ...observing, after: Math.max(0, ...now.map(viewNumber)) };
+  return observing;
 }

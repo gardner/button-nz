@@ -52,7 +52,7 @@ DESCRIPTIONS = {
     "design.glb, design.png": "the measured design, exported and rendered",
     "measurements.json": "what the trusted pass measured",
     "attempt.json": "the agent's trace: observations, script, verdict and feedback",
-    "observation-<k>.png": "the LiDAR views the model asked for",
+    "observation-<k>.png": "the LiDAR views given with the brief, then those the model asked for",
     "visual.png, visual.json": "the AI visual and its silhouette check (accepted designs only)",
 }
 

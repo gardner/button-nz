@@ -129,7 +129,7 @@ def test_the_conversation_starts_with_the_contract_and_the_brief(
 ) -> None:
     model = ScriptedModel("good")
     run(site, model, tmp_path)
-    system, brief = model.seen[0]
+    system, brief, *_views = model.seen[0]
     assert system.role == "system"
     assert "Dwelling" in system.text
     assert "2 m" in system.text
@@ -169,6 +169,48 @@ def test_a_reply_without_a_script_is_an_attempt_with_feedback(
 
 
 SLOPE = Observe("render_height_map", {"mode": "slope"})
+VIEWS = ("render_hillshade", "render_contours", "render_height_map", "render_cross_section")
+# The flat site's room has one rectangle 3 m wide or more; then the whole room.
+GIVEN = (*VIEWS, "inspect_elevation", "inspect_elevation")
+
+
+def test_the_standard_views_come_with_the_brief(site: DesignSite, tmp_path: Path) -> None:
+    """Muse sees the site before its first move, without asking: the views and
+    the ground's numbers are recorded as attempt 1's first observations, files
+    and all."""
+    model = ScriptedModel("good")
+    result = run(site, model, tmp_path)
+    _, brief, *views = model.seen[0]
+    assert [t.role for t in views] == ["view"] * len(GIVEN)
+    folder = tmp_path / "attempt-1"
+    images = [folder / f"observation-{k}.png" for k in range(1, 5)]
+    assert [t.image for t in views] == [*images, None, None]  # the numbers are text
+    assert all(image.read_bytes().startswith(b"\x89PNG") for image in images)
+    assert "Hillshade" in views[0].text and "Terrain profile" in views[3].text
+    assert "largest rectangle 1" in views[4].text and "whole room" in views[5].text
+    assert "2 more" in brief.text  # the budget is still the model's own
+    assert result.attempts[0].observations == GIVEN
+    trace = json.loads((folder / "attempt.json").read_text(encoding="utf-8"))
+    assert trace["observations"] == list(GIVEN)
+    assert trace["observations_given"] == len(GIVEN)
+
+
+def test_the_views_are_given_once_and_kept(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("near", "good")
+    result = run(site, model, tmp_path)
+    assert [t.role for t in model.seen[1]].count("view") == len(GIVEN)  # still there
+    assert result.attempts[1].observations == ()
+    assert not list((tmp_path / "attempt-2").glob("observation-*.png"))
+    trace = json.loads((tmp_path / "attempt-2" / "attempt.json").read_text(encoding="utf-8"))
+    assert trace["observations_given"] == 0
+
+
+def test_without_observations_no_views_are_given(site: DesignSite, tmp_path: Path) -> None:
+    """Experiment C's conditions without the LiDAR stay without it."""
+    model = ScriptedModel("good")
+    run(site, model, tmp_path, allow_observations=False)
+    assert [t.role for t in model.seen[0]] == ["system", "user"]
+    assert "With this brief" not in model.seen[0][1].text
 
 
 def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) -> None:
@@ -177,11 +219,12 @@ def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) 
     request, observation = model.seen[1][-2:]
     assert request.role == "request" and "render_height_map" in request.text
     assert observation.role == "observation" and "slope" in observation.text
-    assert observation.image == tmp_path / "attempt-1" / "observation-1.png"
+    # Numbered after the observations given with the brief.
+    assert observation.image == tmp_path / "attempt-1" / "observation-7.png"
     assert observation.image is not None and observation.image.read_bytes().startswith(b"\x89PNG")
-    assert result.attempts[0].observations == ("render_height_map",)
+    assert result.attempts[0].observations == (*GIVEN, "render_height_map")
     trace = json.loads((tmp_path / "attempt-1" / "attempt.json").read_text(encoding="utf-8"))
-    assert trace["observations"] == ["render_height_map"]
+    assert trace["observations"] == [*GIVEN, "render_height_map"]
     assert result.accepted is result.attempts[0]
 
 
@@ -191,7 +234,7 @@ def test_once_the_budget_is_spent_the_model_must_design(site: DesignSite, tmp_pa
     assert model.allowed == [True, True, False]
     assert "1 observation left" in model.seen[1][-1].text
     assert "0 observations left" in model.seen[2][-1].text
-    assert result.attempts[0].observations == ("render_height_map", "render_height_map")
+    assert result.attempts[0].observations == (*GIVEN, "render_height_map", "render_height_map")
     assert result.accepted is result.attempts[0]
 
 
@@ -199,7 +242,7 @@ def test_a_request_over_the_budget_is_refused_not_fatal(site: DesignSite, tmp_pa
     model = ScriptedModel(SLOPE, SLOPE, SLOPE, "good")
     result = run(site, model, tmp_path)
     assert "No observations left" in model.seen[3][-1].text
-    assert result.attempts[0].observations == ("render_height_map", "render_height_map")
+    assert result.attempts[0].observations == (*GIVEN, "render_height_map", "render_height_map")
     assert result.accepted is result.attempts[0]
 
 
@@ -217,6 +260,7 @@ def test_observations_can_be_switched_off(site: DesignSite, tmp_path: Path) -> N
     assert model.allowed == [False, False]
     assert "not available" in model.seen[1][-1].text
     assert result.attempts[0].observations == ()
+    assert not list((tmp_path / "attempt-1").glob("observation-*.png"))
     assert result.accepted is result.attempts[0]
 
 
@@ -323,8 +367,8 @@ def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_p
         "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before
     )
     roles = [t.role for t in model.seen[0]]
-    assert roles == ["system", "user", "design", "feedback", "user"]
-    assert model.seen[0][2].text == "near" and model.seen[0][4].text == "Move it east."
+    assert roles == ["system", "user", *["view"] * len(GIVEN), "design", "feedback", "user"]
+    assert model.seen[0][-3].text == "near" and model.seen[0][-1].text == "Move it east."
     assert result.accepted is result.attempts[0]
 
 
@@ -455,3 +499,23 @@ def test_a_placed_product_keeps_its_footprint_without_the_compact_plan(
     contract = model.seen[0][0].text
     assert "twice its width" not in contract
     assert "add a deck" in contract
+
+
+def test_an_ask_says_which_observation_it_will_make(site: DesignSite, tmp_path: Path) -> None:
+    """The ground's numbers given with the brief take numbers but make no file,
+    so the next file's number can't be inferred from the files: the step says it."""
+    steps: list[Step] = []
+    model = ScriptedModel(SLOPE, "good")
+    design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        max_observations=2,
+        on_step=steps.append,
+    )
+    (observing,) = [s for s in steps if s.phase is Phase.OBSERVING]
+    assert observing.view == len(GIVEN) + 1
+    assert (tmp_path / "attempt-1" / f"observation-{observing.view}.png").exists()
+    assert all(s.view == 0 for s in steps if s.phase is not Phase.OBSERVING)

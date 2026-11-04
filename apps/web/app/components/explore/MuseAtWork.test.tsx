@@ -37,7 +37,14 @@ function running(phase: Phase, detail = "", views = [VIEW]): Job {
     status: "running",
     acceptedAttempt: null,
     attempts: [{ ...job.attempts[0], number: 1, status: "fail" }],
-    live: { attempt: 2, phase, detail, observations: views },
+    // An ask makes the view numbered after those there (none given here).
+    live: {
+      attempt: 2,
+      phase,
+      detail,
+      view: phase === "observing" ? views.length + 1 : 0,
+      observations: views,
+    },
   };
 }
 

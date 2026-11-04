@@ -27,6 +27,7 @@ QUAD_SEGS = 16
 LINE_M = 0.05  # how wide a line between sections is taken out of the room
 INSET_M = 0.01  # printed corners are drawn in this far: rounding never takes them out
 MIN_WIDTH_M = 3.0  # narrower than this, no dwelling fits: not offered
+RECTANGLES = 3  # the largest rectangles the agent is told of (and given the ground under)
 
 
 @dataclass(frozen=True)
@@ -139,7 +140,7 @@ def describe_room(site: SiteContext, local: Callable[[Point], Point]) -> str:
     its local coordinates, with what to do with them."""
     title = site.parcels
     room = room_of(title, site.confirmed_buildings, site.preservation_areas)
-    found = largest_rectangles(room, longest_edge_angle(title))
+    found = largest_rectangles(room, longest_edge_angle(title), RECTANGLES)
     if not found:
         # Only rectangles square to the title are searched: say no more than that.
         return (

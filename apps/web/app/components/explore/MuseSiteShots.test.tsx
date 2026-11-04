@@ -57,7 +57,13 @@ function running(phase: Phase, attempt = 1): Job {
     status: "running",
     acceptedAttempt: null,
     attempts: [],
-    live: { attempt, phase, detail: "render_contours", observations: [] },
+    live: {
+      attempt,
+      phase,
+      detail: "render_contours",
+      view: 0,
+      observations: [],
+    },
   };
 }
 

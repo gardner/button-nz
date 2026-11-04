@@ -33,7 +33,7 @@ https://button.nz. How they fit together on the page is in
 |---|---|---|
 | **A brief in plain words** | "A small one-bedroom studio that gets the afternoon sun", up to 4,000 characters | `explore/DesignDock.tsx` |
 | **Muse Spark designs in Blender** | Muse Spark 1.3 writes a complete Blender Python script as a tool call, to a contract: one Dwelling mesh, built on the terrain | `agent/loop.py`, `agent/prompt.py` |
-| **LiDAR views on request** | Before each attempt, Muse may ask for up to four views: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. They don't count as attempts | `agent/observe.py`, `lidar/` |
+| **LiDAR views up front and on request** | The brief comes with four standard views (hillshade, contours, height above ground, and a cross-section the length of the room for a dwelling) and the ground's numbers under the room's three largest rectangles and the whole room. Before each attempt, Muse may ask for up to four more: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. None of them count as attempts | `agent/observe.py`, `lidar/` |
 | **Sandboxed Blender** | The script runs in headless Blender inside a bubblewrap sandbox: no network, no keys, read-only system files, capped memory, processes and scratch space | `blender_worker/sandbox.py` |
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
 | **Repair from feedback** | A failed check goes back to Muse as feedback, with the render when the attempt produced one, for up to three attempts | `agent/loop.py` |

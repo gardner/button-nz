@@ -122,7 +122,7 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
   );
 }
 
-/** The LiDAR views the model asked for before this attempt, as thumbnails
+/** The LiDAR views given with the brief or asked for before this attempt, as thumbnails
  * named by the tool that drew each (observation-<k>.png, k from 1). */
 function Views({ attempt }: { attempt: Attempt }) {
   const views = attempt.observations.flatMap((tool, i) => {
