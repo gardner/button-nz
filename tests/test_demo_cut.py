@@ -25,6 +25,7 @@ from demo.cut import (
     load_plan,
     pick,
     resampled,
+    segment_frame,
     segment_frames,
     speed_label,
 )
@@ -244,3 +245,45 @@ def test_a_headline_at_the_bottom_leaves_the_middle_of_the_frame_clear() -> None
 def test_a_beat_without_a_headline_is_refused_when_the_plan_loads() -> None:
     with pytest.raises(ValidationError):
         Beat.model_validate({"start": 1.0, "end": 2.0, "speed": 1, "lines": []})
+
+
+def test_a_segment_may_carry_a_fact_over_its_footage(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    fact = {"text": "65% of Reefton's properties have room", "size": 30}
+    seg = {"start": 0.0, "end": 5.0, "speed": 20, "caption": "Muse writes", "lines": [fact]}
+    path.write_text(json.dumps({"title": [], "segments": [seg]}))
+    assert load_plan(path).segments[0].lines[0].text.startswith("65%")
+
+
+def test_a_cut_shows_a_segments_fact_darkened_and_still_captioned(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "segments": [
+                {"start": 0.0, "end": 1.0, "speed": 1, "caption": "c", "lines": [line.model_dump()]}
+            ],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 105, (64, 48))
+
+
+def test_a_segment_frame_with_a_fact_is_darkened_captioned_and_labelled_once() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    fact = CardLine(text="65% have room", size=20)
+    seg = Segment(start=0, end=1, speed=20, caption="Muse writes", lines=[fact])
+    shown = segment_frame(white, seg, _font)
+    assert _rgb(shown, (5, 200))[0] < 160  # darkened under the fact
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+    red = _rgb(shown, (600, 30))
+    assert red[0] > 150 and red[1] < 120  # the speed label, top right
+
+
+def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
+    assert _rgb(shown, (5, 200)) == WHITE  # not darkened
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
