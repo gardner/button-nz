@@ -250,3 +250,39 @@ def test_with_no_room_for_a_dwelling_there_is_no_profile(site: DesignSite) -> No
         "render_contours",
         "render_height_map",
     ]
+
+
+def test_every_rectangle_given_is_one_the_prompt_lists(site: DesignSite) -> None:
+    """Three sections side by side: room for three rectangles, and the prompt
+    lists each one whose ground comes with the brief, at the same corners."""
+    xs = (1000.0, 1014.0, 1027.0, 1040.0)
+    sections = tuple(
+        ((w, 2000.0), (e, 2000.0), (e, 2020.0), (w, 2020.0), (w, 2000.0))
+        for w, e in zip(xs, xs[1:], strict=False)
+    )
+    thirds = replace(site, context=replace(site.context, parcels=sections))
+    prompt = describe_room(thirds.context, thirds.frame.to_local)
+    given = [r for r, o in standard_views(thirds) if "largest rectangle" in o.text]
+    assert len(given) == 3
+    for request in given:
+        corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in request.arguments["polygon"])
+        assert corners in prompt
+
+
+def test_a_room_with_a_hole_says_the_ground_given_includes_it(site: DesignSite) -> None:
+    """A kept area inside the room cuts a hole in it. An observation's polygon
+    has no holes, so the part's numbers and the range over the whole room are
+    both the ground inside its outline, the hole included, and say so."""
+    kept: Ring = (
+        (1018.0, 2008.0),
+        (1022.0, 2008.0),
+        (1022.0, 2012.0),
+        (1018.0, 2012.0),
+        (1018.0, 2008.0),
+    )
+    holed = replace(site, context=replace(site.context, preservation_areas=(kept,)))
+    (part,) = [o.text for _, o in standard_views(holed) if "room, part" in o.text]
+    whole, label = part.splitlines()[:2]
+    assert "the areas cut out of it included" in whole
+    assert "the areas cut out of it included" in label
+    assert "ground z from 0.15 to 3.75" in whole

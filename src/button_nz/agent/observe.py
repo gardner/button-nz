@@ -18,6 +18,7 @@ from shapely.geometry.base import BaseGeometry
 from button_nz.agent.conversation import Observe
 from button_nz.agent.room import (
     INSET_M,
+    RECTANGLES,
     Rectangle,
     largest_rectangles,
     longest_edge_angle,
@@ -44,7 +45,6 @@ _EPS = 1e-9
 SCALE = 8  # pixels per metre cell
 PROFILE_SAMPLES = 41  # at most this many cross-section heights in the text
 HEIGHTS = ("min_m", "max_m", "mean_m")  # NZVD2016 in the views' facts; shown as script z
-RECTANGLES = 3  # the room's largest rectangles whose ground is given with the brief
 MIN_PART_M2 = 1.0  # room slivers smaller than this are left out of the ground given
 
 
@@ -154,18 +154,23 @@ def _under_room(site: DesignSite, room: BaseGeometry) -> list[tuple[Observe, Obs
     )
     if not parts:
         return []
+    # An observation's polygon has no holes: the ground is taken inside each
+    # part's outline, any areas cut out of it included, and the range over the
+    # whole room is the same ground's, so it agrees with the parts' numbers.
+    outlines = [Polygon(part.exterior) for part in parts]
+    holed = "; the areas cut out of it included" if any(p.interiors for p in parts) else ""
     datum = site.scene["frame"]["datum_m"]
-    lows, highs = zip(*(ground_range(p, site.context.terrain) for p in parts), strict=True)
+    lows, highs = zip(*(ground_range(o, site.context.terrain) for o in outlines), strict=True)
     area = sum(p.area for p in parts)
     whole = (
         f"Over the whole room for a dwelling ({area:.0f} m² inside the setbacks, 2 m from "
-        "the listed buildings, off the kept areas): ground z from "
+        f"the listed buildings, off the kept areas{holed}): ground z from "
         f"{min(lows) - datum:.2f} to {max(highs) - datum:.2f}."
     )
     given: list[tuple[Observe, Observation]] = []
     for i, part in enumerate(parts, 1):
         label = f"Ground under the room, part {i} of {len(parts)} ({part.area:.0f} m²)"
-        if part.interiors:  # an observation's polygon has no holes
+        if part.interiors:
             label += ", the areas cut out of it included"
         outline = [list(site.frame.to_local(p)) for p in _ring(part)]
         given.append(_labelled(site, f"{whole}\n{label}:" if i == 1 else f"{label}:", outline))
