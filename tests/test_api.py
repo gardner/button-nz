@@ -468,6 +468,7 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
         "attempt": 1,
         "phase": "rendering",
         "detail": "",
+        "view": 0,  # the observation-<n> an ask makes: none while rendering
         # The four views given with the brief, then the one asked for, in order
         # (the ground's numbers given with them are text: no file).
         "observations": [

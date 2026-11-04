@@ -111,6 +111,7 @@ class Step:
     attempt: int
     phase: Phase
     detail: str = ""  # the view asked for, when observing
+    view: int = 0  # the observation-<n> that ask makes, when observing
 
 
 def _no_step(_: Step) -> None:
@@ -280,7 +281,7 @@ class _Ask:
             text, image = "No observations left for this attempt; submit a design.", None
         else:
             self.observed += (request.tool,)
-            self.on_step(Step(self.number, Phase.OBSERVING, request.tool))
+            self.on_step(Step(self.number, Phase.OBSERVING, request.tool, len(self.observed)))
             text, image = self._observe(request)
             text += f"\n\n{self._left()} left for this attempt."
         self.conversation.append(Turn("observation", text, image))

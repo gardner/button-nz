@@ -415,7 +415,13 @@ describe("a ready site", () => {
         status: "running",
         attempts: [],
         accepted_attempt: null,
-        live: { attempt: 1, phase: "rendering", detail: "", observations: [] },
+        live: {
+          attempt: 1,
+          phase: "rendering",
+          detail: "",
+          view: 0,
+          observations: [],
+        },
       },
     });
     render(<Explore pollMs={5} />);

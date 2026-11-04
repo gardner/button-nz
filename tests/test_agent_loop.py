@@ -499,3 +499,23 @@ def test_a_placed_product_keeps_its_footprint_without_the_compact_plan(
     contract = model.seen[0][0].text
     assert "twice its width" not in contract
     assert "add a deck" in contract
+
+
+def test_an_ask_says_which_observation_it_will_make(site: DesignSite, tmp_path: Path) -> None:
+    """The ground's numbers given with the brief take numbers but make no file,
+    so the next file's number can't be inferred from the files: the step says it."""
+    steps: list[Step] = []
+    model = ScriptedModel(SLOPE, "good")
+    design(
+        "Add a small dwelling.",
+        site,
+        model,
+        tmp_path,
+        runner=fake_runner,
+        max_observations=2,
+        on_step=steps.append,
+    )
+    (observing,) = [s for s in steps if s.phase is Phase.OBSERVING]
+    assert observing.view == len(GIVEN) + 1
+    assert (tmp_path / "attempt-1" / f"observation-{observing.view}.png").exists()
+    assert all(s.view == 0 for s in steps if s.phase is not Phase.OBSERVING)

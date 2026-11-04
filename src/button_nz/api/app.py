@@ -79,6 +79,7 @@ class LiveView(BaseModel):
     attempt: int
     phase: str  # thinking, observing, rendering or checking
     detail: str  # the LiDAR view asked for, when observing
+    view: int  # the observation-<n> that ask makes, when observing (else 0)
     observations: list[str]  # the views made so far in this attempt: URLs
 
 
@@ -329,6 +330,7 @@ def _live(worker: Worker, job: Job) -> LiveView | None:
         attempt=step.attempt,
         phase=str(step.phase),
         detail=step.detail,
+        view=step.view,
         observations=[files[n] for n in views],
     )
 
