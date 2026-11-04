@@ -144,9 +144,10 @@ and is then left out.
  "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
 ```
 
-**`--narrated`** leaves the words off the footage (headlines, captions,
-facts) for a voice-over, and keeps only the red speed label, so how fast a
-part plays is never left unsaid. The cards stay. **`--srt PATH`** writes every
+**`--narrated`** leaves the narration off the footage (headlines, segment
+captions, facts) for a voice-over. It keeps the red speed label, a still's
+caption and the intro's "not the live run" caption, so how fast a part plays
+and where footage came from are never left unsaid. The cards stay. **`--srt PATH`** writes every
 word the cut would show as SubRip subtitles, timed to the cut, to read the
 narration from or to ship alongside the video:
 

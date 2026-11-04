@@ -453,7 +453,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--fps", type=int, default=15, help="the raw recording's frame rate")
     parser.add_argument("--preview", action="store_true", help="half size, fast: a draft")
     parser.add_argument(
-        "--narrated", action="store_true", help="no words over the footage: they go to --srt"
+        "--narrated",
+        action="store_true",
+        help="narration off the footage (to --srt); speed and provenance stay",
     )
     parser.add_argument("--srt", type=Path, help="write the cut's words as subtitles, timed")
     parser.add_argument("--sans", type=Path, default=SANS)
