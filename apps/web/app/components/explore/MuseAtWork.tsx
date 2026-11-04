@@ -35,7 +35,8 @@ const VERDICTS: Record<Attempt["status"], string> = {
 
 /** While a design runs, the run itself: the step it is on, lit, and a
  * filmstrip of what it has made so far, every image real (the LiDAR views
- * Muse asked for, each attempt's render with its verdict). */
+ * given with the brief and those Muse asked for, each attempt's render with
+ * its verdict). */
 export function MuseAtWork({ job }: { job: Job }) {
   const live = job.live;
   return (
@@ -139,7 +140,7 @@ interface Frame {
 function numbered(frames: Frame[]): Frame[] {
   let views = 0;
   return frames.map((f) =>
-    f.badge ? f : { ...f, alt: `LiDAR view ${++views} Muse asked for` },
+    f.badge ? f : { ...f, alt: `LiDAR view ${++views}` },
   );
 }
 

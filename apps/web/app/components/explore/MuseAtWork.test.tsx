@@ -41,6 +41,8 @@ describe("MuseAtWork", () => {
     expect(views[0].getAttribute("src")).toBe(
       "/api/designs/j/attempts/2/observation-1.png",
     );
+    // Not "Muse asked for": the first views come with the brief, unasked.
+    expect(views[0].getAttribute("alt")).toBe("LiDAR view 1");
     const render1 = screen.getByRole("img", {
       name: /Attempt 1's render: failed a check/,
     });
