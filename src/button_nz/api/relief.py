@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from button_nz.perception.survey import PIXEL_M
 from button_nz.relief import SiteRelief
 from button_nz.relief.flyover import WORK_DIRS
-from button_nz.relief.run import MANIFEST, ReliefFailed, Tier, publish, run_relief
+from button_nz.relief.run import MANIFEST, ReliefFailed, Tier, pending, publish, run_relief
 from button_nz.sites.build import aerial_pixels
 from button_nz.sites.registry import DEMO_SITE_ID
 
@@ -67,7 +67,7 @@ class ReliefMaker:
             # queued at a restart then reads as interrupted, as a running one does.
             directory = self.directory(site_id)
             directory.mkdir(parents=True, exist_ok=True)
-            publish(directory, [{"tier": t.name, "status": "pending"} for t in self.tiers])
+            publish(directory, pending(self.tiers))
             self._making.add(site_id)
             if self._thread is None:
                 self._thread = threading.Thread(target=self._loop, name="relief", daemon=True)
@@ -86,11 +86,13 @@ class ReliefMaker:
         return making, entries
 
     def _made(self, entries: Entries) -> bool:
-        """Whether ``entries`` are every tier this server makes, each ready: a
-        relief made of other tiers (an older deployment's) is made again."""
-        names = [entry["tier"] for entry in entries]
+        """Whether ``entries`` are every tier this server makes, each ready and
+        made by the same version: a relief made of other tiers, or by an older
+        version of one (an older deployment's), is made again. A tier from
+        before versions is version 1."""
+        made = [(entry["tier"], entry.get("version", 1)) for entry in entries]
         ready = all(entry["status"] == "ready" for entry in entries)
-        return ready and names == [tier.name for tier in self.tiers]
+        return ready and made == [(tier.name, tier.version) for tier in self.tiers]
 
     def _entries(self, site_id: str) -> Entries:
         path = self.directory(site_id) / MANIFEST
@@ -117,9 +119,7 @@ class ReliefMaker:
         except Exception as error:  # every tier needs it: each says why it wasn't made
             out.mkdir(parents=True, exist_ok=True)
             reason = f"couldn't read the site: {error}"
-            publish(
-                out, [{"tier": t.name, "status": "failed", "error": reason} for t in self.tiers]
-            )
+            publish(out, [{**e, "status": "failed", "error": reason} for e in pending(self.tiers)])
             raise
         try:
             run_relief(relief, out, self.tiers)

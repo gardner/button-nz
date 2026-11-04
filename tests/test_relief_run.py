@@ -12,6 +12,7 @@ from button_nz.relief.run import (
     DEPTH,
     MANIFEST,
     PARALLAX,
+    TIERS,
     ReliefFailed,
     Tier,
     TierOutput,
@@ -84,3 +85,22 @@ def test_the_quick_tiers_write_their_views(tmp_path: Path) -> None:
         for name in tiers[tier]["files"].values():
             assert (tmp_path / name).stat().st_size > 0
     assert set(tiers["parallax"]["files"]) == {"still", "video"}
+
+
+def test_each_tier_is_published_with_its_version(tmp_path: Path) -> None:
+    def first(relief: SiteRelief, out: Path) -> TierOutput:
+        later = _by_name(_manifest(out))["later"]
+        assert later == {"tier": "later", "version": 3, "status": "pending"}
+        return TierOutput({}, {})
+
+    def later(relief: SiteRelief, out: Path) -> TierOutput:
+        return TierOutput({}, {})
+
+    run_relief(_relief(), tmp_path, (Tier("first", first), Tier("later", later, version=3)))
+    assert [t["version"] for t in _manifest(tmp_path)["tiers"]] == [1, 3]
+
+
+def test_the_flyover_that_loops_is_a_new_version() -> None:
+    # One full orbit at a constant tilt (#182), where version 1 tilted down
+    # from overhead into a quarter turn: a site's version 1 is made again.
+    assert {t.name: t.version for t in TIERS} == {"depth": 1, "parallax": 1, "flyover": 2}
