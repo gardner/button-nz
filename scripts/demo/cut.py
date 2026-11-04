@@ -2,7 +2,8 @@
 
 Real time where a person acts; live waits sped up, with the speed on screen; a
 caption per phase. Nothing is staged: every frame between the title and the
-closing card is from the one live run in the raw recording.
+closing card is from the one live run in the raw recording, except an optional
+intro (``--intro``): the site's relief fly-over, captioned as not the live run.
 
 The title card and the segments come from a plan file (``plan.json`` beside
 this script); the closing card comes from ``--outro``, so its claims are the
@@ -24,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 SANS = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
 BOLD = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 BACKGROUND = (24, 24, 27)
+INTRO_CAPTION = "The site in 3D: its LINZ aerial photo on its own LiDAR (not the live run)"
 
 type Fonts = Callable[[int, bool], ImageFont.FreeTypeFont]
 """A font of a pixel size, bold or not."""
@@ -125,6 +127,25 @@ def captioned(image: Image.Image, caption: str, speed: int, fonts: Fonts) -> Ima
     return image
 
 
+def fitted(image: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """The image scaled to fit ``size`` whole, centred on the background."""
+    if image.size == size:
+        return image.convert("RGB")
+    scale = min(size[0] / image.width, size[1] / image.height)
+    scaled = image.convert("RGB").resize(
+        (round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS
+    )
+    framed = Image.new("RGB", size, BACKGROUND)
+    framed.paste(scaled, ((size[0] - scaled.width) // 2, (size[1] - scaled.height) // 2))
+    return framed
+
+
+def resampled(frames: int, fps_in: float, fps_out: int) -> list[int]:
+    """Indices of a clip's frames to show at ``fps_out``, keeping its length."""
+    shown = round(frames * fps_out / fps_in)
+    return [int(i * fps_in / fps_out) for i in range(shown)]
+
+
 def shots(plan: Plan, fps: int) -> list[tuple[int, Segment]]:
     """Each raw frame index to show, with its segment, in output order."""
     return [(index, segment) for segment in plan.segments for index in segment_frames(segment, fps)]
@@ -173,13 +194,32 @@ class Mp4:
         self.sink.mux(self.stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
 
 
-def cut(raw: Path, out: Path, plan: Plan, outro: list[CardLine], fonts: Fonts, fps: int) -> None:
+def write_intro(mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int) -> None:
+    """The intro clip, fitted to ``size`` at ``fps``, every frame captioned."""
+    with av.open(str(intro)) as source:
+        rate = source.streams.video[0].average_rate
+        images = list(raw_images(source))
+    for index in resampled(len(images), float(rate), fps):
+        mp4.write(captioned(fitted(images[index], size), INTRO_CAPTION, 1, fonts))
+
+
+def cut(
+    raw: Path,
+    out: Path,
+    plan: Plan,
+    outro: list[CardLine],
+    fonts: Fonts,
+    fps: int,
+    intro: Path | None = None,
+) -> None:
     """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order."""
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
         mp4 = Mp4(sink, size, fps)
         mp4.write(card(plan.title, size, fonts), 4 * fps)
+        if intro is not None:
+            write_intro(mp4, intro, size, fonts, fps)
         plan_shots = shots(plan, fps)
         shown = pick(raw_images(source), [index for index, _ in plan_shots])
         for image, (_, segment) in zip(shown, plan_shots, strict=False):
@@ -194,12 +234,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("out", type=Path, help="the cut, an .mp4")
     parser.add_argument("--outro", type=Path, required=True, help="the closing card, JSON")
     parser.add_argument("--plan", type=Path, default=HERE / "plan.json")
+    parser.add_argument(
+        "--intro", type=Path, help="a clip after the title, e.g. the relief fly-over's MP4"
+    )
     parser.add_argument("--fps", type=int, default=15, help="the raw recording's frame rate")
     parser.add_argument("--sans", type=Path, default=SANS)
     parser.add_argument("--bold", type=Path, default=BOLD)
     args = parser.parse_args(argv)
     fonts = truetype(args.sans, args.bold)
-    cut(args.raw, args.out, load_plan(args.plan), load_card(args.outro), fonts, args.fps)
+    plan, outro = load_plan(args.plan), load_card(args.outro)
+    cut(args.raw, args.out, plan, outro, fonts, args.fps, intro=args.intro)
 
 
 if __name__ == "__main__":

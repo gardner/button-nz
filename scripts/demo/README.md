@@ -15,7 +15,8 @@ and the video says so on screen.
   by Playwright, which reads files, not pipes, and only encodes VP9.
 - **`cut.py`:** cuts the raw recording into a short MP4. It adds a title
   card, a caption per phase, a red "N× speed · live run" label on sped-up
-  parts, and a closing card.
+  parts, and a closing card. It can open on the site's relief fly-over
+  (`--intro`), captioned as not the live run.
 
 ## Prerequisites
 
@@ -120,6 +121,18 @@ run. A new recording needs new times and captions, read from its marks.
 
 ```json
 {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views..."}
+```
+
+**`--intro`** (optional) plays a clip between the title card and the live
+run: the demo site's relief fly-over (#149), its LINZ aerial photo draped on
+its own LiDAR. Every intro frame is letterboxed to the recording's size,
+resampled to its frame rate, and captioned as not the live run. Make the clip
+with the relief benchmark, outside the repo:
+
+```bash
+uv run python -m button_nz.bench.relief out/relief --full out/relief/full
+uv run python scripts/demo/cut.py out/demo-raw.webm out/button-nz-demo.mp4 \
+  --outro out/outro.json --intro out/relief/full/flyover.mp4
 ```
 
 **`--outro`** is the closing card: a JSON list of lines. Each line has a
