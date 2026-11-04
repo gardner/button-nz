@@ -81,13 +81,13 @@ class Beat(BaseModel):
 
 class Still(BaseModel):
     """An opening shot of one image, e.g. an AI visual from a real run, for
-    ``seconds``, fitted to the recording, captioned with what it is, and
-    optionally headlined."""
+    ``seconds``, fitted to the recording, always captioned with what it is and
+    where it came from, and optionally headlined."""
 
     model_config = ConfigDict(frozen=True)
     image: Path
     seconds: float = Field(gt=0)
-    caption: str = ""
+    caption: str = Field(min_length=1)
     lines: list[CardLine] = []
     at: Place = "bottom"
 
@@ -288,7 +288,15 @@ def still_frame(
     shown = fitted(image, size)
     if still.lines:
         shown = headlined(shown, still.lines, 1, fonts, still.at)
-    return captioned(shown, still.caption, 1, fonts) if still.caption else shown
+    return captioned(shown, still.caption, 1, fonts)
+
+
+def still_frames(still: Still, fps: int) -> int:
+    """How many frames ``still`` is shown for at ``fps``; refused if none."""
+    frames = round(still.seconds * fps)
+    if frames < 1:
+        raise ValueError(f"a still of {still.seconds} s makes no frame at {fps} fps")
+    return frames
 
 
 def write_beat(mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int) -> None:
@@ -318,7 +326,11 @@ def cut(
     intro: Path | None = None,
 ) -> None:
     """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order,
-    for the segments, and once more, on its own, for each opening beat."""
+    for the segments, and once more, on its own, for each opening beat. A
+    still too short for a frame is refused first."""
+    for still in plan.opening:
+        if isinstance(still, Still):
+            still_frames(still, fps)
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
@@ -326,7 +338,7 @@ def cut(
         for beat in plan.opening:
             if isinstance(beat, Still):
                 with Image.open(beat.image) as image:
-                    mp4.write(still_frame(image, beat, size, fonts), round(beat.seconds * fps))
+                    mp4.write(still_frame(image, beat, size, fonts), still_frames(beat, fps))
             else:
                 write_beat(mp4, raw, beat, fonts, fps)
         if plan.title:

@@ -30,6 +30,7 @@ from demo.cut import (
     segment_frames,
     speed_label,
     still_frame,
+    still_frames,
 )
 
 WHITE = (255, 255, 255)
@@ -312,8 +313,44 @@ def test_a_still_frame_is_fitted_captioned_and_headlined() -> None:
     )
     shown = still_frame(red, still, (640, 400), _font)
     assert shown.size == (640, 400)  # fitted to the recording
-    assert _rgb(shown, (5, 200)) == BACKGROUND or _rgb(shown, (5, 200))[0] < 60  # letterboxed
+    assert _rgb(shown, (5, 200)) == BACKGROUND  # letterboxed
     assert _rgb(shown, (5, 390))[0] < 80  # the caption band
+    assert 100 < _rgb(shown, (320, 100))[0] < 130  # darkened: 255 blended 0.6 toward 24 is 116
+    assert _rgb(shown, (320, 265))[0] < 60  # the headline's panel, low down
+
+
+def test_a_still_without_lines_is_not_darkened() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    shown = still_frame(red, Still(image=Path("x.png"), seconds=1, caption="c"), (640, 400), _font)
+    assert _rgb(shown, (320, 100)) == (255, 0, 0)
+    assert _rgb(shown, (5, 390))[0] < 80  # still captioned
+
+
+@pytest.mark.parametrize("caption", [{}, {"caption": ""}])
+def test_a_still_without_a_caption_is_refused_when_the_plan_loads(caption: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        Still.model_validate({"image": "x.png", "seconds": 1.0, **caption})
+
+
+def test_a_still_is_shown_for_its_seconds_at_the_frame_rate() -> None:
+    assert still_frames(Still(image=Path("x.png"), seconds=1.5, caption="c"), 15) == 22
+
+
+def test_a_still_too_short_for_one_frame_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 15)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": "x.png", "seconds": 0.03, "caption": "c"}],
+            "segments": [],
+        }
+    )
+    with pytest.raises(ValueError, match="no frame"):
+        cut(raw, out, plan, [CardLine(text="x", size=8)], _font, 15)
+    assert not out.exists()
 
 
 def test_a_cut_opens_on_a_still(tmp_path: Path) -> None:
