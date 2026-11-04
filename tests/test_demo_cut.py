@@ -25,6 +25,7 @@ from demo.cut import (
     load_plan,
     pick,
     resampled,
+    segment_frame,
     segment_frames,
     speed_label,
 )
@@ -268,3 +269,21 @@ def test_a_cut_shows_a_segments_fact_darkened_and_still_captioned(tmp_path: Path
     )
     cut(raw, out, plan, [line], _font, 15)
     assert _frames(out) == (15 + 105, (64, 48))
+
+
+def test_a_segment_frame_with_a_fact_is_darkened_captioned_and_labelled_once() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    fact = CardLine(text="65% have room", size=20)
+    seg = Segment(start=0, end=1, speed=20, caption="Muse writes", lines=[fact])
+    shown = segment_frame(white, seg, _font)
+    assert _rgb(shown, (5, 200))[0] < 160  # darkened under the fact
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+    red = _rgb(shown, (600, 30))
+    assert red[0] > 150 and red[1] < 120  # the speed label, top right
+
+
+def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
+    assert _rgb(shown, (5, 200)) == WHITE  # not darkened
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)

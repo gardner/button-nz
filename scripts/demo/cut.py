@@ -213,6 +213,13 @@ def resampled(frames: int, fps_in: float, fps_out: int) -> list[int]:
     return [int(i * fps_in / fps_out) for i in range(shown)]
 
 
+def segment_frame(image: Image.Image, segment: Segment, fonts: Fonts) -> Image.Image:
+    """A frame of ``segment``: under its fact, if it has one (darkened, the
+    label left to the caption), then captioned with its speed label once."""
+    shown = headlined(image, segment.lines, 1, fonts) if segment.lines else image
+    return captioned(shown, segment.caption, segment.speed, fonts)
+
+
 def shots(plan: Plan, fps: int) -> list[tuple[int, Segment]]:
     """Each raw frame index to show, with its segment, in output order."""
     return [(index, segment) for segment in plan.segments for index in segment_frames(segment, fps)]
@@ -302,8 +309,7 @@ def cut(
         plan_shots = shots(plan, fps)
         shown = pick(raw_images(source), [index for index, _ in plan_shots])
         for image, (_, segment) in zip(shown, plan_shots, strict=False):
-            shown = headlined(image, segment.lines, 1, fonts) if segment.lines else image
-            mp4.write(captioned(shown, segment.caption, segment.speed, fonts))
+            mp4.write(segment_frame(image, segment, fonts))
         mp4.write(card(outro, size, fonts), 7 * fps)
         mp4.flush()
 
