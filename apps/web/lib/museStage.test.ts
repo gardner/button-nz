@@ -56,6 +56,7 @@ function job(over: Partial<Job>): Job {
 }
 
 const VIEW_1 = "/api/designs/j/attempts/2/observation-1.png";
+const VIEW_2 = "/api/designs/j/attempts/2/observation-2.png";
 const VIEW_3 = "/api/designs/j/attempts/2/observation-3.png";
 
 describe("stageOf", () => {
@@ -186,10 +187,39 @@ describe("watchViews", () => {
     const watch = poll(
       live("observing", [], "render_contours"),
       live("observing", [VIEW_1], "render_hillshade"),
-      live("thinking", [VIEW_1, VIEW_3]),
+      live("thinking", [VIEW_1, VIEW_2]),
     );
     expect(watch.names.get(VIEW_1)).toBe("render_contours");
-    expect(watch.names.get(VIEW_3)).toBe("render_hillshade");
+    expect(watch.names.get(VIEW_2)).toBe("render_hillshade");
+  });
+
+  it("doesn't give a view the name of an ask that drew nothing, however late the next look", () => {
+    // Exact heights are words, not a picture: ask 1 drew nothing, and
+    // observation-2.png is an ask unseen between two looks (a throttled tab).
+    const watch = poll(
+      live("observing", [], "inspect_elevation"),
+      live("thinking", [VIEW_2]),
+    );
+    expect(watch.names.size).toBe(0);
+    // Nor when an unseen ask came between the views: observation-3 can't be
+    // the hillshade asked for when observation-1 was the newest.
+    expect(
+      poll(
+        live("observing", [], "render_contours"),
+        live("observing", [VIEW_1], "render_hillshade"),
+        live("thinking", [VIEW_1, VIEW_3]),
+      ).names.get(VIEW_3),
+    ).toBeUndefined();
+  });
+
+  it("doesn't name a later view after the asked one's own view was seen landing with the ask", () => {
+    const watch = poll(
+      live("thinking", []),
+      live("observing", [VIEW_1], "render_contours"), // its own view, already there
+      live("observing", [VIEW_1], "render_contours"),
+      live("thinking", [VIEW_1, VIEW_2]),
+    );
+    expect(watch.names.get(VIEW_2)).toBeUndefined();
   });
 
   it("leaves unnamed what it can't be sure of: views there when it started, two at once, one after an unseen ask", () => {

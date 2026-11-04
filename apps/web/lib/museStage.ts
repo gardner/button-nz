@@ -83,32 +83,64 @@ function viewNumber(src: string): number {
 }
 
 /** The live views as seen from one look at the job to the next: which were
- * there, which view Muse was last seen asking for, and the tool of each view
- * whose ask was seen. */
+ * there, the tool Muse was seen asking for, the ask whose view is still to
+ * land (with the newest view number there before it), and the tool of each
+ * view whose ask was seen. */
 export interface ViewWatch {
   seen: readonly string[];
-  asked: string | null;
+  observing: string | null;
+  asked: { tool: string; after: number } | null;
   names: ReadonlyMap<string, string>;
 }
 
-export const NO_VIEWS: ViewWatch = { seen: [], asked: null, names: new Map() };
+export const NO_VIEWS: ViewWatch = {
+  seen: [],
+  observing: null,
+  asked: null,
+  names: new Map(),
+};
 
 /** The live views' tools, from one more look at the job. The API lists a
  * running attempt's views without saying which tool drew each, but it says
  * which one Muse is asking for while it is drawn. A view is named only when
- * that is sure: it is the only one to land since Muse was seen asking. Some
- * asks draw nothing (exact heights are words), and an ask between two looks
- * is unseen; for a later view to take that name, Muse would have to answer
- * between two looks (1.5 s apart), which a model call doesn't. */
+ * that is sure: it is the only one to land since the ask was seen, and its
+ * number is the next after the newest view there then. observation-<n>.png
+ * is the n-th ask, and asks that draw nothing (exact heights are words, or
+ * an ask that failed) still count, so an ask unseen between two looks, however
+ * far apart the looks are, shows as a skipped number, and its view is left
+ * unnamed. */
 export function watchViews(watch: ViewWatch, live: Live | null): ViewWatch {
   const now = live?.observations ?? [];
   const landed = now.filter((src) => !watch.seen.includes(src));
+  const asked = watch.asked;
+  const its =
+    asked && landed.length === 1 && viewNumber(landed[0]) === asked.after + 1
+      ? landed[0]
+      : null;
   const names = new Map(watch.names);
-  if (watch.asked !== null && landed.length === 1)
-    names.set(landed[0], watch.asked);
+  if (asked && its) names.set(its, asked.tool);
+  const observing = live?.phase === "observing" ? live.detail : null;
   return {
     seen: now,
-    asked: live?.phase === "observing" ? live.detail : null,
+    observing,
+    asked: nextAsk(watch, observing, now, landed, its),
     names,
   };
+}
+
+/** The ask whose view is still to land, after one more look. */
+function nextAsk(
+  watch: ViewWatch,
+  observing: string | null,
+  now: readonly string[],
+  landed: readonly string[],
+  its: string | null, // the view just named as the last ask's
+): ViewWatch["asked"] {
+  if (observing === null) return null;
+  if (observing === watch.observing)
+    // The same ask, still drawn: once a view lands, it is spent (or unsure).
+    return landed.length === 0 ? watch.asked : null;
+  // A new ask: a view landing with it, not the last ask's, may be its own.
+  if (landed.some((src) => src !== its)) return null;
+  return { tool: observing, after: Math.max(0, ...now.map(viewNumber)) };
 }

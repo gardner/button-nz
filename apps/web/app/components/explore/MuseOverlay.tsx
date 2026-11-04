@@ -13,8 +13,8 @@ import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
 
 /** The run, large: about 90% of the screen, slightly see-through like the
  * site's build (BuildOverlay). On the stage, the one thing the run made
- * last, or the step it is on; beside it the steps, the latest attempt's
- * checks, everything made so far, and the prefabs to browse. */
+ * last, or the step it is on; beside it the steps, everything made so far,
+ * the latest attempt's checks, and the prefabs to browse. */
 export function MuseOverlay({
   job,
   names,
