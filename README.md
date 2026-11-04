@@ -272,10 +272,11 @@ Source code is under the GNU GPL (see `LICENSE`).
   ([results](docs/results/README.md)); when it fails, no picture is shown.
 - **One shared server.** No accounts: a design is open to anyone with its
   link, and design runs are capped per day.
-- **Open item** for the demo site: the owner's own survey. The owner says
-  nothing is built on it, so the two features the survey took for sheds are
-  not buildings; the owner decides them on the live site before the final
-  demo take ([docs/submission.md](docs/submission.md)).
+- **The demo site's survey** is the owner's own: they decided it on
+  5 November 2026 (NZDT), and button.nz serves it fixed. The owner says
+  nothing is built on the site, so the two features the survey took for sheds
+  are not buildings. The final demo take and the sample use this survey
+  ([docs/submission.md](docs/submission.md)).
 
 ## Run it
 

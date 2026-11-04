@@ -8,22 +8,21 @@ and nothing still to be produced is given a number.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address. The smoke check (`check.sh`) passes only once the survey is fixed (open item 1) |
-| 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Blocked** on the demo survey (open item 1); the recorder is ready |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address, with the owner's survey fixed. The smoke check (`check.sh`) passes |
+| 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Cut** (2 min 13 s) from the final take on 5 Nov, with the owner's survey. The team lead uploads it; its link goes in [pitch.md](pitch.md) |
 | 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
 | 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
 | 5 | Evaluation report | [docs/results](results/README.md) | **Done:** Experiments A and C, the model comparison, the batch run, the AI visual, the town screen, impact and the SAM 3D experiment |
-| 6 | Sample project artifacts | `python -m button_nz.sample` (below) | **Blocked** on the final take; the packager is built and tested |
+| 6 | Sample project artifacts | `python -m button_nz.sample` (below) | **Done:** the final take's design and its revision, on the [release](https://github.com/gardner/button-nz/releases/tag/submission-2026-11-05) |
 | 7 | Product story | [docs/product.md](product.md); the submission text is [pitch.md](pitch.md) | **Done** |
 
 ## Open items
 
 | # | What | Owner | Unblocks |
 |---|---|---|---|
-| 1 | **Decide the demo survey** for 35 Victory Street on button.nz: check every suggestion, not only the one shed the LiDAR disputes (which has none). The shed the LiDAR agrees with arrives suggested as a building, and ticking "every building is listed" stores every suggestion as the owner's own decision; the owner says nothing is built on the site. Then tick the box. Then set `BUTTON_SURVEY_DECIDED_BY` and `BUTTON_SURVEY_ID` (the `survey_id` from `/api/site/features`) together in `deploy.env`, and rerun `install.sh` (#91) | Owner | the final take (2), the sample (6) |
-| 2 | **The submission portal's requirements:** the fields, the video's length and format, and whether a live URL is required | Owner (needs the team's login) | the video's cut, the form |
-| 3 | **Record and cut the final take** (`scripts/demo/record.py`, `cut.py`), then **package the sample** from it, and fill in pitch.md's video link | Team, once 1 is done | 2, 6 |
-| 4 | **Submit** on the portal | Owner (needs the team's login) | |
+| 1 | **The submission portal's requirements:** the fields, the video's length and format, and whether a live URL is required | Owner (needs the team's login) | the form |
+| 2 | **Upload the video** and put its link in [pitch.md](pitch.md) | Owner | the form |
+| 3 | **Submit** on the portal | Owner (needs the team's login) | |
 
 ### SAM 3D Objects with LiDAR (#125)
 
@@ -48,8 +47,9 @@ behind a Cloudflare tunnel. It adds:
 `META_API_KEY` stays on the server, read by the API's service only. Plan §15's
 deployed demonstration is live at https://button.nz, through the team's
 Cloudflare tunnel; `scripts/deploy/check.sh https://button.nz ""` checks it,
-and fails until the survey is fixed.
-Its survey is fixed once the owner has decided it (open item 1).
+and passes. The owner decided the demo site's survey on 5 November (NZDT),
+and the server holds it fixed. A ready site can also be seen in 3D
+("See it in 3D", #149): its LINZ aerial photo on its own LiDAR heights.
 
 ## 2. Demo video
 
@@ -65,7 +65,22 @@ The final take (`record.py`, updated for the map-first page in #97):
   the take before any paid call);
 - enters a brief, designs, and waits for the AI visual;
 - views the design in 3D, revises it, and shows before and after;
-- shows the real prefabs that fit, and places the largest on the site.
+- shows the real prefabs that fit, and asks to place the largest on the site
+  (in the final take, no attempt passed: see below).
+
+`cut.py --intro` can open the cut on the demo site's relief fly-over (#149):
+its LINZ aerial photo draped on its own LiDAR, made by
+`python -m button_nz.bench.relief`, and captioned as not the live run.
+
+**The final take** (5 Nov, NZDT; 2 min 13 s cut) ran live with the owner's
+survey. The design was accepted on attempt 2, and the revision on attempt 1,
+at 2.33 m from the title boundary (2 m required). The cut ends on the six real
+prefabs that fit. The take then tried to place the largest, the Russley
+Portables Methven (15 × 4.2 m). None of its three attempts passed: the first
+put something below the floor, the second's script raised an error, and on the
+third the floor would sit 1.24 m above the lowest ground on this slope, where
+at most 1 m is allowed. The recording stopped before the verdict
+showed, so the cut leaves the placement out rather than show it unfinished.
 
 Earlier takes showed the team's survey decisions, captioned as such; the
 owner says those are wrong for this site, so the submission's video is the
@@ -102,15 +117,17 @@ the chosen sample's folders before packaging them.
 | `observation-<k>.png` | the LiDAR views the model asked for |
 | `visual.png`, `visual.json` | the AI visual and its silhouette check (accepted designs only) |
 
-**To do (open item 3):** package the final take's folders, the accepted
-design and its revision, as the sample, with
-`python -m button_nz.sample DATA JOB_ID sample.zip --survey-decided-by "the owner"`.
-The sample command also packs the survey with its decisions, every attempt's verdict
-(`sample.json`) and a README naming the sources and their licences. The owner gave permission on 31 October 2026 to
-publish imagery and renders of the site. Package the sample from the final
-take, which uses the owner's survey (open item 1), not from the takes
-so far: those measure separation from the two sheds, which the owner says
-aren't buildings.
+**Done:** the final take's design and its revision are packaged, with the
+owner's survey, on the [release](https://github.com/gardner/button-nz/releases/tag/submission-2026-11-05):
+
+```bash
+python -m button_nz.sample DATA 08ad57fbfe8b4834a6e54693b70256bb sample.zip --survey-decided-by "the owner"
+```
+
+The sample command also packs the survey with its decisions, every attempt's
+verdict (`sample.json`) and a README naming the sources and their licences.
+The owner gave permission on 31 October 2026 to publish imagery and renders of
+the site.
 
 ## Notes
 

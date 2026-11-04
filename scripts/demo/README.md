@@ -8,7 +8,7 @@ and the video says so on screen.
   - shows the survey as the owner decided it;
   - enters a brief, designs, and waits for the AI visual;
   - views the design in 3D, revises it, and shows before and after;
-  - shows the real prefabs that fit, and places the largest on the site.
+  - shows the real prefabs that fit, and asks to place the largest on the site.
 - **`screencast.py`:** the recorder `record.py` uses. It captures frames
   through Chrome's CDP screencast, because Playwright's own video recorder
   needs an ffmpeg build this OS lacks. It encodes with the ffmpeg build cached
@@ -86,10 +86,14 @@ uv run python scripts/demo/record.py out/demo-raw.webm --screenshot out/revised.
 This writes `demo-raw.webm` (VP9, 15 frames a second) and
 `demo-raw.webm.marks.json`.
 
-A take fails, with the reason, if a design or the revision isn't accepted, or
-if no checked AI visual appears. Its footage is still saved, as
-`demo-raw-partial.webm`, so the paid calls aren't lost, but it isn't the take
-the cut expects.
+A take fails, with the reason, if a design, the revision or the placement
+isn't accepted, or if no checked AI visual appears. Its footage and marks are
+still saved, as `demo-raw-partial.webm` and `demo-raw-partial.webm.marks.json`,
+so the paid calls aren't lost. A failed take can still be cut up to where it
+stopped, from its own marks. The published video was: the final take's
+placement wasn't accepted ([docs/submission.md](../../docs/submission.md)), so
+it was cut from `demo-raw-partial.webm`, and the committed plan ends before the
+placement.
 
 ## Phase marks
 

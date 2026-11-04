@@ -144,7 +144,7 @@ def test_the_site_is_served_with_its_sources(service: Service) -> None:
     assert site["parcels"]["features"][0]["geometry"]["type"] == "Polygon"
     assert site["crs"] == "EPSG:2193"
     assert {s["licence"] for s in site["sources"].values()} >= {"CC-BY-4.0"}
-    assert site["open_items"]
+    assert not any("survey" in item for item in site["open_items"])  # the owner decided it
 
 
 def test_a_design_is_queued(service: Service) -> None:

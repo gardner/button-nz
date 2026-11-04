@@ -18,7 +18,7 @@ def test_loads_the_verified_site() -> None:
     assert site.parcels[3].appellation == "Section 1336 TN OF Reefton"
     assert set(site.rasters) == {"dem", "dsm", "aerial", "aerial_rural"}
     assert site.rasters["dem"].resolution_m == 1.0
-    assert site.open_items
+    assert not any("survey" in item for item in site.open_items)  # the owner decided it
 
 
 def test_the_address_point_is_in_section_701() -> None:
