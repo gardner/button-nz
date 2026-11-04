@@ -22,9 +22,11 @@ from demo.cut import (
     cut,
     fitted,
     headlined,
+    indexed_images,
     load_card,
     load_plan,
     pick,
+    pick_indexed,
     resampled,
     segment_frame,
     segment_frames,
@@ -167,17 +169,40 @@ def test_the_intro_caption_says_it_is_not_the_live_run() -> None:
     assert "not the live run" in INTRO_CAPTION
 
 
-def _clip(path: Path, size: tuple[int, int], fps: int, frames: int) -> None:
+def _numbered(index: int, size: tuple[int, int]) -> np.ndarray:
+    """A black frame with ``index`` in six white-or-black blocks along its top
+    edge, which ``_index`` reads back, even darkened under a headline."""
+    width, height = size[0] // 8, size[1] // 6
+    pixels = np.zeros((size[1], size[0], 3), np.uint8)
+    for bit in range(6):
+        if index >> bit & 1:
+            pixels[:height, bit * width : (bit + 1) * width] = 255
+    return pixels
+
+
+def _index(image: Image.Image) -> int:
+    width, height = image.width // 8, image.height // 6
+    bits = [_rgb(image, (bit * width + width // 2, height // 2))[0] > 65 for bit in range(6)]
+    return sum(1 << bit for bit, on in enumerate(bits) if on)
+
+
+def _clip(path: Path, size: tuple[int, int], fps: int, frames: int, gop: int | None = None) -> None:
+    """``frames`` numbered frames at ``fps``, a keyframe every ``gop`` if given."""
     with av.open(str(path), "w") as sink:
         stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
         stream.width, stream.height = size
         stream.pix_fmt = "yuv420p"
-        for _ in range(frames):
-            frame = av.VideoFrame.from_ndarray(
-                np.zeros((size[1], size[0], 3), np.uint8), format="rgb24"
-            )
+        if gop is not None:
+            stream.options = {"g": str(gop)}
+        for index in range(frames):
+            frame = av.VideoFrame.from_ndarray(_numbered(index, size), format="rgb24")
             sink.mux(stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
         sink.mux(stream.encode(None))  # pyright: ignore[reportUnknownMemberType]
+
+
+def _images(path: Path) -> list[Image.Image]:
+    with av.open(str(path)) as source:
+        return [Image.fromarray(f.to_ndarray(format="rgb24")) for f in source.decode(video=0)]
 
 
 def _frames(path: Path) -> tuple[int, tuple[int, int]]:
@@ -292,6 +317,49 @@ def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
     shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
     assert _rgb(shown, (5, 200)) == WHITE  # not darkened
     assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+
+
+def test_pick_indexed_keeps_the_frames_asked_for_by_their_own_index() -> None:
+    frames = iter([(3, "d"), (4, "e"), (5, "f"), (6, "g"), (8, "i")])
+    assert list(pick_indexed(frames, [4, 6, 7])) == ["e", "g"]  # 7 isn't there
+
+
+def test_a_preview_cut_is_half_the_size(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan(title=[], segments=[Segment(start=0, end=1, speed=1, caption="c")])
+    cut(raw, out, plan, [line], _font, 15, preview=True)
+    assert _frames(out) == (15 + 105, (32, 24))
+
+
+def test_indexed_images_seeks_to_the_keyframe_before_and_numbers_each_frame(
+    tmp_path: Path,
+) -> None:
+    raw = tmp_path / "raw.mp4"
+    _clip(raw, (64, 48), 15, 60, gop=15)  # keyframes at 0, 15, 30 and 45
+    with av.open(str(raw)) as source:
+        frames = list(indexed_images(source, 3.5, 15))
+    assert [index for index, _ in frames] == list(range(45, 60))  # from the keyframe at 3 s
+    assert [_index(image) for _, image in frames] == list(range(45, 60))  # the frames they say
+
+
+def test_a_beat_read_by_seeking_shows_the_frames_of_its_span(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (320, 240), 15, 60, gop=15)  # 4 s, so the beat at 3 s seeks mid-file
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"start": 3.0, "end": 4.0, "speed": 1, "lines": [line.model_dump()]}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    shown = _images(out)
+    assert len(shown) == 15 + 15 + 105
+    assert [_index(image) for image in shown[:15]] == list(range(45, 60))  # the beat, darkened
+    assert _index(shown[15]) == 0  # then the live run from its start
 
 
 def test_a_plan_may_open_on_stills_among_its_beats(tmp_path: Path) -> None:

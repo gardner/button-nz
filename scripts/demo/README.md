@@ -144,6 +144,8 @@ and is then left out.
  "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
 ```
 
+**`--preview`** cuts a quick draft: half size, x264 `ultrafast`. The final cut leaves it out.
+
 An opening item may also be a **still**: `{"image": PATH, "seconds": 1.5,
 "caption": "…", "lines": […], "at": "bottom"}`. The image is fitted to the
 recording, captioned with what it is and where it came from, and headlined if
