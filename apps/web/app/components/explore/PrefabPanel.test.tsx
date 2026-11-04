@@ -194,4 +194,30 @@ describe("PrefabPanel", () => {
     expect(apart.textContent).toMatch(/Needs earthworks/);
     expect(screen.queryByRole("button", { name: /Methven/ })).toBeNull();
   });
+
+  it("says when the prefabs that fit the walls can't stand on the site", async () => {
+    serve({ ...PRODUCTS, fits: [] });
+    panel();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "1 prefab fits these 65 m² walls, but not the site",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("says when no checked prefab fits the walls", async () => {
+    serve({ ...PRODUCTS, fits: [], unplaceable: [] });
+    panel();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "No checked prefab fits these 65 m² walls",
+      }),
+    ).toBeTruthy();
+  });
 });

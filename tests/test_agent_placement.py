@@ -19,6 +19,7 @@ from button_nz.agent.placement import (
     TARGET_MARGIN_M,
     Placement,
     describe_placements,
+    least_ground_range,
     solve,
 )
 from button_nz.agent.site import DesignSite
@@ -248,16 +249,19 @@ def _site(
     slope_x: float = 0.0,
     buildings: tuple[Ring, ...] = (),
     keep_clear: tuple[Ring, ...] = (),
+    slope: tuple[float, float] | None = None,
 ) -> SiteContext:
-    """A site whose ground rises ``slope_x`` m per m eastwards, on a 1 m grid
-    5 m past the title."""
+    """A site whose ground rises ``slope_x`` m per m eastwards (or by
+    ``slope``, m per m east and north), on a 1 m grid 5 m past the title."""
     rings = parcels or (title,)
     xs = [x for ring in rings for x, _ in ring]
     ys = [y for ring in rings for _, y in ring]
     west, south, east, north = min(xs) - 5, min(ys) - 5, max(xs) + 5, max(ys) + 5
     cols, rows = int(east - west), int(north - south)
-    centres = west + np.arange(cols, dtype=np.float64) + 0.5
-    dem: NDArray[np.float64] = np.tile(100.0 + slope_x * centres, (rows, 1))
+    east_m, north_m = slope or (slope_x, 0.0)
+    xs = west + np.arange(cols, dtype=np.float64) + 0.5
+    ys = north - np.arange(rows, dtype=np.float64) - 0.5  # row 0 is the north edge
+    dem: NDArray[np.float64] = 100.0 + east_m * xs[None, :] + north_m * ys[:, None]
     grid = TerrainGrid((west, south, east, north), 1.0, dem, np.zeros_like(dem), ("synthetic",))
     return SiteContext(
         parcels=rings,
@@ -301,3 +305,37 @@ def test_the_evaluator_is_asked_at_most_a_bounded_number_of_times(
     monkeypatch.setattr(placement_module, "confirmed_placement", counted)
     assert solve(_site(slope_x=0.2), 9.0, 6.0, eaves_m=0.6).placements == ()
     assert len(asked) == MAX_CONFIRMED
+
+
+def test_a_section_at_the_largest_size_a_site_may_be_is_searched_fast() -> None:
+    block: Ring = ((0.0, 0.0), (200.0, 0.0), (200.0, 200.0), (0.0, 200.0), (0.0, 0.0))
+    site = _site(title=block, slope_x=0.02)
+    started = time.perf_counter()
+    found = solve(site, 15.0, 4.2, eaves_m=0.6).placements
+    assert time.perf_counter() - started < 1.5  # about 0.6 s here, on a 0.6 m grid
+    assert len(found) == 3
+
+
+def test_the_least_ground_range_is_found_without_the_evaluator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    site = _site(slope_x=0.4)
+    expected = solve(site, 10.0, 4.0, section_clear_m=0.0).least_ground_range_m
+
+    def refuse(*_: Any) -> None:
+        raise AssertionError("the evaluator was asked")
+
+    monkeypatch.setattr(placement_module, "confirmed_placement", refuse)
+    assert least_ground_range(site, 10.0, 4.0, section_clear_m=0.0) == expected
+
+
+def test_a_finer_angle_step_finds_a_plan_turned_to_contours_between_the_coarse_ones() -> None:
+    # The ground falls 0.23 m per m at 7.5° past north: square to the title, a
+    # 15 x 4.2 m plan is never turned along the contours (every 15°).
+    fall = (math.cos(math.radians(97.5)), math.sin(math.radians(97.5)))
+    block: Ring = ((0.0, 0.0), (60.0, 0.0), (60.0, 60.0), (0.0, 60.0), (0.0, 0.0))
+    site = _site(title=block, slope=(0.23 * fall[0], 0.23 * fall[1]))
+    coarse = least_ground_range(site, 15.0, 4.2)
+    fine = least_ground_range(site, 15.0, 4.2, angle_step_deg=2.5)
+    assert coarse is not None and fine is not None
+    assert coarse > MAX_FLOOR_ABOVE_GROUND_M >= fine

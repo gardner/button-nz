@@ -76,6 +76,16 @@ export function PrefabPanel({
   );
 }
 
+/** How many fit; with none, whether any fit the walls but not the site. */
+function heading(found: Products): string {
+  const fit = found.fits.length;
+  if (fit > 0) return `${fit} real prefab${fit === 1 ? "" : "s"} fit`;
+  const apart = found.unplaceable.length;
+  if (apart === 0)
+    return `No checked prefab fits these ${found.footprintM2} m² walls`;
+  return `${apart} prefab${apart === 1 ? " fits" : "s fit"} these ${found.footprintM2} m² walls, but not the site`;
+}
+
 function Found({
   found,
   busy,
@@ -89,11 +99,7 @@ function Found({
 }) {
   return (
     <>
-      <h2 className="text-lg font-semibold">
-        {found.fits.length === 0
-          ? `No checked prefab fits these ${found.footprintM2} m² walls`
-          : `${found.fits.length} real prefab${found.fits.length === 1 ? "" : "s"} fit`}
-      </h2>
+      <h2 className="text-lg font-semibold">{heading(found)}</h2>
       <div className="flex flex-col gap-2">
         {found.fits.map((p) => (
           <PrefabCard

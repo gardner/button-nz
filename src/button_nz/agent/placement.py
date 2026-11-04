@@ -11,8 +11,9 @@ rule allows (the evaluator's range also counts the outline's crossings, so it
 is never less). Each placement returned is then confirmed by the evaluator's
 own checks (``evaluation.checks``), so solver and evaluator agree by
 construction, and carries the clearances those checks measured. The evaluator
-is asked about the best ``MAX_CONFIRMED`` candidates at most, which keeps a
-search under a second: a placement can be missed, never invented.
+is asked about the best ``MAX_CONFIRMED`` candidates at most, and a large
+site's grid is coarser (``MAX_CANDIDATES``), which keeps a search under a
+second: a placement can be missed, never invented.
 
 Placements are ranked by a preference, not a rule: the margin (the least
 clearance to a 2 m line: title boundary, section line, listed building),
@@ -53,6 +54,7 @@ ANGLE_STEP_DEG = 15.0
 GRID_M = 0.5
 TARGET_MARGIN_M = 2.5  # a comfort margin past the 2 m rules: a preference, stated as one
 GROUND_STEP_M = 0.1  # ground ranges this close rank as equal
+MAX_CANDIDATES = 50_000  # poses tried at most, over every angle: a large site's grid is coarser
 MAX_CONFIRMED = 500  # the evaluator is asked about this many at most: about 0.25 s
 ROUNDING_M = 0.01  # the room is drawn in this far: a corner printed to the cm stays in it
 PROMPT_EAVES_M = 0.6
@@ -115,12 +117,14 @@ def solve(
     count: int = 3,
     section_clear_m: float = MIN_SEPARATION_M,
     frontages: Sequence[Frontage] | None = None,
+    angle_step_deg: float = ANGLE_STEP_DEG,
 ) -> Solution:
     """Up to ``count`` placements of the plan on ``site`` passing every siting
     check, best first. Below 2 m, ``section_clear_m`` lets a section line come
     back unknown (never crossed)."""
     title, lines = checks.title_and_internal_lines(site)
-    tried = _tried(_room(site, lines, section_clear_m), site, length_m, width_m, eaves_m)
+    room = _room(site, lines, section_clear_m)
+    tried = _tried(room, site, length_m, width_m, eaves_m, angle_step_deg)
     if not tried.walls:
         return Solution((), None)
     spread = _cell_spread(tried.walls, site)
@@ -141,6 +145,23 @@ def solve(
     return Solution(tuple(chosen), float(spread.min()))
 
 
+def least_ground_range(
+    site: SiteContext,
+    length_m: float,
+    width_m: float,
+    eaves_m: float = 0.0,
+    section_clear_m: float = MIN_SEPARATION_M,
+    angle_step_deg: float = ANGLE_STEP_DEG,
+) -> float | None:
+    """``Solution.least_ground_range_m`` without asking the evaluator: the
+    least LiDAR range under the walls at any pose tried where the outline
+    fits the room; None if it fits at none."""
+    _, lines = checks.title_and_internal_lines(site)
+    room = _room(site, lines, section_clear_m)
+    tried = _tried(room, site, length_m, width_m, eaves_m, angle_step_deg)
+    return float(_cell_spread(tried.walls, site).min()) if tried.walls else None
+
+
 def _room(site: SiteContext, lines: BaseGeometry, section_clear_m: float) -> BaseGeometry:
     room = room_of(site.parcels, site.confirmed_buildings, site.preservation_areas)
     if not lines.is_empty and section_clear_m > 0:
@@ -149,19 +170,28 @@ def _room(site: SiteContext, lines: BaseGeometry, section_clear_m: float) -> Bas
 
 
 def _tried(
-    room: BaseGeometry, site: SiteContext, length_m: float, width_m: float, eaves_m: float
+    room: BaseGeometry,
+    site: SiteContext,
+    length_m: float,
+    width_m: float,
+    eaves_m: float,
+    angle_step_deg: float,
 ) -> _Tried:
     """The plan's walls and outline at every angle and grid point over
-    ``room`` where the outline lies in it."""
+    ``room`` where the outline lies in it. The grid is ``GRID_M`` unless that
+    would put more than about ``MAX_CANDIDATES`` in the room; then it is coarser."""
     tried = _Tried([], [], [])
     if room.is_empty:
         return tried
+    steps = np.arange(0.0, 180.0, angle_step_deg)
     west, south, east, north = room.bounds
-    xs, ys = np.meshgrid(np.arange(west, east, GRID_M), np.arange(south, north, GRID_M))
-    centres = np.column_stack([xs.ravel(), ys.ravel()])
-    first = longest_edge_angle(site.parcels) % 180.0
+    grid = max(GRID_M, math.sqrt(room.area * len(steps) / MAX_CANDIDATES))
+    xs, ys = np.meshgrid(np.arange(west, east, grid), np.arange(south, north, grid))
     shapely.prepare(room)
-    for step in np.arange(0.0, 180.0, ANGLE_STEP_DEG):
+    inside_room = shapely.contains_xy(room, xs.ravel(), ys.ravel())  # an outline's centre is
+    centres = np.column_stack([xs.ravel()[inside_room], ys.ravel()[inside_room]])
+    first = longest_edge_angle(site.parcels) % 180.0
+    for step in steps:
         angle = float((first + step) % 180.0)
         grown = (length_m + 2 * eaves_m, width_m + 2 * eaves_m)
         outlines = _rectangles(centres, *grown, angle)
@@ -215,15 +245,23 @@ def _ranked(
 ) -> list[int]:
     """The candidates whose cells are flat enough, best first, by the stated
     preference."""
+    flat = np.flatnonzero(spread <= MAX_FLOOR_ABOVE_GROUND_M + _EPS)
+    outlines = np.array(tried.outlines, dtype=object)[flat]
     near = [title.boundary, lines, union_all([Polygon(r) for r in site.confirmed_buildings])]
-    near = [g for g in near if not g.is_empty]
-    keys: list[tuple[float, float, float, int]] = []
-    for i in np.flatnonzero(spread <= MAX_FLOOR_ABOVE_GROUND_M + _EPS).tolist():
-        margin = min(tried.outlines[i].distance(g) for g in near)
-        far = 0.0 if street.is_empty else tried.walls[i].distance(street)
-        ground = round(float(spread[i]) / GROUND_STEP_M)
-        keys.append((-min(margin, TARGET_MARGIN_M), ground, -far, i))
-    return [key[-1] for key in sorted(keys)]
+    margin = np.full(len(flat), np.inf)
+    for geometry in near:
+        if not geometry.is_empty:
+            margin = np.minimum(margin, _distances(outlines, geometry))
+    walls = np.array(tried.walls, dtype=object)[flat]
+    far = np.zeros(len(flat)) if street.is_empty else _distances(walls, street)
+    ground = np.round(spread[flat] / GROUND_STEP_M)
+    order = np.lexsort((-far, ground, -np.minimum(margin, TARGET_MARGIN_M)))
+    return cast(list[int], flat[order].tolist())
+
+
+def _distances(shapes: NDArray[np.object_], to: BaseGeometry) -> NDArray[np.float64]:
+    found: NDArray[np.float64] = shapely.distance(shapes, to)  # pyright: ignore[reportUnknownMemberType]
+    return found
 
 
 def confirmed_placement(

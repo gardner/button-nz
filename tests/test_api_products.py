@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from numpy.typing import NDArray
 
+import button_nz.api.products as products_module
 from button_nz.agent.site import DesignSite
 from button_nz.api.app import create_app
 from button_nz.api.store import Job
@@ -114,3 +115,20 @@ def steep(_: Job | None = None) -> DesignSite:
     dem: NDArray[np.float64] = grid.dem + 0.4 * np.arange(cols, dtype=np.float64)
     steeper = TerrainGrid(grid.bbox, grid.cell_m, dem, grid.ndsm, grid.sources)
     return replace(site, context=replace(site.context, terrain=steeper))
+
+
+def test_a_product_that_stands_where_the_design_does_is_never_set_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = with_products(tmp_path, FITS)  # flat: it stands inside the design's walls
+    job_id = service.queue()
+    service.worker.run_next()
+    # a search that missed every flat pose: the walls' own pose still counts
+    monkeypatch.setattr(products_module, "least_ground_range", missed)
+    found = service.client.get(f"/designs/{job_id}/products").json()
+    assert [p["id"] for p in found["fits"]] == ["fits"]
+    assert found["unplaceable"] == []
+
+
+def missed(*_: Any, **__: Any) -> float:
+    return 1.5

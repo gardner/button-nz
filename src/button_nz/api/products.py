@@ -1,10 +1,12 @@
 """The real prefab products that fit inside an accepted design.
 
     GET /products                 the catalogue, to browse
-    GET /designs/{id}/products    {footprint_m2, fits, unchecked, basis}
+    GET /designs/{id}/products    {footprint_m2, fits, unchecked, basis, unplaceable}
 
 The footprint is the walls Blender measured of the accepted attempt
-(``measurements.json``), as the evaluator saw them.
+(``measurements.json``), as the evaluator saw them. A product that fits it
+but can stand nowhere on the site with its floor level passing
+(``agent.placement``) is ``unplaceable``, never among the fits.
 """
 
 import json
@@ -18,12 +20,12 @@ from pydantic import BaseModel
 from shapely import Polygon
 from shapely.affinity import translate
 
-from button_nz.agent.placement import solve
+from button_nz.agent.placement import least_ground_range
 from button_nz.agent.proposal import DesignError, parse_measurements
 from button_nz.agent.site import DesignSite
 from button_nz.api.store import Job, Store
 from button_nz.catalogue import Product, matches, placement
-from button_nz.evaluation import SiteContext
+from button_nz.evaluation import InvalidProposal, SiteContext, checks
 from button_nz.evaluation.checks import MAX_FLOOR_ABOVE_GROUND_M
 from button_nz.geo.crs import LocalFrame
 from button_nz.sites.layers import collection
@@ -48,6 +50,8 @@ class ProductsView(BaseModel):
     # fit the walls, but stand nowhere on the site within floor level: each with its reason
     unplaceable: list[dict[str, Any]] = []
 
+
+FIT_STEP_DEG = 5.0  # the search turns a product this finely before setting it apart
 
 type FrameFor = Callable[[Path], LocalFrame]  # the frame an attempt was measured in
 type SiteFor = Callable[[Job], DesignSite]  # the site a product placed after a job stands on
@@ -86,7 +90,7 @@ def products_router(
         found = matches(walls, products)
         frame = None if frame_for is None else frame_for(attempt)
         site = None if site_for is None else site_for(job).context
-        apart = {p.id: _unplaceable(p, site) for p in found.fits}
+        apart = {p.id: _unplaceable(p, walls, frame, site) for p in found.fits}
         return ProductsView(
             footprint_m2=round(walls.area, 2),
             fits=[_fitting(p, walls, frame) for p in found.fits if apart[p.id] is None],
@@ -113,21 +117,45 @@ def _fitting(product: Product, walls: Polygon, frame: LocalFrame | None) -> dict
     return view | {"placed_footprint": collection([(on_site, {"id": product.id})])}
 
 
-def _unplaceable(product: Product, site: SiteContext | None) -> str | None:
-    """Why ``product`` can't stand anywhere on ``site`` within the floor-level
-    rule, on the most lenient reading (no eaves; a section line only not
-    crossed); None if it can, or the site isn't known."""
+def _unplaceable(
+    product: Product, walls: Polygon, frame: LocalFrame | None, site: SiteContext | None
+) -> str | None:
+    """Why ``product`` can't stand on ``site`` with its floor level passing, on
+    the most lenient reading (no eaves; a section line only not crossed);
+    None if it can, or the site isn't known. Where it stands inside the
+    design's ``walls`` counts first: the search only samples poses."""
     if site is None:
         return None
-    solution = solve(site, product.length_m, product.width_m, count=1, section_clear_m=0.0)
-    least = solution.least_ground_range_m
-    if solution.placements or least is None or least <= MAX_FLOOR_ABOVE_GROUND_M:
-        return None  # it stands somewhere, or something other than floor level stops it
+    if _stands_inside(product, walls, frame, site):
+        return None
+    least = least_ground_range(
+        site, product.length_m, product.width_m, section_clear_m=0.0, angle_step_deg=FIT_STEP_DEG
+    )
+    if least is None or least <= MAX_FLOOR_ABOVE_GROUND_M:
+        return None  # floor level can pass somewhere, or something else stops it
     return (
-        f"Needs earthworks: wherever it fits on the site, the ground under it varies by "
-        f"at least {least:.2f} m, and the floor may stand at most "
+        "Needs earthworks: inside the design's walls, and at every position the search "
+        f"tried on the site (turned every {FIT_STEP_DEG:g}°), the ground under it varies "
+        f"by at least {least:.2f} m, and the floor may stand at most "
         f"{MAX_FLOOR_ABOVE_GROUND_M:g} m above the lowest ground."
     )
+
+
+def _stands_inside(
+    product: Product, walls: Polygon, frame: LocalFrame | None, site: SiteContext
+) -> bool:
+    """Whether ``product``, where it stands inside the design's ``walls``,
+    passes floor level on ``site``'s terrain (walls measured in a frame the
+    site's terrain doesn't cover stand nowhere on it)."""
+    inside = placement(walls, product.length_m, product.width_m)
+    if inside is None or frame is None:
+        return False
+    on_site = translate(inside, frame.origin[0], frame.origin[1])
+    try:
+        lowest, highest = checks.ground_range(on_site, site.terrain)
+    except InvalidProposal:
+        return False
+    return highest - lowest <= MAX_FLOOR_ABOVE_GROUND_M
 
 
 @lru_cache(maxsize=64)
