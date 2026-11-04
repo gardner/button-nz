@@ -76,16 +76,6 @@ export function PrefabPanel({
   );
 }
 
-/** How many fit; with none, whether any fit the walls but not the site. */
-function heading(found: Products): string {
-  const fit = found.fits.length;
-  if (fit > 0) return `${fit} real prefab${fit === 1 ? "" : "s"} fit`;
-  const apart = found.unplaceable.length;
-  if (apart === 0)
-    return `No checked prefab fits these ${found.footprintM2} m² walls`;
-  return `${apart} prefab${apart === 1 ? " fits" : "s fit"} these ${found.footprintM2} m² walls, but not the site`;
-}
-
 function Found({
   found,
   busy,
@@ -99,7 +89,11 @@ function Found({
 }) {
   return (
     <>
-      <h2 className="text-lg font-semibold">{heading(found)}</h2>
+      <h2 className="text-lg font-semibold">
+        {found.fits.length === 0
+          ? `No checked prefab fits these ${found.footprintM2} m² walls`
+          : `${found.fits.length} real prefab${found.fits.length === 1 ? "" : "s"} fit`}
+      </h2>
       <div className="flex flex-col gap-2">
         {found.fits.map((p) => (
           <PrefabCard
@@ -117,11 +111,6 @@ function Found({
           {found.unchecked.map((p) => `${p.supplier} ${p.model}`).join(", ")}
         </p>
       )}
-      {found.unplaceable.map(({ product: p, reason }) => (
-        <p key={p.id} className="text-xs text-zinc-400">
-          {`Fits the walls, but not the site: ${p.supplier} ${p.model}. ${reason}`}
-        </p>
-      ))}
       <p className="text-xs text-zinc-500">{found.basis}</p>
       <NextSteps />
     </>
@@ -171,6 +160,9 @@ function PrefabCard({
         {p.priceBasis}. Excludes {p.excludes}.
       </p>
       <p className="text-xs text-zinc-500">West Coast: {p.westCoast}</p>
+      {p.floorLevelNote && (
+        <p className="text-xs text-amber-300">{p.floorLevelNote}</p>
+      )}
       {p.placeable ? (
         <button
           type="button"

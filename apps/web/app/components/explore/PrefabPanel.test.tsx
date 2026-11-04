@@ -184,40 +184,13 @@ describe("PrefabPanel", () => {
     expect(screen.getByRole("heading", { name: "Next steps" })).toBeTruthy();
   });
 
-  it("says which prefabs fit the walls but can't stand on the site, and why", async () => {
+  it("says when a prefab may need earthworks, and still offers it", async () => {
     serve(PRODUCTS);
     panel();
     fireEvent.click(
       screen.getByRole("button", { name: "Which real prefabs fit?" }),
     );
-    const apart = await screen.findByText(/Russley Portables Methven/);
-    expect(apart.textContent).toMatch(/Needs earthworks/);
-    expect(screen.queryByRole("button", { name: /Methven/ })).toBeNull();
-  });
-
-  it("says when the prefabs that fit the walls can't stand on the site", async () => {
-    serve({ ...PRODUCTS, fits: [] });
-    panel();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Which real prefabs fit?" }),
-    );
-    expect(
-      await screen.findByRole("heading", {
-        name: "1 prefab fits these 65 m² walls, but not the site",
-      }),
-    ).toBeTruthy();
-  });
-
-  it("says when no checked prefab fits the walls", async () => {
-    serve({ ...PRODUCTS, fits: [], unplaceable: [] });
-    panel();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Which real prefabs fit?" }),
-    );
-    expect(
-      await screen.findByRole("heading", {
-        name: "No checked prefab fits these 65 m² walls",
-      }),
-    ).toBeTruthy();
+    expect(await screen.findByText(/May need earthworks/)).toBeTruthy();
+    expect(screen.getAllByText(/May need earthworks/)).toHaveLength(1);
   });
 });

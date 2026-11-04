@@ -53,20 +53,13 @@ export interface Product {
   appearance: Appearance;
   placeable: boolean; // its footprint is a known rectangle: it can be placed on a site
   placedFootprint: FeatureCollection<null> | null; // where it would stand in the walls, if sent
-}
-
-/** A product that fits the walls but can stand nowhere on the site within
- * the floor-level rule: never shown as fitting. */
-export interface Unplaceable {
-  product: Product;
-  reason: string;
+  floorLevelNote: string | null; // why its floor level may not pass on the site; null: none
 }
 
 export interface Products {
   footprintM2: number;
   fits: Product[]; // largest first
   unchecked: Product[]; // dimensions unlabelled: never shown as fitting
-  unplaceable: Unplaceable[];
   basis: string; // what fitting does and doesn't check
 }
 
@@ -76,10 +69,6 @@ export function parseProducts(raw: unknown): Products {
     footprintM2: number(products, "footprint_m2"),
     fits: list(products, "fits").map(parseProduct),
     unchecked: list(products, "unchecked").map(parseProduct),
-    unplaceable: list(products, "unplaceable").map((raw) => ({
-      product: parseProduct(raw),
-      reason: text(record(raw, "unplaceable product"), "reason"),
-    })),
     basis: text(products, "basis"),
   };
 }
@@ -110,6 +99,10 @@ function parseProduct(raw: unknown): Product {
     sources: list(product, "sources").map(link),
     appearance: appearance(record(product.appearance, "appearance")),
     placeable: flag(product, "placeable"),
+    floorLevelNote:
+      product.floor_level_note == null // absent from the catalogue; null: no note
+        ? null
+        : text(product, "floor_level_note"),
     placedFootprint:
       product.placed_footprint == null // absent today; null where none was placed
         ? null

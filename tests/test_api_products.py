@@ -80,7 +80,7 @@ def test_the_whole_catalogue_can_be_browsed_before_any_design(tmp_path: Path) ->
     assert listed[1]["length_m"] == 5.9 and "price_nzd" in listed[1]
 
 
-def test_a_product_that_cant_stand_within_floor_level_on_the_site_is_set_apart(
+def test_a_product_the_search_cant_stand_within_floor_level_stays_listed_with_a_note(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = with_products(tmp_path, FITS)
@@ -90,12 +90,13 @@ def test_a_product_that_cant_stand_within_floor_level_on_the_site_is_set_apart(
     catalogue = (Product.parse(FITS),)
     app = create_app(service.store, service.worker, load_demo_site(), products=catalogue)
     found = TestClient(app).get(f"/designs/{job_id}/products").json()
-    assert found["fits"] == []
-    (apart,) = found["unplaceable"]
-    assert apart["id"] == "fits"
-    assert "earthworks" in apart["reason"]
-    assert re.search(r"varies by at least \d+\.\d\d m", apart["reason"])
+    (listed,) = found["fits"]  # a sampled search proves nothing: never dropped
+    note = listed["floor_level_note"]
+    assert "earthworks" in note
+    assert re.search(r"inside the design's walls the ground under it varies by \d+\.\d\d m", note)
+    assert re.search(r"at every position the search tried .* by at least \d+\.\d\d m", note)
     assert "floor level" in found["basis"]
+    assert "unplaceable" not in found
 
 
 def test_a_product_that_can_stand_on_the_site_still_fits(tmp_path: Path) -> None:
@@ -104,7 +105,7 @@ def test_a_product_that_can_stand_on_the_site_still_fits(tmp_path: Path) -> None
     service.worker.run_next()
     found = service.client.get(f"/designs/{job_id}/products").json()
     assert [p["id"] for p in found["fits"]] == ["fits"]
-    assert found["unplaceable"] == []
+    assert found["fits"][0]["floor_level_note"] is None
 
 
 def steep(_: Job | None = None) -> DesignSite:
@@ -117,7 +118,7 @@ def steep(_: Job | None = None) -> DesignSite:
     return replace(site, context=replace(site.context, terrain=steeper))
 
 
-def test_a_product_that_stands_where_the_design_does_is_never_set_apart(
+def test_a_product_that_stands_where_the_design_does_has_no_note(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     service = with_products(tmp_path, FITS)  # flat: it stands inside the design's walls
@@ -127,7 +128,7 @@ def test_a_product_that_stands_where_the_design_does_is_never_set_apart(
     monkeypatch.setattr(products_module, "least_ground_range", missed)
     found = service.client.get(f"/designs/{job_id}/products").json()
     assert [p["id"] for p in found["fits"]] == ["fits"]
-    assert found["unplaceable"] == []
+    assert found["fits"][0]["floor_level_note"] is None
 
 
 def missed(*_: Any, **__: Any) -> float:
