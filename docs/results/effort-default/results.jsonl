@@ -1,0 +1,3 @@
+{"brief": 0, "condition": "evaluator_lidar", "repeat": 0, "attempts": 2, "executed": 1, "accepted": true, "repaired": true, "observations": 4, "verdicts": ["error", "unknown"], "seconds": 385.12460701726377, "error": null, "script_seconds": [204.6490679718554]}
+{"brief": 1, "condition": "evaluator_lidar", "repeat": 0, "attempts": 1, "executed": 1, "accepted": true, "repaired": false, "observations": 4, "verdicts": ["unknown"], "seconds": 286.2253853743896, "error": null, "script_seconds": [200.19938367418945]}
+{"brief": 2, "condition": "evaluator_lidar", "repeat": 0, "attempts": 1, "executed": 1, "accepted": true, "repaired": false, "observations": 4, "verdicts": ["unknown"], "seconds": 417.1777943717316, "error": null, "script_seconds": [259.31575720291585]}
