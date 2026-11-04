@@ -109,6 +109,16 @@ describe("ReliefView", () => {
     );
   });
 
+  it("never says it's still making a relief that ended with no clip", async () => {
+    const failed = (tier: string) => ({ tier, status: "failed", error: "x" });
+    answers({ making: false, tiers: [failed("parallax"), failed("flyover")] });
+    render(<ReliefView siteId="s" pollMs={5} />);
+    fireEvent.click(screen.getByRole("button", { name: "See it in 3D" }));
+    await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("figure").textContent).not.toContain("Lifting");
+    expect(screen.getByText("Not shown")).toBeTruthy();
+  });
+
   it("makes a failed view again when asked to try again", async () => {
     const broken = { tier: "flyover", status: "failed", error: "no GPU" };
     const fetch = answers({ making: false, tiers: [PARALLAX, broken] });

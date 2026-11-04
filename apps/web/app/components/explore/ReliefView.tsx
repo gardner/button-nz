@@ -52,14 +52,14 @@ function Shown({
   problem: string | null;
   onRetry: () => void;
 }) {
-  const { clip, flying, retry } = shownState(relief, problem);
+  const { clip, making, flying, retry } = shownState(relief, problem);
   return (
     <figure className="rounded-2xl bg-zinc-950/85 p-3 shadow-2xl backdrop-blur">
       {clip ? (
         <ClipVideo clip={clip} />
       ) : (
         <div className="flex aspect-video items-center justify-center rounded-xl bg-zinc-900 text-sm text-zinc-400">
-          {problem ? "Not shown" : "Lifting its aerial photo onto its LiDAR…"}
+          {making ? "Lifting its aerial photo onto its LiDAR…" : "Not shown"}
         </div>
       )}
       <figcaption className="mt-2 text-xs leading-relaxed text-zinc-300">
@@ -87,15 +87,20 @@ function Shown({
   );
 }
 
-/** The clip to play; whether the fly-over is still rendering behind the
- * parallax clip; and whether there's anything to try again, once nothing
- * is being made. */
+/** The clip to play; whether anything is still being made (or about to be:
+ * the first answer is on its way); whether the fly-over is still rendering
+ * behind the parallax clip; and whether there's anything to try again, once
+ * nothing is being made. */
 function shownState(relief: Relief | null, problem: string | null) {
-  if (!relief) return { clip: null, flying: false, retry: problem !== null };
+  if (!relief) {
+    const asking = problem === null;
+    return { clip: null, making: asking, flying: false, retry: !asking };
+  }
   const clip = shownClip(relief);
   const failed = relief.tiers.some((t) => t.status === "failed");
   return {
     clip,
+    making: relief.making,
     flying: relief.making && clip?.tier === "parallax",
     retry: !relief.making && (failed || problem !== null),
   };
