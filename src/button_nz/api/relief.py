@@ -15,6 +15,7 @@ cut off by a restart: it reads as failed, and asking again makes it again.
 import json
 import logging
 import queue
+import shutil
 import threading
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -25,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from button_nz.perception.survey import PIXEL_M
 from button_nz.relief import SiteRelief
+from button_nz.relief.flyover import WORK_DIRS
 from button_nz.relief.run import MANIFEST, ReliefFailed, Tier, publish, run_relief
 from button_nz.sites.build import aerial_pixels
 from button_nz.sites.registry import DEMO_SITE_ID
@@ -112,6 +114,9 @@ class ReliefMaker:
             run_relief(relief, out, self.tiers)
         except ReliefFailed as failed:  # the manifest says which and why
             log.warning("site %s's relief: %s", site_id, failed)
+        finally:  # only what the app shows is kept
+            for work in WORK_DIRS:
+                shutil.rmtree(out / work, ignore_errors=True)
 
 
 def site_relief(sites: Sites, site_id: str) -> SiteRelief:

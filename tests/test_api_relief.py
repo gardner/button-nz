@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from button_nz.relief import SiteRelief
+from button_nz.relief.flyover import WORK_DIRS
 from button_nz.relief.run import MANIFEST, Tier, TierOutput
 from test_api_sites import Server
 
@@ -80,6 +81,21 @@ def test_the_relief_is_drawn_on_the_sites_own_heights(tmp_path: Path) -> None:
     datum = float(design.scene["frame"]["datum_m"])
     assert relief.cell_m == grid.cell_m and relief.pixel_m == 0.125
     np.testing.assert_allclose(relief.surface, grid.dem + grid.ndsm - datum)
+
+
+def test_only_what_the_app_shows_is_kept(tmp_path: Path) -> None:
+    def rendered(relief: SiteRelief, out: Path) -> TierOutput:
+        for work in WORK_DIRS:  # the fly-over's inputs and frames, 100 MB a site
+            (out / work).mkdir()
+            (out / work / "frame_0000.png").write_bytes(b"png")
+        return _clip(relief, out)
+
+    server = Server(tmp_path, relief_tiers=(Tier("flyover", rendered),))
+    site_id = server.build()["id"]
+    server.client.post(f"/sites/{site_id}/relief")
+    _made(server, site_id)
+    kept = sorted(p.name for p in (tmp_path / "sites" / site_id / "relief").iterdir())
+    assert kept == ["clip.mp4", MANIFEST]
 
 
 def test_a_made_relief_is_not_made_again(tmp_path: Path) -> None:

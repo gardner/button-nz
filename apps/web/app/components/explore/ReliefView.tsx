@@ -91,7 +91,7 @@ function ClipVideo({ clip }: { clip: Clip }) {
       loop
       playsInline
       aria-label={`Your site, ${TIER_NAMES[clip.tier] ?? clip.tier}`}
-      className="aspect-video w-full rounded-xl bg-zinc-900 object-cover"
+      className="aspect-video w-full rounded-xl bg-zinc-900 object-contain"
     />
   );
 }
