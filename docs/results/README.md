@@ -84,7 +84,7 @@ runs' own folders.
 
 **What it shows.** A lower effort makes each script call much shorter:
 about 2.6× faster at `medium`, 6× at `low` and 11× at `minimal`. But the
-scripts are shorter too, and fail more often. Across the 9 runs at lower
+scripts are shorter too, and in these runs they failed more often. Across the 9 runs at lower
 effort, the failures include a dwelling with no roof, a dwelling below its
 floor, walls that aren't one closed outline, script errors (`medium`'s third
 brief raised on all three attempts) and evaluator fails that weren't
@@ -93,12 +93,14 @@ accepted, and each took more attempts, so the run as a whole saves much less
 than the call: `medium`'s runs were 26% shorter, but 1 in 3 ended with
 nothing.
 
-**The default stays unset.** Three runs a setting are far too few to rank
-settings precisely, but they are enough to say a lower effort costs
-acceptance. That's the opposite of what the issue asked for ("the fastest
-setting that doesn't lower acceptance"), and nothing here clearly supports
-a change. `button_nz.api.serve --reasoning-effort` can now choose one when
-a larger run says otherwise.
+**The default stays unset.** One run per brief per setting can't tell an
+effect of effort apart from run-to-run variation: 3/3 against 2/3, 1/3 and
+1/3 is an indication, not proof that lower effort costs acceptance. What it
+does show is that nothing here supports a change. The issue's rule was "the
+fastest setting that doesn't lower acceptance", and no lower setting
+matched the default's acceptance. Deciding properly would take more
+repeats, enough to separate 3/3 from 2/3. `button_nz.api.serve
+--reasoning-effort` can choose a setting if such a run supports one.
 
 **Streaming doesn't help either.** The API takes `stream=True`, but a tool
 call's arguments arrive in one chunk at the end. A ~250-line script opened
