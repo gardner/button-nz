@@ -144,6 +144,8 @@ and is then left out.
  "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
 ```
 
+**`--preview`** cuts a quick draft: half size, x264 `ultrafast`. The final cut leaves it out.
+
 **`--intro`** (optional) plays a clip between the title card and the live
 run: the demo site's relief fly-over (#149), its LINZ aerial photo draped on
 its own LiDAR. Every intro frame is letterboxed to the recording's size,

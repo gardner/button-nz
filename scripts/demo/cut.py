@@ -241,22 +241,60 @@ def pick[T](items: Iterable[T], indices: Iterable[int]) -> Iterator[T]:
 
 
 def raw_images(source: InputContainer) -> Iterator[Image.Image]:
-    for frame in source.decode(video=0):
+    stream = source.streams.video[0]
+    stream.thread_type = "AUTO"  # VP9 decodes on every core: most of a cut's time
+    for frame in source.decode(stream):
         yield Image.fromarray(frame.to_ndarray(format="rgb24"))
+
+
+def indexed_images(
+    source: InputContainer, start: float, fps: int
+) -> Iterator[tuple[int, Image.Image]]:
+    """From the keyframe at or before ``start`` on: each frame with its index
+    in the recording (its time × ``fps``), so a span is read without decoding
+    everything before it."""
+    stream = source.streams.video[0]
+    stream.thread_type = "AUTO"
+    source.seek(int(start / float(stream.time_base or 1)), stream=stream, backward=True)
+    for frame in source.decode(stream):
+        yield round(frame.time * fps), Image.fromarray(frame.to_ndarray(format="rgb24"))
+
+
+def pick_indexed[T](frames: Iterable[tuple[int, T]], indices: Iterable[int]) -> Iterator[T]:
+    """The frames whose own index is in ``indices`` (non-decreasing), in order;
+    one asked for that isn't there is skipped."""
+    wanted = iter(indices)
+    want = next(wanted, None)
+    for index, item in frames:
+        while want is not None and want < index:
+            want = next(wanted, None)
+        if want is None:
+            return
+        if want == index:
+            yield item
 
 
 class Mp4:
     """An H.264 stream at ``fps`` in an open output container."""
 
-    def __init__(self, sink: OutputContainer, size: tuple[int, int], fps: int) -> None:
+    def __init__(
+        self, sink: OutputContainer, size: tuple[int, int], fps: int, preview: bool = False
+    ) -> None:
+        """At ``size``, or, for a quick draft (``preview``), half of it, fast."""
         self.sink = sink
+        self.size = (size[0] // 4 * 2, size[1] // 4 * 2) if preview else size
         # PyAV's stubs leave add_stream's **kwargs and Packet's parameter untyped.
         self.stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
-        self.stream.width, self.stream.height = size
+        self.stream.width, self.stream.height = self.size
         self.stream.pix_fmt = "yuv420p"
-        self.stream.options = {"crf": "20", "preset": "medium"}
+        self.stream.options = {
+            "crf": "30" if preview else "20",
+            "preset": "ultrafast" if preview else "medium",
+        }
 
     def write(self, image: Image.Image, times: int = 1) -> None:
+        if image.size != self.size:
+            image = image.resize(self.size, Image.Resampling.BILINEAR)
         frame = av.VideoFrame.from_ndarray(np.asarray(image.convert("RGB")), format="rgb24")
         for _ in range(times):
             self._mux(frame)
@@ -269,10 +307,12 @@ class Mp4:
 
 
 def write_beat(mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int) -> None:
-    """An opening beat: its span of ``raw``, read on its own, headlined."""
+    """An opening beat: its span of ``raw``, read from the keyframe before it,
+    headlined."""
     span = Segment(start=beat.start, end=beat.end, speed=beat.speed, caption="")
     with av.open(str(raw)) as source:
-        for image in pick(raw_images(source), segment_frames(span, fps)):
+        frames = indexed_images(source, beat.start, fps)
+        for image in pick_indexed(frames, segment_frames(span, fps)):
             mp4.write(headlined(image, beat.lines, beat.speed, fonts, beat.at))
 
 
@@ -293,13 +333,15 @@ def cut(
     fonts: Fonts,
     fps: int,
     intro: Path | None = None,
+    preview: bool = False,
 ) -> None:
     """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order,
-    for the segments, and once more, on its own, for each opening beat."""
+    for the segments, and each opening beat's span on its own; at half size,
+    fast, for a draft (``preview``)."""
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
-        mp4 = Mp4(sink, size, fps)
+        mp4 = Mp4(sink, size, fps, preview)
         for beat in plan.opening:
             write_beat(mp4, raw, beat, fonts, fps)
         if plan.title:
@@ -324,12 +366,13 @@ def main(argv: list[str] | None = None) -> None:
         "--intro", type=Path, help="a clip after the title, e.g. the relief fly-over's MP4"
     )
     parser.add_argument("--fps", type=int, default=15, help="the raw recording's frame rate")
+    parser.add_argument("--preview", action="store_true", help="half size, fast: a draft")
     parser.add_argument("--sans", type=Path, default=SANS)
     parser.add_argument("--bold", type=Path, default=BOLD)
     args = parser.parse_args(argv)
     fonts = truetype(args.sans, args.bold)
     plan, outro = load_plan(args.plan), load_card(args.outro)
-    cut(args.raw, args.out, plan, outro, fonts, args.fps, intro=args.intro)
+    cut(args.raw, args.out, plan, outro, fonts, args.fps, intro=args.intro, preview=args.preview)
 
 
 if __name__ == "__main__":

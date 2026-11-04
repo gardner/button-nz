@@ -24,6 +24,7 @@ from demo.cut import (
     load_card,
     load_plan,
     pick,
+    pick_indexed,
     resampled,
     segment_frame,
     segment_frames,
@@ -287,3 +288,32 @@ def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
     shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
     assert _rgb(shown, (5, 200)) == WHITE  # not darkened
     assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+
+
+def test_pick_indexed_keeps_the_frames_asked_for_by_their_own_index() -> None:
+    frames = iter([(3, "d"), (4, "e"), (5, "f"), (6, "g"), (8, "i")])
+    assert list(pick_indexed(frames, [4, 6, 7])) == ["e", "g"]  # 7 isn't there
+
+
+def test_a_preview_cut_is_half_the_size(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan(title=[], segments=[Segment(start=0, end=1, speed=1, caption="c")])
+    cut(raw, out, plan, [line], _font, 15, preview=True)
+    assert _frames(out) == (15 + 105, (32, 24))
+
+
+def test_a_beat_read_by_seeking_matches_one_read_from_the_start(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 60)  # 4 s, so the beat at 3 s needs a seek
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"start": 3.0, "end": 4.0, "speed": 1, "lines": [line.model_dump()]}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 15 + 105, (64, 48))
