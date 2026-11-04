@@ -58,16 +58,17 @@ describe("ReliefView", () => {
   });
 
   it("shows the parallax clip as soon as it's ready, then the fly-over", async () => {
-    const fetch = answers(
-      { making: true, tiers: [] },
-      { making: true, tiers: [PARALLAX, RENDERING] },
-      { making: false, tiers: [PARALLAX, FLYOVER] },
-    );
+    // The API answers with the relief as it is now; the test moves it on.
+    let now: unknown = { making: true, tiers: [] };
+    const fetch = vi.fn(() => Promise.resolve(respond(now)));
+    vi.stubGlobal("fetch", fetch);
     render(<ReliefView siteId="s" pollMs={5} />);
     fireEvent.click(screen.getByRole("button", { name: "See it in 3D" }));
     expect(fetch).toHaveBeenCalledWith("/api/sites/s/relief", {
       method: "POST",
     });
+    await waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(1));
+    now = { making: true, tiers: [PARALLAX, RENDERING] };
     await waitFor(() =>
       expect(video()?.getAttribute("src")).toBe(
         "/api/sites/s/relief/parallax.mp4",
@@ -81,6 +82,7 @@ describe("ReliefView", () => {
       "its LINZ aerial photo on its own LiDAR heights; walls are not seen from above",
     );
     expect(view.textContent).toContain("rendering the fly-over");
+    now = { making: false, tiers: [PARALLAX, FLYOVER] };
     await waitFor(() =>
       expect(video()?.getAttribute("src")).toBe(
         "/api/sites/s/relief/flyover.mp4",
