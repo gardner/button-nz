@@ -21,8 +21,6 @@ import numpy as np
 from numpy.typing import NDArray
 from PIL import Image
 
-from button_nz.relief.camera import ease
-
 BACKGROUND = (226, 232, 238)  # beyond the photo: a pale sky
 WALL_SHADE = 0.75
 FULL_SHADE_TILT_DEG = 30.0  # straight down a wall can't be seen: its shade fades in to here
@@ -133,3 +131,8 @@ def _paint(
     view = colours[found, column].copy()
     view[sky] = BACKGROUND
     return view
+
+
+def ease(t: float) -> float:
+    """From 0 to 1 as ``t`` does, starting and stopping gently."""
+    return (1 - math.cos(math.pi * t)) / 2

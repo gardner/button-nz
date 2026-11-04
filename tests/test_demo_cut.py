@@ -12,19 +12,25 @@ from pydantic import ValidationError
 from demo.cut import (
     BACKGROUND,
     INTRO_CAPTION,
+    Beat,
     CardLine,
     Plan,
     Segment,
+    Still,
     captioned,
     card,
     cut,
     fitted,
+    headlined,
     load_card,
     load_plan,
     pick,
     resampled,
+    segment_frame,
     segment_frames,
     speed_label,
+    still_frame,
+    still_frames,
 )
 
 WHITE = (255, 255, 255)
@@ -189,3 +195,175 @@ def test_a_cut_plays_the_intro_between_the_title_and_the_live_run(tmp_path: Path
     cut(raw, out, plan, [line], _font, 15, intro=intro)
     # title 4 s + intro 8 frames at 30 fps as 4 at 15 + 1 s of the run + outro 7 s
     assert _frames(out) == (60 + 4 + 15 + 105, (64, 48))
+
+
+def test_a_plan_may_open_on_beats_from_anywhere_in_the_run(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    beat = {"start": 900.0, "end": 910.0, "speed": 1, "lines": [{"text": "Why", "size": 40}]}
+    segment = {"start": 0.0, "end": 5.0, "speed": 1, "caption": "c"}
+    path.write_text(json.dumps({"title": [], "opening": [beat], "segments": [segment]}))
+    plan = load_plan(path)
+    opened = plan.opening[0]
+    assert isinstance(opened, Beat)
+    assert opened.start == 900.0  # after every segment: an opening isn't in order
+    assert plan.title == []
+
+
+def test_a_plan_without_an_opening_has_none(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps({"title": [], "segments": []}))
+    assert load_plan(path).opening == []
+
+
+def test_a_headline_darkens_the_frame_and_keeps_its_size() -> None:
+    white = Image.new("RGB", (320, 200), WHITE)
+    shown = headlined(white, [CardLine(text="The problem", size=20, bold=True)], 1, _font)
+    assert shown.size == (320, 200)
+    assert _rgb(shown, (5, 5))[0] < 160  # darkened, so the words read over footage
+
+
+def test_a_cut_opens_on_its_beats_and_skips_an_empty_title(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"start": 1.0, "end": 2.0, "speed": 1, "lines": [line.model_dump()]}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    # no title, 1 s of opening beat from the run's end, 1 s of the run, outro 7 s
+    assert _frames(out) == (15 + 15 + 105, (64, 48))
+
+
+def test_a_headline_at_the_bottom_leaves_the_middle_of_the_frame_clear() -> None:
+    white = Image.new("RGB", (640, 600), WHITE)
+    lines = [CardLine(text="The impact", size=12, bold=True)]
+    low = headlined(white, lines, 1, _font, at="bottom")
+    centred = headlined(white, lines, 1, _font)
+    assert _rgb(low, (320, 300)) > _rgb(centred, (320, 300))  # no panel over the middle
+    assert _rgb(low, (320, 500))[0] < 60  # the panel is low down
+
+
+def test_a_beat_without_a_headline_is_refused_when_the_plan_loads() -> None:
+    with pytest.raises(ValidationError):
+        Beat.model_validate({"start": 1.0, "end": 2.0, "speed": 1, "lines": []})
+
+
+def test_a_segment_may_carry_a_fact_over_its_footage(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    fact = {"text": "65% of Reefton's properties have room", "size": 30}
+    seg = {"start": 0.0, "end": 5.0, "speed": 20, "caption": "Muse writes", "lines": [fact]}
+    path.write_text(json.dumps({"title": [], "segments": [seg]}))
+    assert load_plan(path).segments[0].lines[0].text.startswith("65%")
+
+
+def test_a_cut_shows_a_segments_fact_darkened_and_still_captioned(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "segments": [
+                {"start": 0.0, "end": 1.0, "speed": 1, "caption": "c", "lines": [line.model_dump()]}
+            ],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 105, (64, 48))
+
+
+def test_a_segment_frame_with_a_fact_is_darkened_captioned_and_labelled_once() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    fact = CardLine(text="65% have room", size=20)
+    seg = Segment(start=0, end=1, speed=20, caption="Muse writes", lines=[fact])
+    shown = segment_frame(white, seg, _font)
+    assert _rgb(shown, (5, 200))[0] < 160  # darkened under the fact
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+    red = _rgb(shown, (600, 30))
+    assert red[0] > 150 and red[1] < 120  # the speed label, top right
+
+
+def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
+    assert _rgb(shown, (5, 200)) == WHITE  # not darkened
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+
+
+def test_a_plan_may_open_on_stills_among_its_beats(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    still = {"image": "visual.png", "seconds": 1.5, "caption": "Muse Image; surroundings imagined"}
+    path.write_text(json.dumps({"title": [], "opening": [still], "segments": []}))
+    opened = load_plan(path).opening[0]
+    assert isinstance(opened, Still) and opened.seconds == 1.5
+
+
+def test_a_still_frame_is_fitted_captioned_and_headlined() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    still = Still(
+        image=Path("x.png"),
+        seconds=1,
+        caption="c",
+        lines=[CardLine(text="Ours", size=12)],
+        at="bottom",
+    )
+    shown = still_frame(red, still, (640, 400), _font)
+    assert shown.size == (640, 400)  # fitted to the recording
+    assert _rgb(shown, (5, 200)) == BACKGROUND  # letterboxed
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band
+    assert 100 < _rgb(shown, (320, 100))[0] < 130  # darkened: 255 blended 0.6 toward 24 is 116
+    assert _rgb(shown, (320, 265))[0] < 60  # the headline's panel, low down
+
+
+def test_a_still_without_lines_is_not_darkened() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    shown = still_frame(red, Still(image=Path("x.png"), seconds=1, caption="c"), (640, 400), _font)
+    assert _rgb(shown, (320, 100)) == (255, 0, 0)
+    assert _rgb(shown, (5, 390))[0] < 80  # still captioned
+
+
+@pytest.mark.parametrize("caption", [{}, {"caption": ""}])
+def test_a_still_without_a_caption_is_refused_when_the_plan_loads(caption: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        Still.model_validate({"image": "x.png", "seconds": 1.0, **caption})
+
+
+def test_a_still_is_shown_for_its_seconds_at_the_frame_rate() -> None:
+    assert still_frames(Still(image=Path("x.png"), seconds=1.5, caption="c"), 15) == 22
+
+
+def test_a_still_too_short_for_one_frame_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 15)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": "x.png", "seconds": 0.03, "caption": "c"}],
+            "segments": [],
+        }
+    )
+    with pytest.raises(ValueError, match="no frame"):
+        cut(raw, out, plan, [CardLine(text="x", size=8)], _font, 15)
+    assert not out.exists()
+
+
+def test_a_cut_opens_on_a_still(tmp_path: Path) -> None:
+    raw, out, image = tmp_path / "raw.mp4", tmp_path / "cut.mp4", tmp_path / "still.png"
+    _clip(raw, (64, 48), 15, 30)
+    Image.new("RGB", (32, 32), (0, 128, 0)).save(image)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": str(image), "seconds": 1.0, "caption": "c"}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 15 + 105, (64, 48))

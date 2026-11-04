@@ -20,9 +20,12 @@ from PIL import Image
 from button_nz.agent.conversation import ModelReplyError, Observe, Turn
 from button_nz.agent.observe import OBSERVATION_TOOLS
 
-__all__ = ["META_BASE_URL", "ChatModel", "ModelReplyError"]
+__all__ = ["EFFORTS", "META_BASE_URL", "ChatModel", "ModelReplyError"]
 
 META_BASE_URL = "https://api.meta.ai/v1"
+# The reasoning efforts muse-spark-1.3 accepts, as its 400 for any other lists
+# them (4 Nov 2026; it refuses "none"). Unset, the API's default applies (#165).
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
 MAX_SIDE_PX = 800  # images to the model: a render's detail, ~60% fewer tokens than 1280
 TOOL = "run_blender_script"
 TOOLS: list[dict[str, Any]] = [

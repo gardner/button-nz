@@ -1,10 +1,11 @@
 """The fly-over's camera path, as Blender poses: plain maths, so it is tested
 without Blender.
 
-The camera starts straight over the target, tilts down towards
-``bearing_deg`` (the first 40% of the frames), then orbits clockwise by
-``orbit_deg`` (the rest), always ``distance_m`` from the target and looking at
-it. A Blender camera looks down its local -z with +y up; turning it about x by
+The camera is tilted ``tilt_deg`` from straight down, looking towards
+``bearing_deg`` at the first frame, and orbits the target once clockwise at
+an even speed, always ``distance_m`` from it and looking at it. The last
+frame is one step before the first, so the clip loops without a jump. A
+Blender camera looks down its local -z with +y up; turning it about x by
 the tilt, then about z by minus the bearing, points it the right way.
 """
 
@@ -12,8 +13,6 @@ import math
 from dataclasses import dataclass
 
 type Vector = tuple[float, float, float]
-
-TILT_SHARE = 0.4  # of the frames, spent tilting down before the orbit
 
 
 @dataclass(frozen=True)
@@ -23,27 +22,11 @@ class CameraPose:
 
 
 def flyover_path(
-    frames: int,
-    target: Vector,
-    distance_m: float,
-    tilt_deg: float,
-    orbit_deg: float,
-    bearing_deg: float,
+    frames: int, target: Vector, distance_m: float, tilt_deg: float, bearing_deg: float
 ) -> list[CameraPose]:
-    poses: list[CameraPose] = []
-    for frame in range(frames):
-        t = frame / max(frames - 1, 1)
-        tilt = tilt_deg * ease(min(t / TILT_SHARE, 1.0))
-        orbit = orbit_deg * ease(max(t - TILT_SHARE, 0.0) / (1 - TILT_SHARE))
-        poses.append(
-            _pose(target, distance_m, math.radians(tilt), math.radians(bearing_deg + orbit))
-        )
-    return poses
-
-
-def tilted_frame(frames: int) -> int:
-    """The first frame of ``flyover_path`` with the tilt done, before the orbit."""
-    return math.ceil(round(TILT_SHARE * (frames - 1), 9))  # 9 places: absorb float noise
+    tilt = math.radians(tilt_deg)
+    turns = (math.radians(bearing_deg + 360 * frame / frames) for frame in range(frames))
+    return [_pose(target, distance_m, tilt, bearing) for bearing in turns]
 
 
 def fitting_distance(
@@ -68,8 +51,3 @@ def _pose(target: Vector, distance_m: float, tilt: float, bearing: float) -> Cam
         target[2] - distance_m * looks[2],
     )
     return CameraPose(location, (tilt, 0.0, -bearing))
-
-
-def ease(t: float) -> float:
-    """From 0 to 1 as ``t`` does, starting and stopping gently."""
-    return (1 - math.cos(math.pi * t)) / 2

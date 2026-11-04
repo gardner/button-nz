@@ -13,6 +13,7 @@ import {
   STATUSES,
 } from "./features";
 import {
+  colour,
   type Fields,
   list,
   number,
@@ -65,6 +66,7 @@ export interface Undrawn {
 }
 
 export interface DesignMap {
+  finishes: { walls: string; roof: string }; // as its render had them, #rrggbb
   outline: FeatureCollection<Raised>; // all it covers from above, eaves too
   walls: FeatureCollection<Raised>; // from its floor to its roof
   distances: FeatureCollection<Distance>;
@@ -111,7 +113,12 @@ export async function getDesignMap(jobId: string): Promise<DesignMap> {
   const map = (await request(
     `/designs/${encodeURIComponent(jobId)}/map`,
   )) as Fields;
+  const finishes = record(map.finishes, "finishes");
   return {
+    finishes: {
+      walls: colour(finishes, "walls"),
+      roof: colour(finishes, "roof"),
+    },
     outline: parseCollection(map.outline, "outline", raised),
     walls: parseCollection(map.walls, "walls", raised),
     distances: parseCollection(map.distances, "distances", (p) => ({
