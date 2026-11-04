@@ -295,3 +295,22 @@ def test_a_designs_map_carries_the_finishes_its_render_used(tmp_path: Path) -> N
     scene.pop("dwelling_finishes", None)
     scene_path.write_text(json.dumps(scene))
     assert finishes() == {"walls": "#e7e1d3", "roof": "#454b50"}
+
+
+def test_a_courtyard_open_to_the_sky_is_left_out_of_the_designs_outline(tmp_path: Path) -> None:
+    """The map roofs the outline in 3D: a courtyard the walls leave open to the
+    sky is a hole in it, as it is in the walls, not roofed over."""
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+    wings = [(-17, -6, -5, -2), (-17, 2, -5, 6), (-17, -2, -13, 2), (-9, -2, -5, 2)]
+    house = [t for x0, y0, x1, y1 in wings for t in box(x0, y0, 0.3, x1, y1, 3.3)]
+    measured = tmp_path / "runs" / job["id"] / "attempt-1" / "measurements.json"
+    measured.write_text(json.dumps({**INSIDE, "triangles": house, "floor_area_m2": 128.0}))
+    layers = server.client.get(f"/designs/{job['id']}/map").json()
+    walls = nztm(shape(layers["walls"]["features"][0]["geometry"]))
+    outline = nztm(shape(layers["outline"]["features"][0]["geometry"]))
+    assert isinstance(walls, shapely.Polygon) and isinstance(outline, shapely.Polygon)
+    courts = [shapely.Polygon(i).area for i in walls.interiors]
+    assert courts == pytest.approx([16.0], abs=0.1)  # the 4 m x 4 m court
+    assert [shapely.Polygon(i).area for i in outline.interiors] == courts
+    assert outline.area == pytest.approx(128.0, abs=0.5)

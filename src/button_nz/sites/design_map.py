@@ -3,7 +3,8 @@ walls' and roof's colours its render used (``finishes``, sRGB hex):
 
 - ``walls``: the outside of its walls, as the trusted pass measured them,
   with any open courtyard inside them a hole;
-- ``outline``: all it covers from above, eaves included (or the walls);
+- ``outline``: all it covers from above, eaves included (or the walls), with
+  the walls' open courtyards a hole: what its roof covers;
 - ``distances``: the shortest line from the outline to what the evaluator
   measures it against, each with its check, metres and the 2 m required: the
   title boundary, the lines between the title's parcels, and the buildings the
@@ -117,7 +118,8 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
     return {
         "finishes": _finishes(scene),
         "walls": collection([(walls, heights)]),
-        "outline": collection([(outline, heights)]),
+        # what it roofs: the outline less any courtyard open to the sky
+        "outline": collection([(Polygon(outline.exterior, list(walls.interiors)), heights)]),
         "distances": collection(lines),
         # a check whose line can't be drawn now, and why: never left out silently
         "unknown": [{"check": "building_separation", "reason": buildings}]
