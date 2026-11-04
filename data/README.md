@@ -47,10 +47,12 @@ four demo parcels have the same ids as LINZ's
 published under CC BY 4.0, and match them to within 7 mm (checked 1 November
 2026). That is a fact about those four, not BDC's licence.
 
-## Still open
+## The owner's survey
 
-- The owner's own survey of the site. The owner says nothing is built on it,
-  so the two features the survey took for sheds are not buildings.
+The owner decided the site's survey on 5 November 2026 (NZDT), and button.nz
+serves it fixed. The owner says nothing is built on the site, so the two
+features the survey took for sheds are not buildings. The final demo take and
+the sample use this survey ([docs/submission.md](../docs/submission.md)).
 
 The owner gave permission on 31 October 2026 to publish imagery and renders
 of the site.
