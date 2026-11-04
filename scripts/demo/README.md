@@ -127,6 +127,11 @@ run. A new recording needs new times and captions, read from its marks.
 {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views..."}
 ```
 
+A segment may also carry `lines`, a fact shown over its footage on a dark
+panel, for a long sped-up wait. The footage is darkened, and the caption and
+speed label stay, so it's still clear what is playing. Take every fact from a
+report, and give its source in the docs.
+
 **`opening`** (optional, in the plan) is the why before the how: beats shown
 first, each a span of the raw recording from anywhere in it (not in order),
 darkened under a headline on a dark panel. A beat's `at` is `"centre"`, the

@@ -44,13 +44,15 @@ class CardLine(BaseModel):
 
 
 class Segment(BaseModel):
-    """A span of the raw recording, in its seconds, played at ``speed``."""
+    """A span of the raw recording, in its seconds, played at ``speed``; with
+    ``lines``, a fact over it (a long wait, darkened), still captioned."""
 
     model_config = ConfigDict(frozen=True)
     start: float = Field(ge=0)
     end: float
     speed: int = Field(ge=1)
     caption: str
+    lines: list[CardLine] = []
 
     @model_validator(mode="after")
     def _ends_after_it_starts(self) -> Self:
@@ -300,7 +302,8 @@ def cut(
         plan_shots = shots(plan, fps)
         shown = pick(raw_images(source), [index for index, _ in plan_shots])
         for image, (_, segment) in zip(shown, plan_shots, strict=False):
-            mp4.write(captioned(image, segment.caption, segment.speed, fonts))
+            shown = headlined(image, segment.lines, 1, fonts) if segment.lines else image
+            mp4.write(captioned(shown, segment.caption, segment.speed, fonts))
         mp4.write(card(outro, size, fonts), 7 * fps)
         mp4.flush()
 

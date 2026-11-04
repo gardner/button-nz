@@ -244,3 +244,27 @@ def test_a_headline_at_the_bottom_leaves_the_middle_of_the_frame_clear() -> None
 def test_a_beat_without_a_headline_is_refused_when_the_plan_loads() -> None:
     with pytest.raises(ValidationError):
         Beat.model_validate({"start": 1.0, "end": 2.0, "speed": 1, "lines": []})
+
+
+def test_a_segment_may_carry_a_fact_over_its_footage(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    fact = {"text": "65% of Reefton's properties have room", "size": 30}
+    seg = {"start": 0.0, "end": 5.0, "speed": 20, "caption": "Muse writes", "lines": [fact]}
+    path.write_text(json.dumps({"title": [], "segments": [seg]}))
+    assert load_plan(path).segments[0].lines[0].text.startswith("65%")
+
+
+def test_a_cut_shows_a_segments_fact_darkened_and_still_captioned(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "segments": [
+                {"start": 0.0, "end": 1.0, "speed": 1, "caption": "c", "lines": [line.model_dump()]}
+            ],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 105, (64, 48))
