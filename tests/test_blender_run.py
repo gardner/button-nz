@@ -3,6 +3,7 @@
 import json
 import os
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,32 @@ def test_without_nvidia_smi_gpu_choice_is_left_to_blender(
     monkeypatch.setattr("button_nz.blender_worker.run.shutil.which", no_command)
     build_scene(SCENE, tmp_path / "out", blender=str(blender))
     assert (blender.parent / "gpus").read_text(encoding="utf-8") == "unset"
+
+
+# Notes when it starts and ends, a little apart, in the log beside it.
+SLOW_BLENDER = """#!/usr/bin/env bash
+log="$(dirname "$0")/runs"
+echo "start ${@: -1}" >> "$log"
+sleep 0.3
+echo "end ${@: -1}" >> "$log"
+"""
+
+
+def test_blender_runs_one_at_a_time_as_there_is_one_gpu(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A relief fly-over and a design's sandboxed pass never share the GPU:
+    the second waits, rather than finding it full and failing."""
+    slow = tmp_path / "blender"
+    slow.write_text(SLOW_BLENDER, encoding="utf-8")
+    slow.chmod(0o755)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    with ThreadPoolExecutor(2) as pool:
+        runs = [pool.submit(run.run_script, BUILD_SCRIPT, [name], str(slow)) for name in "ab"]
+        for each in runs:
+            each.result()
+    log = (tmp_path / "runs").read_text(encoding="utf-8").split()[::2]
+    assert log == ["start", "end", "start", "end"]
 
 
 # Stands in for both passes of a design run: pass 1 reports over its results

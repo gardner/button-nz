@@ -4,7 +4,7 @@ serve, survey and map, with LINZ and LiDAR faked (test_sites_build)."""
 import json
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,6 +24,7 @@ from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
+from button_nz.relief.run import Tier
 from button_nz.sites.progress import read_progress
 from button_nz.sites.registry import (
     DEMO_ADDRESS_ID,
@@ -46,6 +47,7 @@ class Server:
         cap: int | None = None,
         model: Callable[[], Model] = scripted,
         runner: Runner = fake_runner,
+        relief_tiers: Sequence[Tier] = (),  # none, unless a test makes relief views
     ) -> None:
         self.store = Store(tmp_path / "button.db")
         self.sites_store = SiteStore(tmp_path / "button.db")
@@ -65,7 +67,9 @@ class Server:
         daily = (
             None if cap is None else DailyCap(self.sites_store.created_since, cap, "site builds")
         )
-        service = SiteService(sites, self.builder, found.addresses, daily, parcels=found.parcels)
+        service = SiteService(
+            sites, self.builder, found.addresses, daily, found.parcels, relief_tiers
+        )
         self.sites = sites
         self.worker = Worker(
             self.store, synthetic_site, model, tmp_path / "runs", runner, site_for=sites.design_site

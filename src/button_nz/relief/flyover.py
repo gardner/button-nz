@@ -21,6 +21,10 @@ from button_nz.relief.parallax import BACKGROUND, WALL_SHADE
 
 SCRIPT = Path(__file__).parents[1] / "blender_worker" / "relief_flyover.py"
 SENSOR_MM = 36.0
+# Blender's inputs and the frames it renders, beside the clip: an editor's,
+# about 100 MB a site, which the app doesn't keep (``api.relief``).
+INPUT_DIR, FRAMES_DIR = "flyover-input", "flyover-frames"
+WORK_DIRS = (INPUT_DIR, FRAMES_DIR)
 
 
 @dataclass(frozen=True)
@@ -44,7 +48,7 @@ def render_flyover(
     timeout_s: float = 900.0,
 ) -> list[Path]:
     """Render the fly-over's frames into ``out_dir/flyover-frames``, in order."""
-    inputs, frames_dir = out_dir / "flyover-input", out_dir / "flyover-frames"
+    inputs, frames_dir = out_dir / INPUT_DIR, out_dir / FRAMES_DIR
     for directory in (inputs, frames_dir):
         shutil.rmtree(directory, ignore_errors=True)
         directory.mkdir(parents=True)

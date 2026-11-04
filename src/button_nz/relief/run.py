@@ -52,10 +52,10 @@ def run_relief(relief: SiteRelief, out_dir: Path, tiers: Sequence[Tier]) -> list
     """Run ``tiers`` in order into ``out_dir``; the final manifest's tiers."""
     out_dir.mkdir(parents=True, exist_ok=True)
     entries: list[dict[str, Any]] = [{"tier": tier.name, "status": "pending"} for tier in tiers]
-    _publish(out_dir, entries)
+    publish(out_dir, entries)
     for tier, entry in zip(tiers, entries, strict=True):
         entry["status"] = "running"
-        _publish(out_dir, entries)
+        publish(out_dir, entries)
         started = time.perf_counter()
         try:
             output = tier.make(relief, out_dir)
@@ -64,14 +64,15 @@ def run_relief(relief: SiteRelief, out_dir: Path, tiers: Sequence[Tier]) -> list
         else:
             entry.update(status="ready", files=dict(output.files), facts=dict(output.facts))
         entry["seconds"] = round(time.perf_counter() - started, 3)
-        _publish(out_dir, entries)
+        publish(out_dir, entries)
     failed = [f"{e['tier']}: {e['error']}" for e in entries if e["status"] == "failed"]
     if failed:
         raise ReliefFailed("; ".join(failed))
     return entries
 
 
-def _publish(out_dir: Path, entries: list[dict[str, Any]]) -> None:
+def publish(out_dir: Path, entries: list[dict[str, Any]]) -> None:
+    """``entries`` as the manifest in ``out_dir``, written whole."""
     partial = out_dir / f"{MANIFEST}.partial"  # a reader never sees half a manifest
     partial.write_text(json.dumps({"tiers": entries}, indent=1), encoding="utf-8")
     partial.replace(out_dir / MANIFEST)
