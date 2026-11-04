@@ -37,6 +37,7 @@ SITE_LIMIT_S = 900  # a site never built before: parcels, LiDAR, aerial, the SAM
 PLACE = re.compile(r"^Place the (.+) on the site$")
 DESIGN_LIMIT_S = 1200
 VISUAL_LIMIT_S = 180
+RELIEF_LIMIT_S = 900  # the server may queue the fly-over, then render it this long
 
 
 @dataclass(frozen=True)
@@ -192,7 +193,7 @@ def see_in_3d(run: Run) -> None:
     page = run.page
     page.get_by_role("button", name="See it in 3D").click()
     flyover = page.get_by_label("Your site, fly-over")
-    flyover.wait_for(timeout=120_000)  # Blender renders it if no one has asked before
+    flyover.wait_for(timeout=RELIEF_LIMIT_S * 1000)  # Blender renders it if not cached
     centre(flyover)
     run.cast.mark("the site in 3D: its aerial photo on its own LiDAR")
     page.wait_for_timeout(8000)  # the 4 s loop, twice

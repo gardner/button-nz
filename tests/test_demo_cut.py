@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from demo.cut import (
     BACKGROUND,
     INTRO_CAPTION,
+    Beat,
     CardLine,
     Plan,
     Segment,
@@ -238,3 +239,8 @@ def test_a_headline_at_the_bottom_leaves_the_middle_of_the_frame_clear() -> None
     centred = headlined(white, lines, 1, _font)
     assert _rgb(low, (320, 300)) > _rgb(centred, (320, 300))  # no panel over the middle
     assert _rgb(low, (320, 500))[0] < 60  # the panel is low down
+
+
+def test_a_beat_without_a_headline_is_refused_when_the_plan_loads() -> None:
+    with pytest.raises(ValidationError):
+        Beat.model_validate({"start": 1.0, "end": 2.0, "speed": 1, "lines": []})

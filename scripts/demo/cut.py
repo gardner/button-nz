@@ -67,7 +67,7 @@ class Beat(BaseModel):
     start: float = Field(ge=0)
     end: float
     speed: int = Field(ge=1)
-    lines: list[CardLine]
+    lines: list[CardLine] = Field(min_length=1)
     at: Place = "centre"
 
     @model_validator(mode="after")
