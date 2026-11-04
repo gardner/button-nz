@@ -144,6 +144,18 @@ and is then left out.
  "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
 ```
 
+**`--narrated`** leaves the narration off the footage (headlines, segment
+captions, facts) for a voice-over. It keeps the red speed label, a still's
+caption and the intro's "not the live run" caption, so how fast a part plays
+and where footage came from are never left unsaid. The cards stay. **`--srt PATH`** writes every
+word the cut would show as SubRip subtitles, timed to the cut, to read the
+narration from or to ship alongside the video:
+
+```bash
+uv run python scripts/demo/cut.py out/demo-raw.webm out/demo.mp4 --plan out/plan.json \
+  --outro out/outro.json --narrated --srt out/demo.srt
+```
+
 **`--preview`** cuts a quick draft: half size, x264 `ultrafast`. The final cut leaves it out.
 
 An opening item may also be a **still**: `{"image": PATH, "seconds": 1.5,
