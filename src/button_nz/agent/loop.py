@@ -149,7 +149,8 @@ def design(
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     places = describe_frontages(site.frontages, local) + describe_room(site.context, local)
-    prompt = system_prompt(site.scene, keep_clear, buildings, places)
+    fixed = product is not None
+    prompt = system_prompt(site.scene, keep_clear, buildings, places, fixed_footprint=fixed)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
     scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     conversation = [Turn("system", prompt), Turn("user", asked)]
