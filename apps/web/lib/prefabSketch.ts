@@ -196,7 +196,9 @@ const ROOFS: Record<RoofForm, Build> = {
       roofPlane("away", [[0, 0, h], [l, 0, h], ridge[1], ridge[0]]),
       roofPlane("hip", [[0, w, h], [0, 0, h], ridge[0]]),
       roofPlane("hip", [[l, 0, h], [l, w, h], ridge[1]]),
-      roofPlane("toward", [[0, w, h], ridge[0], ridge[1], [l, w, h]]),
+      // Starts at the eaves: on a square plan the ridge is a point, and its
+      // first three corners must still span the plane.
+      roofPlane("toward", [[l, w, h], [0, w, h], ridge[0], ridge[1]]),
     ];
   },
   flat: (l, w, h) => [

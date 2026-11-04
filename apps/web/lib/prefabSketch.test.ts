@@ -53,6 +53,16 @@ describe("a prefab's sketch", () => {
     expect(flat.faces.filter((f) => f.part === "roof")).toHaveLength(1);
   });
 
+  it("draws every slope of a square hip roof, whose ridge is a point", () => {
+    const square = drawn({
+      ...VISTA,
+      lengthM: 7.2,
+      widthM: 7.2,
+      appearance: { ...VISTA.appearance, roofForms: ["hip"] },
+    });
+    expect(square.faces.filter((f) => f.part === "roof")).toHaveLength(4);
+  });
+
   it("hides a slope turned away from the viewer", () => {
     const steep = drawn({
       ...NILE,
