@@ -363,3 +363,21 @@ builds from the score files. Medians of six seeds:
   fixes placement and scale, but after alignment its roof is no better.
 - Roofer, a conventional reconstruction from the same points, is more than
   ten times as accurate, so SAM 3D models don't go into the app's 3D view.
+
+## Relief views: the photo made 3D by its own LiDAR (`button_nz.bench.relief`, #149)
+
+**On the demo site** ([report](relief/report.md), code 54ad6d5). The aerial
+and the 1 m DSM share a grid, so every view is measured: no depth is
+estimated and nothing is generated. Times count from when the site's data
+is in memory (reading it from LINZ took 5.2 s first), on one RTX 5090.
+
+| Tier | What it is | Ready after (s) |
+|---|---|---|
+| depth | the DSM on the photo's pixels, as a 16-bit depth map for video editors | 0.08 |
+| parallax | the photo lifted onto its heights, a 4 s tilt-and-sway clip (numpy, no GPU) | 2.09 |
+| flyover | the photo draped on the DSM in Blender, a 4 s fly-over at 1280 x 720 | 9.84 |
+
+So an owner can see the photo stand up in 3D in about 2 s, and the
+fly-over replaces it within 10 s. A photo taken straight down never saw a
+wall: walls are the roof edge's colour stretched down and shaded darker, and
+trees look moulded rather than leafy, at the LiDAR's 1 m.

@@ -1,0 +1,30 @@
+{
+ "code": "54ad6d5",
+ "tiers": [
+  {
+   "tier": "depth",
+   "status": "ready",
+   "facts": {
+    "low_m": 0.0018834471702575684,
+    "high_m": 16.802452266216278
+   },
+   "seconds": 0.083
+  },
+  {
+   "tier": "parallax",
+   "status": "ready",
+   "facts": {
+    "frames": 60.0
+   },
+   "seconds": 2.008
+  },
+  {
+   "tier": "flyover",
+   "status": "ready",
+   "facts": {
+    "frames": 96.0
+   },
+   "seconds": 7.75
+  }
+ ]
+}

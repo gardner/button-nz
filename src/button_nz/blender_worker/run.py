@@ -85,6 +85,14 @@ def build_scene(
     return out
 
 
+def run_script(
+    script: Path, args: Sequence[str], blender: str = "blender", timeout_s: float = 900.0
+) -> None:
+    """Run one of our own (trusted) Blender ``script``s headless, unsandboxed,
+    as ``build_scene`` does: its outputs are the caller's to check."""
+    _run_blender(blender, script, args, timeout_s)
+
+
 def run_design(
     scene: SceneInput,
     script: str,
