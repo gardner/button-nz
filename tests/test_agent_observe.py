@@ -9,7 +9,7 @@ from shapely import Polygon
 from button_nz.agent.conversation import Observe
 from button_nz.agent.loop import DesignSite
 from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe, standard_views
-from button_nz.agent.room import describe_room
+from button_nz.agent.room import describe_room, room_of
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
@@ -286,3 +286,27 @@ def test_a_room_with_a_hole_says_the_ground_given_includes_it(site: DesignSite) 
     assert "the areas cut out of it included" in whole
     assert "the areas cut out of it included" in label
     assert "ground z from 0.15 to 3.75" in whole
+
+
+def test_the_whole_room_includes_its_slivers_and_says_they_are_not_listed(
+    site: DesignSite,
+) -> None:
+    """A kept strip from x 2.05 m leaves a sliver about 5 cm wide by the west
+    setback line (x 2 m): under 1 m², it gets no numbers of its own, but the
+    whole room's area and range include it (its ground is the lowest, z 0.15)."""
+    strip: Ring = (
+        (1002.05, 1990.0),
+        (1004.0, 1990.0),
+        (1004.0, 2030.0),
+        (1002.05, 2030.0),
+        (1002.05, 1990.0),
+    )
+    kept = replace(site, context=replace(site.context, preservation_areas=(strip,)))
+    context = kept.context
+    room = room_of(context.parcels, context.confirmed_buildings, context.preservation_areas)
+    (part,) = [o.text for _, o in standard_views(kept) if "room, part" in o.text]
+    whole = part.splitlines()[0]
+    assert f"{room.area:.0f} m²" in whole  # as the prompt gives it
+    assert "ground z from 0.15" in whole
+    assert "parts under 1 m² not listed" in whole
+    assert "part 1 of 1" in part

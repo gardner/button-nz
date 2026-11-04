@@ -45,7 +45,7 @@ _EPS = 1e-9
 SCALE = 8  # pixels per metre cell
 PROFILE_SAMPLES = 41  # at most this many cross-section heights in the text
 HEIGHTS = ("min_m", "max_m", "mean_m")  # NZVD2016 in the views' facts; shown as script z
-MIN_PART_M2 = 1.0  # room slivers smaller than this are left out of the ground given
+MIN_PART_M2 = 1.0  # room slivers smaller than this get no ground numbers of their own
 
 
 class ObservationError(ValueError):
@@ -145,26 +145,29 @@ def _under_rectangles(
 
 
 def _under_room(site: DesignSite, room: BaseGeometry) -> list[tuple[Observe, Observation]]:
-    """The ground under each part of the room (those of ``MIN_PART_M2`` or
-    more), largest first, the first headed by the range over all of them."""
-    parts = sorted(
-        (p for p in shapely.get_parts(room) if isinstance(p, Polygon) and p.area >= MIN_PART_M2),
+    """The ground under each part of the room of ``MIN_PART_M2`` or more,
+    largest first, the first headed by the range over the whole room, its
+    smaller slivers included."""
+    every = sorted(
+        (p for p in shapely.get_parts(room) if isinstance(p, Polygon)),
         key=lambda p: p.area,
         reverse=True,
     )
+    parts = [p for p in every if p.area >= MIN_PART_M2]
     if not parts:
         return []
     # An observation's polygon has no holes: the ground is taken inside each
     # part's outline, any areas cut out of it included, and the range over the
     # whole room is the same ground's, so it agrees with the parts' numbers.
-    outlines = [Polygon(part.exterior) for part in parts]
-    holed = "; the areas cut out of it included" if any(p.interiors for p in parts) else ""
+    outlines = [Polygon(part.exterior) for part in every]
+    notes = "; the areas cut out of it included" if any(p.interiors for p in every) else ""
+    if len(parts) < len(every):
+        notes += f"; parts under {MIN_PART_M2:g} m² not listed below"
     datum = site.scene["frame"]["datum_m"]
     lows, highs = zip(*(ground_range(o, site.context.terrain) for o in outlines), strict=True)
-    area = sum(p.area for p in parts)
     whole = (
-        f"Over the whole room for a dwelling ({area:.0f} m² inside the setbacks, 2 m from "
-        f"the listed buildings, off the kept areas{holed}): ground z from "
+        f"Over the whole room for a dwelling ({room.area:.0f} m² inside the setbacks, 2 m "
+        f"from the listed buildings, off the kept areas{notes}): ground z from "
         f"{min(lows) - datum:.2f} to {max(highs) - datum:.2f}."
     )
     given: list[tuple[Observe, Observation]] = []
