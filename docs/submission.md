@@ -67,6 +67,10 @@ The final take (`record.py`, updated for the map-first page in #97):
 - views the design in 3D, revises it, and shows before and after;
 - shows the real prefabs that fit, and places the largest on the site.
 
+`cut.py --intro` can open the cut on the demo site's relief fly-over (#149):
+its LINZ aerial photo draped on its own LiDAR, made by
+`python -m button_nz.bench.relief`, and captioned as not the live run.
+
 Earlier takes showed the team's survey decisions, captioned as such; the
 owner says those are wrong for this site, so the submission's video is the
 final take.
