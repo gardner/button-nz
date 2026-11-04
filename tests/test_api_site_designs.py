@@ -16,6 +16,7 @@ from shapely.geometry.base import BaseGeometry
 
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput
+from button_nz.catalogue.products import Appearance
 from button_nz.sites.registry import DEMO_SITE_ID
 from meshes import box
 from test_api import ScriptedModel
@@ -264,3 +265,33 @@ def test_only_a_few_design_sites_are_kept_in_memory(
     assert read.count("site-0") == 2
     sites.design_site(f"site-{module.DESIGN_SITES_KEPT + 1}")  # the newest: still kept
     assert read.count(f"site-{module.DESIGN_SITES_KEPT + 1}") == 1
+
+
+def test_a_designs_map_carries_the_finishes_its_render_used(tmp_path: Path) -> None:
+    """The map paints the design as the render did, in sRGB hex: a bespoke
+    design in the default finishes, a placed product in its own (its scene
+    records them), and an older scene that recorded none in the defaults."""
+    server, site_id = designing(tmp_path)
+    job = design(server, site_id)
+
+    def finishes() -> dict[str, str]:
+        found: dict[str, str] = server.client.get(f"/designs/{job['id']}/map").json()["finishes"]
+        return found
+
+    assert finishes() == {"walls": "#e7e1d3", "roof": "#454b50"}
+    scene_path = tmp_path / "runs" / job["id"] / "attempt-1" / "scene.json"
+    scene = json.loads(scene_path.read_text())
+    cedar = Appearance(
+        roof_forms=("gable",),
+        roof_pitch_deg=None,
+        walls="#b98a5e",
+        roof="#3a3d40",
+        walls_texture="white_planks_clean",
+        roof_texture="corrugated_iron",
+        basis="illustrative",
+    )
+    scene_path.write_text(json.dumps({**scene, "dwelling_finishes": cedar.finishes()}))
+    assert finishes() == {"walls": "#b98a5e", "roof": "#3a3d40"}
+    scene.pop("dwelling_finishes", None)
+    scene_path.write_text(json.dumps(scene))
+    assert finishes() == {"walls": "#e7e1d3", "roof": "#454b50"}

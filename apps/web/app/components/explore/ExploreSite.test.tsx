@@ -550,13 +550,13 @@ describe("a ready site", () => {
     const walls = paint("design-walls-extrusion");
     const roof = paint("design-outline-extrusion");
     const height = ["-", ["get", "heightM"], ["get", "baseM"]];
-    // The design's own finishes (the Blender worker's, in sRGB), opaque.
+    // In the finishes its render used (the map says which), opaque.
     expect(walls).toMatchObject({
-      "fill-extrusion-color": "#e7e1d3",
+      "fill-extrusion-color": "#b98a5e",
       "fill-extrusion-opacity": 1,
     });
     expect(roof).toMatchObject({
-      "fill-extrusion-color": "#454b50",
+      "fill-extrusion-color": "#3a3d40",
       "fill-extrusion-opacity": 1,
     });
     // Stacked, not overlapping: the walls stop where the roof starts, below
