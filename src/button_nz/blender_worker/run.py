@@ -8,6 +8,10 @@ On NVIDIA machines, Blender only sees GPUs with at least ``MIN_FREE_GPU_MIB``
 free (other processes, such as a local model server, may hold a whole card),
 unless ``CUDA_VISIBLE_DEVICES`` already says which to use. Without
 ``nvidia-smi``, the choice is Blender's own; it still fails without a GPU.
+
+There is one GPU, so this process runs one Blender at a time (``ONE_GPU``):
+a relief fly-over and a design's pass wait for each other rather than one
+finding the GPU full and failing.
 """
 
 import json
@@ -35,6 +39,7 @@ MIN_FREE_GPU_MIB = 4096
 RESULT_LIMIT_BYTES = 256 << 20  # the most pass 1 may send back: its design file
 OUTPUT_TAIL_BYTES = 64 << 10  # Blender's output kept for error messages
 TOO_BIG = "Your saved design is over {mb} MB. Keep the geometry simple."
+ONE_GPU = threading.Lock()  # held for the whole of each Blender run
 GARBLED = "Your script wrote to the design run's results channel. Don't write to it."
 
 
@@ -241,8 +246,21 @@ def _run_blender(
     sandbox: Sandbox | None = None,
     pass_fds: Sequence[int] = (),
 ) -> None:
-    """Run ``script`` in Blender, in ``sandbox`` if given. Only the last
-    ``OUTPUT_TAIL_BYTES`` of its output are kept, however much it prints."""
+    """Run ``script`` in Blender, in ``sandbox`` if given, once no other Blender
+    in this process is running. Only the last ``OUTPUT_TAIL_BYTES`` of its
+    output are kept, however much it prints."""
+    with ONE_GPU:  # the GPUs are chosen once the last run has let go of them
+        _run_alone(blender, script, args, timeout_s, sandbox, pass_fds)
+
+
+def _run_alone(
+    blender: str,
+    script: Path,
+    args: Sequence[str],
+    timeout_s: float,
+    sandbox: Sandbox | None,
+    pass_fds: Sequence[int],
+) -> None:
     command = [blender, "-b", "--factory-startup", "--python-exit-code", "1"]
     command += ["--python", str(script), "--", *args]
     env = dict(os.environ)

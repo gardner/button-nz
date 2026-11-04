@@ -6,6 +6,7 @@
     GET  /sites/{id}/aerial.png          its aerial photo
     GET  /sites/{id}/map                 its map layers, in lon/lat (``sites.layers``)
     GET  /sites/{id}/progress            what its build has found so far (``api.progress``)
+    POST /sites/{id}/relief              its relief views, made when asked for (``api.relief``)
 
 and its survey under ``/sites/{id}/features`` (``api.features``). The demo
 site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
@@ -14,10 +15,10 @@ site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
 import json
 import threading
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any, Self
 
@@ -31,6 +32,7 @@ from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.limits import DailyCap
 from button_nz.api.progress import progress_router
+from button_nz.api.relief import ReliefMaker, relief_router, site_relief
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
 from button_nz.demo_site import DemoSite, load_demo_site, site_title
@@ -39,6 +41,7 @@ from button_nz.geo.geometry import BBox
 from button_nz.geo.property import find_address
 from button_nz.perception.confirm import effective
 from button_nz.perception.survey import SURVEY_FILE
+from button_nz.relief.run import TIERS, Tier
 from button_nz.sites.build import SiteError, title_site_name
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
 from button_nz.sites.progress import BuildProgress
@@ -165,13 +168,15 @@ class Sites:
 @dataclass(frozen=True)
 class SiteService:
     """Everything the sites routes need: the sites, their builder, LINZ's
-    addresses, and the cap on builds a day (None: no cap)."""
+    addresses, the cap on builds a day (None: no cap), and the relief tiers
+    a ready site's views are made of."""
 
     sites: Sites
     builder: SiteBuilder
     addresses: FeatureLayer
     cap: DailyCap | None = None
     parcels: FeatureLayer | None = None  # LINZ NZ Primary Parcels: starting from a section
+    relief_tiers: Sequence[Tier] = TIERS
 
 
 def sites_router(service: SiteService, store: Store) -> APIRouter:
@@ -217,6 +222,8 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
 
     router.include_router(_terrain_router(sites))
     router.include_router(progress_router(sites))
+    relief = ReliefMaker(sites.sites_dir, partial(site_relief, sites), service.relief_tiers)
+    router.include_router(relief_router(sites, relief))
     return router
 
 
