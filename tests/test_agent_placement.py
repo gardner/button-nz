@@ -19,6 +19,7 @@ from button_nz.agent.placement import (
     TARGET_MARGIN_M,
     Placement,
     describe_placements,
+    floor_range_text,
     least_ground_range,
     solve,
 )
@@ -339,3 +340,11 @@ def test_a_finer_angle_step_finds_a_plan_turned_to_contours_between_the_coarse_o
     fine = least_ground_range(site, 15.0, 4.2, angle_step_deg=2.5)
     assert coarse is not None and fine is not None
     assert coarse > MAX_FLOOR_ABOVE_GROUND_M >= fine
+
+
+def test_a_narrow_floor_range_is_printed_finely_enough_to_hold_a_passing_level() -> None:
+    assert floor_range_text(0.24, 1.23) == "0.24 to 1.23"
+    assert floor_range_text(0.2401, 1.2299) == "0.25 to 1.22"  # drawn in: both pass
+    text = floor_range_text(101.002, 101.004)  # to the cm it would be 101.01 to 101.00
+    low, high = (float(v) for v in text.split(" to "))
+    assert 101.002 <= low <= high <= 101.004

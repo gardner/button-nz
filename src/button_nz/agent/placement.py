@@ -394,11 +394,21 @@ def _placement_text(placement: Placement, local: Callable[[Point], Point], datum
         for k, name in names.items()
         if k in placement.clearances
     )
-    low = math.ceil((placement.floor_range_m[0] - datum) * 100 - _EPS) / 100
-    high = math.floor((placement.floor_range_m[1] - datum) * 100 + _EPS) / 100
+    low, high = (level - datum for level in placement.floor_range_m)
     return (
         f"centre ({centre[0]:.2f}, {centre[1]:.2f}), long walls at "
         f"{placement.angle_deg:.1f}° from the x axis: "
         + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in corners)
-        + f"; {clear}; floor underside at z {low:.2f} to {high:.2f}."
+        + f"; {clear}; floor underside at z {floor_range_text(low, high)}."
     )
+
+
+def floor_range_text(low: float, high: float) -> str:
+    """``low`` to ``high``, each drawn in to the centimetre so both printed
+    levels pass, or as finely as it takes for the range to hold one."""
+    for places in range(2, 7):
+        scale = 10**places
+        inner = math.ceil(low * scale - _EPS) / scale, math.floor(high * scale + _EPS) / scale
+        if inner[0] <= inner[1]:
+            return f"{inner[0]:.{places}f} to {inner[1]:.{places}f}"
+    return f"{low:.6f} to {high:.6f}"
