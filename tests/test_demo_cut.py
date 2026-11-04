@@ -28,6 +28,7 @@ from demo.cut import (
     segment_frame,
     segment_frames,
     speed_label,
+    srt,
 )
 
 WHITE = (255, 255, 255)
@@ -287,3 +288,43 @@ def test_a_segment_frame_without_a_fact_is_only_captioned() -> None:
     shown = segment_frame(white, Segment(start=0, end=1, speed=1, caption="c"), _font)
     assert _rgb(shown, (5, 200)) == WHITE  # not darkened
     assert _rgb(shown, (5, 390))[0] < 80  # the caption band (75% black over white)
+
+
+def test_srt_numbers_its_cues_and_times_them_by_frame() -> None:
+    text = srt([(0, 15, "The problem"), (15, 45, "Muse writes\n65% have room")], 15)
+    assert text == (
+        "1\n00:00:00,000 --> 00:00:01,000\nThe problem\n\n"
+        "2\n00:00:01,000 --> 00:00:03,000\nMuse writes\n65% have room\n"
+    )
+
+
+def test_a_narrated_segment_frame_has_no_text_but_keeps_its_speed_label() -> None:
+    white = Image.new("RGB", (640, 400), WHITE)
+    fact = CardLine(text="65% have room", size=20)
+    seg = Segment(start=0, end=1, speed=20, caption="Muse writes", lines=[fact])
+    shown = segment_frame(white, seg, _font, narrated=True)
+    assert _rgb(shown, (5, 200)) == WHITE  # no fact panel, not darkened
+    assert _rgb(shown, (5, 390)) == WHITE  # no caption band
+    red = _rgb(shown, (600, 30))
+    assert red[0] > 150 and red[1] < 120  # the speed label stays: it's about honesty
+
+
+def test_a_narrated_cut_writes_its_words_as_subtitles(tmp_path: Path) -> None:
+    raw, out, subs = tmp_path / "raw.mp4", tmp_path / "cut.mp4", tmp_path / "cut.srt"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [
+                {"start": 1.0, "end": 2.0, "speed": 1, "lines": [{"text": "Why", "size": 8}]}
+            ],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "How"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15, narrated=True, subtitles=subs)
+    assert _frames(out) == (15 + 15 + 105, (64, 48))
+    cues = subs.read_text().split("\n\n")
+    assert cues[0] == "1\n00:00:00,000 --> 00:00:01,000\nWhy"
+    assert cues[1] == "2\n00:00:01,000 --> 00:00:02,000\nHow"
+    assert cues[2].startswith("3\n00:00:02,000 --> 00:00:09,000\nx")  # the closing card

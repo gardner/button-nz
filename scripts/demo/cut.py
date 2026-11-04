@@ -11,7 +11,7 @@ caller's, taken from real reports. See README.md for both formats.
 """
 
 import argparse
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Literal, Self
 
@@ -213,9 +213,15 @@ def resampled(frames: int, fps_in: float, fps_out: int) -> list[int]:
     return [int(i * fps_in / fps_out) for i in range(shown)]
 
 
-def segment_frame(image: Image.Image, segment: Segment, fonts: Fonts) -> Image.Image:
+def segment_frame(
+    image: Image.Image, segment: Segment, fonts: Fonts, narrated: bool = False
+) -> Image.Image:
     """A frame of ``segment``: under its fact, if it has one (darkened, the
-    label left to the caption), then captioned with its speed label once."""
+    label left to the caption), then captioned with its speed label once.
+    Narrated, its words are spoken instead (the subtitles), so only the
+    speed label is drawn: how fast it plays is never left unsaid."""
+    if narrated:
+        return labelled(image.convert("RGB"), segment.speed, fonts)
     shown = headlined(image, segment.lines, 1, fonts) if segment.lines else image
     return captioned(shown, segment.caption, segment.speed, fonts)
 
@@ -256,7 +262,10 @@ class Mp4:
         self.stream.pix_fmt = "yuv420p"
         self.stream.options = {"crf": "20", "preset": "medium"}
 
+    frames = 0  # written so far: where the next frame falls in the cut
+
     def write(self, image: Image.Image, times: int = 1) -> None:
+        self.frames += times
         frame = av.VideoFrame.from_ndarray(np.asarray(image.convert("RGB")), format="rgb24")
         for _ in range(times):
             self._mux(frame)
@@ -268,21 +277,27 @@ class Mp4:
         self.sink.mux(self.stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
 
 
-def write_beat(mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int) -> None:
+def write_beat(
+    mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int, narrated: bool = False
+) -> None:
     """An opening beat: its span of ``raw``, read on its own, headlined."""
     span = Segment(start=beat.start, end=beat.end, speed=beat.speed, caption="")
     with av.open(str(raw)) as source:
         for image in pick(raw_images(source), segment_frames(span, fps)):
-            mp4.write(headlined(image, beat.lines, beat.speed, fonts, beat.at))
+            shown = labelled(image.convert("RGB"), beat.speed, fonts) if narrated else None
+            mp4.write(shown or headlined(image, beat.lines, beat.speed, fonts, beat.at))
 
 
-def write_intro(mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int) -> None:
+def write_intro(
+    mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int, narrated: bool = False
+) -> None:
     """The intro clip, fitted to ``size`` at ``fps``, every frame captioned."""
     with av.open(str(intro)) as source:
         rate = source.streams.video[0].average_rate
         images = list(raw_images(source))
     for index in resampled(len(images), float(rate), fps):
-        mp4.write(captioned(fitted(images[index], size), INTRO_CAPTION, 1, fonts))
+        frame = fitted(images[index], size)
+        mp4.write(frame if narrated else captioned(frame, INTRO_CAPTION, 1, fonts))
 
 
 def cut(
@@ -293,25 +308,68 @@ def cut(
     fonts: Fonts,
     fps: int,
     intro: Path | None = None,
+    narrated: bool = False,
+    subtitles: Path | None = None,
 ) -> None:
     """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order,
-    for the segments, and once more, on its own, for each opening beat."""
+    for the segments, and once more, on its own, for each opening beat.
+
+    ``narrated``: no words over the footage (headlines, captions, facts),
+    only the speed label; the words go to ``subtitles`` (SRT), timed to the
+    cut, for a voice-over. The cards stay."""
+    cues: list[Cue] = []
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
         mp4 = Mp4(sink, size, fps)
         for beat in plan.opening:
-            write_beat(mp4, raw, beat, fonts, fps)
+            start = mp4.frames
+            write_beat(mp4, raw, beat, fonts, fps, narrated)
+            cues.append((start, mp4.frames, _words(beat.lines)))
         if plan.title:
+            cues.append((mp4.frames, mp4.frames + 4 * fps, _words(plan.title)))
             mp4.write(card(plan.title, size, fonts), 4 * fps)
         if intro is not None:
-            write_intro(mp4, intro, size, fonts, fps)
+            start = mp4.frames
+            write_intro(mp4, intro, size, fonts, fps, narrated)
+            cues.append((start, mp4.frames, INTRO_CAPTION))
         plan_shots = shots(plan, fps)
         shown = pick(raw_images(source), [index for index, _ in plan_shots])
         for image, (_, segment) in zip(shown, plan_shots, strict=False):
-            mp4.write(segment_frame(image, segment, fonts))
+            text = "\n".join(filter(None, [segment.caption, _words(segment.lines)]))
+            if cues and cues[-1][2] == text and cues[-1][1] == mp4.frames:
+                cues[-1] = (cues[-1][0], mp4.frames + 1, text)  # one cue, not a cue a frame
+            else:
+                cues.append((mp4.frames, mp4.frames + 1, text))
+            mp4.write(segment_frame(image, segment, fonts, narrated))
+        cues.append((mp4.frames, mp4.frames + 7 * fps, _words(outro)))
         mp4.write(card(outro, size, fonts), 7 * fps)
         mp4.flush()
+    if subtitles is not None:
+        subtitles.write_text(srt([c for c in cues if c[2]], fps), encoding="utf-8")
+
+
+type Cue = tuple[int, int, str]
+"""Words shown or spoken from one frame of the cut up to another."""
+
+
+def srt(cues: Sequence[Cue], fps: int) -> str:
+    """``cues`` as SubRip subtitles, each timed by its frames at ``fps``."""
+
+    def stamp(frame: int) -> str:
+        ms = round(frame * 1000 / fps)
+        return (
+            f"{ms // 3_600_000:02d}:{ms // 60_000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+        )
+
+    return "\n".join(
+        f"{n}\n{stamp(a)} --> {stamp(b)}\n{text}\n" for n, (a, b, text) in enumerate(cues, 1)
+    )
+
+
+def _words(lines: Sequence[CardLine]) -> str:
+    """A card's or headline's words, one line each, without the spacers."""
+    return "\n".join(line.text for line in lines if line.text)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -324,12 +382,26 @@ def main(argv: list[str] | None = None) -> None:
         "--intro", type=Path, help="a clip after the title, e.g. the relief fly-over's MP4"
     )
     parser.add_argument("--fps", type=int, default=15, help="the raw recording's frame rate")
+    parser.add_argument(
+        "--narrated", action="store_true", help="no words over the footage: they go to --srt"
+    )
+    parser.add_argument("--srt", type=Path, help="write the cut's words as subtitles, timed")
     parser.add_argument("--sans", type=Path, default=SANS)
     parser.add_argument("--bold", type=Path, default=BOLD)
     args = parser.parse_args(argv)
     fonts = truetype(args.sans, args.bold)
     plan, outro = load_plan(args.plan), load_card(args.outro)
-    cut(args.raw, args.out, plan, outro, fonts, args.fps, intro=args.intro)
+    cut(
+        args.raw,
+        args.out,
+        plan,
+        outro,
+        fonts,
+        args.fps,
+        intro=args.intro,
+        narrated=args.narrated,
+        subtitles=args.srt,
+    )
 
 
 if __name__ == "__main__":
