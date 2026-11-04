@@ -63,7 +63,7 @@ class RunResult:
     executed: int  # attempts whose script built a measurable Dwelling (the evaluator judged)
     accepted: bool  # no check failed on the final attempt
     repaired: bool  # accepted after a first attempt that wasn't
-    observations: int
+    observations: int  # the views it asked for; those given with the brief aren't counted
     verdicts: tuple[str, ...]  # each attempt's pass, fail, unknown, rejected or error
     seconds: float
     error: str | None  # why the run couldn't complete, if it couldn't
@@ -141,7 +141,7 @@ def _measured(
         executed=sum(a.judged for a in attempts),
         accepted=accepted is not None,
         repaired=accepted is not None and accepted is not attempts[0],
-        observations=sum(len(a.observations) for a in attempts),
+        observations=sum(len(a.observations) - a.given for a in attempts),  # asked for
         verdicts=tuple(_verdict(a) for a in attempts),
         seconds=seconds,
         error=None,
