@@ -1,12 +1,15 @@
 """Tests for button_nz.agent.observe: LiDAR observations in the model's local frame."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 from shapely import Polygon
 
 from button_nz.agent.conversation import Observe
 from button_nz.agent.loop import DesignSite
-from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe
+from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe, standard_views
+from button_nz.agent.room import describe_room, room_of
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
@@ -165,3 +168,145 @@ def test_points_on_the_edge_the_model_is_told_are_on_the_terrain(awkward: Design
     square = [[west, -2], [west + 4, -2], [west + 4, 2], [west, 2], [west, -2]]
     inspected = observe(awkward, Observe("inspect_elevation", {"polygon": square}))
     assert "cells" in inspected.text and "mean_slope_deg" in inspected.text
+
+
+def test_the_standard_views_are_the_shape_what_stands_on_it_and_a_profile(
+    site: DesignSite,
+) -> None:
+    views = standard_views(site)
+    assert [(request.tool, dict(request.arguments)) for request, _ in views][:3] == [
+        ("render_hillshade", {}),
+        ("render_contours", {"interval_m": 0.25}),
+        ("render_height_map", {"mode": "above_ground"}),
+    ]
+    assert [request.tool for request, _ in views][3:] == [
+        "render_cross_section",
+        "inspect_elevation",  # the room's one rectangle 3 m wide or more
+        "inspect_elevation",  # the whole room
+    ]
+    for request, observation in views[:4]:  # each exactly as the model asking for it gets it
+        assert observation == observe(site, request)
+        assert observation.png is not None and observation.png.startswith(b"\x89PNG")
+    for request, observation in views[4:]:  # the same numbers, under a label saying where
+        assert observation.png is None
+        assert observation.text.endswith(observe(site, request).text)
+
+
+def test_the_ground_under_each_largest_rectangle_is_given_at_its_printed_corners(
+    site: DesignSite,
+) -> None:
+    """The polygon is the rectangle's corners as the prompt prints them: asking
+    for the same polygon gets the same numbers."""
+    request, observation = standard_views(site)[4]
+    corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in request.arguments["polygon"])
+    assert f"largest rectangle 1, corners {corners}" in observation.text
+    assert corners in describe_room(site.context, site.frame.to_local)
+    assert "relief_m: 3.5" in observation.text  # 35.5 m of ground rising 0.1 m per metre
+
+
+def test_the_ground_range_under_the_whole_room_is_given(site: DesignSite) -> None:
+    """The room spans x -18..18 locally: NZTM x 1002..1038, ground 100.2..103.8 m,
+    so z 0.15..3.75 above the datum (100.05 m)."""
+    _, observation = standard_views(site)[5]
+    assert "the whole room" in observation.text
+    assert "ground z from 0.15 to 3.75" in observation.text
+    assert "part 1 of 1" in observation.text
+
+
+def test_a_room_in_parts_gives_each_part_and_the_range_over_all(site: DesignSite) -> None:
+    """Two sections side by side: the room is split by the line between them."""
+    west: Ring = ((1000.0, 2000.0), (1020.0, 2000.0), (1020.0, 2020.0), (1000.0, 2020.0))
+    east: Ring = ((1020.0, 2000.0), (1040.0, 2000.0), (1040.0, 2020.0), (1020.0, 2020.0))
+    sections = tuple(ring + (ring[0],) for ring in (west, east))
+    split = replace(site, context=replace(site.context, parcels=sections))
+    room = [o.text for _, o in standard_views(split) if "room, part" in o.text]
+    assert len(room) == 2
+    assert "part 1 of 2" in room[0] and "part 2 of 2" in room[1]
+    assert "ground z from 0.15 to 3.75" in room[0]  # over both parts: stated once
+
+
+def test_the_profile_runs_the_length_of_the_rooms_largest_rectangle(site: DesignSite) -> None:
+    """The 40 x 20 m parcel less its 2 m setback is x -18..18, y -8..8 locally,
+    so the profile runs west to east along y = 0, rising 0.1 m per metre."""
+    request, observation = standard_views(site)[3]
+    (x0, y0), (x1, y1) = sorted((request.arguments["start"], request.arguments["end"]))
+    assert y0 == pytest.approx(0, abs=0.5) and y1 == pytest.approx(0, abs=0.5)
+    assert x0 == pytest.approx(-18, abs=0.5) and x1 == pytest.approx(18, abs=0.5)
+    assert "relief_m: 3.5" in observation.text
+
+
+def test_with_no_room_for_a_dwelling_there_is_no_profile(site: DesignSite) -> None:
+    """A 5 m square title has no room inside its 2 m setbacks: no line to draw."""
+    small: Ring = (
+        (1010.0, 2005.0),
+        (1015.0, 2005.0),
+        (1015.0, 2010.0),
+        (1010.0, 2010.0),
+        (1010.0, 2005.0),
+    )
+    tiny = replace(site, context=replace(site.context, parcels=(small,)))
+    assert [request.tool for request, _ in standard_views(tiny)] == [  # and no ground to give
+        "render_hillshade",
+        "render_contours",
+        "render_height_map",
+    ]
+
+
+def test_every_rectangle_given_is_one_the_prompt_lists(site: DesignSite) -> None:
+    """Three sections side by side: room for three rectangles, and the prompt
+    lists each one whose ground comes with the brief, at the same corners."""
+    xs = (1000.0, 1014.0, 1027.0, 1040.0)
+    sections = tuple(
+        ((w, 2000.0), (e, 2000.0), (e, 2020.0), (w, 2020.0), (w, 2000.0))
+        for w, e in zip(xs, xs[1:], strict=False)
+    )
+    thirds = replace(site, context=replace(site.context, parcels=sections))
+    prompt = describe_room(thirds.context, thirds.frame.to_local)
+    given = [r for r, o in standard_views(thirds) if "largest rectangle" in o.text]
+    assert len(given) == 3
+    for request in given:
+        corners = ", ".join(f"({x:.2f}, {y:.2f})" for x, y in request.arguments["polygon"])
+        assert corners in prompt
+
+
+def test_a_room_with_a_hole_says_the_ground_given_includes_it(site: DesignSite) -> None:
+    """A kept area inside the room cuts a hole in it. An observation's polygon
+    has no holes, so the part's numbers and the range over the whole room are
+    both the ground inside its outline, the hole included, and say so."""
+    kept: Ring = (
+        (1018.0, 2008.0),
+        (1022.0, 2008.0),
+        (1022.0, 2012.0),
+        (1018.0, 2012.0),
+        (1018.0, 2008.0),
+    )
+    holed = replace(site, context=replace(site.context, preservation_areas=(kept,)))
+    (part,) = [o.text for _, o in standard_views(holed) if "room, part" in o.text]
+    whole, label = part.splitlines()[:2]
+    assert "the areas cut out of it included" in whole
+    assert "the areas cut out of it included" in label
+    assert "ground z from 0.15 to 3.75" in whole
+
+
+def test_the_whole_room_includes_its_slivers_and_says_they_are_not_listed(
+    site: DesignSite,
+) -> None:
+    """A kept strip from x 2.05 m leaves a sliver about 5 cm wide by the west
+    setback line (x 2 m): under 1 m², it gets no numbers of its own, but the
+    whole room's area and range include it (its ground is the lowest, z 0.15)."""
+    strip: Ring = (
+        (1002.05, 1990.0),
+        (1004.0, 1990.0),
+        (1004.0, 2030.0),
+        (1002.05, 2030.0),
+        (1002.05, 1990.0),
+    )
+    kept = replace(site, context=replace(site.context, preservation_areas=(strip,)))
+    context = kept.context
+    room = room_of(context.parcels, context.confirmed_buildings, context.preservation_areas)
+    (part,) = [o.text for _, o in standard_views(kept) if "room, part" in o.text]
+    whole = part.splitlines()[0]
+    assert f"{room.area:.0f} m²" in whole  # as the prompt gives it
+    assert "ground z from 0.15" in whole
+    assert "parts under 1 m² not listed" in whole
+    assert "part 1 of 1" in part

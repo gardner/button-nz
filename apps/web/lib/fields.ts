@@ -45,6 +45,14 @@ export function text(fields: Fields, key: string): string {
   return asText(fields[key], key);
 }
 
+/** A colour, only ever as `#rrggbb`: it is painted into an SVG or a map. */
+export function colour(fields: Fields, key: string): string {
+  const value = text(fields, key);
+  if (!/^#[0-9a-fA-F]{6}$/.test(value))
+    throw new ApiError(`expected ${key} to be a #rrggbb colour`);
+  return value;
+}
+
 export function number(fields: Fields, key: string): number {
   const value = fields[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {

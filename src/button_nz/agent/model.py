@@ -20,9 +20,12 @@ from PIL import Image
 from button_nz.agent.conversation import ModelReplyError, Observe, Turn
 from button_nz.agent.observe import OBSERVATION_TOOLS
 
-__all__ = ["META_BASE_URL", "ChatModel", "ModelReplyError"]
+__all__ = ["EFFORTS", "META_BASE_URL", "ChatModel", "ModelReplyError"]
 
 META_BASE_URL = "https://api.meta.ai/v1"
+# The reasoning efforts muse-spark-1.3 accepts, as its 400 for any other lists
+# them (4 Nov 2026; it refuses "none"). Unset, the API's default applies (#165).
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
 MAX_SIDE_PX = 800  # images to the model: a render's detail, ~60% fewer tokens than 1280
 TOOL = "run_blender_script"
 TOOLS: list[dict[str, Any]] = [
@@ -103,11 +106,14 @@ def _arguments(raw: str | None) -> dict[str, Any]:
 
 def _messages(conversation: Sequence[Turn]) -> list[dict[str, Any]]:
     """OpenAI messages: designs and observation requests become the model's tool
-    calls, and feedback and observations their results (with the image)."""
+    calls, and feedback and observations their results (with the image). Views
+    given with the brief are more of the brief's message."""
     messages: list[dict[str, Any]] = []
     for n, turn in enumerate(conversation):
         if turn.role in ("system", "user"):
             messages.append({"role": turn.role, "content": turn.text})
+        elif turn.role == "view":
+            messages[-1] = _with_view(messages[-1], turn)
         elif turn.role in ("design", "request"):
             messages.append({"role": "assistant", "content": None, "tool_calls": [_call(n, turn)]})
         else:  # feedback or an observation answers the call before it
@@ -136,14 +142,25 @@ def _call(n: int, turn: Turn) -> dict[str, Any]:
 
 
 def _image_message(caption: str, image: Path) -> dict[str, Any]:
-    data = base64.b64encode(_for_the_model(image)).decode("ascii")
-    return {
-        "role": "user",
-        "content": [
-            {"type": "text", "text": caption},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{data}"}},
-        ],
-    }
+    return {"role": "user", "content": _captioned(caption, image)}
+
+
+def _with_view(message: dict[str, Any], view: Turn) -> dict[str, Any]:
+    """The user ``message`` before ``view``, with the view's text and image added."""
+    if message["role"] != "user":
+        raise ValueError(f"a view follows the brief, not a {message['role']} message")
+    content = message["content"]
+    parts = [{"type": "text", "text": content}] if isinstance(content, str) else content
+    return {"role": "user", "content": [*parts, *_captioned(view.text, view.image)]}
+
+
+def _captioned(caption: str, image: Path | None) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = [{"type": "text", "text": caption}]
+    if image is not None:
+        data = base64.b64encode(_for_the_model(image)).decode("ascii")
+        url = f"data:image/png;base64,{data}"
+        parts.append({"type": "image_url", "image_url": {"url": url}})
+    return parts
 
 
 def _for_the_model(image: Path) -> bytes:

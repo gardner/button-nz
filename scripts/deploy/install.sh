@@ -25,8 +25,9 @@ if [[ ! -f "$settings" ]]; then
 BUTTON_ACCESS_CODE="$code"
 # Jobs, their files and the survey (survey.geojson) live here.
 BUTTON_DATA="$repo/var"
-# Design runs started in any 24 hours, originals and revisions alike.
-BUTTON_DAILY_DESIGNS="30"
+# A cap on design runs started in any 24 hours, originals and revisions alike.
+# Empty: no cap. Set it (e.g. "30"), then run this again.
+BUTTON_DAILY_DESIGNS=""
 # Who decided the survey this server serves, fixed. Leave it empty while the
 # owner decides it in the app (anyone who can reach the app can then change it:
 # with no access code, anyone at all), and set it, then run this again, once
@@ -65,6 +66,13 @@ for tool in uv node pnpm blender; do
 done
 path="$(dirname "$(command -v uv)"):$(dirname "$(command -v node)"):$(dirname "$(command -v blender)"):/usr/local/bin:/usr/bin:/bin"
 
+# systemd makes any \${VAR} one argument, even when empty, so an empty cap
+# would reach serve as --daily-designs "" and fail: no cap passes no flag.
+daily_designs=""
+if [[ -n "${BUTTON_DAILY_DESIGNS:-}" ]]; then
+  daily_designs=" --daily-designs \${BUTTON_DAILY_DESIGNS}"
+fi
+
 (cd "$repo" && uv sync --frozen)
 # Next compiles its rewrites when it builds, so the API's address is fixed here.
 (cd "$repo/apps/web" && pnpm install --frozen-lockfile \
@@ -79,7 +87,7 @@ WorkingDirectory=$repo
 Environment=PATH=$path
 EnvironmentFile=$repo/.env
 EnvironmentFile=$settings
-ExecStart=$(command -v uv) run --frozen python -m button_nz.api.serve --host 127.0.0.1 --port $api_port --data \${BUTTON_DATA} --daily-designs \${BUTTON_DAILY_DESIGNS} --survey-decided-by \${BUTTON_SURVEY_DECIDED_BY} --survey-id \${BUTTON_SURVEY_ID}
+ExecStart=$(command -v uv) run --frozen python -m button_nz.api.serve --host 127.0.0.1 --port $api_port --data \${BUTTON_DATA}$daily_designs --survey-decided-by \${BUTTON_SURVEY_DECIDED_BY} --survey-id \${BUTTON_SURVEY_ID}
 Restart=on-failure
 RestartSec=5
 

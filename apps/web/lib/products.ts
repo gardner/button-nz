@@ -8,6 +8,7 @@ import {
   ApiError,
   asList,
   asText,
+  colour,
   type Fields,
   flag,
   list,
@@ -129,14 +130,6 @@ function appearance(looks: Fields): Appearance {
     walls: colour(looks, "walls"),
     roof: colour(looks, "roof"),
   };
-}
-
-/** A colour, only ever as `#rrggbb`: it is painted into an SVG. */
-function colour(fields: Fields, key: string): string {
-  const value = text(fields, key);
-  if (!/^#[0-9a-fA-F]{6}$/.test(value))
-    throw new ApiError(`expected ${key} to be a #rrggbb colour`);
-  return value;
 }
 
 /** A supplier's page, shown as a link: only https, never a script. */

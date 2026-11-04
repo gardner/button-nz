@@ -90,6 +90,7 @@ export interface Live {
   attempt: number;
   phase: Phase;
   detail: string; // the view asked for, when observing
+  view: number; // the observation-<n> that ask makes, when observing (else 0)
   observations: string[]; // URLs through the proxy
 }
 
@@ -270,6 +271,7 @@ function parseLive(raw: unknown): Live {
     attempt: number(live, "attempt"),
     phase: oneOf(live, "phase", PHASES),
     detail: text(live, "detail"),
+    view: number(live, "view"),
     observations: list(live, "observations").map(
       (url) => `${API}${asText(url, "observation")}`,
     ),

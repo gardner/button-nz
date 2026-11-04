@@ -5,7 +5,7 @@ browser and then cut for length. Nothing is staged. Long waits are sped up,
 and the video says so on screen.
 
 - **`record.py`:** drives the app live and writes the raw recording. It:
-  - shows the survey as the owner decided it;
+  - shows the survey as the owner decided it, and the site in 3D;
   - enters a brief, designs, and waits for the AI visual;
   - views the design in 3D, revises it, and shows before and after;
   - shows the real prefabs that fit, and asks to place the largest on the site.
@@ -126,6 +126,33 @@ run. A new recording needs new times and captions, read from its marks.
 ```json
 {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views..."}
 ```
+
+A segment may also carry `lines`, a fact shown over its footage on a dark
+panel, for a long sped-up wait. The footage is darkened, and the caption and
+speed label stay, so it's still clear what is playing. Take every fact from a
+report, and give its source in the docs.
+
+**`opening`** (optional, in the plan) is the why before the how: beats shown
+first, each a span of the raw recording from anywhere in it (not in order),
+darkened under a headline on a dark panel. A beat's `at` is `"centre"`, the
+default, or `"bottom"`, which keeps the middle of the frame, where the result
+usually is, clear. With an opening, the title card may be empty (`"title": []`),
+and is then left out.
+
+```json
+{"start": 503.1, "end": 515.1, "speed": 1, "at": "bottom",
+ "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
+```
+
+**`--preview`** cuts a quick draft: half size, x264 `ultrafast`. The final cut leaves it out.
+
+An opening item may also be a **still**: `{"image": PATH, "seconds": 1.5,
+"caption": "…", "lines": […], "at": "bottom"}`. The image is fitted to the
+recording, captioned with what it is and where it came from, and headlined if
+it has lines. Use stills for artifacts from real runs, such as Muse Image's
+visuals, and say so in the caption. The caption is required, and a still must
+last at least one frame at `--fps`; the cut refuses one that doesn't before it
+writes anything.
 
 **`--intro`** (optional) plays a clip between the title card and the live
 run: the demo site's relief fly-over (#149), its LINZ aerial photo draped on

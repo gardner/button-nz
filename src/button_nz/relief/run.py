@@ -21,7 +21,6 @@ import numpy as np
 from PIL import Image
 
 from button_nz.relief import SiteRelief
-from button_nz.relief.camera import tilted_frame
 from button_nz.relief.clip import Frame, write_mp4
 from button_nz.relief.depth import depth_map
 from button_nz.relief.flyover import FlyoverSettings, render_flyover
@@ -40,8 +39,12 @@ class TierOutput:
 
 @dataclass(frozen=True)
 class Tier:
+    """``version`` goes up when the tier's views change, so a relief made by an
+    older version is made again (``api.relief``)."""
+
     name: str
     make: Callable[[SiteRelief, Path], TierOutput]
+    version: int = 1
 
 
 class ReliefFailed(RuntimeError):
@@ -51,7 +54,7 @@ class ReliefFailed(RuntimeError):
 def run_relief(relief: SiteRelief, out_dir: Path, tiers: Sequence[Tier]) -> list[dict[str, Any]]:
     """Run ``tiers`` in order into ``out_dir``; the final manifest's tiers."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    entries: list[dict[str, Any]] = [{"tier": tier.name, "status": "pending"} for tier in tiers]
+    entries = pending(tiers)
     publish(out_dir, entries)
     for tier, entry in zip(tiers, entries, strict=True):
         entry["status"] = "running"
@@ -69,6 +72,11 @@ def run_relief(relief: SiteRelief, out_dir: Path, tiers: Sequence[Tier]) -> list
     if failed:
         raise ReliefFailed("; ".join(failed))
     return entries
+
+
+def pending(tiers: Sequence[Tier]) -> list[dict[str, Any]]:
+    """``tiers`` as the manifest has them before they run."""
+    return [{"tier": t.name, "version": t.version, "status": "pending"} for t in tiers]
 
 
 def publish(out_dir: Path, entries: list[dict[str, Any]]) -> None:
@@ -98,16 +106,18 @@ def _parallax(relief: SiteRelief, out_dir: Path) -> TierOutput:
     return TierOutput(files, {"frames": float(len(path))})
 
 
+FLYOVER_VERSION = 2  # one full orbit at a constant tilt (#182), not a tilt into a quarter turn
+
+
 def flyover_tier(settings: FlyoverSettings, blender: str = "blender") -> Tier:
     def make(relief: SiteRelief, out_dir: Path) -> TierOutput:
         paths = render_flyover(relief, out_dir, settings, blender)
-        still = _rgb(paths[tilted_frame(len(paths))])  # the tilt done, before the orbit
-        Image.fromarray(still, "RGB").save(out_dir / "flyover.png")
+        Image.fromarray(_rgb(paths[0]), "RGB").save(out_dir / "flyover.png")
         write_mp4((_rgb(path) for path in paths), settings.fps, out_dir / "flyover.mp4")
         files = {"still": "flyover.png", "video": "flyover.mp4"}
         return TierOutput(files, {"frames": float(len(paths))})
 
-    return Tier("flyover", make)
+    return Tier("flyover", make, FLYOVER_VERSION)
 
 
 def _rgb(path: Path) -> Frame:

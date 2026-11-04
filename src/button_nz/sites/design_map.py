@@ -1,8 +1,10 @@
-"""An accepted design on its site's map, as GeoJSON in EPSG:4326:
+"""An accepted design on its site's map, as GeoJSON in EPSG:4326, with the
+walls' and roof's colours its render used (``finishes``, sRGB hex):
 
 - ``walls``: the outside of its walls, as the trusted pass measured them,
   with any open courtyard inside them a hole;
-- ``outline``: all it covers from above, eaves included (or the walls);
+- ``outline``: all it covers from above, eaves included (or the walls), with
+  the walls' open courtyards a hole: what its roof covers;
 - ``distances``: the shortest line from the outline to what the evaluator
   measures it against, each with its check, metres and the 2 m required: the
   title boundary, the lines between the title's parcels, and the buildings the
@@ -13,7 +15,7 @@ lines as ``evaluation.checks`` makes them, so the map and the verdict agree.
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,7 @@ from shapely.ops import nearest_points
 
 from button_nz.agent.proposal import parse_measurements
 from button_nz.api.jobs import SURVEY_USED
+from button_nz.blender_worker.scene_input import DEFAULT_FINISHES, DwellingFinishes
 from button_nz.evaluation.checks import MIN_SEPARATION_M
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
@@ -40,6 +43,23 @@ def scene_frame(attempt: Path) -> LocalFrame:
 def _scene(attempt: Path) -> dict[str, Any]:
     scene: dict[str, Any] = json.loads((attempt / "scene.json").read_text(encoding="utf-8"))
     return scene
+
+
+def _finishes(scene: dict[str, Any]) -> dict[str, str]:
+    """The walls' and roof's colours the render used, as sRGB hex: the scene's
+    (a placed product's), else the defaults, as the Blender worker does."""
+    look: DwellingFinishes = scene.get("dwelling_finishes") or DEFAULT_FINISHES
+    return {part: _hex(look[part]["rgba"]) for part in ("walls", "roof")}
+
+
+def _hex(rgba: Sequence[float]) -> str:
+    """A linear RGB(A) colour as sRGB hex."""
+
+    def channel(c: float) -> int:
+        s = c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+        return round(min(max(s, 0.0), 1.0) * 255)
+
+    return "#" + "".join(f"{channel(c):02x}" for c in rgba[:3])
 
 
 def walls_and_outline(attempt: Path) -> tuple[Polygon, Polygon]:
@@ -73,7 +93,8 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
     survey file) is read only for an older record that kept no buildings."""
     walls, outline, heights = _measured(attempt)
     frame = scene_frame(attempt)
-    parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in _scene(attempt)["parcels"]]
+    scene = _scene(attempt)
+    parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in scene["parcels"]]
     title = union_all(parcels)
     internal = union_all([p.boundary for p in parcels]).difference(title.boundary.buffer(1e-6))
     buildings = _confirmed(attempt.parent / SURVEY_USED, survey)
@@ -95,8 +116,10 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
         if not target.is_empty
     ]
     return {
+        "finishes": _finishes(scene),
         "walls": collection([(walls, heights)]),
-        "outline": collection([(outline, heights)]),
+        # what it roofs: the outline less any courtyard open to the sky
+        "outline": collection([(Polygon(outline.exterior, list(walls.interiors)), heights)]),
         "distances": collection(lines),
         # a check whose line can't be drawn now, and why: never left out silently
         "unknown": [{"check": "building_separation", "reason": buildings}]

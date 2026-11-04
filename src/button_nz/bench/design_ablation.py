@@ -20,14 +20,14 @@ import json
 import sys
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from button_nz.agent.conversation import Model
+from button_nz.agent.conversation import Model, Observe, Turn
 from button_nz.agent.demo import demo_site
 from button_nz.agent.loop import Attempt, Runner, design
-from button_nz.agent.model import ChatModel
+from button_nz.agent.model import EFFORTS, ChatModel
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import run_design
 from button_nz.perception.confirm import SiteDecisions
@@ -63,10 +63,27 @@ class RunResult:
     executed: int  # attempts whose script built a measurable Dwelling (the evaluator judged)
     accepted: bool  # no check failed on the final attempt
     repaired: bool  # accepted after a first attempt that wasn't
-    observations: int
+    observations: int  # the views it asked for; those given with the brief aren't counted
     verdicts: tuple[str, ...]  # each attempt's pass, fail, unknown, rejected or error
     seconds: float
     error: str | None  # why the run couldn't complete, if it couldn't
+    script_seconds: tuple[float, ...] = ()  # each model call that wrote a script (#165)
+
+
+@dataclass
+class _Timed:
+    """``model``, timing each call that wrote a script; a call asking for a
+    LiDAR view, or replying with neither, isn't one."""
+
+    model: Model
+    script_seconds: list[float] = field(default_factory=list[float])
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        started = time.monotonic()
+        action = self.model.propose(conversation, allow_observations)
+        if isinstance(action, str):
+            self.script_seconds.append(time.monotonic() - started)
+        return action
 
 
 def run(
@@ -106,11 +123,12 @@ def _run_one(
 ) -> RunResult:
     started = time.monotonic()
     finished: list[Attempt] = []  # kept if a later attempt can't complete
+    timed = _Timed(model)
     try:
         outcome = design(
             brief,
             site,
-            model,
+            timed,
             runs_dir,
             condition.max_attempts,
             runner=runner,
@@ -120,9 +138,10 @@ def _run_one(
         )
     except Exception as error:  # recorded, not dropped: the report counts it
         run = _measured(b, condition.name, repeat, finished, None, time.monotonic() - started)
-        return replace(run, error=repr(error))
+        return replace(run, error=repr(error), script_seconds=tuple(timed.script_seconds))
     seconds = time.monotonic() - started
-    return _measured(b, condition.name, repeat, outcome.attempts, outcome.accepted, seconds)
+    run = _measured(b, condition.name, repeat, outcome.attempts, outcome.accepted, seconds)
+    return replace(run, script_seconds=tuple(timed.script_seconds))
 
 
 def _measured(
@@ -141,7 +160,7 @@ def _measured(
         executed=sum(a.judged for a in attempts),
         accepted=accepted is not None,
         repaired=accepted is not None and accepted is not attempts[0],
-        observations=sum(len(a.observations) for a in attempts),
+        observations=sum(len(a.observations) - a.given for a in attempts),  # asked for
         verdicts=tuple(_verdict(a) for a in attempts),
         seconds=seconds,
         error=None,
@@ -161,6 +180,7 @@ def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
         mine = [r for r in results if r.condition == name]
         done = [r for r in mine if r.error is None]
         attempts = sum(r.attempts for r in done)
+        scripts = [s for r in done for s in r.script_seconds]
         first_failed = [
             r for r in done if r.verdicts and r.verdicts[0] in ("fail", "rejected", "error")
         ]
@@ -175,6 +195,7 @@ def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
             "mean_attempts": attempts / len(done) if done else None,
             "mean_observations": sum(r.observations for r in done) / len(done) if done else None,
             "mean_seconds": sum(r.seconds for r in done) / len(done) if done else None,
+            "mean_script_seconds": sum(scripts) / len(scripts) if scripts else None,
         }
     return summary
 
@@ -190,16 +211,18 @@ def report(results: Sequence[RunResult], meta: Mapping[str, object]) -> str:
         "each attempt and the independent evaluator checks it. Accepted means no check "
         "failed on the final attempt; repair rate is over runs whose first attempt failed "
         "or errored. Under `errors` the model hears only execution errors, so a script "
-        "that runs ends the run; an incomplete run keeps the attempts that finished.",
+        "that runs ends the run; an incomplete run keeps the attempts that finished. "
+        "A script call is one model call that wrote a script, timed from asking to the reply.",
         "",
         "| Condition | Runs | Accepted | Execution rate | Repair rate | Mean attempts "
-        "| Mean observations | Mean s | Incomplete |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Mean observations | Mean s | Mean s per script call | Incomplete |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summarise(results).items():
         accepted = f"{s['accepted']} ({s['accepted'] / s['runs']:.0%})"
         cells = [_rate(s["execution_rate"]), _rate(s["repair_rate"])]
-        cells += [_number(s[k]) for k in ("mean_attempts", "mean_observations", "mean_seconds")]
+        means = ("mean_attempts", "mean_observations", "mean_seconds", "mean_script_seconds")
+        cells += [_number(s[k]) for k in means]
         lines.append(
             f"| {name} | {s['runs']} | {accepted} | {' | '.join(cells)} | {s['incomplete']} |"
         )
@@ -247,7 +270,9 @@ def parse_options(argv: Sequence[str] | None = None) -> Options:
     parser.add_argument("out_dir", type=Path)
     parser.add_argument("--repeats", type=int, default=2)
     parser.add_argument("--model", default="muse-spark-1.3")
-    parser.add_argument("--effort", help='reasoning effort, e.g. "max"; default: the API\'s')
+    parser.add_argument(
+        "--effort", help=f"reasoning effort (Spark 1.3: {', '.join(EFFORTS)}); default: the API's"
+    )
     names = ",".join(c.name for c in CONDITIONS)
     parser.add_argument("--conditions", default=names, help=f"some of {names}")
     parser.add_argument(

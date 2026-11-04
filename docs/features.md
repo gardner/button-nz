@@ -33,7 +33,7 @@ https://button.nz. How they fit together on the page is in
 |---|---|---|
 | **A brief in plain words** | "A small one-bedroom studio that gets the afternoon sun", up to 4,000 characters | `explore/DesignDock.tsx` |
 | **Muse Spark designs in Blender** | Muse Spark 1.3 writes a complete Blender Python script as a tool call, to a contract: one Dwelling mesh, built on the terrain | `agent/loop.py`, `agent/prompt.py` |
-| **LiDAR views on request** | Before each attempt, Muse may ask for up to four views: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. They don't count as attempts | `agent/observe.py`, `lidar/` |
+| **LiDAR views up front and on request** | The brief comes with four standard views (hillshade, contours, height above ground, and a cross-section the length of the room for a dwelling) and the ground's numbers under the room's three largest rectangles and the whole room. Before each attempt, Muse may ask for up to four more: hillshade, contours, slope, height maps, cross-sections between two points, or elevations over an area. None of them count as attempts | `agent/observe.py`, `lidar/` |
 | **Sandboxed Blender** | The script runs in headless Blender inside a bubblewrap sandbox: no network, no keys, read-only system files, capped memory, processes and scratch space | `blender_worker/sandbox.py` |
 | **A trusted measuring pass** | A second Blender pass reloads only the model's objects, checks the contract, measures every rendered triangle, and exports the GLB and a Cycles render | `blender_worker/` |
 | **Repair from feedback** | A failed check goes back to Muse as feedback, with the render when the attempt produced one, for up to three attempts | `agent/loop.py` |
@@ -85,7 +85,7 @@ https://button.nz. How they fit together on the page is in
 | Feature | What it does | Where |
 |---|---|---|
 | **Deployed** | The API, the web app and a Cloudflare tunnel run as systemd services on the GPU machine; nothing listens beyond 127.0.0.1 | `scripts/deploy/`, [deploy.md](deploy.md) |
-| **Daily cap** | At most 30 design runs (originals, revisions and placements) start in any 24 hours; one past it is refused with when the next frees up | `api/limits.py` |
+| **Daily cap** | Off by default, and off on button.nz. If set (`--daily-designs`, `BUTTON_DAILY_DESIGNS`), at most that many design runs (originals, revisions and placements) start in any 24 hours; one past it is refused with when the next frees up | `api/limits.py` |
 | **Optional access code** | A code can gate every page and API request. `install.sh` generates one; button.nz runs with `BUTTON_ACCESS_CODE` emptied, so it is open to anyone | `apps/web/proxy.ts`, `lib/access.ts` |
 | **Smoke test** | Checks a served URL as a visitor reaches it, in either mode: with a code it checks the gate too; with "" it checks the open server. Either way the page, the site, a fixed survey and, if given, a finished design | `scripts/deploy/check.sh` |
 

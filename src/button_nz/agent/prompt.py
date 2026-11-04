@@ -57,23 +57,45 @@ re-present the LiDAR; use them when you are unsure about slopes, banks or what \
 stands on the ground.
 """
 
+# How it should look, within the rules. A long narrow box filling the largest
+# rectangle on a long section looked out of place; a real product's walls are
+# fixed, so it is told only of the deck.
+HOME = "\nTo look like a real New Zealand home, within those rules:\n"
+COMPACT = (
+    "- Keep the plan compact, like a typical NZ cottage or small home: its length at "
+    "most about twice its width, not a long narrow box, unless the brief asks for that "
+    "shape or the room is too narrow for the brief's size at that proportion. A "
+    "rectangle offered below that is longer than that is room to place the plan in, not "
+    "a size to fill.\n"
+)
+DECK = (
+    "- Where the brief and the site suit one, add a deck on the sunny (north) or living "
+    "side, part of the Dwelling: a thin slab level with the floor, with balusters above "
+    "it and nothing below the floor's underside. It counts toward the setbacks and must "
+    "keep the floor-level and height rules; a compact studio or a tight site can do "
+    "without.\n"
+)
+
 
 def system_prompt(
     scene: SceneInput,
     keep_clear: Sequence[Ring] = (),
     buildings: Sequence[Ring] = (),
     frontages: str = "",
+    fixed_footprint: bool = False,
 ) -> str:
     """The contract and the site. ``keep_clear`` (the owner's preservation areas)
     and ``buildings`` (existing ones the owner listed) are local rings;
     ``frontages`` describes which edges face which road
-    (``sites.frontages.describe_frontages``)."""
+    (``sites.frontages.describe_frontages``). With a ``fixed_footprint`` (a
+    real product placed), it isn't asked for a compact plan."""
     rules = CONTRACT.format(
         sep=MIN_SEPARATION_M,
         area=MAX_FLOOR_AREA_M2,
         height=MAX_HEIGHT_ABOVE_FLOOR_M,
         floor=MAX_FLOOR_ABOVE_GROUND_M,
     )
+    rules += HOME + ("" if fixed_footprint else COMPACT) + DECK
     heights = scene["terrain"]["heights"]
     site = (
         f"{rules}\nThe site:\n"

@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -69,10 +70,27 @@ def test_each_condition_is_run_and_logged(site: DesignSite, tmp_path: Path) -> N
     assert by_name["one_shot"].attempts == 1 and not by_name["one_shot"].accepted
     assert by_name["errors"].attempts == 1 and not by_name["errors"].accepted  # it ran: done
     assert by_name["evaluator"].repaired and by_name["evaluator"].attempts == 2
-    assert by_name["evaluator_lidar"].observations >= 1 and by_name["evaluator_lidar"].accepted
+    # The one view it asked for: the views given with the brief aren't counted.
+    assert by_name["evaluator_lidar"].observations == 1 and by_name["evaluator_lidar"].accepted
     assert by_name["evaluator"].verdicts == ("fail", "unknown")
     lines = (tmp_path / "results.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(lines) == 4 and json.loads(lines[0])["condition"] == "one_shot"
+
+
+class NeverLooks:
+    """Designs straight away, asking for no view."""
+
+    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
+        return "good"
+
+
+def test_views_given_with_the_brief_are_not_counted_as_asked_for(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """Mean observations measures what the model asked for, as in earlier runs."""
+    lidar = [c for c in CONDITIONS if c.allow_observations]
+    (result,) = run(["A studio."], lidar, 1, site, NeverLooks(), tmp_path, fake_runner)
+    assert result.observations == 0
 
 
 def test_a_run_that_cannot_complete_is_recorded_not_dropped(
@@ -199,3 +217,25 @@ def test_the_report_says_which_site_and_who_decided() -> None:
     assert "on the surveyed site (decided by t)" in text
     plain = report([_result("evaluator", True, False, ("pass",))], meta | {"site": None})
     assert "with no confirmed buildings or keep-clear areas" in plain
+
+
+def test_each_script_call_is_timed(site: DesignSite, tmp_path: Path) -> None:
+    """The calls that wrote a script, not the LiDAR views asked for before them (#165)."""
+    evaluator_lidar = [c for c in CONDITIONS if c.name == "evaluator_lidar"]
+    (result,) = run(["A studio."], evaluator_lidar, 1, site, Scripted(), tmp_path, fake_runner)
+    assert result.observations == 1 and result.attempts == 2
+    assert len(result.script_seconds) == 2  # one per attempt's script, none for the view
+    assert all(s >= 0.0 for s in result.script_seconds)
+    logged = json.loads((tmp_path / "results.jsonl").read_text(encoding="utf-8"))
+    assert len(logged["script_seconds"]) == 2
+
+
+def test_the_report_gives_the_mean_script_call() -> None:
+    timed = [
+        replace(_result("evaluator", True, True, ("fail", "pass")), script_seconds=(100.0, 50.0)),
+        replace(_result("evaluator", True, False, ("pass",)), script_seconds=(60.0,)),
+    ]
+    assert summarise(timed)["evaluator"]["mean_script_seconds"] == pytest.approx(70.0)
+    text = report(timed, {"model": "m", "briefs": 1, "repeats": 1})
+    assert "Mean s per script call" in text
+    assert "| 70.0 |" in text

@@ -10,7 +10,7 @@ road frontages and building outlines from LINZ's national layers, and the
 newest 1 m LiDAR and the region's best recent aerial from LINZ's STAC
 catalogues. The demo site is pinned to the exact data it was verified against
 instead. SAM 3.1 surveys the aerial, each feature checked against the LiDAR,
-and the owner decides what each one is. The Muse agent asks for LiDAR views
+and the owner decides what each one is. The Muse agent gets LiDAR views with the brief, asks for any others
 and writes Blender Python to build a dwelling on the georeferenced terrain; a
 sandboxed Blender runs it, a trusted pass measures it, and an independent
 evaluator checks the geometry against the exemption's measurable rules. The

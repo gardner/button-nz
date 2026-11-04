@@ -9,12 +9,12 @@ Every attempt is kept under ``runs_dir`` for inspection.
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
 from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
-from button_nz.agent.observe import ObservationError, observe
+from button_nz.agent.observe import Observation, ObservationError, observe, standard_views
 from button_nz.agent.placement import describe_placements
 from button_nz.agent.prompt import describe, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
@@ -77,6 +77,7 @@ class Attempt:
     judged: bool = False  # the evaluator reached a verdict on it (or rejected it)
     mask: Path | None = None  # the Dwelling's silhouette in the render, if the runner made one
     outline: Path | None = None  # the same with nothing in front of it, if the runner made one
+    given: int = 0  # how many of ``observations`` came with the brief, unasked
 
     @property
     def status(self) -> str:
@@ -111,6 +112,7 @@ class Step:
     attempt: int
     phase: Phase
     detail: str = ""  # the view asked for, when observing
+    view: int = 0  # the observation-<n> that ask makes, when observing
 
 
 def _no_step(_: Step) -> None:
@@ -135,9 +137,11 @@ def design(
     on_step: Callable[[Step], None] = _no_step,
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
-    change it as the owner asks. Before each attempt the model may request up to
-    ``max_observations`` LiDAR views (none if not ``allow_observations``); they
-    don't count as attempts. Without ``evaluator_feedback`` the model hears only
+    change it as the owner asks. With ``allow_observations``, the brief comes
+    with the site's standard LiDAR views and ground numbers (attempt 1's first
+    observations), and
+    before each attempt the model may request up to ``max_observations`` more;
+    they don't count as attempts. Without ``evaluator_feedback`` the model hears only
     execution errors (Experiment C's ablation): a script that ran ends the run,
     since asking again would tell the model it failed. The evaluator still
     decides acceptance, and every attempt still records its verdict.
@@ -151,10 +155,15 @@ def design(
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     places = describe_frontages(site.frontages, local) + describe_room(site.context, local)
     places += describe_placements(site, product)
-    prompt = system_prompt(site.scene, keep_clear, buildings, places)
+    fixed = product is not None
+    prompt = system_prompt(site.scene, keep_clear, buildings, places, fixed_footprint=fixed)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
     scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
+    views = standard_views(site) if allow_observations else ()
+    if views:
+        asked += f"\n\n{_with_views(len(views), max_observations)}"
     conversation = [Turn("system", prompt), Turn("user", asked)]
+    conversation += _give(views, runs_dir / "attempt-1")
     if revising is not None:
         conversation += [
             Turn("design", revising.script),
@@ -174,15 +183,15 @@ def design(
             max_observations,
             number,
             on_step,
+            observed=tuple(request.tool for request, _ in views) if number == 1 else (),
         )
         script = ask.script()
         if script is None:
-            attempt = Attempt(number, "", ask.error, None, directory, ask.observed)
-            _write_attempt(attempt)
+            attempt = Attempt(number, "", ask.error, None, directory)
         else:
-            attempt = _attempt(
-                number, script, site, scene, runner, directory, ask.observed, product, on_step
-            )
+            attempt = _attempt(number, script, site, scene, runner, directory, product, on_step)
+        attempt = replace(attempt, observations=ask.observed, given=ask.given)
+        _write_attempt(attempt)
         attempts.append(attempt)
         if on_attempt is not None:
             on_attempt(attempt)
@@ -200,6 +209,30 @@ def design(
     return result
 
 
+def _with_views(count: int, max_observations: int) -> str:
+    return (
+        f"With this brief come {count} observations of the site: LiDAR views, and the "
+        "ground's numbers under the room's largest rectangles and the room itself, in "
+        "the same local coordinates; each says what it shows. They don't use your "
+        f"observations: you may still ask for up to {max_observations} more before each "
+        "design (another view, or the ground under another polygon)."
+    )
+
+
+def _give(views: tuple[tuple[Observe, Observation], ...], directory: Path) -> list[Turn]:
+    """The views that come with the brief, as turns after it, saved as the
+    first attempt's first observations (observation-<k>.png, as asked-for ones)."""
+    directory.mkdir(parents=True, exist_ok=True)
+    turns: list[Turn] = []
+    for k, (_, view) in enumerate(views, 1):
+        image = None
+        if view.png is not None:
+            image = directory / f"observation-{k}.png"
+            image.write_bytes(view.png)
+        turns.append(Turn("view", view.text, image))
+    return turns
+
+
 @dataclass
 class _Ask:
     """One attempt's exchange: answer observation requests until a script arrives.
@@ -214,8 +247,12 @@ class _Ask:
     max_observations: int
     number: int  # the attempt's
     on_step: Callable[[Step], None]
+    observed: tuple[str, ...] = ()  # to begin with, the views given with the brief
     error: str = ""
-    observed: tuple[str, ...] = ()
+    given: int = field(init=False)  # how many of ``observed`` were given, not asked for
+
+    def __post_init__(self) -> None:
+        self.given = len(self.observed)
 
     def script(self) -> str | None:
         for _ in range(self.max_observations + 2):
@@ -246,16 +283,19 @@ class _Ask:
             text, image = "No observations left for this attempt; submit a design.", None
         else:
             self.observed += (request.tool,)
-            self.on_step(Step(self.number, Phase.OBSERVING, request.tool))
+            self.on_step(Step(self.number, Phase.OBSERVING, request.tool, len(self.observed)))
             text, image = self._observe(request)
             text += f"\n\n{self._left()} left for this attempt."
         self.conversation.append(Turn("observation", text, image))
 
     def _may_observe(self) -> bool:
-        return self.allow_observations and len(self.observed) < self.max_observations
+        return self.allow_observations and self._asked() < self.max_observations
+
+    def _asked(self) -> int:
+        return len(self.observed) - self.given
 
     def _left(self) -> str:
-        left = self.max_observations - len(self.observed)
+        left = self.max_observations - self._asked()
         return f"{left} observation{'' if left == 1 else 's'}"
 
     def _observe(self, request: Observe) -> tuple[str, Path | None]:
@@ -277,7 +317,6 @@ def _attempt(
     scene: SceneInput,
     runner: Runner,
     directory: Path,
-    observations: tuple[str, ...],
     product: Footprint | None,
     on_step: Callable[[Step], None],
 ) -> Attempt:
@@ -299,20 +338,17 @@ def _attempt(
         )
     except (DesignError, InvalidProposal) as error:  # feedback for the next attempt
         feedback = str(error)
-    attempt = Attempt(
+    return Attempt(
         number,
         script,
         feedback,
         report,
         directory,
-        observations,
-        outputs.png,
-        judged,
-        outputs.mask,
-        outputs.outline,
+        render=outputs.png,
+        judged=judged,
+        mask=outputs.mask,
+        outline=outputs.outline,
     )
-    _write_attempt(attempt)
-    return attempt
 
 
 def _write_attempt(attempt: Attempt) -> None:
@@ -323,6 +359,7 @@ def _write_attempt(attempt: Attempt) -> None:
         "script": attempt.script,
         "feedback": attempt.feedback,
         "observations": list(attempt.observations),
+        "observations_given": attempt.given,  # the first ones, sent with the brief
         "checks": [
             {
                 "name": c.name,

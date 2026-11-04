@@ -22,12 +22,12 @@ export function checkLabel(name: string): string {
   return LABELS[name] ?? name.replaceAll("_", " ");
 }
 
-const MARK: Record<Check["status"], string> = {
+export const MARK: Record<Check["status"], string> = {
   pass: "✓",
   fail: "✗",
   unknown: "?",
 };
-const BADGE: Record<Check["status"], string> = {
+export const BADGE: Record<Check["status"], string> = {
   pass: "bg-emerald-500/20 text-emerald-300 ring-emerald-400/40",
   fail: "bg-red-500/20 text-red-300 ring-red-400/40",
   unknown: "bg-amber-400/15 text-amber-200 ring-amber-300/40",
@@ -122,7 +122,7 @@ export function AttemptRow({ attempt }: { attempt: Attempt }) {
   );
 }
 
-/** The LiDAR views the model asked for before this attempt, as thumbnails
+/** The LiDAR views given with the brief or asked for before this attempt, as thumbnails
  * named by the tool that drew each (observation-<k>.png, k from 1). */
 function Views({ attempt }: { attempt: Attempt }) {
   const views = attempt.observations.flatMap((tool, i) => {

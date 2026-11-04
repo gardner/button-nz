@@ -174,4 +174,16 @@ describe("getDesignMap", () => {
       required: 2,
     });
   });
+
+  it("reads the walls' and roof's colours its render used, only as #rrggbb", async () => {
+    serve(DESIGN_MAP);
+    expect((await getDesignMap("abc123")).finishes).toEqual({
+      walls: "#b98a5e",
+      roof: "#3a3d40",
+    });
+    serve({ ...DESIGN_MAP, finishes: { walls: "red", roof: "#3a3d40" } });
+    await expect(getDesignMap("abc123")).rejects.toThrow(ApiError);
+    serve({ ...DESIGN_MAP, finishes: undefined });
+    await expect(getDesignMap("abc123")).rejects.toThrow(ApiError);
+  });
 });

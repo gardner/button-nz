@@ -53,7 +53,7 @@ shown as unknown.
    gets the afternoon sun and keeps the trees." They leave "Let the model
    request LiDAR views" on.
 2. They press **Design**. The page shows the design queued, then running.
-3. Muse Spark looks at the site through the LiDAR views it asks for, writes a
+3. Muse Spark looks at the site through the LiDAR views sent with the brief and any it asks for, writes a
    Blender script, and sandboxed Blender builds and measures it. Each attempt
    appears as it finishes, with each check's result and, if it produced a
    model, its render.
@@ -72,8 +72,9 @@ shown as unknown.
 - No attempt passes ("No attempt passed every check"), and the attempts show
   why.
 - The run fails outright ("The design run failed: …"), with the reason.
-- The server refuses to start it, because the day's 30 design runs are used.
-  The page says when the next frees up, and keeps the design already on show.
+- On a server with a daily cap set (button.nz has none), the server refuses
+  to start it once the day's runs are used. The page says when the next frees
+  up, and keeps the design already on show.
 - An "unknown" check doesn't stop acceptance but is shown, for the owner to
   settle with a professional.
 
@@ -158,8 +159,10 @@ one of their own.
      building outlines (with 0.6 m eaves), and 326 also clear everything over
      2 m on the newer LiDAR. It's a screen, not a verdict.
 
-**What can go wrong:** the day's 30 design runs are used, and the page says
-when the next frees up; the finished designs stay open to read. The survey is
+**What can go wrong:** button.nz caps neither design runs nor site builds,
+so each judge's runs are live Meta Model API calls and GPU time; were a cap
+set, the page would say when the next run frees up, and the finished designs
+would stay open to read. The survey is
 fixed, so a judge can't change what other judges' designs are checked
 against.
 
