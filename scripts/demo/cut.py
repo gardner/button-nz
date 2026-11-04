@@ -285,7 +285,8 @@ def cut(
     fps: int,
     intro: Path | None = None,
 ) -> None:
-    """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order."""
+    """Write the cut to ``out`` (H.264 MP4), decoding ``raw`` once, in order,
+    for the segments, and once more, on its own, for each opening beat."""
     with av.open(str(raw)) as source, av.open(str(out), "w") as sink:
         video = source.streams.video[0]
         size = (video.width, video.height)
