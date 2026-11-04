@@ -13,7 +13,7 @@ from button_nz.agent.conversation import ModelReplyError, Observe
 from button_nz.agent.loop import DesignResult, DesignSite, Phase, Revision, Step, Turn, design
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
-from button_nz.evaluation import SiteContext, Status
+from button_nz.evaluation import Footprint, SiteContext, Status
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
@@ -338,6 +338,25 @@ def test_the_model_is_told_where_to_keep_clear(site: DesignSite, tmp_path: Path)
     prompt = model.seen[0][0].text
     assert "kept clear" in prompt and "(10.00, 2.00)" in prompt
     assert "existing buildings" in prompt and "(30.00, 12.00)" in prompt
+
+
+def test_the_model_is_given_placements_that_pass(site: DesignSite, tmp_path: Path) -> None:
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    prompt = model.seen[0][0].text
+    assert "placements found by search" in prompt and "10 × 7 m plan: centre (" in prompt
+    assert "largest rectangles" in prompt  # the room's shape is still given
+
+
+def test_a_placed_product_is_given_placements_of_its_own_footprint(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    model = ScriptedModel("good")
+    product = Footprint("Studio", 6.0, 5.0)
+    design("Add it.", site, model, tmp_path, 1, runner=fake_runner, product=product)
+    prompt = model.seen[0][0].text
+    assert prompt.count("6 × 5 m plan: centre (") == 3
+    assert "10 × 7 m plan" not in prompt
 
 
 def test_earlier_changes_are_already_built_and_only_the_latest_is_asked_for() -> None:
