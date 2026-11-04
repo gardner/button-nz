@@ -98,7 +98,8 @@ export const SURVEY = {
   ],
 };
 
-/** GET /designs/abc123/products: one product that fits, one unchecked. */
+/** GET /designs/abc123/products: two products that fit, one unchecked, one
+ * that fits the walls but can't stand on the site. */
 export const PRODUCTS = {
   footprint_m2: 65.0,
   basis:
@@ -202,6 +203,43 @@ export const PRODUCTS = {
       sources: [
         "https://www.keithhayhomes.co.nz/our-plans/minor-dwellings/nook-60.html",
       ],
+    },
+  ],
+  unplaceable: [
+    {
+      id: "russley-methven",
+      supplier: "Russley Portables",
+      model: "Methven",
+      url: "https://www.russleyportables.co.nz/product/accommodation/two-bedrooms/methven",
+      type: "transportable, steel base",
+      length_m: 15.0,
+      width_m: 4.2,
+      dimensions_labelled: true,
+      bounding_box: false,
+      placeable: true,
+      floor_area_m2: 63,
+      area_basis: "not stated",
+      bedrooms: 2,
+      bathrooms: 1,
+      price_nzd: 190000,
+      price_basis: "from; incl GST",
+      excludes: "delivery, professional services and siteworks",
+      west_coast:
+        "Serves Christchurch and surrounding areas; West Coast not stated",
+      appearance: {
+        roof_forms: ["mono"],
+        roof_pitch_deg: null,
+        walls: "#d8c9ae",
+        roof: "#3a3a3a",
+        walls_texture: "white_planks_clean",
+        roof_texture: "corrugated_iron",
+        basis: "illustrative, from the supplier's render",
+      },
+      sources: [
+        "https://www.russleyportables.co.nz/product/accommodation/two-bedrooms/methven",
+      ],
+      reason:
+        "Needs earthworks: wherever it fits on the site, the ground under it varies by at least 1.30 m, and the floor may stand at most 1 m above the lowest ground.",
     },
   ],
 };

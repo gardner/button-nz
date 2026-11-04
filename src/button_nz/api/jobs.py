@@ -213,6 +213,12 @@ class Worker:
             raise ValueError(f"this server designs only on the demo site, not {job.site_id}")
         return *self.site_for(job.site_id), None
 
+    def decided_site(self, job: Job) -> DesignSite:
+        """The site a design after ``job`` (placing a product, say) would be
+        made on now: ``job``'s, with its survey as decided now."""
+        site, _ = self._decided(*self._where(job))
+        return site
+
     def _confirmed_site(
         self, run: Path, site: DesignSite, path: Path | None, fixed: FixedSurvey | None
     ) -> DesignSite:
@@ -220,12 +226,21 @@ class Worker:
         any, recorded in ``run`` as the survey and decisions this design is
         checked against: they can change after it runs. A fixed survey that
         isn't the one fixed fails the design (never an undecided stand-in)."""
+        decided, used = self._decided(site, path, fixed)
+        run.mkdir(parents=True, exist_ok=True)
+        (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
+        return decided
+
+    def _decided(
+        self, site: DesignSite, path: Path | None, fixed: FixedSurvey | None
+    ) -> tuple[DesignSite, dict[str, Any]]:
+        """``site`` with what a person has confirmed on its survey (``path``),
+        and the record of what was used."""
         survey = read_fixed(path, fixed)
         own = {} if survey is None else self.store.decisions(survey.id)
         title = title_of(site.context.parcels)
         decided = {} if survey is None else effective(survey, own, title, fixed is not None)
         complete = survey is not None and self.store.buildings_complete(survey.id)
-        run.mkdir(parents=True, exist_ok=True)
         used = {
             "survey_id": None if survey is None else survey.id,
             "decisions": decided,
@@ -233,11 +248,10 @@ class Worker:
             "buildings_complete": complete,
             "buildings": _confirmed_buildings(survey, decided),  # kept: surveys get replaced
         }
-        (run / SURVEY_USED).write_text(json.dumps(used, indent=2), encoding="utf-8")
         if survey is None:
-            return site
+            return site, used
         decisions = {k: Decision(v) for k, v in decided.items()}
-        return confirmed(site, survey, decisions, complete)
+        return confirmed(site, survey, decisions, complete), used
 
 
 def _confirmed_buildings(survey: Survey | None, decided: dict[str, str]) -> list[Any]:

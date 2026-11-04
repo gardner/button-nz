@@ -183,4 +183,15 @@ describe("PrefabPanel", () => {
     expect(await screen.findByText(/Not checked/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Next steps" })).toBeTruthy();
   });
+
+  it("says which prefabs fit the walls but can't stand on the site, and why", async () => {
+    serve(PRODUCTS);
+    panel();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Which real prefabs fit?" }),
+    );
+    const apart = await screen.findByText(/Russley Portables Methven/);
+    expect(apart.textContent).toMatch(/Needs earthworks/);
+    expect(screen.queryByRole("button", { name: /Methven/ })).toBeNull();
+  });
 });

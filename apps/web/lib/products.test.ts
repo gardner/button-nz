@@ -21,6 +21,12 @@ describe("parseProducts", () => {
     expect(found.unchecked.map((p) => p.model)).toEqual(["Nook 60"]);
   });
 
+  it("reads the products that can't stand on the site, with why", () => {
+    const [apart] = parseProducts(PRODUCTS).unplaceable;
+    expect(apart.product.model).toBe("Methven");
+    expect(apart.reason).toMatch(/^Needs earthworks/);
+  });
+
   it("reads how each product looks: its roof forms, pitch and colours", () => {
     const [vista, nile] = parseProducts(PRODUCTS).fits;
     expect(vista.appearance).toEqual({

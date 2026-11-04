@@ -111,6 +111,11 @@ function Found({
           {found.unchecked.map((p) => `${p.supplier} ${p.model}`).join(", ")}
         </p>
       )}
+      {found.unplaceable.map(({ product: p, reason }) => (
+        <p key={p.id} className="text-xs text-zinc-400">
+          {`Fits the walls, but not the site: ${p.supplier} ${p.model}. ${reason}`}
+        </p>
+      ))}
       <p className="text-xs text-zinc-500">{found.basis}</p>
       <NextSteps />
     </>

@@ -18,9 +18,13 @@ from pydantic import BaseModel
 from shapely import Polygon
 from shapely.affinity import translate
 
+from button_nz.agent.placement import solve
 from button_nz.agent.proposal import DesignError, parse_measurements
-from button_nz.api.store import Store
+from button_nz.agent.site import DesignSite
+from button_nz.api.store import Job, Store
 from button_nz.catalogue import Product, matches, placement
+from button_nz.evaluation import SiteContext
+from button_nz.evaluation.checks import MAX_FLOOR_ABOVE_GROUND_M
 from button_nz.geo.crs import LocalFrame
 from button_nz.sites.layers import collection
 
@@ -29,8 +33,10 @@ BASIS = (
     "design's walls, square to one of them. It keeps the design's boundary, separation "
     "and kept-area verdicts only if its eaves overhang no further than the design's, "
     "and the suppliers mostly don't publish eaves: those checks need running on the "
-    "product's own outline. Its height and floor level are not checked either. Products "
-    "whose published dimensions aren't labelled can't be checked."
+    "product's own outline. Its height is not checked either. A product that can't "
+    "stand anywhere on the site with its floor level passing (at most 1 m above the "
+    "lowest ground under it, even with no eaves) is listed apart, not as fitting. "
+    "Products whose published dimensions aren't labelled can't be checked."
 )
 
 
@@ -39,17 +45,26 @@ class ProductsView(BaseModel):
     fits: list[dict[str, Any]]  # largest first; each with where it would stand
     unchecked: list[Product]
     basis: str
+    # fit the walls, but stand nowhere on the site within floor level: each with its reason
+    unplaceable: list[dict[str, Any]] = []
 
 
 type FrameFor = Callable[[Path], LocalFrame]  # the frame an attempt was measured in
+type SiteFor = Callable[[Job], DesignSite]  # the site a product placed after a job stands on
 
 
 def products_router(
-    store: Store, runs_dir: Path, products: Sequence[Product], frame_for: FrameFor | None = None
+    store: Store,
+    runs_dir: Path,
+    products: Sequence[Product],
+    frame_for: FrameFor | None = None,
+    site_for: SiteFor | None = None,
 ) -> APIRouter:
     """With ``frame_for``, each fitting product says where it would stand inside
     the walls (``placed_footprint``, lon/lat): wholly inside where it has room,
-    else over each wall by half of ``catalogue.fit.TOLERANCE_M`` at most."""
+    else over each wall by half of ``catalogue.fit.TOLERANCE_M`` at most. With
+    ``site_for``, a product that fits the walls but can't stand anywhere on the
+    site within the floor-level rule is listed apart (``unplaceable``)."""
     router = APIRouter()
 
     @router.get("/products")
@@ -70,11 +85,18 @@ def products_router(
         walls = _walls(attempt)
         found = matches(walls, products)
         frame = None if frame_for is None else frame_for(attempt)
+        site = None if site_for is None else site_for(job).context
+        apart = {p.id: _unplaceable(p, site) for p in found.fits}
         return ProductsView(
             footprint_m2=round(walls.area, 2),
-            fits=[_fitting(p, walls, frame) for p in found.fits],
+            fits=[_fitting(p, walls, frame) for p in found.fits if apart[p.id] is None],
             unchecked=list(found.unchecked),
             basis=BASIS,
+            unplaceable=[
+                p.model_dump() | {"reason": apart[p.id]}
+                for p in found.fits
+                if apart[p.id] is not None
+            ],
         )
 
     return router
@@ -89,6 +111,23 @@ def _fitting(product: Product, walls: Polygon, frame: LocalFrame | None) -> dict
         raise ValueError(f"{product.id} fits but has no placement")
     on_site = translate(placed, frame.origin[0], frame.origin[1])
     return view | {"placed_footprint": collection([(on_site, {"id": product.id})])}
+
+
+def _unplaceable(product: Product, site: SiteContext | None) -> str | None:
+    """Why ``product`` can't stand anywhere on ``site`` within the floor-level
+    rule, on the most lenient reading (no eaves; a section line only not
+    crossed); None if it can, or the site isn't known."""
+    if site is None:
+        return None
+    solution = solve(site, product.length_m, product.width_m, count=1, section_clear_m=0.0)
+    least = solution.least_ground_range_m
+    if solution.placements or least is None or least <= MAX_FLOOR_ABOVE_GROUND_M:
+        return None  # it stands somewhere, or something other than floor level stops it
+    return (
+        f"Needs earthworks: wherever it fits on the site, the ground under it varies by "
+        f"at least {least:.2f} m, and the floor may stand at most "
+        f"{MAX_FLOOR_ABOVE_GROUND_M:g} m above the lowest ground."
+    )
 
 
 @lru_cache(maxsize=64)
