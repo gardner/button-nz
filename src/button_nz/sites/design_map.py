@@ -92,7 +92,8 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
     survey file) is read only for an older record that kept no buildings."""
     walls, outline, heights = _measured(attempt)
     frame = scene_frame(attempt)
-    parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in _scene(attempt)["parcels"]]
+    scene = _scene(attempt)
+    parcels = [Polygon([frame.to_nztm(p) for p in ring]) for ring in scene["parcels"]]
     title = union_all(parcels)
     internal = union_all([p.boundary for p in parcels]).difference(title.boundary.buffer(1e-6))
     buildings = _confirmed(attempt.parent / SURVEY_USED, survey)
@@ -114,7 +115,7 @@ def design_layers(attempt: Path, survey: Callable[[], Path | None]) -> dict[str,
         if not target.is_empty
     ]
     return {
-        "finishes": _finishes(_scene(attempt)),
+        "finishes": _finishes(scene),
         "walls": collection([(walls, heights)]),
         "outline": collection([(outline, heights)]),
         "distances": collection(lines),
