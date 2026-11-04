@@ -22,7 +22,7 @@ export function HousingFacts({
   return (
     <section
       aria-label="Housing facts"
-      className={`flex flex-col gap-2 rounded-xl bg-white/5 ${large ? "p-8" : "px-5 py-4"}`}
+      className={`flex flex-col gap-2 rounded-xl bg-white/5 ${large ? "flex-1 justify-center p-10" : "px-5 py-4"}`}
     >
       {/* Keyed by the fact, so each one fades in (not for less motion). */}
       <div key={fact.text} className="build-fade-in flex flex-col gap-2">

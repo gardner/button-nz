@@ -42,8 +42,8 @@ export function MuseOverlay({
         </div>
         <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto pr-1">
           {live && <Steps phase={live.phase} detail={live.detail} />}
-          {checked && <CheckList attempt={checked} />}
           <Filmstrip attempts={job.attempts} views={live?.observations ?? []} />
+          {checked && <CheckList attempt={checked} />}
           <PrefabsMeanwhile />
         </aside>
       </div>
