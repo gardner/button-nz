@@ -136,7 +136,8 @@ def design(
 ) -> DesignResult:
     """Design for ``brief`` on ``site``, or, ``revising`` an earlier design,
     change it as the owner asks. With ``allow_observations``, the brief comes
-    with the site's standard LiDAR views (attempt 1's first observations), and
+    with the site's standard LiDAR views and ground numbers (attempt 1's first
+    observations), and
     before each attempt the model may request up to ``max_observations`` more;
     they don't count as attempts. Without ``evaluator_feedback`` the model hears only
     execution errors (Experiment C's ablation): a script that ran ends the run,
@@ -206,9 +207,11 @@ def design(
 
 def _with_views(count: int, max_observations: int) -> str:
     return (
-        f"With this brief come {count} LiDAR views of the site, in the same local "
-        "coordinates; each says what it shows. They don't use your observations: you "
-        f"may still ask for up to {max_observations} more views before each design."
+        f"With this brief come {count} observations of the site: LiDAR views, and the "
+        "ground's numbers under the room's largest rectangles and the room itself, in "
+        "the same local coordinates; each says what it shows. They don't use your "
+        f"observations: you may still ask for up to {max_observations} more before each "
+        "design (another view, or the ground under another polygon)."
     )
 
 

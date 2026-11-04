@@ -169,31 +169,36 @@ def test_a_reply_without_a_script_is_an_attempt_with_feedback(
 
 
 SLOPE = Observe("render_height_map", {"mode": "slope"})
-GIVEN = ("render_hillshade", "render_contours", "render_height_map", "render_cross_section")
+VIEWS = ("render_hillshade", "render_contours", "render_height_map", "render_cross_section")
+# The flat site's room has one rectangle 3 m wide or more; then the whole room.
+GIVEN = (*VIEWS, "inspect_elevation", "inspect_elevation")
 
 
 def test_the_standard_views_come_with_the_brief(site: DesignSite, tmp_path: Path) -> None:
-    """Muse sees the site before its first move, without asking: the views are
-    recorded as attempt 1's first observations, files and all."""
+    """Muse sees the site before its first move, without asking: the views and
+    the ground's numbers are recorded as attempt 1's first observations, files
+    and all."""
     model = ScriptedModel("good")
     result = run(site, model, tmp_path)
     _, brief, *views = model.seen[0]
-    assert [t.role for t in views] == ["view"] * 4
+    assert [t.role for t in views] == ["view"] * len(GIVEN)
     folder = tmp_path / "attempt-1"
-    assert [t.image for t in views] == [folder / f"observation-{k}.png" for k in range(1, 5)]
-    assert all(t.image is not None and t.image.read_bytes().startswith(b"\x89PNG") for t in views)
+    images = [folder / f"observation-{k}.png" for k in range(1, 5)]
+    assert [t.image for t in views] == [*images, None, None]  # the numbers are text
+    assert all(image.read_bytes().startswith(b"\x89PNG") for image in images)
     assert "Hillshade" in views[0].text and "Terrain profile" in views[3].text
-    assert "2 more views" in brief.text  # the budget is still the model's own
+    assert "largest rectangle 1" in views[4].text and "whole room" in views[5].text
+    assert "2 more" in brief.text  # the budget is still the model's own
     assert result.attempts[0].observations == GIVEN
     trace = json.loads((folder / "attempt.json").read_text(encoding="utf-8"))
     assert trace["observations"] == list(GIVEN)
-    assert trace["observations_given"] == 4
+    assert trace["observations_given"] == len(GIVEN)
 
 
 def test_the_views_are_given_once_and_kept(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("near", "good")
     result = run(site, model, tmp_path)
-    assert [t.role for t in model.seen[1]].count("view") == 4  # still in the conversation
+    assert [t.role for t in model.seen[1]].count("view") == len(GIVEN)  # still there
     assert result.attempts[1].observations == ()
     assert not list((tmp_path / "attempt-2").glob("observation-*.png"))
     trace = json.loads((tmp_path / "attempt-2" / "attempt.json").read_text(encoding="utf-8"))
@@ -205,7 +210,7 @@ def test_without_observations_no_views_are_given(site: DesignSite, tmp_path: Pat
     model = ScriptedModel("good")
     run(site, model, tmp_path, allow_observations=False)
     assert [t.role for t in model.seen[0]] == ["system", "user"]
-    assert "more views" not in model.seen[0][1].text
+    assert "With this brief" not in model.seen[0][1].text
 
 
 def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) -> None:
@@ -214,8 +219,8 @@ def test_the_model_can_look_before_it_designs(site: DesignSite, tmp_path: Path) 
     request, observation = model.seen[1][-2:]
     assert request.role == "request" and "render_height_map" in request.text
     assert observation.role == "observation" and "slope" in observation.text
-    # Numbered after the four views given with the brief.
-    assert observation.image == tmp_path / "attempt-1" / "observation-5.png"
+    # Numbered after the observations given with the brief.
+    assert observation.image == tmp_path / "attempt-1" / "observation-7.png"
     assert observation.image is not None and observation.image.read_bytes().startswith(b"\x89PNG")
     assert result.attempts[0].observations == (*GIVEN, "render_height_map")
     trace = json.loads((tmp_path / "attempt-1" / "attempt.json").read_text(encoding="utf-8"))
@@ -362,8 +367,8 @@ def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_p
         "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before
     )
     roles = [t.role for t in model.seen[0]]
-    assert roles == ["system", "user", *["view"] * 4, "design", "feedback", "user"]
-    assert model.seen[0][6].text == "near" and model.seen[0][8].text == "Move it east."
+    assert roles == ["system", "user", *["view"] * len(GIVEN), "design", "feedback", "user"]
+    assert model.seen[0][-3].text == "near" and model.seen[0][-1].text == "Move it east."
     assert result.accepted is result.attempts[0]
 
 
