@@ -1,20 +1,28 @@
-"""Tests for the pure parts of scripts/demo/cut.py: no video is decoded or encoded."""
+"""Tests for scripts/demo/cut.py: its pure parts, and one tiny end-to-end cut."""
 
 import json
 from pathlib import Path
 
+import av
+import numpy as np
 import pytest
 from PIL import Image, ImageFont
 from pydantic import ValidationError
 
 from demo.cut import (
+    BACKGROUND,
+    INTRO_CAPTION,
     CardLine,
+    Plan,
     Segment,
     captioned,
     card,
+    cut,
+    fitted,
     load_card,
     load_plan,
     pick,
+    resampled,
     segment_frames,
     speed_label,
 )
@@ -127,3 +135,57 @@ def test_pick_reads_once_and_repeats_an_index_asked_for_twice() -> None:
 
 def test_pick_stops_when_the_recording_ends() -> None:
     assert list(pick(iter("abc"), [1, 2, 3, 4])) == ["b", "c"]
+
+
+def test_fitted_letterboxes_a_frame_to_the_output_size() -> None:
+    red = Image.new("RGB", (640, 480), (255, 0, 0))
+    fit = fitted(red, (1280, 720))
+    assert fit.size == (1280, 720)
+    assert _rgb(fit, (640, 360)) == (255, 0, 0)
+    assert _rgb(fit, (10, 360)) == BACKGROUND  # 4:3 in 16:9: bars at the sides
+
+
+def test_fitted_leaves_a_frame_of_the_output_size_as_it_is() -> None:
+    blue = Image.new("RGB", (1280, 720), (0, 0, 255))
+    assert _rgb(fitted(blue, (1280, 720)), (0, 0)) == (0, 0, 255)
+
+
+def test_resampled_keeps_the_clip_length_at_the_cut_frame_rate() -> None:
+    assert resampled(120, 30, 15) == list(range(0, 120, 2))  # 4 s either way
+    assert len(resampled(96, 24, 15)) == 60
+    assert resampled(4, 15, 30) == [0, 0, 1, 1, 2, 2, 3, 3]
+
+
+def test_the_intro_caption_says_it_is_not_the_live_run() -> None:
+    assert "LiDAR" in INTRO_CAPTION
+    assert "not the live run" in INTRO_CAPTION
+
+
+def _clip(path: Path, size: tuple[int, int], fps: int, frames: int) -> None:
+    with av.open(str(path), "w") as sink:
+        stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
+        stream.width, stream.height = size
+        stream.pix_fmt = "yuv420p"
+        for _ in range(frames):
+            frame = av.VideoFrame.from_ndarray(
+                np.zeros((size[1], size[0], 3), np.uint8), format="rgb24"
+            )
+            sink.mux(stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
+        sink.mux(stream.encode(None))  # pyright: ignore[reportUnknownMemberType]
+
+
+def _frames(path: Path) -> tuple[int, tuple[int, int]]:
+    with av.open(str(path)) as source:
+        frames = list(source.decode(video=0))
+        return len(frames), (frames[0].width, frames[0].height)
+
+
+def test_a_cut_plays_the_intro_between_the_title_and_the_live_run(tmp_path: Path) -> None:
+    raw, intro, out = tmp_path / "raw.mp4", tmp_path / "intro.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    _clip(intro, (32, 24), 30, 8)  # another size and rate: fitted and resampled
+    line = CardLine(text="x", size=8)
+    plan = Plan(title=[line], segments=[Segment(start=0, end=1, speed=1, caption="c")])
+    cut(raw, out, plan, [line], _font, 15, intro=intro)
+    # title 4 s + intro 8 frames at 30 fps as 4 at 15 + 1 s of the run + outro 7 s
+    assert _frames(out) == (60 + 4 + 15 + 105, (64, 48))
