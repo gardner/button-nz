@@ -16,6 +16,7 @@ from demo.cut import (
     CardLine,
     Plan,
     Segment,
+    Still,
     captioned,
     card,
     cut,
@@ -30,6 +31,8 @@ from demo.cut import (
     segment_frame,
     segment_frames,
     speed_label,
+    still_frame,
+    still_frames,
 )
 
 WHITE = (255, 255, 255)
@@ -225,7 +228,9 @@ def test_a_plan_may_open_on_beats_from_anywhere_in_the_run(tmp_path: Path) -> No
     segment = {"start": 0.0, "end": 5.0, "speed": 1, "caption": "c"}
     path.write_text(json.dumps({"title": [], "opening": [beat], "segments": [segment]}))
     plan = load_plan(path)
-    assert plan.opening[0].start == 900.0  # after every segment: an opening isn't in order
+    opened = plan.opening[0]
+    assert isinstance(opened, Beat)
+    assert opened.start == 900.0  # after every segment: an opening isn't in order
     assert plan.title == []
 
 
@@ -355,3 +360,78 @@ def test_a_beat_read_by_seeking_shows_the_frames_of_its_span(tmp_path: Path) -> 
     assert len(shown) == 15 + 15 + 105
     assert [_index(image) for image in shown[:15]] == list(range(45, 60))  # the beat, darkened
     assert _index(shown[15]) == 0  # then the live run from its start
+
+
+def test_a_plan_may_open_on_stills_among_its_beats(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    still = {"image": "visual.png", "seconds": 1.5, "caption": "Muse Image; surroundings imagined"}
+    path.write_text(json.dumps({"title": [], "opening": [still], "segments": []}))
+    opened = load_plan(path).opening[0]
+    assert isinstance(opened, Still) and opened.seconds == 1.5
+
+
+def test_a_still_frame_is_fitted_captioned_and_headlined() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    still = Still(
+        image=Path("x.png"),
+        seconds=1,
+        caption="c",
+        lines=[CardLine(text="Ours", size=12)],
+        at="bottom",
+    )
+    shown = still_frame(red, still, (640, 400), _font)
+    assert shown.size == (640, 400)  # fitted to the recording
+    assert _rgb(shown, (5, 200)) == BACKGROUND  # letterboxed
+    assert _rgb(shown, (5, 390))[0] < 80  # the caption band
+    assert 100 < _rgb(shown, (320, 100))[0] < 130  # darkened: 255 blended 0.6 toward 24 is 116
+    assert _rgb(shown, (320, 265))[0] < 60  # the headline's panel, low down
+
+
+def test_a_still_without_lines_is_not_darkened() -> None:
+    red = Image.new("RGB", (320, 240), (255, 0, 0))
+    shown = still_frame(red, Still(image=Path("x.png"), seconds=1, caption="c"), (640, 400), _font)
+    assert _rgb(shown, (320, 100)) == (255, 0, 0)
+    assert _rgb(shown, (5, 390))[0] < 80  # still captioned
+
+
+@pytest.mark.parametrize("caption", [{}, {"caption": ""}])
+def test_a_still_without_a_caption_is_refused_when_the_plan_loads(caption: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        Still.model_validate({"image": "x.png", "seconds": 1.0, **caption})
+
+
+def test_a_still_is_shown_for_its_seconds_at_the_frame_rate() -> None:
+    assert still_frames(Still(image=Path("x.png"), seconds=1.5, caption="c"), 15) == 22
+
+
+def test_a_still_too_short_for_one_frame_is_refused_before_anything_is_written(
+    tmp_path: Path,
+) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 15)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": "x.png", "seconds": 0.03, "caption": "c"}],
+            "segments": [],
+        }
+    )
+    with pytest.raises(ValueError, match="no frame"):
+        cut(raw, out, plan, [CardLine(text="x", size=8)], _font, 15)
+    assert not out.exists()
+
+
+def test_a_cut_opens_on_a_still(tmp_path: Path) -> None:
+    raw, out, image = tmp_path / "raw.mp4", tmp_path / "cut.mp4", tmp_path / "still.png"
+    _clip(raw, (64, 48), 15, 30)
+    Image.new("RGB", (32, 32), (0, 128, 0)).save(image)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"image": str(image), "seconds": 1.0, "caption": "c"}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    assert _frames(out) == (15 + 15 + 105, (64, 48))

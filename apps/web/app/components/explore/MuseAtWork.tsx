@@ -1,42 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import type { Attempt, Job, Phase } from "@/lib/api";
+import type { Job, Live } from "@/lib/api";
+import { NO_VIEWS, watchViews } from "@/lib/museStage";
 
+import { Elapsed, Filmstrip, Steps } from "./MuseParts";
+import { MuseOverlay } from "./MuseOverlay";
+import type { Place } from "./MuseSiteShots";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
 
-/** The steps of one attempt, in the order a run takes them (Muse decides,
- * then reads a view or has its script built, as many times as it asks). */
-const STEPS: { phase: Phase; label: string }[] = [
-  // Every model call: Muse choosing a LiDAR view to ask for, or writing its
-  // Blender script. The run can't tell which until Muse answers.
-  { phase: "thinking", label: "Muse decides its next move" },
-  { phase: "observing", label: "Muse reads the LiDAR" },
-  { phase: "rendering", label: "Blender builds and renders it" },
-  { phase: "checking", label: "The rules are measured" },
-];
+/** The run itself while a design is made: large over the screen, each step's
+ * work as it lands, until the owner hides it (× ) back to the small panel
+ * beside the map. It opens only for a design that is running when shown,
+ * and stays to show the accepted design and its visual. Give it
+ * `key={job.id}`: each design starts afresh. */
+export function MuseAtWork({ job, place }: { job: Job; place: Place }) {
+  const working = job.status === "queued" || job.status === "running";
+  const [large, setLarge] = useState(working);
+  const names = useViewNames(job.live);
+  if (large)
+    return (
+      <MuseOverlay
+        job={job}
+        names={names}
+        place={place}
+        onHide={() => setLarge(false)}
+      />
+    );
+  if (!working) return null;
+  // Below the top bar like the column on the left (5rem), scrolling on a
+  // short screen rather than covering the steps and the 2D/3D switch.
+  return (
+    <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10 xl:max-h-[calc(100dvh-6rem)] xl:w-[400px] xl:overflow-y-auto">
+      <MusePanel job={job} onEnlarge={() => setLarge(true)} />
+    </div>
+  );
+}
 
-/** The LiDAR views Muse can ask for, in words. */
-const VIEWS: Record<string, string> = {
-  render_hillshade: "the shaded relief",
-  render_contours: "the contours",
-  render_height_map: "a height map",
-  render_cross_section: "a cross-section",
-  inspect_elevation: "exact ground heights",
-};
+/** The live views' tools, from each look at the job (`watchViews`). */
+function useViewNames(live: Live | null): ReadonlyMap<string, string> {
+  const [watch, setWatch] = useState(() => watchViews(NO_VIEWS, live));
+  const [looked, setLooked] = useState(live);
+  if (live !== looked) {
+    setLooked(live);
+    setWatch(watchViews(watch, live));
+  }
+  return watch.names;
+}
 
-const VERDICTS: Record<Attempt["status"], string> = {
-  pass: "passed",
-  unknown: "passed, with checks it couldn't decide",
-  fail: "failed a check",
-  error: "didn't run",
-};
-
-/** While a design runs, the run itself: the step it is on, lit, and a
- * filmstrip of what it has made so far, every image real (the LiDAR views
- * Muse asked for, each attempt's render with its verdict). */
-export function MuseAtWork({ job }: { job: Job }) {
+/** The small panel: the step the run is on, lit, and a filmstrip of what it
+ * has made so far, every image real (the LiDAR views Muse asked for, each
+ * attempt's render with its verdict). */
+function MusePanel({ job, onEnlarge }: { job: Job; onEnlarge: () => void }) {
   const live = job.live;
   return (
     <section
@@ -45,7 +61,16 @@ export function MuseAtWork({ job }: { job: Job }) {
     >
       <header className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Muse at work</h2>
-        <Elapsed since={job.startedAt} />
+        <span className="flex items-baseline gap-3">
+          <Elapsed since={job.startedAt} />
+          <button
+            type="button"
+            onClick={onEnlarge}
+            className="rounded-full px-2 text-xs text-zinc-300 ring-1 ring-white/20 hover:bg-white/10 hover:text-white"
+          >
+            Show large
+          </button>
+        </span>
       </header>
       {live ? (
         <>
@@ -53,132 +78,18 @@ export function MuseAtWork({ job }: { job: Job }) {
           <Steps phase={live.phase} detail={live.detail} />
         </>
       ) : (
-        <p className="animate-pulse text-sm text-emerald-300">
-          {job.status === "queued"
-            ? "Waiting for a free designer…"
-            : "Getting the site ready…"}
+        <p className="text-sm text-emerald-300 motion-safe:animate-pulse">
+          {waitingWords(job)}
         </p>
       )}
-      <Filmstrip attempts={job.attempts} views={live?.observations ?? []} />
+      <Filmstrip attempts={job.attempts} live={live} />
       <PrefabsMeanwhile />
     </section>
   );
 }
 
-function Steps({ phase, detail }: { phase: Phase; detail: string }) {
-  return (
-    <ol className="flex flex-col gap-1.5 text-sm">
-      {STEPS.map((step) => {
-        const now = step.phase === phase;
-        return (
-          <li
-            key={step.phase}
-            aria-current={now ? "step" : undefined}
-            className={`flex items-center gap-2 ${now ? "font-medium text-emerald-300" : "text-zinc-500"}`}
-          >
-            <span
-              aria-hidden
-              className={`h-2 w-2 rounded-full ${now ? "animate-ping bg-emerald-400" : "bg-zinc-600"}`}
-            />
-            {step.label}
-            {now && phase === "observing" && VIEWS[detail] && (
-              <span className="text-zinc-300">: {VIEWS[detail]}</span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-/** The run so far, oldest first: each finished attempt's LiDAR views and
- * its render with its verdict, then the views of the attempt under way. */
-function Filmstrip({
-  attempts,
-  views,
-}: {
-  attempts: Attempt[];
-  views: string[];
-}) {
-  const frames = numbered([
-    ...attempts.flatMap(framesOf),
-    ...views.map((src) => ({ src, alt: "" })),
-  ]);
-  if (frames.length === 0) return null;
-  return (
-    <ul className="flex gap-2 overflow-x-auto pb-1">
-      {frames.map((frame) => (
-        <li key={frame.src} className="relative shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element -- the API's own image */}
-          <img
-            src={frame.src}
-            alt={frame.alt}
-            className={`h-24 rounded-lg object-cover ${frame.badge ? "w-32" : "w-24"}`}
-          />
-          {frame.badge && (
-            <span
-              aria-hidden
-              className={`absolute right-1 top-1 rounded-full px-1.5 text-xs font-bold ${frame.badge === "✗" ? "bg-red-500" : "bg-emerald-500"}`}
-            >
-              {frame.badge}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-interface Frame {
-  src: string;
-  alt: string;
-  badge?: "✓" | "✗"; // a render's verdict
-}
-
-/** The views (frames with no verdict) named in the order they were made. */
-function numbered(frames: Frame[]): Frame[] {
-  let views = 0;
-  return frames.map((f) =>
-    f.badge ? f : { ...f, alt: `LiDAR view ${++views} Muse asked for` },
-  );
-}
-
-/** A finished attempt's views, in the order made, then its render. */
-function framesOf(attempt: Attempt): Frame[] {
-  const views = Object.keys(attempt.files)
-    .filter((name) => name.startsWith("observation-"))
-    .sort((a, b) => viewNumber(a) - viewNumber(b))
-    .map((name): Frame => ({ src: attempt.files[name], alt: "" }));
-  const render = attempt.files["design.png"];
-  if (!render) return views;
-  const failed = attempt.status === "fail" || attempt.status === "error";
-  return [
-    ...views,
-    {
-      src: render,
-      alt: `Attempt ${attempt.number}'s render: ${VERDICTS[attempt.status]}`,
-      badge: failed ? "✗" : "✓",
-    },
-  ];
-}
-
-function viewNumber(name: string): number {
-  return Number(name.slice("observation-".length, -".png".length));
-}
-
-/** Minutes and seconds since the run started, ticking. */
-function Elapsed({ since }: { since: string | null }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  if (since === null) return null;
-  const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
-  const shown = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-  return (
-    <span className="font-mono text-sm tabular-nums text-zinc-400">
-      {shown}
-    </span>
-  );
+function waitingWords(job: Job): string {
+  return job.status === "queued"
+    ? "Waiting for a free designer…"
+    : "Getting the site ready…";
 }

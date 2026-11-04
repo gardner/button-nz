@@ -423,7 +423,7 @@ describe("a ready site", () => {
     expect(panel.textContent).toMatch(/Blender builds and renders it/);
   });
 
-  it("keeps Muse at work below the top bar on a short screen, scrolling rather than covering it", async () => {
+  it("keeps the small Muse at work below the top bar on a short screen, scrolling rather than covering it", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({
       "GET /api/town/reefton": TOWN,
@@ -433,6 +433,8 @@ describe("a ready site", () => {
       "GET /api/designs/abc123": { ...ACCEPTED, status: "running" },
     });
     render(<Explore pollMs={5} />);
+    // The large overlay hidden, the small panel of before.
+    fireEvent.click(await screen.findByRole("button", { name: "Hide" }));
     const panel = await screen.findByRole("region", { name: "Muse at work" });
     // Fixed to the bottom of the screen beside the map (xl), it can't grow
     // into the top bar (the steps, 2D/3D) on a short one: like the column

@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 
+from button_nz.api.relief import INTERRUPTED
 from button_nz.relief import SiteRelief
 from button_nz.relief.flyover import WORK_DIRS
 from button_nz.relief.run import MANIFEST, Tier, TierOutput
@@ -126,6 +127,32 @@ def test_a_relief_made_of_other_tiers_is_made_again(tmp_path: Path) -> None:
     assert tiers == ["parallax", "flyover"]
 
 
+def test_a_relief_made_by_an_older_version_of_a_tier_is_made_again(tmp_path: Path) -> None:
+    server = Server(tmp_path, relief_tiers=(CLIP,))
+    site_id = server.build()["id"]
+    server.client.post(f"/sites/{site_id}/relief")
+    _made(server, site_id)
+    deployed = Server(tmp_path, relief_tiers=(Tier("parallax", _clip, version=2),))
+    assert deployed.client.post(f"/sites/{site_id}/relief").json()["making"] is True
+    (tier,) = _made(deployed, site_id)["tiers"]
+    assert tier["version"] == 2 and tier["status"] == "ready"
+
+
+def test_a_relief_made_before_tiers_had_versions_is_version_1(tmp_path: Path) -> None:
+    server = Server(tmp_path, relief_tiers=(CLIP,))
+    site_id = server.build()["id"]
+    server.client.post(f"/sites/{site_id}/relief")
+    _made(server, site_id)
+    manifest = tmp_path / "sites" / site_id / "relief" / MANIFEST
+    tiers = json.loads(manifest.read_text("utf-8"))["tiers"]
+    for tier in tiers:
+        del tier["version"]  # as an older deployment wrote it
+    manifest.write_text(json.dumps({"tiers": tiers}), "utf-8")
+    assert server.client.post(f"/sites/{site_id}/relief").json()["making"] is False
+    deployed = Server(tmp_path, relief_tiers=(Tier("parallax", _clip, version=2),))
+    assert deployed.client.post(f"/sites/{site_id}/relief").json()["making"] is True
+
+
 def test_a_failed_tier_says_why_and_asking_again_makes_it_again(tmp_path: Path) -> None:
     tries: list[str] = []
 
@@ -142,6 +169,7 @@ def test_a_failed_tier_says_why_and_asking_again_makes_it_again(tmp_path: Path) 
     assert clip["status"] == "ready"
     assert flyover == {
         "tier": "flyover",
+        "version": 1,
         "status": "failed",
         "error": "no GPU has 4 GiB free",
         "seconds": flyover["seconds"],
@@ -181,7 +209,7 @@ def test_a_relief_still_queued_at_a_restart_reads_as_failed(tmp_path: Path) -> N
         shown = restarted.client.get(f"/sites/{second}/relief").json()
         assert shown == {
             "making": False,
-            "tiers": [{"tier": "flyover", "status": "failed", "error": "interrupted by a restart"}],
+            "tiers": [{"tier": "flyover", "version": 1, "status": "failed", "error": INTERRUPTED}],
         }
     finally:
         done.set()
