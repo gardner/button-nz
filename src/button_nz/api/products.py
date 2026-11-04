@@ -130,14 +130,19 @@ def _floor_note(
     least = least_ground_range(
         site, product.length_m, product.width_m, section_clear_m=0.0, angle_step_deg=FIT_STEP_DEG
     )
-    if least is None or least <= MAX_FLOOR_ABOVE_GROUND_M:
-        return None  # floor level can pass somewhere, or something else stops it
-    measured = "the ground under it varies "
-    if inside is not None:
-        measured = f"inside the design's walls {measured}by {inside:.2f} m; "
+    if least is not None and least <= MAX_FLOOR_ABOVE_GROUND_M:
+        return None  # floor level can pass somewhere the search tried
+    if least is None and inside is None:
+        return None  # nothing was measured: nothing to say
+    ground = "the ground under it varies"
+    parts = [] if inside is None else [f"inside the design's walls {ground} by {inside:.2f} m"]
+    if least is None:
+        parts.append("the search found no other position on the site it fits")
+    else:
+        where = f"at every position the search tried on the site (turned every {FIT_STEP_DEG:g}°)"
+        parts.append(f"{where}, {'by' if parts else ground + ' by'} at least {least:.2f} m")
     return (
-        f"May need earthworks: {measured}at every position the search tried on the site "
-        f"(turned every {FIT_STEP_DEG:g}°), by at least {least:.2f} m. The floor may stand "
+        f"May need earthworks: {'; '.join(parts)}. The floor may stand "
         f"at most {MAX_FLOOR_ABOVE_GROUND_M:g} m above the lowest ground; the search samples "
         "positions, so one it didn't try may pass."
     )

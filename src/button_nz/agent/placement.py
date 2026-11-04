@@ -368,15 +368,19 @@ def describe_placements(
 
 
 def _none_placed(solution: Solution) -> str:
+    """Why the search found none: it samples poses, so one it didn't try may pass."""
     least = solution.least_ground_range_m
     if least is None:
-        return "no placement: with the section lines kept clear, it fits nowhere in the room."
+        return (
+            "no placement found: with the section lines kept clear, the search fitted it "
+            "at none of the positions and angles it tried (others may fit)."
+        )
     if least <= MAX_FLOOR_ABOVE_GROUND_M:
-        return "the search found no placement that passes every siting check."
+        return "no placement found: none the search tried passes every siting check."
     return (
-        "no placement passes floor level: wherever it fits, the ground under it varies "
-        f"by at least {least:.2f} m, more than the "
-        f"{MAX_FLOOR_ABOVE_GROUND_M:g} m allowed."
+        "no placement found that passes floor level: at every position the search tried, "
+        f"the ground under it varies by at least {least:.2f} m, more than the "
+        f"{MAX_FLOOR_ABOVE_GROUND_M:g} m allowed (a position it didn't try may pass)."
     )
 
 

@@ -218,6 +218,8 @@ def test_a_bespoke_design_gets_a_placement_for_each_plain_plan() -> None:
 def test_the_prompt_says_when_nothing_can_be_placed() -> None:
     text = describe_placements(_design_site(_site(slope_x=0.4)), Footprint("Long", 10.0, 4.0))
     assert "10 × 4 m" in text and "no placement" in text and "floor level" in text
+    assert "the search" in text and "may" in text  # a sampled miss, not an impossibility
+    assert "wherever it fits" not in text and "fits nowhere" not in text
 
 
 def _design_site(context: SiteContext, origin: Point = (0.0, 0.0)) -> DesignSite:

@@ -133,3 +133,23 @@ def test_a_product_that_stands_where_the_design_does_has_no_note(
 
 def missed(*_: Any, **__: Any) -> float:
     return 1.5
+
+
+def test_a_failure_inside_the_walls_is_noted_when_the_search_finds_no_pose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = with_products(tmp_path, FITS)
+    job_id = service.queue()
+    service.worker.run_next()
+    monkeypatch.setattr(service.worker, "decided_site", steep)
+    monkeypatch.setattr(products_module, "least_ground_range", nowhere)
+    catalogue = (Product.parse(FITS),)
+    app = create_app(service.store, service.worker, load_demo_site(), products=catalogue)
+    (listed,) = TestClient(app).get(f"/designs/{job_id}/products").json()["fits"]
+    note = listed["floor_level_note"]
+    assert re.search(r"inside the design's walls the ground under it varies by \d+\.\d\d m", note)
+    assert "the search found no other position" in note
+
+
+def nowhere(*_: Any, **__: Any) -> None:
+    return None
