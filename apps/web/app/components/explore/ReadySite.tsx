@@ -89,7 +89,7 @@ export function ReadySite({
         onEdit={() => setEditing(true)}
       />
       <DesignDock chain={chain} />
-      <AtWork job={shown} />
+      <AtWork job={shown} site={site} />
       {accepted && shown && (
         <Accepted job={shown} chain={chain} onPrefabs={askedPrefabs} />
       )}
@@ -226,15 +226,16 @@ function undrawn(map: DesignMap | null): string[] {
   );
 }
 
-/** The run itself, beside the map, while the shown design is made: below
- * the top bar like the column on the left (5rem), scrolling on a short
- * screen rather than covering the steps and the 2D/3D switch. */
-function AtWork({ job }: { job: Job | undefined }) {
-  if (job?.status !== "queued" && job?.status !== "running") return null;
+/** The run itself while the shown design is made (MuseAtWork): each design
+ * its own, opened large if it is running when shown. */
+function AtWork({ job, site }: { job: Job | undefined; site: SiteState }) {
+  if (!job) return null;
   return (
-    <div className="xl:fixed xl:bottom-4 xl:right-4 xl:z-10 xl:max-h-[calc(100dvh-6rem)] xl:w-[400px] xl:overflow-y-auto">
-      <MuseAtWork job={job} />
-    </div>
+    <MuseAtWork
+      key={job.id}
+      job={job}
+      place={{ id: site.id, address: site.address }}
+    />
   );
 }
 
