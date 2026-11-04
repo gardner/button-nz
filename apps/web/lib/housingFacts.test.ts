@@ -52,6 +52,17 @@ describe("factsFor", () => {
     ]);
   });
 
+  it("puts the town-screen map beside Reefton's figures, and no map beside the national rule", () => {
+    const facts = factsFor(REEFTON);
+    expect(facts.map((f) => f.map ?? null)).toEqual([
+      "/town-screen-reefton.png",
+      "/town-screen-reefton.png",
+      "/town-screen-reefton.png",
+      "/town-screen-reefton.png",
+      null,
+    ]);
+  });
+
   it("gives a site elsewhere only the national rule: no Reefton figure is presented as theirs", () => {
     const facts = factsFor(ELSEWHERE);
     expect(facts).toHaveLength(1);

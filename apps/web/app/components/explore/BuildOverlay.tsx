@@ -184,7 +184,7 @@ function askingNow(progress: BuildProgress | null): string | null {
 
 /** The square every step is drawn in; until the parcels are found there is
  * nothing to draw, and it waits, alive. */
-function Picture({
+export function Picture({
   progress,
   asking,
 }: {

@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import type { HousingFact } from "@/lib/housingFacts";
+
+import { useTurn } from "./useTurn";
 
 const FACT_MS = 9000; // how long each fact is shown
 
 /** Sourced facts about housing, one at a time, each with its source in
- * small type. They turn with the clock, so a fact shown again after an
- * artifact carries on where they left off rather than from the first. */
+ * small type, and Reefton's beside the town screen's map. They turn with
+ * the clock, so a fact shown again after an artifact carries on where they
+ * left off rather than from the first. */
 export function HousingFacts({
   facts,
   large = false,
@@ -22,10 +23,10 @@ export function HousingFacts({
   return (
     <section
       aria-label="Housing facts"
-      className={`flex flex-col gap-2 rounded-xl bg-white/5 ${large ? "flex-1 justify-center p-10" : "px-5 py-4"}`}
+      className={`flex min-h-0 items-center gap-6 rounded-xl bg-white/5 ${large ? "flex-1 p-10" : "px-5 py-4"}`}
     >
       {/* Keyed by the fact, so each one fades in (not for less motion). */}
-      <div key={fact.text} className="build-fade-in flex flex-col gap-2">
+      <div key={fact.text} className="build-fade-in flex flex-1 flex-col gap-2">
         <p
           className={`font-medium text-white ${large ? "text-3xl leading-snug" : "text-xl"}`}
         >
@@ -33,21 +34,14 @@ export function HousingFacts({
         </p>
         <p className="text-xs text-zinc-400">Source: {fact.source}</p>
       </div>
+      {fact.map && (
+        // eslint-disable-next-line @next/next/no-img-element -- a report's own figure, with its legend
+        <img
+          src={fact.map}
+          alt="The town screen's map of Reefton: each residential property coloured by whether a real prefab fits"
+          className={`shrink-0 rounded-lg bg-white object-contain ${large ? "max-h-full w-2/5" : "h-28"}`}
+        />
+      )}
     </section>
   );
-}
-
-/** Which turn of `ms` the clock is in, moving on at each turn's end. */
-function useTurn(ms: number): number {
-  const [turn, setTurn] = useState(() => Math.floor(Date.now() / ms));
-  useEffect(() => {
-    // Never the same turn again: a timer that fires a moment early would
-    // otherwise stop the facts turning.
-    const timer = setTimeout(
-      () => setTurn((t) => Math.max(t + 1, Math.floor(Date.now() / ms))),
-      ms - (Date.now() % ms),
-    );
-    return () => clearTimeout(timer);
-  }, [turn, ms]);
-  return turn;
 }

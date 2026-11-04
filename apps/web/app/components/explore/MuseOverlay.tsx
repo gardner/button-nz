@@ -3,12 +3,14 @@
 import type { ReactNode } from "react";
 
 import type { Attempt, Check, Job } from "@/lib/api";
-import type { HousingFact } from "@/lib/housingFacts";
+import { type HousingFact, factsFor } from "@/lib/housingFacts";
 import { type Stage, stageOf } from "@/lib/museStage";
+import type { SiteShot } from "@/lib/siteShots";
 
 import { BADGE, MARK, checkLabel } from "./AttemptRow";
 import { HousingFacts } from "./HousingFacts";
 import { Elapsed, Filmstrip, Steps, viewLabel, viewName } from "./MuseParts";
+import { type Place, SiteShots, useSiteShots } from "./MuseSiteShots";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
 
 /** The run, large: about 90% of the screen, slightly see-through like the
@@ -18,17 +20,19 @@ import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
 export function MuseOverlay({
   job,
   names,
-  facts,
+  place,
   onHide,
 }: {
   job: Job;
   names: ReadonlyMap<string, string>;
-  facts: readonly HousingFact[];
+  place: Place;
   onHide: () => void;
 }) {
   const stage = stageOf(job, names);
   const live = job.live;
   const checked = job.attempts.at(-1);
+  const facts = factsFor(place);
+  const shots = useSiteShots(place);
   return (
     <section
       aria-label="Muse at work"
@@ -37,7 +41,7 @@ export function MuseOverlay({
       <Header job={job} onHide={onHide} />
       <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)]">
         <div className="flex min-h-0 flex-col gap-4">
-          {scene(stage, { facts, onHide })}
+          {scene(stage, { facts, shots, onHide })}
           {factsUnder(job, stage) && <HousingFacts facts={facts} />}
         </div>
         <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto pr-1">
@@ -86,6 +90,7 @@ type Of<K extends Stage["kind"]> = Extract<Stage, { kind: K }>;
 
 interface SceneProps {
   facts: readonly HousingFact[];
+  shots: readonly SiteShot[]; // the site's own pictures, for the waits
   onHide: () => void;
 }
 
@@ -94,7 +99,7 @@ interface SceneProps {
 const SCENES: {
   [K in Stage["kind"]]: (stage: Of<K>, props: SceneProps) => ReactNode;
 } = {
-  waiting: (stage, { facts }) => (
+  waiting: (stage, props) => (
     <Scene
       title={
         stage.queued
@@ -102,28 +107,28 @@ const SCENES: {
           : "Getting the site ready…"
       }
     >
-      <HousingFacts facts={facts} large />
+      <Wait {...props} />
     </Scene>
   ),
-  thinking: (_, { facts }) => (
+  thinking: (_, props) => (
     <Scene title="Muse decides its first move: a LiDAR view to ask for, or its design">
-      <HousingFacts facts={facts} large />
+      <Wait {...props} />
     </Scene>
   ),
-  reading: (stage) => (
+  reading: (stage, { shots }) => (
     <Scene title={`Muse asked for ${viewName(stage.tool)}`}>
-      <Working>Drawing it from the LiDAR…</Working>
+      <Working shots={shots}>Drawing it from the LiDAR…</Working>
     </Scene>
   ),
   view: (stage) => <ViewScene stage={stage} />,
-  building: () => (
+  building: (_, { shots }) => (
     <Scene title="Blender builds and renders it">
-      <Working>Running Muse&apos;s script in Blender…</Working>
+      <Working shots={shots}>Running Muse&apos;s script in Blender…</Working>
     </Scene>
   ),
-  measuring: () => (
+  measuring: (_, { shots }) => (
     <Scene title="The rules are measured">
-      <Working>Measuring the design against the rules…</Working>
+      <Working shots={shots}>Measuring the design against the rules…</Working>
     </Scene>
   ),
   fixing: (stage) => (
@@ -166,8 +171,36 @@ function Scene({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** A step under way that has made nothing yet: the stage waits, alive. */
-function Working({ children }: { children: ReactNode }) {
+/** A wait with nothing of Muse's to show: the site's own pictures with the
+ * facts under them, or the facts filling the stage. */
+function Wait({ facts, shots }: SceneProps) {
+  if (shots.length === 0) return <HousingFacts facts={facts} large />;
+  return (
+    <>
+      <SiteShots shots={shots} />
+      <HousingFacts facts={facts} />
+    </>
+  );
+}
+
+/** A step under way that has made nothing yet: the site's own pictures, or
+ * an empty stage waiting, alive. */
+function Working({
+  shots,
+  children,
+}: {
+  shots: readonly SiteShot[];
+  children: ReactNode;
+}) {
+  if (shots.length > 0)
+    return (
+      <>
+        <p className="text-lg text-zinc-300 motion-safe:animate-pulse">
+          {children}
+        </p>
+        <SiteShots shots={shots} />
+      </>
+    );
   return (
     <div className="flex min-h-48 flex-1 items-center justify-center rounded-xl bg-zinc-900/60 text-lg text-zinc-300 motion-safe:animate-pulse">
       {children}

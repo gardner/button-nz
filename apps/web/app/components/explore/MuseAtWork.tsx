@@ -3,18 +3,12 @@
 import { useState } from "react";
 
 import type { Job, Live } from "@/lib/api";
-import { factsFor } from "@/lib/housingFacts";
 import { NO_VIEWS, watchViews } from "@/lib/museStage";
 
 import { Elapsed, Filmstrip, Steps } from "./MuseParts";
 import { MuseOverlay } from "./MuseOverlay";
+import type { Place } from "./MuseSiteShots";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
-
-/** Where the design is made: its facts are chosen by it. */
-export interface Place {
-  id: string;
-  address: string;
-}
 
 /** The run itself while a design is made: large over the screen, each step's
  * work as it lands, until the owner hides it (× ) back to the small panel
@@ -30,7 +24,7 @@ export function MuseAtWork({ job, place }: { job: Job; place: Place }) {
       <MuseOverlay
         job={job}
         names={names}
-        facts={factsFor(place)}
+        place={place}
         onHide={() => setLarge(false)}
       />
     );
