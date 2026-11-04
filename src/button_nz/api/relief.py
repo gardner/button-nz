@@ -63,7 +63,11 @@ class ReliefMaker:
         with self._lock:
             if site_id in self._making or _made(self._entries(site_id)):
                 return
-            (self.directory(site_id) / MANIFEST).unlink(missing_ok=True)  # the last try's
+            # Every tier pending from now, in place of the last try's: one still
+            # queued at a restart then reads as interrupted, as a running one does.
+            directory = self.directory(site_id)
+            directory.mkdir(parents=True, exist_ok=True)
+            publish(directory, [{"tier": t.name, "status": "pending"} for t in self.tiers])
             self._making.add(site_id)
             if self._thread is None:
                 self._thread = threading.Thread(target=self._loop, name="relief", daemon=True)

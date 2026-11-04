@@ -152,6 +152,30 @@ def test_a_tier_cut_off_by_a_restart_reads_as_failed(tmp_path: Path) -> None:
     assert _made(server, site_id)["tiers"][0]["status"] == "ready"
 
 
+def test_a_relief_still_queued_at_a_restart_reads_as_failed(tmp_path: Path) -> None:
+    rendering, done = threading.Event(), threading.Event()
+
+    def busy(relief: SiteRelief, out: Path) -> TierOutput:
+        rendering.set()
+        done.wait(WAIT_S)  # another site's fly-over, still rendering
+        return TierOutput({}, {})
+
+    server = Server(tmp_path, relief_tiers=(Tier("flyover", busy),))
+    first, second = server.build(7)["id"], server.build(8)["id"]
+    server.client.post(f"/sites/{first}/relief")
+    assert rendering.wait(WAIT_S)
+    server.client.post(f"/sites/{second}/relief")  # queued behind the first
+    try:
+        restarted = Server(tmp_path, relief_tiers=(CLIP,))
+        shown = restarted.client.get(f"/sites/{second}/relief").json()
+        assert shown == {
+            "making": False,
+            "tiers": [{"tier": "flyover", "status": "failed", "error": "interrupted by a restart"}],
+        }
+    finally:
+        done.set()
+
+
 def test_a_site_whose_relief_cant_be_read_says_why(tmp_path: Path) -> None:
     server = Server(tmp_path, relief_tiers=(CLIP,))
     site_id = server.build()["id"]
