@@ -1,5 +1,7 @@
 "use client";
 
+import type { ExpressionSpecification } from "maplibre-gl";
+
 import {
   type DesignMap,
   type SiteMap,
@@ -168,23 +170,36 @@ export function SiteLayers({
   );
 }
 
-/** The design stood up in place: its walls in its colour, and its eaves as
- * a thin slab at the roof. */
-const WALLS_3D: Paint<"fill-extrusion"> = {
-  "fill-extrusion-color": SITE_COLOURS.walls,
-  "fill-extrusion-base": 0,
-  "fill-extrusion-height": OWN_HEIGHT,
-  "fill-extrusion-opacity": 0.95,
-};
-const EAVES_3D: Paint<"fill-extrusion"> = {
-  "fill-extrusion-color": "#fafaf9",
-  "fill-extrusion-base": ["-", OWN_HEIGHT, 0.2],
-  "fill-extrusion-height": OWN_HEIGHT,
-  "fill-extrusion-opacity": 0.7,
-};
+/** The design stood up in place in the finishes its render used (a placed
+ * product's, or the bespoke defaults): its walls, and on them a slab of roof
+ * over its outline, eaves and all. The roof starts where the walls stop, so
+ * no two faces are coplanar (two tops at one height z-fight: the roof
+ * tears). */
+const ROOF_DEPTH = 0.5; // metres: a flat stand-in for its pitched roof
+const EAVES_LINE: ExpressionSpecification = [
+  "max",
+  ["-", OWN_HEIGHT, ROOF_DEPTH],
+  0,
+];
+function walls3d(colour: string): Paint<"fill-extrusion"> {
+  return {
+    "fill-extrusion-color": colour,
+    "fill-extrusion-base": 0,
+    "fill-extrusion-height": EAVES_LINE,
+    "fill-extrusion-opacity": 1,
+  };
+}
+function roof3d(colour: string): Paint<"fill-extrusion"> {
+  return {
+    "fill-extrusion-color": colour,
+    "fill-extrusion-base": EAVES_LINE,
+    "fill-extrusion-height": OWN_HEIGHT,
+    "fill-extrusion-opacity": 1,
+  };
+}
 
 /** An accepted design on the site: its outline (eaves too) and its walls,
- * flat, or in 3D standing in place. */
+ * flat, or in 3D standing in place, roofed. */
 export function DesignLayers({
   map,
   three,
@@ -200,13 +215,13 @@ export function DesignLayers({
           key="walls-3d"
           id="design-walls"
           data={measured(map.walls)}
-          extrusion={WALLS_3D}
+          extrusion={walls3d(map.finishes.walls)}
         />
         <GeoLayer
-          key="eaves-3d"
+          key="roof-3d"
           id="design-outline"
           data={measured(map.outline)}
-          extrusion={EAVES_3D}
+          extrusion={roof3d(map.finishes.roof)}
         />
         <Distances key="distances-3d" map={map} />
       </>

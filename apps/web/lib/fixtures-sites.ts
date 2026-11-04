@@ -250,6 +250,7 @@ export const CHECKS = [
 
 /** GET /designs/{id}/map */
 export const DESIGN_MAP = {
+  finishes: { walls: "#b98a5e", roof: "#3a3d40" }, // a placed product's, say
   outline: collection(
     polygon(
       "outline",
