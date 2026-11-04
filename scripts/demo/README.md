@@ -5,7 +5,7 @@ browser and then cut for length. Nothing is staged. Long waits are sped up,
 and the video says so on screen.
 
 - **`record.py`:** drives the app live and writes the raw recording. It:
-  - shows the survey as the owner decided it;
+  - shows the survey as the owner decided it, and the site in 3D;
   - enters a brief, designs, and waits for the AI visual;
   - views the design in 3D, revises it, and shows before and after;
   - shows the real prefabs that fit, and asks to place the largest on the site.
@@ -125,6 +125,18 @@ run. A new recording needs new times and captions, read from its marks.
 
 ```json
 {"start": 23.0, "end": 217.0, "speed": 12, "caption": "Muse Spark chooses LiDAR views..."}
+```
+
+**`opening`** (optional, in the plan) is the why before the how: beats shown
+first, each a span of the raw recording from anywhere in it (not in order),
+darkened under a headline on a dark panel. A beat's `at` is `"centre"`, the
+default, or `"bottom"`, which keeps the middle of the frame, where the result
+usually is, clear. With an opening, the title card may be empty (`"title": []`),
+and is then left out.
+
+```json
+{"start": 503.1, "end": 515.1, "speed": 1, "at": "bottom",
+ "lines": [{"text": "Our solution", "size": 44, "bold": true}, {"text": "Type any address…", "size": 30}]}
 ```
 
 **`--intro`** (optional) plays a clip between the title card and the live

@@ -19,6 +19,7 @@ from demo.cut import (
     card,
     cut,
     fitted,
+    headlined,
     load_card,
     load_plan,
     pick,
@@ -189,3 +190,51 @@ def test_a_cut_plays_the_intro_between_the_title_and_the_live_run(tmp_path: Path
     cut(raw, out, plan, [line], _font, 15, intro=intro)
     # title 4 s + intro 8 frames at 30 fps as 4 at 15 + 1 s of the run + outro 7 s
     assert _frames(out) == (60 + 4 + 15 + 105, (64, 48))
+
+
+def test_a_plan_may_open_on_beats_from_anywhere_in_the_run(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    beat = {"start": 900.0, "end": 910.0, "speed": 1, "lines": [{"text": "Why", "size": 40}]}
+    segment = {"start": 0.0, "end": 5.0, "speed": 1, "caption": "c"}
+    path.write_text(json.dumps({"title": [], "opening": [beat], "segments": [segment]}))
+    plan = load_plan(path)
+    assert plan.opening[0].start == 900.0  # after every segment: an opening isn't in order
+    assert plan.title == []
+
+
+def test_a_plan_without_an_opening_has_none(tmp_path: Path) -> None:
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps({"title": [], "segments": []}))
+    assert load_plan(path).opening == []
+
+
+def test_a_headline_darkens_the_frame_and_keeps_its_size() -> None:
+    white = Image.new("RGB", (320, 200), WHITE)
+    shown = headlined(white, [CardLine(text="The problem", size=20, bold=True)], 1, _font)
+    assert shown.size == (320, 200)
+    assert _rgb(shown, (5, 5))[0] < 160  # darkened, so the words read over footage
+
+
+def test_a_cut_opens_on_its_beats_and_skips_an_empty_title(tmp_path: Path) -> None:
+    raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
+    _clip(raw, (64, 48), 15, 30)
+    line = CardLine(text="x", size=8)
+    plan = Plan.model_validate(
+        {
+            "title": [],
+            "opening": [{"start": 1.0, "end": 2.0, "speed": 1, "lines": [line.model_dump()]}],
+            "segments": [{"start": 0.0, "end": 1.0, "speed": 1, "caption": "c"}],
+        }
+    )
+    cut(raw, out, plan, [line], _font, 15)
+    # no title, 1 s of opening beat from the run's end, 1 s of the run, outro 7 s
+    assert _frames(out) == (15 + 15 + 105, (64, 48))
+
+
+def test_a_headline_at_the_bottom_leaves_the_middle_of_the_frame_clear() -> None:
+    white = Image.new("RGB", (640, 600), WHITE)
+    lines = [CardLine(text="The impact", size=12, bold=True)]
+    low = headlined(white, lines, 1, _font, at="bottom")
+    centred = headlined(white, lines, 1, _font)
+    assert _rgb(low, (320, 300)) > _rgb(centred, (320, 300))  # no panel over the middle
+    assert _rgb(low, (320, 500))[0] < 60  # the panel is low down

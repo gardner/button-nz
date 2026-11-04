@@ -13,7 +13,7 @@ caller's, taken from real reports. See README.md for both formats.
 import argparse
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self
 
 import av
 import numpy as np
@@ -29,6 +29,9 @@ INTRO_CAPTION = "The site in 3D: its LINZ aerial photo on its own LiDAR (not the
 
 type Fonts = Callable[[int, bool], ImageFont.FreeTypeFont]
 """A font of a pixel size, bold or not."""
+
+type Place = Literal["centre", "bottom"]
+"""Where a beat's headline stands: over the middle, or low, clear of the result."""
 
 
 class CardLine(BaseModel):
@@ -56,10 +59,30 @@ class Segment(BaseModel):
         return self
 
 
+class Beat(BaseModel):
+    """An opening shot: a span of the raw recording, from anywhere in it,
+    darkened under a headline, the why before the how."""
+
+    model_config = ConfigDict(frozen=True)
+    start: float = Field(ge=0)
+    end: float
+    speed: int = Field(ge=1)
+    lines: list[CardLine]
+    at: Place = "centre"
+
+    @model_validator(mode="after")
+    def _ends_after_it_starts(self) -> Self:
+        if self.end <= self.start:
+            raise ValueError(f"beat ends at {self.end} s, before it starts at {self.start} s")
+        return self
+
+
 class Plan(BaseModel):
-    """The title card and the segments, in recording order."""
+    """The opening beats, the title card (none if empty), and the segments,
+    in recording order."""
 
     title: list[CardLine]
+    opening: list[Beat] = []
     segments: list[Segment]
 
     @model_validator(mode="after")
@@ -98,14 +121,48 @@ def speed_label(speed: int) -> str | None:
 
 
 def card(lines: list[CardLine], size: tuple[int, int], fonts: Fonts) -> Image.Image:
-    image = Image.new("RGB", size, BACKGROUND)
+    return _centred(
+        Image.new("RGB", size, BACKGROUND), lines, fonts, _top(size[1], lines, "centre")
+    )
+
+
+def headlined(
+    image: Image.Image, lines: list[CardLine], speed: int, fonts: Fonts, at: Place = "centre"
+) -> Image.Image:
+    """The frame darkened, its headline centred over it, and, if sped up, the
+    red speed label."""
+    shown = Image.blend(image.convert("RGB"), Image.new("RGB", image.size, BACKGROUND), 0.6)
+    top = _top(image.height, lines, at)
+    return labelled(_centred(_panel(shown, lines, fonts, top), lines, fonts, top), speed, fonts)
+
+
+def _top(height: int, lines: list[CardLine], at: Place) -> int:
+    """Where the first of ``lines`` stands: centred, or 56 px clear of the bottom."""
+    tall = sum(line.size + 18 for line in lines)
+    return (height - tall) // 2 if at == "centre" else height - tall - 56 - 32
+
+
+def _panel(image: Image.Image, lines: list[CardLine], fonts: Fonts, top: int) -> Image.Image:
+    """A dark rounded panel where ``_centred`` will write ``lines``, so they
+    read over busy footage."""
+    draw = ImageDraw.Draw(image, "RGBA")
+    widest = max(draw.textlength(line.text, font=fonts(line.size, line.bold)) for line in lines)
+    tall = sum(line.size + 18 for line in lines)
+    x, y = (image.width - widest) / 2 - 40, top - 32
+    box = (x, y, image.width - x, y + tall + 64)
+    draw.rounded_rectangle(box, 24, fill=(*BACKGROUND, 235))
+    return image
+
+
+def _centred(image: Image.Image, lines: list[CardLine], fonts: Fonts, top: int) -> Image.Image:
+    """``lines`` centred across ``image``, the first standing at ``top``."""
     draw = ImageDraw.Draw(image)
     heights = [line.size + 18 for line in lines]
-    y = (size[1] - sum(heights)) // 2
+    y = top
     for line, height in zip(lines, heights, strict=True):
         font = fonts(line.size, line.bold)
         width = draw.textlength(line.text, font=font)
-        draw.text(((size[0] - width) / 2, y), line.text, font=font, fill=(244, 244, 245))
+        draw.text(((image.width - width) / 2, y), line.text, font=font, fill=(244, 244, 245))
         y += height
     return image
 
@@ -118,12 +175,20 @@ def captioned(image: Image.Image, caption: str, speed: int, fonts: Fonts) -> Ima
     font = fonts(24, False)
     draw.rectangle((0, height - 64, width, height), fill=(0, 0, 0, 190))
     draw.text((24, height - 48), caption, font=font, fill=(255, 255, 255))
+    return labelled(image, speed, fonts)
+
+
+def labelled(image: Image.Image, speed: int, fonts: Fonts) -> Image.Image:
+    """The frame with, if sped up, the red speed label in its top-right corner."""
     label = speed_label(speed)
-    if label is not None:
-        label_width = draw.textlength(label, font=font)
-        box = (width - label_width - 44, 16, width - 16, 56)
-        draw.rounded_rectangle(box, 8, fill=(220, 38, 38, 230))
-        draw.text((width - label_width - 30, 22), label, font=font, fill=(255, 255, 255))
+    if label is None:
+        return image
+    draw = ImageDraw.Draw(image, "RGBA")
+    font = fonts(24, False)
+    label_width = draw.textlength(label, font=font)
+    box = (image.width - label_width - 44, 16, image.width - 16, 56)
+    draw.rounded_rectangle(box, 8, fill=(220, 38, 38, 230))
+    draw.text((image.width - label_width - 30, 22), label, font=font, fill=(255, 255, 255))
     return image
 
 
@@ -194,6 +259,14 @@ class Mp4:
         self.sink.mux(self.stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
 
 
+def write_beat(mp4: Mp4, raw: Path, beat: Beat, fonts: Fonts, fps: int) -> None:
+    """An opening beat: its span of ``raw``, read on its own, headlined."""
+    span = Segment(start=beat.start, end=beat.end, speed=beat.speed, caption="")
+    with av.open(str(raw)) as source:
+        for image in pick(raw_images(source), segment_frames(span, fps)):
+            mp4.write(headlined(image, beat.lines, beat.speed, fonts, beat.at))
+
+
 def write_intro(mp4: Mp4, intro: Path, size: tuple[int, int], fonts: Fonts, fps: int) -> None:
     """The intro clip, fitted to ``size`` at ``fps``, every frame captioned."""
     with av.open(str(intro)) as source:
@@ -217,7 +290,10 @@ def cut(
         video = source.streams.video[0]
         size = (video.width, video.height)
         mp4 = Mp4(sink, size, fps)
-        mp4.write(card(plan.title, size, fonts), 4 * fps)
+        for beat in plan.opening:
+            write_beat(mp4, raw, beat, fonts, fps)
+        if plan.title:
+            mp4.write(card(plan.title, size, fonts), 4 * fps)
         if intro is not None:
             write_intro(mp4, intro, size, fonts, fps)
         plan_shots = shots(plan, fps)

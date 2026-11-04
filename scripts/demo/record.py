@@ -186,6 +186,18 @@ def show_survey(run: Run) -> None:
     page.wait_for_timeout(5000)
 
 
+def see_in_3d(run: Run) -> None:
+    """Ask for the site in 3D and show its fly-over: the aerial photo on the
+    site's own LiDAR (#149)."""
+    page = run.page
+    page.get_by_role("button", name="See it in 3D").click()
+    flyover = page.get_by_label("Your site, fly-over")
+    flyover.wait_for(timeout=120_000)  # Blender renders it if no one has asked before
+    centre(flyover)
+    run.cast.mark("the site in 3D: its aerial photo on its own LiDAR")
+    page.wait_for_timeout(8000)  # the 4 s loop, twice
+
+
 def design(run: Run, brief: str) -> None:
     page = run.page
     box = page.get_by_label("What would you like to build?")
@@ -322,6 +334,7 @@ def take(run: Run, args: Options) -> None:
     open_town(run, args.base_url)
     find_site(run, ADDRESS)
     show_survey(run)
+    see_in_3d(run)
     design(run, args.brief)
     stand_in_3d(run)
     show_visual(run)
