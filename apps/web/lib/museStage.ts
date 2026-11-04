@@ -24,14 +24,6 @@ export type Stage =
     }
   | { kind: "stopped"; attempt: Attempt | null; error: string | null }; // done, nothing accepted
 
-/** A LiDAR view: its image, its number in the attempt (observation-<n>.png),
- * and the tool that drew it, when known. */
-export interface View {
-  src: string;
-  number: number;
-  tool: string | null;
-}
-
 /** What is on the stage now; `names` are the live views' tools, as watched. */
 export function stageOf(job: Job, names: ReadonlyMap<string, string>): Stage {
   if (job.status === "done" || job.status === "failed") return finished(job);
@@ -84,18 +76,8 @@ function thinking(
   return failed ? { kind: "fixing", attempt: failed } : { kind: "thinking" };
 }
 
-/** A stored attempt's views, in the order made, each named by the tool that
- * drew it: observation-<n>.png is the n-th thing Muse asked to see. */
-export function viewsOf(attempt: Attempt): View[] {
-  return Object.entries(attempt.files)
-    .filter(([name]) => name.startsWith("observation-"))
-    .map(([, src]) => {
-      const number = viewNumber(src);
-      return { src, number, tool: attempt.observations[number - 1] ?? null };
-    })
-    .sort((a, b) => a.number - b.number);
-}
-
+/** A view's number in its attempt: observation-<n>.png is the n-th thing
+ * Muse asked to see (some asks draw nothing, so numbers can skip). */
 function viewNumber(src: string): number {
   return Number(/observation-(\d+)\.png$/.exec(src)?.[1]);
 }

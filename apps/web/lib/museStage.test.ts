@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Attempt, Job, Live } from "./api";
-import {
-  NO_VIEWS,
-  type ViewWatch,
-  stageOf,
-  viewsOf,
-  watchViews,
-} from "./museStage";
+import { NO_VIEWS, type ViewWatch, stageOf, watchViews } from "./museStage";
 
 const FAILED: Attempt = {
   number: 1,
@@ -215,17 +209,5 @@ describe("watchViews", () => {
         live("thinking", [VIEW_1]),
       ).names.size,
     ).toBe(0);
-  });
-});
-
-describe("viewsOf", () => {
-  it("gives a stored attempt's views in order, each named by the tool that drew it", () => {
-    expect(viewsOf(FAILED)).toEqual([
-      {
-        src: "/api/designs/j/attempts/1/observation-2.png",
-        number: 2,
-        tool: "render_hillshade",
-      },
-    ]);
   });
 });
