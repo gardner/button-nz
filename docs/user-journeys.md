@@ -53,7 +53,7 @@ shown as unknown.
    gets the afternoon sun and keeps the trees." They leave "Let the model
    request LiDAR views" on.
 2. They press **Design**. The page shows the design queued, then running.
-3. Muse Spark looks at the site through the LiDAR views it asks for, writes a
+3. Muse Spark looks at the site through the LiDAR views sent with the brief and any it asks for, writes a
    Blender script, and sandboxed Blender builds and measures it. Each attempt
    appears as it finishes, with each check's result and, if it produced a
    model, its render.

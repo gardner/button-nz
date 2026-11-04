@@ -456,7 +456,7 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
     watch.seen = []
 
     def watching_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
-        (out_dir / "observation-1.png").write_bytes(b"\x89PNG view")  # a view Muse asked for
+        (out_dir / "observation-5.png").write_bytes(b"\x89PNG view")  # a view Muse asked for
         watch.seen.append(watch.service.client.get(f"/designs/{watch.job_id}").json()["live"])
         return fake_runner(scene, script, out_dir)
 
@@ -468,6 +468,7 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
         "attempt": 1,
         "phase": "rendering",
         "detail": "",
-        "observations": [f"/designs/{job_id}/attempts/1/observation-1.png"],
+        # The four views given with the brief, then the one asked for, in order.
+        "observations": [f"/designs/{job_id}/attempts/1/observation-{k}.png" for k in range(1, 6)],
     }
     assert service.client.get(f"/designs/{job_id}").json()["live"] is None  # done

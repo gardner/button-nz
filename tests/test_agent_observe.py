@@ -1,12 +1,14 @@
 """Tests for button_nz.agent.observe: LiDAR observations in the model's local frame."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 from shapely import Polygon
 
 from button_nz.agent.conversation import Observe
 from button_nz.agent.loop import DesignSite
-from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe
+from button_nz.agent.observe import OBSERVATION_TOOLS, ObservationError, observe, standard_views
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.evaluation import SiteContext, ground_range
 from button_nz.geo.crs import LocalFrame
@@ -165,3 +167,45 @@ def test_points_on_the_edge_the_model_is_told_are_on_the_terrain(awkward: Design
     square = [[west, -2], [west + 4, -2], [west + 4, 2], [west, 2], [west, -2]]
     inspected = observe(awkward, Observe("inspect_elevation", {"polygon": square}))
     assert "cells" in inspected.text and "mean_slope_deg" in inspected.text
+
+
+def test_the_standard_views_are_the_shape_what_stands_on_it_and_a_profile(
+    site: DesignSite,
+) -> None:
+    views = standard_views(site)
+    assert [(request.tool, dict(request.arguments)) for request, _ in views][:3] == [
+        ("render_hillshade", {}),
+        ("render_contours", {"interval_m": 0.25}),
+        ("render_height_map", {"mode": "above_ground"}),
+    ]
+    assert [request.tool for request, _ in views][3:] == ["render_cross_section"]
+    for request, observation in views:  # each exactly as the model asking for it gets it
+        assert observation == observe(site, request)
+        assert observation.png is not None and observation.png.startswith(b"\x89PNG")
+
+
+def test_the_profile_runs_the_length_of_the_rooms_largest_rectangle(site: DesignSite) -> None:
+    """The 40 x 20 m parcel less its 2 m setback is x -18..18, y -8..8 locally,
+    so the profile runs west to east along y = 0, rising 0.1 m per metre."""
+    request, observation = standard_views(site)[3]
+    (x0, y0), (x1, y1) = sorted((request.arguments["start"], request.arguments["end"]))
+    assert y0 == pytest.approx(0, abs=0.5) and y1 == pytest.approx(0, abs=0.5)
+    assert x0 == pytest.approx(-18, abs=0.5) and x1 == pytest.approx(18, abs=0.5)
+    assert "relief_m: 3.5" in observation.text
+
+
+def test_with_no_room_for_a_dwelling_there_is_no_profile(site: DesignSite) -> None:
+    """A 5 m square title has no room inside its 2 m setbacks: no line to draw."""
+    small: Ring = (
+        (1010.0, 2005.0),
+        (1015.0, 2005.0),
+        (1015.0, 2010.0),
+        (1010.0, 2010.0),
+        (1010.0, 2005.0),
+    )
+    tiny = replace(site, context=replace(site.context, parcels=(small,)))
+    assert [request.tool for request, _ in standard_views(tiny)] == [
+        "render_hillshade",
+        "render_contours",
+        "render_height_map",
+    ]

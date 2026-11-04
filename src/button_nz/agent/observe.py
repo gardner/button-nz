@@ -6,6 +6,7 @@ They re-present the measured terrain and add no information. A bad request
 feedback for the model, not a crash.
 """
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
@@ -13,6 +14,7 @@ from typing import Any
 from shapely import Polygon
 
 from button_nz.agent.conversation import Observe
+from button_nz.agent.room import largest_rectangles, longest_edge_angle, room_of
 from button_nz.agent.site import DesignSite
 from button_nz.evaluation import ground_range
 from button_nz.geo.geometry import Point, Ring
@@ -92,6 +94,39 @@ OBSERVATION_TOOLS: list[dict[str, Any]] = [
         ["polygon"],
     ),
 ]
+
+
+def standard_views(site: DesignSite) -> tuple[tuple[Observe, Observation], ...]:
+    """The views every design starts with, each as the model asking for it
+    would get it: the ground's shape (hillshade, contours), what stands on it
+    (height above ground), and a profile the length of the room's largest
+    rectangle, where a dwelling can go (none if no rectangle fits). They are
+    deterministic and take about 0.1 s, so they are made per run: the room
+    changes with the owner's decisions."""
+    requests = [
+        Observe("render_hillshade", {}),
+        Observe("render_contours", {"interval_m": 0.25}),
+        Observe("render_height_map", {"mode": "above_ground"}),
+    ]
+    context = site.context
+    room = room_of(context.parcels, context.confirmed_buildings, context.preservation_areas)
+    found = largest_rectangles(room, longest_edge_angle(context.parcels), count=1)
+    if found:
+        start, end = (list(site.frame.to_local(p)) for p in _long_axis(found[0].polygon))
+        requests.append(Observe("render_cross_section", {"start": start, "end": end}))
+    return tuple((request, observe(site, request)) for request in requests)
+
+
+def _long_axis(rectangle: Polygon) -> tuple[Point, Point]:
+    """The midpoints of ``rectangle``'s two short sides."""
+    a, b, c, d = ((float(x), float(y)) for x, y in list(rectangle.exterior.coords)[:4])
+    if math.dist(a, b) > math.dist(b, c):  # a-b is a long side: b-c and d-a are short
+        a, b, c, d = b, c, d, a
+    return _midpoint(a, b), _midpoint(c, d)
+
+
+def _midpoint(p: Point, q: Point) -> Point:
+    return ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
 
 
 def observe(site: DesignSite, request: Observe) -> Observation:
@@ -207,4 +242,4 @@ def _facts(site: DesignSite, heading: str, facts: Mapping[str, float]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["OBSERVATION_TOOLS", "Observation", "ObservationError", "observe"]
+__all__ = ["OBSERVATION_TOOLS", "Observation", "ObservationError", "observe", "standard_views"]

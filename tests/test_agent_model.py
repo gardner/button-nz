@@ -188,3 +188,30 @@ def test_an_image_already_small_enough_is_sent_as_it_is(tmp_path: Path) -> None:
     view = png(tmp_path / "observation-1.png", (672, 688))
     sent, data = sent_image(tmp_path, view)
     assert sent.size == (672, 688) and data == view.read_bytes()
+
+
+def test_views_given_with_the_brief_are_part_of_its_message(tmp_path: Path) -> None:
+    """The standard views come in the brief's own message, each captioned by its
+    text: one first message, with no tool call the model never made."""
+    hillshade = png(tmp_path / "observation-1.png", (64, 64))
+    contours = png(tmp_path / "observation-2.png", (64, 64))
+    model, sent = _model(_tool_call("x"))
+    model.propose(
+        [
+            Turn("system", "c"),
+            Turn("user", "the brief"),
+            Turn("view", "Shaded relief.", hillshade),
+            Turn("view", "Contours every 0.25 m.", contours),
+        ],
+        True,
+    )
+    messages = sent[0]["messages"]
+    assert [m["role"] for m in messages] == ["system", "user"]
+    parts = messages[1]["content"]
+    assert [p["type"] for p in parts] == ["text", "text", "image_url", "text", "image_url"]
+    assert [p["text"] for p in parts if p["type"] == "text"] == [
+        "the brief",
+        "Shaded relief.",
+        "Contours every 0.25 m.",
+    ]
+    assert parts[2]["image_url"]["url"].startswith("data:image/png;base64,")

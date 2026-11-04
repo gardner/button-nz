@@ -7,14 +7,15 @@ from typing import Any, Literal, Protocol
 
 # design/feedback: a script and the evaluator's verdict on it.
 # request/observation: the model asking for a LiDAR view, and the view.
-type Role = Literal["system", "user", "design", "feedback", "request", "observation"]
+# view: a LiDAR view given with the brief, unasked.
+type Role = Literal["system", "user", "design", "feedback", "request", "observation", "view"]
 
 
 @dataclass(frozen=True)
 class Turn:
     role: Role
     text: str
-    image: Path | None = None  # a render or LiDAR view, for feedback and observation turns
+    image: Path | None = None  # a render or LiDAR view: feedback, observation and view turns
 
 
 @dataclass(frozen=True)
