@@ -65,7 +65,8 @@ The final take (`record.py`, updated for the map-first page in #97):
   the take before any paid call);
 - enters a brief, designs, and waits for the AI visual;
 - views the design in 3D, revises it, and shows before and after;
-- shows the real prefabs that fit, and places the largest on the site.
+- shows the real prefabs that fit, and asks to place the largest on the site
+  (in the final take, no attempt passed: see below).
 
 `cut.py --intro` can open the cut on the demo site's relief fly-over (#149):
 its LINZ aerial photo draped on its own LiDAR, made by
@@ -75,9 +76,10 @@ its LINZ aerial photo draped on its own LiDAR, made by
 survey. The design was accepted on attempt 2, and the revision on attempt 1,
 at 2.33 m from the title boundary (2 m required). The cut ends on the six real
 prefabs that fit. The take then tried to place the largest, the Russley
-Portables Methven (15 × 4.2 m). The evaluator refused all three attempts. On
-the last, the floor would sit 1.24 m above the lowest ground on this slope,
-and at most 1 m is allowed. The recording stopped before the verdict
+Portables Methven (15 × 4.2 m). None of its three attempts passed: the first
+put something below the floor, the second's script raised an error, and on the
+third the floor would sit 1.24 m above the lowest ground on this slope, where
+at most 1 m is allowed. The recording stopped before the verdict
 showed, so the cut leaves the placement out rather than show it unfinished.
 
 Earlier takes showed the team's survey decisions, captioned as such; the
