@@ -119,6 +119,20 @@ describe("ReliefView", () => {
     expect(screen.getByText("Not shown")).toBeTruthy();
   });
 
+  it("stops saying it's making the relief once following it fails for good", async () => {
+    let answer = respond({ making: true, tiers: [] });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(answer.clone())),
+    );
+    render(<ReliefView siteId="s" pollMs={5} />);
+    fireEvent.click(screen.getByRole("button", { name: "See it in 3D" }));
+    await screen.findByText("Lifting its aerial photo onto its LiDAR…");
+    answer = respond({ detail: "no site s" }, 404);
+    await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByText("Not shown")).toBeTruthy();
+  });
+
   it("makes a failed view again when asked to try again", async () => {
     const broken = { tier: "flyover", status: "failed", error: "no GPU" };
     const fetch = answers({ making: false, tiers: [PARALLAX, broken] });

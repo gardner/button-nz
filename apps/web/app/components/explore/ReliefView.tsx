@@ -27,7 +27,7 @@ export function ReliefView({
   pollMs: number;
 }) {
   const [tries, setTries] = useState(0); // none until it's asked for
-  const { relief, problem } = useRelief(siteId, tries, pollMs);
+  const followed = useRelief(siteId, tries, pollMs);
   const again = () => setTries((t) => t + 1);
   if (tries === 0)
     return (
@@ -35,7 +35,7 @@ export function ReliefView({
         See it in 3D
       </button>
     );
-  return <Shown relief={relief} problem={problem} onRetry={again} />;
+  return <Shown {...followed} onRetry={again} />;
 }
 
 const BUTTON =
@@ -46,20 +46,22 @@ const BUTTON =
 function Shown({
   relief,
   problem,
+  following,
   onRetry,
 }: {
   relief: Relief | null;
   problem: string | null;
+  following: boolean;
   onRetry: () => void;
 }) {
-  const { clip, making, flying, retry } = shownState(relief, problem);
+  const { clip, flying, retry } = shownState(relief, problem, following);
   return (
     <figure className="rounded-2xl bg-zinc-950/85 p-3 shadow-2xl backdrop-blur">
       {clip ? (
         <ClipVideo clip={clip} />
       ) : (
         <div className="flex aspect-video items-center justify-center rounded-xl bg-zinc-900 text-sm text-zinc-400">
-          {making ? "Lifting its aerial photo onto its LiDAR…" : "Not shown"}
+          {following ? "Lifting its aerial photo onto its LiDAR…" : "Not shown"}
         </div>
       )}
       <figcaption className="mt-2 text-xs leading-relaxed text-zinc-300">
@@ -87,22 +89,20 @@ function Shown({
   );
 }
 
-/** The clip to play; whether anything is still being made (or about to be:
- * the first answer is on its way); whether the fly-over is still rendering
- * behind the parallax clip; and whether there's anything to try again, once
- * nothing is being made. */
-function shownState(relief: Relief | null, problem: string | null) {
-  if (!relief) {
-    const asking = problem === null;
-    return { clip: null, making: asking, flying: false, retry: !asking };
-  }
-  const clip = shownClip(relief);
-  const failed = relief.tiers.some((t) => t.status === "failed");
+/** The clip to play; whether the fly-over is still rendering behind the
+ * parallax clip; and, once the relief is no longer followed, whether there's
+ * anything to try again. */
+function shownState(
+  relief: Relief | null,
+  problem: string | null,
+  following: boolean,
+) {
+  const clip = relief && shownClip(relief);
+  const failed = relief?.tiers.some((t) => t.status === "failed") ?? false;
   return {
     clip,
-    making: relief.making,
-    flying: relief.making && clip?.tier === "parallax",
-    retry: !relief.making && (failed || problem !== null),
+    flying: following && clip?.tier === "parallax",
+    retry: !following && (failed || problem !== null),
   };
 }
 
@@ -134,10 +134,11 @@ function Failures({ relief }: { relief: Relief }) {
 }
 
 /** Each try (from 1), the relief started, then asked for every `pollMs` while
- * it's being made. */
+ * it's being made; `following` until it's made or asking has failed for good. */
 function useRelief(siteId: string, tries: number, pollMs: number) {
   const [relief, setRelief] = useState<Relief | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [stopped, setStopped] = useState(0); // the last try no longer followed
   useEffect(() => {
     if (tries === 0) return;
     let gone = false;
@@ -150,11 +151,13 @@ function useRelief(siteId: string, tries: number, pollMs: number) {
           setRelief(found);
           setProblem(null);
           if (found.making) timer = setTimeout(() => attempt(follow), pollMs);
+          else setStopped(tries);
         },
         (e: Error) => {
           if (gone) return;
           setProblem(e.message);
           if (passing(e)) timer = setTimeout(() => attempt(ask), pollMs);
+          else setStopped(tries);
         },
       );
     const follow = () => getRelief(siteId);
@@ -164,5 +167,5 @@ function useRelief(siteId: string, tries: number, pollMs: number) {
       clearTimeout(timer);
     };
   }, [siteId, tries, pollMs]);
-  return { relief, problem };
+  return { relief, problem, following: stopped !== tries };
 }
