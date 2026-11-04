@@ -422,6 +422,18 @@ def test_muse_is_asked_for_a_compact_plan_not_a_long_narrow_box(
     assert "not a size to fill" in contract
 
 
+def test_the_compact_plan_gives_way_to_the_brief_and_a_narrow_room(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    """On a section 4 m wide a 60 m² brief can't be twice as long as wide; a brief
+    may ask for a long plan outright."""
+    model = ScriptedModel("good")
+    run(site, model, tmp_path)
+    contract = model.seen[0][0].text
+    assert "unless the brief asks for that shape" in contract
+    assert "too narrow for the brief's size at that proportion" in contract
+
+
 def test_a_deck_is_suggested_where_it_suits_not_required(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("good")
     run(site, model, tmp_path)

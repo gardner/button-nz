@@ -63,8 +63,10 @@ stands on the ground.
 HOME = "\nTo look like a real New Zealand home, within those rules:\n"
 COMPACT = (
     "- Keep the plan compact, like a typical NZ cottage or small home: its length at "
-    "most about twice its width, not a long narrow box. A rectangle offered below "
-    "that is longer than that is room to place the plan in, not a size to fill.\n"
+    "most about twice its width, not a long narrow box, unless the brief asks for that "
+    "shape or the room is too narrow for the brief's size at that proportion. A "
+    "rectangle offered below that is longer than that is room to place the plan in, not "
+    "a size to fill.\n"
 )
 DECK = (
     "- Where the brief and the site suit one, add a deck on the sunny (north) or living "
