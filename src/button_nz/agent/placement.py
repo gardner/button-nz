@@ -10,7 +10,9 @@ room, and the LiDAR cells under the walls span no more than the floor-level
 rule allows (the evaluator's range also counts the outline's crossings, so it
 is never less). Each placement returned is then confirmed by the evaluator's
 own checks (``evaluation.checks``), so solver and evaluator agree by
-construction, and carries the clearances those checks measured.
+construction, and carries the clearances those checks measured. The evaluator
+is asked about the best ``MAX_CONFIRMED`` candidates at most, which keeps a
+search under a second: a placement can be missed, never invented.
 
 Placements are ranked by a preference, not a rule: the margin (the least
 clearance to a 2 m line: title boundary, section line, listed building),
@@ -51,6 +53,7 @@ ANGLE_STEP_DEG = 15.0
 GRID_M = 0.5
 TARGET_MARGIN_M = 2.5  # a comfort margin past the 2 m rules: a preference, stated as one
 GROUND_STEP_M = 0.1  # ground ranges this close rank as equal
+MAX_CONFIRMED = 500  # the evaluator is asked about this many at most: about 0.25 s
 ROUNDING_M = 0.01  # the room is drawn in this far: a corner printed to the cm stays in it
 PROMPT_EAVES_M = 0.6
 # a bespoke design's plain plans, 66 to 70 m² outside the walls: long and narrow
@@ -122,11 +125,15 @@ def solve(
         return Solution((), None)
     spread = _cell_spread(tried.walls, site)
     chosen: list[Placement] = []
+    asked = 0
     for i in _ranked(tried, spread, title, lines, site, _street(frontages)):
         walls, outline = tried.walls[i], tried.outlines[i]
         if any(walls.intersection(c.walls).area >= 0.5 * walls.area - _EPS for c in chosen):
             continue
-        placement = _confirmed(site, title, lines, walls, outline, tried.angles[i])
+        if asked == MAX_CONFIRMED:
+            break
+        asked += 1
+        placement = confirmed_placement(site, title, lines, walls, outline, tried.angles[i])
         if placement is not None and _clear_enough(placement, section_clear_m):
             chosen.append(_with_street(placement, frontages))
             if len(chosen) == count:
@@ -219,7 +226,7 @@ def _ranked(
     return [key[-1] for key in sorted(keys)]
 
 
-def _confirmed(
+def confirmed_placement(
     site: SiteContext,
     title: Polygon | MultiPolygon,
     lines: BaseGeometry,
@@ -299,8 +306,9 @@ def describe_placements(
     datum = float(site.scene["frame"]["datum_m"])
     lines = [
         f"- placements found by search, best first, with {eaves_m:g} m eaves all round: "
-        "each passes every siting check (title setback with the eaves, section lines "
-        f"kept {MIN_SEPARATION_M:g} m clear, separation, kept areas, floor level), aiming "
+        "each passes the evaluator's title setback (with the eaves), section line (kept "
+        f"{MIN_SEPARATION_M:g} m clear), kept area and floor level checks and is "
+        f"{MIN_SEPARATION_M:g} m from every listed building, aiming "
         f"for {TARGET_MARGIN_M:g} m clear of each {MIN_SEPARATION_M:g} m line. Walls' "
         "corners in local x, y:"
     ]
@@ -326,7 +334,7 @@ def _none_placed(solution: Solution) -> str:
     if least is None:
         return "no placement: with the section lines kept clear, it fits nowhere in the room."
     if least <= MAX_FLOOR_ABOVE_GROUND_M:
-        return "no placement passes every siting check."
+        return "the search found no placement that passes every siting check."
     return (
         "no placement passes floor level: wherever it fits, the ground under it varies "
         f"by at least {least:.2f} m, more than the "

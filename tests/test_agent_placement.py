@@ -5,12 +5,16 @@ import json
 import math
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 from shapely import LineString, Polygon
 
+import button_nz.agent.placement as placement_module
 from button_nz.agent.placement import (
+    MAX_CONFIRMED,
     PROMPT_PLANS,
     TARGET_MARGIN_M,
     Placement,
@@ -279,3 +283,21 @@ def _demo_context() -> SiteContext:
     assert survey is not None and survey.id == "d93466c930ab238f"
     decisions = {k: Decision(v) for k, v in OWNER_DECISIONS.items()}
     return confirmed(site, survey, decisions, complete=True).context
+
+
+def test_the_evaluator_is_asked_at_most_a_bounded_number_of_times(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Cells 1 m apart span exactly 1 m here, but the outline's crossings
+    # reach past them: every candidate passes the quick test and fails the
+    # evaluator, so the search stops rather than ask about all of them.
+    asked: list[int] = []
+    confirm = placement_module.confirmed_placement
+
+    def counted(*args: Any) -> Placement | None:
+        asked.append(1)
+        return confirm(*args)
+
+    monkeypatch.setattr(placement_module, "confirmed_placement", counted)
+    assert solve(_site(slope_x=0.2), 9.0, 6.0, eaves_m=0.6).placements == ()
+    assert len(asked) == MAX_CONFIRMED
