@@ -21,6 +21,7 @@ from demo.cut import (
     cut,
     fitted,
     headlined,
+    indexed_images,
     load_card,
     load_plan,
     pick,
@@ -165,17 +166,40 @@ def test_the_intro_caption_says_it_is_not_the_live_run() -> None:
     assert "not the live run" in INTRO_CAPTION
 
 
-def _clip(path: Path, size: tuple[int, int], fps: int, frames: int) -> None:
+def _numbered(index: int, size: tuple[int, int]) -> np.ndarray:
+    """A black frame with ``index`` in six white-or-black blocks along its top
+    edge, which ``_index`` reads back, even darkened under a headline."""
+    width, height = size[0] // 8, size[1] // 6
+    pixels = np.zeros((size[1], size[0], 3), np.uint8)
+    for bit in range(6):
+        if index >> bit & 1:
+            pixels[:height, bit * width : (bit + 1) * width] = 255
+    return pixels
+
+
+def _index(image: Image.Image) -> int:
+    width, height = image.width // 8, image.height // 6
+    bits = [_rgb(image, (bit * width + width // 2, height // 2))[0] > 65 for bit in range(6)]
+    return sum(1 << bit for bit, on in enumerate(bits) if on)
+
+
+def _clip(path: Path, size: tuple[int, int], fps: int, frames: int, gop: int | None = None) -> None:
+    """``frames`` numbered frames at ``fps``, a keyframe every ``gop`` if given."""
     with av.open(str(path), "w") as sink:
         stream = sink.add_stream("libx264", rate=fps)  # pyright: ignore[reportUnknownMemberType]
         stream.width, stream.height = size
         stream.pix_fmt = "yuv420p"
-        for _ in range(frames):
-            frame = av.VideoFrame.from_ndarray(
-                np.zeros((size[1], size[0], 3), np.uint8), format="rgb24"
-            )
+        if gop is not None:
+            stream.options = {"g": str(gop)}
+        for index in range(frames):
+            frame = av.VideoFrame.from_ndarray(_numbered(index, size), format="rgb24")
             sink.mux(stream.encode(frame))  # pyright: ignore[reportUnknownMemberType]
         sink.mux(stream.encode(None))  # pyright: ignore[reportUnknownMemberType]
+
+
+def _images(path: Path) -> list[Image.Image]:
+    with av.open(str(path)) as source:
+        return [Image.fromarray(f.to_ndarray(format="rgb24")) for f in source.decode(video=0)]
 
 
 def _frames(path: Path) -> tuple[int, tuple[int, int]]:
@@ -304,9 +328,20 @@ def test_a_preview_cut_is_half_the_size(tmp_path: Path) -> None:
     assert _frames(out) == (15 + 105, (32, 24))
 
 
-def test_a_beat_read_by_seeking_matches_one_read_from_the_start(tmp_path: Path) -> None:
+def test_indexed_images_seeks_to_the_keyframe_before_and_numbers_each_frame(
+    tmp_path: Path,
+) -> None:
+    raw = tmp_path / "raw.mp4"
+    _clip(raw, (64, 48), 15, 60, gop=15)  # keyframes at 0, 15, 30 and 45
+    with av.open(str(raw)) as source:
+        frames = list(indexed_images(source, 3.5, 15))
+    assert [index for index, _ in frames] == list(range(45, 60))  # from the keyframe at 3 s
+    assert [_index(image) for _, image in frames] == list(range(45, 60))  # the frames they say
+
+
+def test_a_beat_read_by_seeking_shows_the_frames_of_its_span(tmp_path: Path) -> None:
     raw, out = tmp_path / "raw.mp4", tmp_path / "cut.mp4"
-    _clip(raw, (64, 48), 15, 60)  # 4 s, so the beat at 3 s needs a seek
+    _clip(raw, (320, 240), 15, 60, gop=15)  # 4 s, so the beat at 3 s seeks mid-file
     line = CardLine(text="x", size=8)
     plan = Plan.model_validate(
         {
@@ -316,4 +351,7 @@ def test_a_beat_read_by_seeking_matches_one_read_from_the_start(tmp_path: Path) 
         }
     )
     cut(raw, out, plan, [line], _font, 15)
-    assert _frames(out) == (15 + 15 + 105, (64, 48))
+    shown = _images(out)
+    assert len(shown) == 15 + 15 + 105
+    assert [_index(image) for image in shown[:15]] == list(range(45, 60))  # the beat, darkened
+    assert _index(shown[15]) == 0  # then the live run from its start
