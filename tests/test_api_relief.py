@@ -115,6 +115,17 @@ def test_a_made_relief_is_not_made_again(tmp_path: Path) -> None:
     assert runs == ["run"]
 
 
+def test_a_relief_made_of_other_tiers_is_made_again(tmp_path: Path) -> None:
+    server = Server(tmp_path, relief_tiers=(CLIP,))
+    site_id = server.build()["id"]
+    server.client.post(f"/sites/{site_id}/relief")
+    _made(server, site_id)
+    deployed = Server(tmp_path, relief_tiers=(CLIP, Tier("flyover", _clip)))  # a tier added
+    assert deployed.client.post(f"/sites/{site_id}/relief").json()["making"] is True
+    tiers = [t["tier"] for t in _made(deployed, site_id)["tiers"]]
+    assert tiers == ["parallax", "flyover"]
+
+
 def test_a_failed_tier_says_why_and_asking_again_makes_it_again(tmp_path: Path) -> None:
     tries: list[str] = []
 

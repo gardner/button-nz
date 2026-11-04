@@ -61,7 +61,7 @@ class ReliefMaker:
     def ask(self, site_id: str) -> None:
         """Make ``site_id``'s relief, unless it's made or being made."""
         with self._lock:
-            if site_id in self._making or _made(self._entries(site_id)):
+            if site_id in self._making or self._made(self._entries(site_id)):
                 return
             # Every tier pending from now, in place of the last try's: one still
             # queued at a restart then reads as interrupted, as a running one does.
@@ -84,6 +84,13 @@ class ReliefMaker:
                 if entry["status"] in ("pending", "running"):
                     entry.update(status="failed", error=INTERRUPTED)
         return making, entries
+
+    def _made(self, entries: Entries) -> bool:
+        """Whether ``entries`` are every tier this server makes, each ready: a
+        relief made of other tiers (an older deployment's) is made again."""
+        names = [entry["tier"] for entry in entries]
+        ready = all(entry["status"] == "ready" for entry in entries)
+        return ready and names == [tier.name for tier in self.tiers]
 
     def _entries(self, site_id: str) -> Entries:
         path = self.directory(site_id) / MANIFEST
@@ -173,7 +180,3 @@ def relief_router(sites: Sites, maker: ReliefMaker) -> APIRouter:
         return FileResponse(path, headers=CHECKED)
 
     return router
-
-
-def _made(entries: Entries) -> bool:
-    return bool(entries) and all(entry["status"] == "ready" for entry in entries)
