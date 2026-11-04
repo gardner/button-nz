@@ -5,6 +5,7 @@
     GET  /sites/{id}                     its status, step and error; once ready, the site
     GET  /sites/{id}/aerial.png          its aerial photo
     GET  /sites/{id}/map                 its map layers, in lon/lat (``sites.layers``)
+    GET  /sites/{id}/progress            what its build has found so far (``api.progress``)
 
 and its survey under ``/sites/{id}/features`` (``api.features``). The demo
 site is ``DEMO_SITE_ID``, always ready, its survey fixed if the server says so.
@@ -29,6 +30,7 @@ from button_nz.agent.loop import DesignSite
 from button_nz.api.aerial import SiteAerial, aerial_bbox
 from button_nz.api.fixed import FixedSurvey, read_fixed
 from button_nz.api.limits import DailyCap
+from button_nz.api.progress import progress_router
 from button_nz.api.site_view import site_view
 from button_nz.api.store import Store
 from button_nz.demo_site import DemoSite, load_demo_site, site_title
@@ -39,6 +41,7 @@ from button_nz.perception.confirm import effective
 from button_nz.perception.survey import SURVEY_FILE
 from button_nz.sites.build import SiteError, title_site_name
 from button_nz.sites.layers import Lidar, lonlat_bounds, site_layers
+from button_nz.sites.progress import BuildProgress
 from button_nz.sites.registry import DEMO_SITE_ID, SiteBuilder, SiteRecord, SiteStatus, SiteStore
 from button_nz.sites.search import (
     NoSuchSection,
@@ -213,6 +216,7 @@ def sites_router(service: SiteService, store: Store) -> APIRouter:
         return site_layers(site, survey, decisions, sites.buildings(site_id), sites.lidar(site_id))
 
     router.include_router(_terrain_router(sites))
+    router.include_router(progress_router(sites))
     return router
 
 
@@ -248,12 +252,20 @@ def _requested(service: SiteService, address_id: int) -> SiteRecord:
             return known
         with _admit(service.cap):
             if known is not None:
-                store.rebuild(known.id)
-                record = store.get(known.id)
+                record = _rebuilt(service.sites, known.id)
             else:
                 record = store.create(address_id, address)
     service.builder.wake()
     return record
+
+
+def _rebuilt(sites: Sites, site_id: str) -> SiteRecord:
+    """Failed site ``site_id``, queued to build again, its last build's progress
+    cleared now: it may wait behind other builds before its own starts. It is
+    cleared first, so it is never written by this and the builder at once."""
+    BuildProgress(sites.sites_dir / site_id)
+    sites.store.rebuild(site_id)
+    return sites.store.get(site_id)
 
 
 def _view(sites: Sites, record: SiteRecord) -> dict[str, Any]:
@@ -344,8 +356,7 @@ def _requested_title(service: SiteService, parcel_id: int) -> SiteRecord:
             return known
         with _admit(service.cap):
             if known is not None:
-                store.rebuild(known.id)
-                record = store.get(known.id)
+                record = _rebuilt(service.sites, known.id)
             else:
                 record = store.create_title(parcel_id, name)
     service.builder.wake()

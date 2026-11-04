@@ -19,6 +19,7 @@ import {
   PITCH_3D,
   ViewToggle,
 } from "../map/View3D";
+import { SiteBuildView } from "./BuildOverlay";
 import { BuildProgress } from "./BuildProgress";
 import { type Progress, ReadySite } from "./ReadySite";
 import { SearchBox } from "./SearchBox";
@@ -119,6 +120,7 @@ export function Explore({ pollMs = 1500 }: { pollMs?: number }) {
           onAddress={fromAddress}
           onProgress={onProgress}
         />
+        {site && <SiteBuildView key={site.id} site={site} pollMs={pollMs} />}
       </BaseMap>
     </main>
   );

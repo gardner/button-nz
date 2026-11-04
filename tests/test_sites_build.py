@@ -31,6 +31,7 @@ from button_nz.sites.build import (
     find_title,
     title_site_name,
 )
+from button_nz.sites.progress import read_progress
 from button_nz.sites.stac import ELEVATION, IMAGERY, Catalogues, Collection
 
 rio: Any = rasterio
@@ -256,6 +257,59 @@ def test_no_lidar_says_so_and_leaves_no_manifest(tmp_path: Path) -> None:
     with pytest.raises(NoLidar, match="no LINZ 1 m LiDAR"):
         build_site(7, tmp_path, sources(lidar=False), lambda _: None)
     assert not (tmp_path / "site.json").exists()
+
+
+def test_each_step_shows_what_it_found_as_it_finishes(tmp_path: Path) -> None:
+    shown: dict[str, dict[str, Any]] = {}
+    build_site(7, tmp_path, sources(), lambda step: shown.update({step: read_progress(tmp_path)}))
+    assert shown["parcels"]["frame"] is None  # told before the step starts
+    assert shown["terrain"]["parcels"] and shown["terrain"]["terrain"] is None
+    assert shown["aerial"]["terrain"] is not None and shown["aerial"]["aerial"] is None
+    assert shown["survey"]["aerial"] is not None and shown["survey"]["survey"] is None
+    done = read_progress(tmp_path)
+    grid = done["terrain"]["bbox"]
+    assert done["frame"] == grid == done["aerial"]["bbox"]  # one frame for every layer
+    assert len(done["parcels"]) == 2 and done["buildings"]
+    assert done["survey"]["asking"] is None
+    assert [f["concept"] for f in done["survey"]["found"]] == done["survey"]["concepts"]
+
+
+def test_a_site_with_no_lidar_still_shows_its_parcels(tmp_path: Path) -> None:
+    with pytest.raises(NoLidar):
+        build_site(7, tmp_path, sources(lidar=False), lambda _: None)
+    shown = read_progress(tmp_path)
+    assert len(shown["parcels"]) == 2 and shown["terrain"] is None
+
+
+def test_a_rebuild_shows_nothing_of_the_last_build_from_its_start(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(), lambda _: None)  # a build that left its progress
+    shown: dict[str, dict[str, Any]] = {}
+    build_site(7, tmp_path, sources(), lambda step: shown.update({step: read_progress(tmp_path)}))
+    assert shown["parcels"]["frame"] is None and shown["parcels"]["survey"] is None
+
+
+def test_a_rebuild_whose_title_cant_be_found_shows_nothing_of_the_last(tmp_path: Path) -> None:
+    build_site(7, tmp_path, sources(), lambda _: None)
+    with pytest.raises(SiteError):
+        build_site(7, tmp_path, sources([parcel(1, A, None)]), lambda _: None)
+    with pytest.raises(SiteError):
+        build_title_site(1, "Lot 1", tmp_path, sources([parcel(1, A, None)]), lambda _: None)
+    shown = read_progress(tmp_path)
+    assert shown["frame"] is None and shown["terrain"] is None and shown["survey"] is None
+
+
+def test_a_building_outline_with_no_shape_is_left_out(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        props = {"building_id": 8, "capture_source_name": "NZ Aerial Imagery"}
+        shapeless = [{"type": "Feature", "properties": props, "geometry": None}]
+        return httpx.Response(
+            200, text=json.dumps({"type": "FeatureCollection", "features": shapeless})
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    buildings = FeatureLayer("https://example.test/b/FeatureServer/0", "CC-BY-4.0", "LINZ", client)
+    build_site(7, tmp_path, replace(sources(), buildings=buildings), lambda _: None)
+    assert read_progress(tmp_path)["buildings"] == []
 
 
 def test_an_address_on_no_title_is_refused(tmp_path: Path) -> None:

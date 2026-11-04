@@ -24,7 +24,14 @@ from button_nz.api.limits import DailyCap
 from button_nz.api.sites import Sites, SiteService
 from button_nz.api.store import Store
 from button_nz.demo_site import load_demo_site
-from button_nz.sites.registry import DEMO_ADDRESS_ID, DEMO_SITE_ID, SiteBuilder, SiteStore
+from button_nz.sites.progress import read_progress
+from button_nz.sites.registry import (
+    DEMO_ADDRESS_ID,
+    DEMO_SITE_ID,
+    SiteBuilder,
+    SiteStatus,
+    SiteStore,
+)
 from test_api import fake_runner, scripted, synthetic_site
 from test_api_features import write_survey
 from test_api_limits import survey_id
@@ -361,3 +368,65 @@ def test_a_title_whose_parcel_cant_be_read_is_refused_with_why(
     monkeypatch.setattr(api_sites, "title_site_name", bad)
     refused = Server(tmp_path).client.post("/sites", json={"parcel_id": 3})
     assert refused.status_code == 422 and "land within it" in refused.json()["detail"]
+
+
+def test_a_sites_build_shows_each_steps_work_as_it_goes(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    created = server.client.post("/sites", json={"address_id": 7}).json()
+    before = server.client.get(f"/sites/{created['id']}/progress")
+    assert before.status_code == 200 and before.json()["frame"] is None
+    assert before.headers["cache-control"] == "no-store"
+    server.builder.run_next()
+    shown = server.client.get(f"/sites/{created['id']}/progress").json()
+    assert len(shown["parcels"]) == 2 and len(shown["frame"]) == 4
+    assert shown["terrain"]["url"] == f"/sites/{created['id']}/progress/terrain.png"
+    assert shown["aerial"]["url"] == f"/sites/{created['id']}/progress/aerial.png"
+    assert shown["survey"]["asking"] is None
+    for layer in ("terrain", "aerial"):
+        png = server.client.get(shown[layer]["url"])
+        assert png.headers["content-type"] == "image/png" and png.content[:4] == b"\x89PNG"
+
+
+def test_a_failed_site_asked_for_again_shows_nothing_of_its_last_build(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    for asked in ({"address_id": 7}, {"parcel_id": 3}):
+        site_id = server.client.post("/sites", json=asked).json()["id"]
+        server.builder.run_next()  # a build that left its progress, then failed
+        server.sites_store.finish(site_id, SiteStatus.FAILED, "LINZ went away")
+        server.client.post("/sites", json=asked)  # queued again, not yet started
+        shown = server.client.get(f"/sites/{site_id}/progress").json()
+        assert shown["frame"] is None and shown["survey"] is None
+
+
+def test_a_retrys_progress_is_cleared_before_the_builder_can_take_it(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    server = Server(tmp_path)
+    site_id = server.client.post("/sites", json={"address_id": 7}).json()["id"]
+    server.builder.run_next()
+    server.sites_store.finish(site_id, SiteStatus.FAILED, "LINZ went away")
+    shown_when_queued: list[dict[str, Any]] = []
+    rebuild = server.sites_store.rebuild
+
+    def queued(site: str) -> None:  # the moment the builder could take it
+        shown_when_queued.append(read_progress(tmp_path / "sites" / site))
+        rebuild(site)
+
+    monkeypatch.setattr(server.sites_store, "rebuild", queued)
+    server.client.post("/sites", json={"address_id": 7})
+    assert [shown["frame"] for shown in shown_when_queued] == [None]
+
+
+def test_a_build_without_lidar_shows_its_parcels_and_no_terrain(tmp_path: Path) -> None:
+    server = Server(tmp_path, lidar=False)
+    site = server.build()
+    shown = server.client.get(f"/sites/{site['id']}/progress").json()
+    assert shown["parcels"] and shown["terrain"] is None
+    assert server.client.get(f"/sites/{site['id']}/progress/terrain.png").status_code == 404
+
+
+def test_progress_is_only_for_sites_that_exist_and_layers_it_has(tmp_path: Path) -> None:
+    server = Server(tmp_path)
+    assert server.client.get("/sites/nowhere/progress").status_code == 404
+    site = server.build()
+    assert server.client.get(f"/sites/{site['id']}/progress/site.json").status_code == 404
