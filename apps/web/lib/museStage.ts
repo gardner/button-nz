@@ -12,7 +12,13 @@ export type Stage =
   | { kind: "waiting"; queued: boolean } // no step yet: queued, or starting
   | { kind: "thinking" } // Muse's first move, nothing made yet
   | { kind: "reading"; tool: string } // a LiDAR view Muse asked for, being drawn
-  | { kind: "view"; src: string; number: number; tool: string | null } // the newest view, Muse reading it
+  | {
+      kind: "view"; // the newest view, Muse reading it
+      src: string;
+      attempt: number;
+      number: number; // its number in its attempt (observation-<n>.png)
+      tool: string | null;
+    }
   | { kind: "fixing"; attempt: Attempt } // the attempt that failed, Muse writing the next
   | { kind: "building" } // Blender building and rendering the script
   | { kind: "measuring" } // the evaluator measuring the rules
@@ -69,6 +75,7 @@ function thinking(
     return {
       kind: "view",
       src: newest,
+      attempt: live.attempt,
       number: viewNumber(newest),
       tool: names.get(newest) ?? null,
     };
@@ -78,7 +85,7 @@ function thinking(
 
 /** A view's number in its attempt: observation-<n>.png is the n-th thing
  * Muse asked to see (some asks draw nothing, so numbers can skip). */
-function viewNumber(src: string): number {
+export function viewNumber(src: string): number {
   return Number(/observation-(\d+)\.png$/.exec(src)?.[1]);
 }
 

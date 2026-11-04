@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import type { Attempt, Phase } from "@/lib/api";
+import type { Attempt, Live, Phase } from "@/lib/api";
+import { viewNumber } from "@/lib/museStage";
 
 /** The steps of one attempt, in the order a run takes them (Muse decides,
  * then reads a view or has its script built, as many times as it asks). */
@@ -62,19 +63,25 @@ export function Steps({ phase, detail }: { phase: Phase; detail: string }) {
   );
 }
 
+/** A LiDAR view's name: its number as its attempt numbers it
+ * (observation-<n>.png), the same on the stage and in the filmstrip. */
+export function viewLabel(attempt: number, number: number): string {
+  return `LiDAR view ${number} of attempt ${attempt}`;
+}
+
 /** The run so far, oldest first: each finished attempt's LiDAR views and
  * its render with its verdict, then the views of the attempt under way. */
 export function Filmstrip({
   attempts,
-  views,
+  live,
 }: {
   attempts: Attempt[];
-  views: string[];
+  live: Live | null;
 }) {
-  const frames = numbered([
+  const frames = [
     ...attempts.flatMap(framesOf),
-    ...views.map((src) => ({ src, alt: "" })),
-  ]);
+    ...(live?.observations.map((src) => viewFrame(live.attempt, src)) ?? []),
+  ];
   if (frames.length === 0) return null;
   return (
     <ul className="flex gap-2 overflow-x-auto pb-1">
@@ -106,20 +113,17 @@ interface Frame {
   badge?: "✓" | "✗"; // a render's verdict
 }
 
-/** The views (frames with no verdict) named in the order they were made. */
-function numbered(frames: Frame[]): Frame[] {
-  let views = 0;
-  return frames.map((f) =>
-    f.badge ? f : { ...f, alt: `LiDAR view ${++views} Muse asked for` },
-  );
+function viewFrame(attempt: number, src: string): Frame {
+  return { src, alt: viewLabel(attempt, viewNumber(src)) };
 }
 
 /** A finished attempt's views, in the order made, then its render. */
 function framesOf(attempt: Attempt): Frame[] {
   const views = Object.keys(attempt.files)
     .filter((name) => name.startsWith("observation-"))
+    .map((name) => attempt.files[name])
     .sort((a, b) => viewNumber(a) - viewNumber(b))
-    .map((name): Frame => ({ src: attempt.files[name], alt: "" }));
+    .map((src) => viewFrame(attempt.number, src));
   const render = attempt.files["design.png"];
   if (!render) return views;
   const failed = attempt.status === "fail" || attempt.status === "error";
@@ -131,10 +135,6 @@ function framesOf(attempt: Attempt): Frame[] {
       badge: failed ? "✗" : "✓",
     },
   ];
-}
-
-function viewNumber(name: string): number {
-  return Number(name.slice("observation-".length, -".png".length));
 }
 
 /** Minutes and seconds since the run started, ticking. */

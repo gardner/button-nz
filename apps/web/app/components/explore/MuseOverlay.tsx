@@ -8,7 +8,7 @@ import { type Stage, stageOf } from "@/lib/museStage";
 
 import { BADGE, MARK, checkLabel } from "./AttemptRow";
 import { HousingFacts } from "./HousingFacts";
-import { Elapsed, Filmstrip, Steps, viewName } from "./MuseParts";
+import { Elapsed, Filmstrip, Steps, viewLabel, viewName } from "./MuseParts";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
 
 /** The run, large: about 90% of the screen, slightly see-through like the
@@ -42,7 +42,7 @@ export function MuseOverlay({
         </div>
         <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto pr-1">
           {live && <Steps phase={live.phase} detail={live.detail} />}
-          <Filmstrip attempts={job.attempts} views={live?.observations ?? []} />
+          <Filmstrip attempts={job.attempts} live={live} />
           {checked && <CheckList attempt={checked} />}
           <PrefabsMeanwhile />
         </aside>
@@ -188,16 +188,11 @@ function Shown({ src, alt }: { src: string; alt: string }) {
 }
 
 function ViewScene({ stage }: { stage: Extract<Stage, { kind: "view" }> }) {
-  const named = stage.tool === null ? null : viewName(stage.tool);
+  const named = stage.tool === null ? "" : `: ${viewName(stage.tool)}`;
+  const label = viewLabel(stage.attempt, stage.number) + named;
   return (
-    <Scene
-      title={`LiDAR view ${stage.number}${named ? `: ${named}` : ""}. Muse is reading it`}
-    >
-      <Shown
-        key={stage.src}
-        src={stage.src}
-        alt={`LiDAR view ${stage.number} Muse asked for${named ? `: ${named}` : ""}`}
-      />
+    <Scene title={`${label}. Muse is reading it`}>
+      <Shown key={stage.src} src={stage.src} alt={label} />
     </Scene>
   );
 }

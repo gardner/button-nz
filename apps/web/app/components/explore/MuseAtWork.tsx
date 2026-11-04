@@ -88,7 +88,7 @@ function MusePanel({ job, onEnlarge }: { job: Job; onEnlarge: () => void }) {
           {waitingWords(job)}
         </p>
       )}
-      <Filmstrip attempts={job.attempts} views={live?.observations ?? []} />
+      <Filmstrip attempts={job.attempts} live={live} />
       <PrefabsMeanwhile />
     </section>
   );

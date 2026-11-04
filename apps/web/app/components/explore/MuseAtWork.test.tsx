@@ -107,9 +107,31 @@ describe("MuseAtWork, large", () => {
     expect(overlay().textContent).toMatch(/Muse asked for a cross-section/);
     rerender(<MuseAtWork job={running("thinking")} place={REEFTON} />);
     const view = screen.getByRole("img", {
-      name: "LiDAR view 1 Muse asked for: a cross-section",
+      name: "LiDAR view 1 of attempt 2: a cross-section",
     });
     expect(view.getAttribute("src")).toBe(VIEW);
+  });
+
+  it("numbers each view as its attempt does, on the stage and in the filmstrip alike", () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    const job = running("thinking");
+    job.attempts[0] = {
+      ...job.attempts[0],
+      files: {
+        "design.png": "/api/designs/j/attempts/1/design.png",
+        "observation-2.png": "/api/designs/j/attempts/1/observation-2.png",
+        "observation-3.png": "/api/designs/j/attempts/1/observation-3.png",
+      },
+    };
+    render(<MuseAtWork job={job} place={REEFTON} />);
+    const names = screen.getAllByRole("img").map((i) => i.getAttribute("alt"));
+    expect(names).toEqual([
+      "LiDAR view 1 of attempt 2", // the stage
+      "LiDAR view 2 of attempt 1", // the filmstrip, in order
+      "LiDAR view 3 of attempt 1",
+      "Attempt 1's render: failed a check",
+      "LiDAR view 1 of attempt 2",
+    ]);
   });
 
   it("shows what failed and by how much, then that Muse is fixing it", () => {

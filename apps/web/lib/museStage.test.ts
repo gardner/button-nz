@@ -97,6 +97,7 @@ describe("stageOf", () => {
     expect(stageOf(j, new Map([[VIEW_3, "render_cross_section"]]))).toEqual({
       kind: "view",
       src: VIEW_3,
+      attempt: 2,
       number: 3,
       tool: "render_cross_section",
     });
