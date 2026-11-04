@@ -150,13 +150,14 @@ ORBIT_PX = 900  # how far the drag turns the map: about a quarter turn and back 
 
 def orbit_path(seconds: float, fps: int = 30) -> list[tuple[float, float]]:
     """A slow right-drag across the map, as offsets from its centre: a smooth
-    turn with a gentle rise and fall in tilt, eased in and out."""
+    turn while the tilt eases down and back (clear of the map's 70° maximum),
+    eased in and out."""
     steps = max(2, round(seconds * fps))
     path: list[tuple[float, float]] = []
     for k in range(steps + 1):
         t = k / steps
         eased = (1 - math.cos(math.pi * t)) / 2  # slow, then steady, then slow
-        path.append((ORBIT_PX * eased, -60 * math.sin(math.pi * t)))
+        path.append((ORBIT_PX * eased, 60 * math.sin(math.pi * t)))  # down: tilt falls and returns
     return path
 
 

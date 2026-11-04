@@ -70,3 +70,9 @@ def test_the_town_orbit_eases_in_and_out_and_ends_where_it_turned_to() -> None:
     assert path[-1][0] == pytest.approx(ORBIT_PX) and path[-1][1] == pytest.approx(0, abs=1e-9)
     steps = [b[0] - a[0] for a, b in zip(path, path[1:], strict=False)]
     assert steps[0] < steps[150] and steps[-1] < steps[150]  # slow at both ends
+
+
+def test_the_town_orbit_tilts_down_and_back_clear_of_the_maps_max_pitch() -> None:
+    # Moving down lowers the pitch: from 60° it falls and comes back, well under maxPitch 70°.
+    dys = [dy for _, dy in orbit_path(10.0, fps=30)]
+    assert min(dys) >= 0 and max(dys) > 0
