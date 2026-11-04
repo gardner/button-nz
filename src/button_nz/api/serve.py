@@ -1,7 +1,8 @@
 """Serve the API for the demo site:
 
     uv run --env-file .env python -m button_nz.api.serve [--data var] [--port 8000] \
-        [--daily-designs 30] [--daily-sites 20] [--survey-decided-by "the owner"]
+        [--daily-designs 30] [--daily-sites 20] [--survey-decided-by "the owner"] \
+        [--reasoning-effort low]
 
 Jobs are kept in ``DATA/button.db`` and their files under ``DATA/runs``; the
 site survey is read from ``DATA/survey.geojson``. The model key is read per
@@ -17,14 +18,17 @@ SAM calls, so a public server caps them a day as well.
 """
 
 import argparse
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 import httpx
 import uvicorn
 from fastapi import FastAPI
 
+from button_nz.agent.conversation import Model
 from button_nz.agent.demo import demo_site
-from button_nz.agent.model import ChatModel
+from button_nz.agent.model import EFFORTS, ChatModel
 from button_nz.api.aerial import demo_aerial
 from button_nz.api.app import create_app
 from button_nz.api.fixed import FixedSurvey
@@ -45,24 +49,7 @@ from button_nz.town.lidar import west_coast_lidar
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Serve the button-nz API.")
-    parser.add_argument("--data", type=Path, default=Path("var"))
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument(
-        "--daily-designs", type=int, help="start at most this many design runs in any 24 hours"
-    )
-    parser.add_argument(
-        "--daily-sites", type=int, help="build at most this many new sites in any 24 hours"
-    )
-    parser.add_argument(
-        "--survey-decided-by",
-        help="fix the survey, as this person decided it (e.g. 'the owner'); empty leaves it open",
-    )
-    parser.add_argument(
-        "--survey-id",
-        help="the survey they decided (GET /site/features' survey_id): a fixed survey's pin",
-    )
+    parser = _parser()
     args = parser.parse_args(argv)
     fixed = _fixed(parser, args.survey_decided_by or None, args.survey_id or None)
     store = Store(args.data / "button.db")
@@ -72,7 +59,7 @@ def main(argv: list[str] | None = None) -> None:
     worker = Worker(
         store,
         site=demo_site,
-        model=ChatModel.from_env,
+        model=design_model(args.reasoning_effort),
         runs_dir=args.data / "runs",
         survey=survey,
         illustrator=illustrate_from_env,
@@ -92,6 +79,44 @@ def main(argv: list[str] | None = None) -> None:
     )
     _add_maps(app, args.data)
     uvicorn.run(app, host=args.host, port=args.port)
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """The server's command line."""
+    return _parser().parse_args(argv)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Serve the button-nz API.")
+    parser.add_argument("--data", type=Path, default=Path("var"))
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument(
+        "--daily-designs", type=int, help="start at most this many design runs in any 24 hours"
+    )
+    parser.add_argument(
+        "--daily-sites", type=int, help="build at most this many new sites in any 24 hours"
+    )
+    parser.add_argument(
+        "--survey-decided-by",
+        help="fix the survey, as this person decided it (e.g. 'the owner'); empty leaves it open",
+    )
+    parser.add_argument(
+        "--survey-id",
+        help="the survey they decided (GET /site/features' survey_id): a fixed survey's pin",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        choices=EFFORTS,
+        help="the design model's reasoning effort; unset, the API's default",
+    )
+    return parser
+
+
+def design_model(effort: str | None) -> Callable[[], Model]:
+    """The design worker's model for each job, with ``effort``: read per job,
+    so the server starts without a key and a job without one fails saying so."""
+    return partial(ChatModel.from_env, reasoning_effort=effort)
 
 
 def _fixed(

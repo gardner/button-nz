@@ -80,6 +80,8 @@ VISUAL_PNG, VISUAL_JSON = "visual.png", "visual.json"
 # dwelling far bigger (IoU 0.17, then 0.32 asked not to reframe); told its box in
 # the frame, it kept it (0.94, then 0.93). One live run each, on a 32 m² design
 # 133 x 116 px in the 1280 x 960 render. The box comes from the silhouette.
+# A driveway and car, where the street is near, are imagined surroundings like
+# the planting: kept off the house, whose outline is still checked.
 PROMPT = (
     "Edit this image in place. It is a 3D massing render seen from a drone; make it look "
     "like a real drone photograph of the same place without changing the composition at "
@@ -92,7 +94,10 @@ PROMPT = (
     "orange blocks are trees, hedges and existing structures measured by LiDAR: replace "
     "them with what they most resemble, the same size and in the same places. The green "
     "ground is a grassed New Zealand section; the thin red lines are property boundaries "
-    "and may be left out. Do not add any new buildings."
+    "and may be left out. Do not add any new buildings. Where the street is in view near "
+    "the house, you may add a short gravel or concrete driveway from the street to the "
+    "house, with one car parked on it, both beside the house and never in front of or over "
+    "any part of the house; otherwise leave them out."
 )
 RETRY_FAILED = "A second edit failed: {error}"
 NOT_VISIBLE = "The dwelling isn't visible from the render camera, so there is nothing to keep."

@@ -355,6 +355,10 @@ A design with no `site_id` is on the demo site. `serve` also takes
 in any 24 hours. Neither is on unless given, and button.nz gives neither
 ([docs/deploy.md](docs/deploy.md)). `--survey-decided-by NAME --survey-id ID`
 (together) fix the demo site's survey as the owner decided it.
+`--reasoning-effort` (`minimal` to `max`) sets the design model's effort.
+Unset, the API's default applies, which was the only setting accepted on
+every brief in
+[the measurement](docs/results/README.md#reasoning-effort-is-the-script-call-faster-for-less-165).
 
 **Web app:** this proxies `/api` to the API (`BUTTON_API_URL`, by default
 `http://127.0.0.1:8000`). Open http://localhost:3000.
