@@ -325,7 +325,10 @@ curl -X POST localhost:8000/designs/<id>/revisions -H 'content-type: application
 A design with no `site_id` is on the demo site. `serve` also takes
 `--daily-designs N` and `--daily-sites N` to cap runs and site builds a day,
 and `--survey-decided-by NAME --survey-id ID` (together) to fix the demo
-site's survey as the owner decided it.
+site's survey as the owner decided it. `--reasoning-effort` (`minimal` to
+`max`) sets the design model's effort. Unset, the API's default applies,
+which was the only setting accepted on every brief in
+[the measurement](docs/results/README.md#reasoning-effort-is-the-script-call-faster-for-less-165).
 
 **Web app:** this proxies `/api` to the API (`BUTTON_API_URL`, by default
 `http://127.0.0.1:8000`). Open http://localhost:3000.

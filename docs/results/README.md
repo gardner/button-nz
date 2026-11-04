@@ -60,6 +60,52 @@ repeats (code 984a978); Spark at default effort is the plain-site row above.
 Spark 1.3 at default effort stays the design agent: as often accepted, and
 the fastest.
 
+## Reasoning effort: is the script call faster for less? (#165)
+
+Almost all of a design run's wait is the one model call that writes the
+Blender script. The server sends no `reasoning_effort`, so the API's default
+applies. Muse Spark 1.3 accepts `minimal`, `low`, `medium`, `high`, `xhigh`
+and `max`: its 400 lists them, and it refuses `none`. Each setting here is
+the `evaluator_lidar` condition on the plain site, with the 3 briefs run once
+each: **3 runs a setting, 12 in all**. The code is master at 30628e6, plus
+the timing this PR adds. A script call is a model call that returned a
+script, timed from asking to the reply. A reply with no script isn't timed;
+it's counted under attempts. `max` was measured under #47, above.
+
+| Effort | Runs | Accepted | Accepted on attempt 1 | Mean attempts | Script calls | Mean s per script call | Range (s) | Median script (chars) | Mean s per run |
+|---|---|---|---|---|---|---|---|---|---|
+| unset (the API's default) ([report](effort-default/report.md)) | 3 | 3 | 2 | 1.3 | 3 | 221.4 | 200–259 | 7,324 | 362.8 |
+| `medium` ([report](effort-medium/report.md)) | 3 | 2 | 1 | 2.3 | 7 | 84.8 | 12–150 | 3,969 | 267.6 |
+| `low` ([report](effort-low/report.md)) | 3 | 1 | 0 | 2.7 | 6 | 38.8 | 21–64 | 2,011 | 177.9 |
+| `minimal` ([report](effort-minimal/report.md)) | 3 | 1 | 1 | 2.3 | 7 | 19.2 | 7–51 | 2,545 | 74.7 |
+
+Script sizes are the `design.py` of every attempt that wrote one, from the
+runs' own folders.
+
+**What it shows.** A lower effort makes each script call much shorter:
+about 2.6× faster at `medium`, 6× at `low` and 11× at `minimal`. But the
+scripts are shorter too, and fail more often. Across the 9 runs at lower
+effort, the failures include a dwelling with no roof, a dwelling below its
+floor, walls that aren't one closed outline, script errors (`medium`'s third
+brief raised on all three attempts) and evaluator fails that weren't
+repaired. Only the default was accepted on every brief. Fewer runs were
+accepted, and each took more attempts, so the run as a whole saves much less
+than the call: `medium`'s runs were 26% shorter, but 1 in 3 ended with
+nothing.
+
+**The default stays unset.** Three runs a setting are far too few to rank
+settings precisely, but they are enough to say a lower effort costs
+acceptance. That's the opposite of what the issue asked for ("the fastest
+setting that doesn't lower acceptance"), and nothing here clearly supports
+a change. `button_nz.api.serve --reasoning-effort` can now choose one when
+a larger run says otherwise.
+
+**Streaming doesn't help either.** The API takes `stream=True`, but a tool
+call's arguments arrive in one chunk at the end. A ~250-line script opened
+its call at 56.6 s, and all 23,168 characters arrived together at 100.1 s.
+The reasoning isn't streamed either. So no partial script can be shown while
+it's written (the evidence is on #165).
+
 ## Experiment A: does Muse understand LiDAR? (`button_nz.bench.lidar_qa`)
 
 **Full run** ([report](experiment-a/report.md), code c007e76). 47 questions
