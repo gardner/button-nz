@@ -173,6 +173,6 @@ From live runs on the demo site ([docs/results](results/README.md)):
 ## Links
 
 - Source: https://github.com/gardner/button-nz (GNU GPL)
-- Live demo: https://button.nz (open; at most 30 design runs a day)
+- Live demo: https://button.nz (open to anyone)
 - Video: **pending upload** (the final take, 5 Nov)
 - Sample artifacts: https://github.com/gardner/button-nz/releases/tag/submission-2026-11-05

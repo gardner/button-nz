@@ -8,7 +8,7 @@ and nothing still to be produced is given a number.
 
 | # | Artifact | Where | State |
 |---|---|---|---|
-| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; at most 30 design runs a day), any address, with the owner's survey fixed. The smoke check (`check.sh`) passes |
+| 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; no daily cap on design runs), any address, with the owner's survey fixed. The smoke check (`check.sh`) passes |
 | 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Cut** (2 min 13 s) from the final take on 5 Nov, with the owner's survey. The team lead uploads it; its link goes in [pitch.md](pitch.md) |
 | 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
 | 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
@@ -40,7 +40,7 @@ run. [deploy.md](deploy.md) serves it from that machine as systemd services,
 behind a Cloudflare tunnel. It adds:
 
 - an optional access code (button.nz runs without one, so judges' links carry none);
-- a daily cap on design runs;
+- an optional daily cap on design runs (off on button.nz);
 - the owner's survey, fixed;
 - links that open a finished design at once.
 
@@ -134,10 +134,12 @@ the site.
 - **Prefab quotes (#11):** ten of the 17 catalogue products have no published
   price, which only a quote from the supplier can give. Not needed for the
   submission; the app says "not published".
-- **Site builds aren't capped on button.nz.** `install.sh` passes
-  `--daily-designs` to the API but not `--daily-sites`, and each new site is
-  billed SAM 3.1 calls. Whether to cap them before judging is the owner's
-  call; it would be a change to `install.sh` and a redeploy.
+- **Nothing is capped on button.nz.** The team lead removed the daily design
+  cap (#179): `install.sh` passes `--daily-designs` only when
+  `BUTTON_DAILY_DESIGNS` is set, and never `--daily-sites`. Each design run is
+  billed Meta Model API calls and each new site SAM 3.1 calls. Capping either
+  again would be a change to `deploy.env` (designs) or `install.sh` (sites)
+  and a redeploy.
 - **The demo site's survey so far:** the takes and Experiment C used the
   team's decisions (`data/demo-site/decisions.json`), which mark two features
   as buildings. The owner says nothing is built on the site, so the final take
