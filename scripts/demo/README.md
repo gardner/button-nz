@@ -153,3 +153,39 @@ spacer. The card's claims are yours, so take them from the benchmark reports:
 
 The title shows for 4 seconds and the closing card for 7 seconds. The output is
 H.264 at the raw recording's rate (`--fps`, 15 by default).
+
+## Score
+
+`score.py` puts music under the cut. The video stream is copied unchanged. The
+music is cut to the video's length, faded in over 0.5 s and out over 4 s, and
+scaled so its peak is at -1 dBFS, then encoded as AAC. Music shorter than the
+video is refused, never looped or padded.
+
+```bash
+uv run python scripts/demo/score.py out/button-nz-demo.mp4 out/music.wav out/button-nz-demo-scored.mp4
+```
+
+**The published video's music** is original, generated with
+[MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3) (MiniMax-Music3
+Community License) from a description in words. The model takes only text, so
+no recording was given to it. The description is of a style, tribal
+percussion with a wordless chant at about 112 BPM. It names no work, composer
+or melody. It was run with the model card's diffusers pipeline on one RTX 5090,
+outside this project's environment, because it needs a pre-release diffusers
+build and torch:
+
+```text
+Genre: tribal drumming, percussion ensemble, cinematic world music. BPM: 112. Key: B major.
+The drums are the lead instrument, loud and upfront the whole time; melody is minimal.
+Mood: earthy, driving and hopeful; a lone frame drum opens, hand drums, deep low toms and
+shakers join in turn, the full drum ensemble drives the middle, and it resolves on a final
+unison hit. Vocals: an occasional wordless group chant of mixed voices, short sustained
+open vowels answering the drums, no words, always behind the percussion. Arrangement:
+frame drums, hand drums and deep low toms in interlocking syncopated sixteenth-note
+patterns, shakers, wooden clicks and claps, a low drone underneath; no synths, no guitars,
+no piano, no strings. Production: dry and close, wide stereo percussion, natural room,
+punchy transients, strong clean low end.
+```
+
+The lyrics were section tags only (`[Intro]`, `[Verse]`, … `[Outro]`, each
+`[Instrumental]`), with `audio_duration=140.0`. The output is 44.1 kHz stereo.
