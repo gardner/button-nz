@@ -89,7 +89,7 @@ export function ReadySite({
         onEdit={() => setEditing(true)}
       />
       <DesignDock chain={chain} />
-      <AtWork job={shown} site={site} />
+      <AtWork job={shown} site={site} siteMap={siteMap.map} />
       {accepted && shown && (
         <Accepted job={shown} chain={chain} onPrefabs={askedPrefabs} />
       )}
@@ -227,14 +227,28 @@ function undrawn(map: DesignMap | null): string[] {
 }
 
 /** The run itself while the shown design is made (MuseAtWork): each design
- * its own, opened large if it is running when shown. */
-function AtWork({ job, site }: { job: Job | undefined; site: SiteState }) {
+ * its own, opened large if it is running when shown, with the site's own
+ * pictures (its aerial and the site map's buildings) for the waits. */
+function AtWork({
+  job,
+  site,
+  siteMap,
+}: {
+  job: Job | undefined;
+  site: SiteState;
+  siteMap: SiteMap | null;
+}) {
   if (!job) return null;
   return (
     <MuseAtWork
       key={job.id}
       job={job}
-      place={{ id: site.id, address: site.address }}
+      place={{
+        id: site.id,
+        address: site.address,
+        site: site.site,
+        siteMap,
+      }}
     />
   );
 }

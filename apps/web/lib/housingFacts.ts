@@ -4,9 +4,15 @@
 export interface HousingFact {
   text: string;
   source: string;
+  map?: string; // a picture to show beside it: the town screen's own map
 }
 
-/** Reefton's own figures: shown only on a site in Reefton. */
+/** The town screen's map of Reefton (docs/results/town-screen/map.png),
+ * with its own legend and sources. */
+const TOWN_MAP = "/town-screen-reefton.png";
+
+/** Reefton's own figures, each beside the town's map: shown only on a site
+ * in Reefton. */
 const REEFTON: readonly HousingFact[] = [
   {
     text: "65% of Reefton's residential properties (622 of 959) have room for a real prefab.",
@@ -24,7 +30,7 @@ const REEFTON: readonly HousingFact[] = [
     text: "If a quarter did: 109 more homes, housing 109–212 people.",
     source: "impact report",
   },
-];
+].map((fact) => ({ ...fact, map: TOWN_MAP }));
 
 /** True wherever the site is in New Zealand. */
 const EVERYWHERE: readonly HousingFact[] = [
