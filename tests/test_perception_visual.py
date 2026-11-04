@@ -336,6 +336,22 @@ def test_the_edit_asks_muse_image_to_keep_the_building(tmp_path: Path) -> None:
         assert kept in edit
 
 
+def test_the_edit_may_add_a_driveway_and_one_car_where_they_fit(tmp_path: Path) -> None:
+    """Imagined surroundings, like the rest: only with the street near, and never
+    over the house, whose outline is still checked."""
+    api = Api()
+    api.illustrate(*_files(tmp_path, DWELLING))
+    (edit,) = api.edits
+    for asked in (
+        b"Where the street is in view near the house",
+        b"short gravel or concrete driveway from the street to the house",
+        b"one car parked on it",
+        b"never in front of or over any part of the house",
+        b"otherwise leave them out",
+    ):
+        assert asked in edit
+
+
 def test_the_edit_is_told_where_the_dwelling_is_in_the_close_up(tmp_path: Path) -> None:
     """Told only to keep it, Muse Image drew the small dwelling far bigger (IoU 0.3);
     told its box in the frame, it kept it (0.94). In the close-up the dwelling
