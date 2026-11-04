@@ -497,8 +497,11 @@ describe("a ready site", () => {
       "fill-extrusion-height": ["*", height, 0.5],
     };
     expect(map.terrain).toBeNull();
+    expect(map.layers.get("design-outline-extrusion")).toMatchObject({
+      paint: { "fill-extrusion-height": own["fill-extrusion-height"] },
+    });
     expect(map.layers.get("design-walls-extrusion")).toMatchObject({
-      paint: own,
+      paint: { "fill-extrusion-base": 0 },
     });
     for (const layer of [
       "site-standing-buildings-extrusion",
@@ -525,6 +528,46 @@ describe("a ready site", () => {
     // The standing layers stay, empty, so they keep their place.
     expect(drawn("site-canopy")).toBe(0);
     expect(drawn("site-standing-buildings")).toBe(0);
+  });
+
+  it("stands the design in 3D as a building: its walls, and its roof on them over the eaves", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    serve({
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": ACCEPTED,
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+    });
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() =>
+      expect(FakeMap.last?.layers.has("design-outline-extrusion")).toBe(true),
+    );
+    const paint = (id: string) =>
+      (FakeMap.last!.layers.get(id) as { paint: Record<string, unknown> })
+        .paint;
+    const walls = paint("design-walls-extrusion");
+    const roof = paint("design-outline-extrusion");
+    const height = ["-", ["get", "heightM"], ["get", "baseM"]];
+    // The design's own finishes (the Blender worker's, in sRGB), opaque.
+    expect(walls).toMatchObject({
+      "fill-extrusion-color": "#e7e1d3",
+      "fill-extrusion-opacity": 1,
+    });
+    expect(roof).toMatchObject({
+      "fill-extrusion-color": "#454b50",
+      "fill-extrusion-opacity": 1,
+    });
+    // Stacked, not overlapping: the walls stop where the roof starts, below
+    // the design's top, so no two tops are coplanar.
+    expect(walls["fill-extrusion-base"]).toBe(0);
+    expect(walls["fill-extrusion-height"]).toEqual(roof["fill-extrusion-base"]);
+    expect(walls["fill-extrusion-height"]).not.toEqual(height);
+    expect(roof["fill-extrusion-height"]).toEqual(height);
+    // The roof covers the outline, eaves and all; the walls their own.
+    expect(drawn("design-outline")).toBe(1);
+    expect(drawn("design-walls")).toBe(1);
   });
 
   it("calls a design asked for before a survey change outdated, even if it answers after", async () => {

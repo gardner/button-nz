@@ -1,5 +1,7 @@
 "use client";
 
+import type { ExpressionSpecification } from "maplibre-gl";
+
 import {
   type DesignMap,
   type SiteMap,
@@ -168,23 +170,33 @@ export function SiteLayers({
   );
 }
 
-/** The design stood up in place: its walls in its colour, and its eaves as
- * a thin slab at the roof. */
+/** The design stood up in place in its own finishes, the Blender worker's
+ * `DEFAULT_FINISHES` (linear RGB 0.80, 0.75, 0.65 and 0.06, 0.07, 0.08) in
+ * sRGB: its walls, and on them a slab of roof over its outline, eaves and
+ * all. The roof starts where the walls stop, so no two faces are coplanar
+ * (two tops at one height z-fight: the roof tears). */
+const DESIGN_FINISHES = { walls: "#e7e1d3", roof: "#454b50" } as const;
+const ROOF_DEPTH = 0.5; // metres: a flat stand-in for its pitched roof
+const EAVES_LINE: ExpressionSpecification = [
+  "max",
+  ["-", OWN_HEIGHT, ROOF_DEPTH],
+  0,
+];
 const WALLS_3D: Paint<"fill-extrusion"> = {
-  "fill-extrusion-color": SITE_COLOURS.walls,
+  "fill-extrusion-color": DESIGN_FINISHES.walls,
   "fill-extrusion-base": 0,
-  "fill-extrusion-height": OWN_HEIGHT,
-  "fill-extrusion-opacity": 0.95,
+  "fill-extrusion-height": EAVES_LINE,
+  "fill-extrusion-opacity": 1,
 };
-const EAVES_3D: Paint<"fill-extrusion"> = {
-  "fill-extrusion-color": "#fafaf9",
-  "fill-extrusion-base": ["-", OWN_HEIGHT, 0.2],
+const ROOF_3D: Paint<"fill-extrusion"> = {
+  "fill-extrusion-color": DESIGN_FINISHES.roof,
+  "fill-extrusion-base": EAVES_LINE,
   "fill-extrusion-height": OWN_HEIGHT,
-  "fill-extrusion-opacity": 0.7,
+  "fill-extrusion-opacity": 1,
 };
 
 /** An accepted design on the site: its outline (eaves too) and its walls,
- * flat, or in 3D standing in place. */
+ * flat, or in 3D standing in place, roofed. */
 export function DesignLayers({
   map,
   three,
@@ -203,10 +215,10 @@ export function DesignLayers({
           extrusion={WALLS_3D}
         />
         <GeoLayer
-          key="eaves-3d"
+          key="roof-3d"
           id="design-outline"
           data={measured(map.outline)}
-          extrusion={EAVES_3D}
+          extrusion={ROOF_3D}
         />
         <Distances key="distances-3d" map={map} />
       </>
