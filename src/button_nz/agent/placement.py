@@ -58,9 +58,9 @@ MAX_CANDIDATES = 50_000  # poses tried at most, over every angle: a large site's
 MAX_CONFIRMED = 500  # the evaluator is asked about this many at most: about 0.25 s
 ROUNDING_M = 0.01  # the room is drawn in this far: a corner printed to the cm stays in it
 PROMPT_EAVES_M = 0.6
-# a bespoke design's plain plans, 66 to 70 m² outside the walls: long and narrow
-# ones fit where a squarer one can't
-PROMPT_PLANS = ((10.0, 7.0), (11.0, 6.0), (9.0, 7.5))  # compact, as the prompt asks (#175)
+# a bespoke design's plain plans, at most about 2:1 like a home (#175): a squarer
+# one where there's room, and two that still fit a narrow strip between 2 m lines
+PROMPT_PLANS = ((10.0, 7.0), (11.0, 5.0), (10.0, 4.8))
 _EPS = 1e-9
 _CLEARANCES = {  # the checks whose distance is a clearance, and its name
     "title_boundary_setback": "title_boundary_m",

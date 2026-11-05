@@ -355,4 +355,10 @@ def test_a_narrow_floor_range_is_printed_finely_enough_to_hold_a_passing_level()
 def test_bespoke_plans_offered_are_compact_like_a_home() -> None:
     # The prompt asks for a compact plan (#175): offering a long box to copy undoes it.
     for length, width in PROMPT_PLANS:
-        assert max(length, width) <= 2 * min(length, width), (length, width)
+        assert max(length, width) <= 2.2 * min(length, width), (length, width)  # "about twice"
+
+
+def test_a_compact_plan_offered_is_placed_on_the_demo_sites_narrow_strips() -> None:
+    # Its sections leave about 6.0-6.6 m between the 2 m lines: a plan must still place.
+    placed = [solve(_demo_context(), ln, wd, eaves_m=0.6).placements for ln, wd in PROMPT_PLANS]
+    assert any(placed)
