@@ -138,11 +138,13 @@ const SCENES: {
       title={
         <>
           Muse is designing its home
+          {/* The clock ticks every second: kept out of what the live
+              heading announces, which is said once, as the stage changes. */}
           {stage.since !== null && (
-            <>
+            <span aria-hidden>
               {" · "}
               <Elapsed since={stage.since} plain />
-            </>
+            </span>
           )}
         </>
       }

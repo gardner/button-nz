@@ -3,7 +3,7 @@ says where a home of its plan fits, solved and checked before Muse has said
 anything; and when its step began and its newest view was made."""
 
 import os
-from datetime import datetime
+import time
 from pathlib import Path
 from typing import Any
 
@@ -126,16 +126,40 @@ def test_a_revision_shows_no_new_massing(tmp_path: Path) -> None:
     assert watched.seen[-1]["placement"] is None
 
 
-def test_the_live_state_says_when_its_step_began_and_its_newest_view_was_made(
+def test_the_live_state_says_how_long_its_step_and_newest_view_have_been_there(
     tmp_path: Path,
 ) -> None:
-    service, watched, _ = _watched_service(tmp_path)
-    before = datetime.now().astimezone()
+    """Ages, not times: the browser's clock needn't agree with the server's."""
+    service = Service(tmp_path)
+    seen: list[dict[str, Any]] = []
+
+    def runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+        newest = out_dir / "observation-4.png"  # the brief's last view
+        made = time.time() - 60
+        os.utime(newest, (made, made))  # made a minute ago
+        seen.append(service.client.get(f"/designs/{job_id}").json()["live"])
+        return fake_runner(scene, script, out_dir)
+
+    service.worker.runner = runner
+    job_id = service.queue()
     service.worker.run_next()
-    live = watched.seen[0]
-    since = datetime.fromisoformat(live["since"])
-    assert before <= since <= datetime.now().astimezone()
-    job_id, _, number, name = live["observations"][-1].removeprefix("/designs/").split("/")
-    view = tmp_path / "runs" / job_id / f"attempt-{number}" / name
-    made = datetime.fromtimestamp(os.stat(view).st_mtime).astimezone()
-    assert datetime.fromisoformat(live["newest_view_at"]) == made
+    live = seen[0]
+    assert 0 <= live["step_s"] < 5  # rendering began just now
+    assert 60 <= live["newest_view_s"] < 65
+    assert "since" not in live and "newest_view_at" not in live
+
+
+def test_a_step_with_no_views_yet_has_no_newest_view_age(tmp_path: Path) -> None:
+    service = Service(tmp_path)
+    seen: list[dict[str, Any]] = []
+
+    def runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+        for view in out_dir.glob("observation-*.png"):
+            view.unlink()
+        seen.append(service.client.get(f"/designs/{job_id}").json()["live"])
+        return fake_runner(scene, script, out_dir)
+
+    service.worker.runner = runner
+    job_id = service.queue()
+    service.worker.run_next()
+    assert seen[0]["observations"] == [] and seen[0]["newest_view_s"] is None

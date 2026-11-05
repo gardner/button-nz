@@ -261,6 +261,10 @@ describe("MuseAtWork, large", () => {
     render(<MuseAtWork job={job} place={REEFTON} />);
     const title = () => within(overlay()).getByRole("heading", { level: 2 });
     expect(title().textContent).toBe("Muse is designing its home · 3:42");
+    // The heading is announced as the stage changes; the ticking clock
+    // isn't, or a screen reader would read it out every second.
+    expect(title().getAttribute("aria-live")).toBe("polite");
+    expect(title().querySelector("[aria-hidden]")?.textContent).toBe(" · 3:42");
     expect(screen.getByRole("region", { name: "Housing facts" })).toBeTruthy();
     // Only the filmstrip's: the stale view is off the stage.
     expect(

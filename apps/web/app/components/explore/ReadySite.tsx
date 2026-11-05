@@ -59,6 +59,7 @@ export function ReadySite({
     version > 0 && shown !== undefined && chain.made.get(shown.id) !== version;
 
   const askedPrefabs = useProgress(shown, onProgress);
+  const massing = useMassing(shown, accepted);
 
   return (
     <>
@@ -68,7 +69,7 @@ export function ReadySite({
         three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
-        placement={provisional(shown)}
+        placement={massing}
         selected={selected}
         onFeature={(id) => {
           setSelected(id);
@@ -99,9 +100,31 @@ export function ReadySite({
   );
 }
 
-/** Until the shown run has a design, where a home fits (#188). */
-function provisional(shown: Job | undefined): Placement | null {
+/** Where a home fits for the shown run (#188): its live placement while it
+ * runs, kept once it is accepted (its `live` gone) until the design's map
+ * replaces it on the map, however long that takes to come. */
+function useMassing(
+  shown: Job | undefined,
+  accepted: boolean,
+): Placement | null {
+  const live = livePlacement(shown);
+  const [kept, setKept] = useState<Kept | null>(null);
+  if (live && kept?.placement !== live)
+    setKept({ id: shown!.id, placement: live });
+  return live ?? (accepted ? keptFor(kept, shown) : null);
+}
+
+interface Kept {
+  id: string; // the run it is of
+  placement: Placement;
+}
+
+function livePlacement(shown: Job | undefined): Placement | null {
   return shown?.live?.placement ?? null;
+}
+
+function keptFor(kept: Kept | null, shown: Job | undefined): Placement | null {
+  return kept !== null && kept.id === shown?.id ? kept.placement : null;
 }
 
 /** The credit for the site's own data, once its sources have come. */

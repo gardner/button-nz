@@ -281,16 +281,16 @@ export const DESIGN_MAP = {
 };
 
 /** GET /designs/{id}'s `live` while a run is under way (#188): the step and
- * when it began, the newest view and when it was made, and where a home of
- * the run's plan fits, solved as it started. */
+ * how long it has been under way, the newest view and how long ago it was
+ * made, and where a home of the run's plan fits, solved as it started. */
 export const LIVE = {
   attempt: 1,
   phase: "thinking",
   detail: "",
   view: 0,
   observations: ["/designs/abc123/attempts/1/observation-4.png"],
-  since: "2026-11-05T00:12:35.200000Z",
-  newest_view_at: "2026-11-05T00:12:35.100000Z",
+  step_s: 222.5,
+  newest_view_s: 60,
   placement: {
     plan: { length_m: 10.0, width_m: 4.8, eaves_m: 0.6 },
     walls: square(171.86201, -42.11589, 0.00007)[0],

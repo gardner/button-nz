@@ -466,9 +466,9 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
     assert service.client.get(f"/designs/{job_id}").json()["live"] is None  # not started
     assert service.worker.run_next()
     live = watch.seen[0]
-    # when the step began and the newest view was made, and the massing: see
-    # test_api_massing
-    for key in ("since", "newest_view_at", "placement"):
+    # how long the step and newest view have been there, and the massing:
+    # see test_api_massing
+    for key in ("step_s", "newest_view_s", "placement"):
         live.pop(key)
     assert live == {
         "attempt": 1,

@@ -6,6 +6,7 @@
 
 import {
   ApiError,
+  type Fields,
   asList,
   asPoint,
   asText,
@@ -93,8 +94,9 @@ export interface Live {
   detail: string; // the view asked for, when observing
   view: number; // the observation-<n> that ask makes, when observing (else 0)
   observations: string[]; // URLs through the proxy
-  // When this step began, and when its newest view was made (#188); null
-  // from an API before them, and the latter while there is no view yet.
+  // When this step began, and when its newest view was made (#188), on this
+  // browser's clock: the API says how long ago, as its clock needn't agree.
+  // Null from an API before them, and the latter while there is no view yet.
   since: string | null;
   newestViewAt: string | null;
   placement: Placement | null; // where a home of its plan fits, if one does
@@ -266,7 +268,9 @@ export async function setBuildingsComplete(
   return flag(survey, "buildings_complete");
 }
 
-export function parseJob(raw: unknown): Job {
+/** A job as the API sent it, read `now` (when it arrived): the ages it
+ * gives become times on this browser's clock. */
+export function parseJob(raw: unknown, now: number = Date.now()): Job {
   const job = record(raw, "job");
   return {
     id: text(job, "id"),
@@ -284,11 +288,11 @@ export function parseJob(raw: unknown): Job {
     product: optional(job, "product", (f, k) => parsePlaced(f[k])),
     attempts: list(job, "attempts").map(parseAttempt),
     illustrating: flag(job, "illustrating"),
-    live: optional(job, "live", (f, k) => parseLive(f[k])),
+    live: optional(job, "live", (f, k) => parseLive(f[k], now)),
   };
 }
 
-function parseLive(raw: unknown): Live {
+function parseLive(raw: unknown, now: number): Live {
   const live = record(raw, "live");
   return {
     attempt: number(live, "attempt"),
@@ -298,14 +302,21 @@ function parseLive(raw: unknown): Live {
     observations: list(live, "observations").map(
       (url) => `${API}${asText(url, "observation")}`,
     ),
-    since: "since" in live ? optional(live, "since", text) : null,
-    newestViewAt:
-      "newest_view_at" in live ? optional(live, "newest_view_at", text) : null,
+    since: ago(live, "step_s", now),
+    newestViewAt: ago(live, "newest_view_s", now),
     placement:
       "placement" in live
         ? optional(live, "placement", (f, k) => parsePlacement(f[k]))
         : null,
   };
+}
+
+/** `key`'s age in seconds, as the time it was `now` less that; null where
+ * the API gives none. */
+function ago(fields: Fields, key: string, now: number): string | null {
+  if (!(key in fields)) return null; // an API from before it
+  const seconds = optional(fields, key, number);
+  return seconds === null ? null : new Date(now - seconds * 1000).toISOString();
 }
 
 function parsePlacement(raw: unknown): Placement {

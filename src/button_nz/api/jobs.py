@@ -23,7 +23,6 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -53,10 +52,10 @@ type SiteFor = Callable[[str], tuple[DesignSite, Path | None]]  # a site id: whe
 
 @dataclass(frozen=True)
 class Stepped:
-    """A running job's current step, and when it began."""
+    """A running job's current step, and when it began (``time.time``)."""
 
     step: Step
-    since: datetime
+    since: float
 
 
 class Worker:
@@ -189,7 +188,7 @@ class Worker:
             self._massings.pop(job.id, None)
 
     def _on_step(self, job_id: str, step: Step) -> None:
-        self._steps[job_id] = Stepped(step, datetime.now(UTC))
+        self._steps[job_id] = Stepped(step, time.time())
 
     def _run_design(self, job: Job) -> Attempt | None:
         def record(attempt: Attempt) -> None:

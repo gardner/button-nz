@@ -9,10 +9,15 @@ function running(live: unknown) {
 }
 
 describe("a running job's live state", () => {
-  it("reads when its step began, when its newest view was made, and where a home fits", () => {
-    const live = running(LIVE).live!;
-    expect(live.since).toBe("2026-11-05T00:12:35.200000Z");
-    expect(live.newestViewAt).toBe("2026-11-05T00:12:35.100000Z");
+  it("reads when its step began and its newest view was made, on this browser's clock, and where a home fits", () => {
+    // The API says how long ago (its clock needn't agree with this one's).
+    const now = Date.parse("2026-11-05T00:16:17Z");
+    const live = parseJob(
+      { ...JOB, status: "running", accepted_attempt: null, live: LIVE },
+      now,
+    ).live!;
+    expect(live.since).toBe("2026-11-05T00:12:34.500Z"); // 222.5 s before
+    expect(live.newestViewAt).toBe("2026-11-05T00:15:17.000Z"); // 60 s before
     expect(live.observations).toEqual([
       "/api/designs/abc123/attempts/1/observation-4.png",
     ]);
@@ -32,8 +37,8 @@ describe("a running job's live state", () => {
   });
 
   it("reads an API from before #188 as having none of them", () => {
-    const { since, newest_view_at, placement, ...before } = LIVE;
-    void [since, newest_view_at, placement];
+    const { step_s, newest_view_s, placement, ...before } = LIVE;
+    void [step_s, newest_view_s, placement];
     const live = running(before).live!;
     expect(live.since).toBeNull();
     expect(live.newestViewAt).toBeNull();
@@ -44,11 +49,16 @@ describe("a running job's live state", () => {
     const live = running({
       ...LIVE,
       observations: [],
-      newest_view_at: null,
+      newest_view_s: null,
       placement: null,
     }).live!;
     expect(live.newestViewAt).toBeNull();
     expect(live.placement).toBeNull();
+  });
+
+  it("refuses an age that isn't a number", () => {
+    expect(() => running({ ...LIVE, step_s: "3:42" })).toThrow(ApiError);
+    expect(() => running({ ...LIVE, newest_view_s: "1m" })).toThrow(ApiError);
   });
 
   it.each([

@@ -488,6 +488,34 @@ describe("a ready site", () => {
     expect(document.querySelector('[data-label="massing"]')).toBeNull();
   });
 
+  it("keeps where a home fits until the accepted design's map has come", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    const routes: Record<string, unknown> = {
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        live: LIVE,
+      },
+      // GET /api/designs/abc123/map never answers.
+    };
+    serve(routes);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(drawn("massing-walls")).toBe(1));
+    routes["GET /api/designs/abc123"] = ACCEPTED; // done: `live` is gone
+    expect(
+      (await screen.findAllByText("Accepted: attempt 1")).length,
+    ).toBeGreaterThan(0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(drawn("massing-walls")).toBe(1);
+    expect(document.querySelector('[data-label="massing"]')).not.toBeNull();
+  });
+
   it("keeps the small Muse at work below the top bar on a short screen, scrolling rather than covering it", async () => {
     window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
     serve({

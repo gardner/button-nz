@@ -19,10 +19,11 @@ directory: never through a symlink.
 
 import json
 import re
+import time
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -82,8 +83,10 @@ class LiveView(BaseModel):
     detail: str  # the LiDAR view asked for, when observing
     view: int  # the observation-<n> that ask makes, when observing (else 0)
     observations: list[str]  # the views made so far in this attempt: URLs
-    since: datetime  # when this step began
-    newest_view_at: datetime | None  # when the newest of those views was made; None: none yet
+    # Ages, in seconds as this server measures them, never times: a browser's
+    # clock needn't agree with the server's.
+    step_s: float  # how long this step has been under way
+    newest_view_s: float | None  # how long ago the newest of those views was made; None: none yet
     placement: PlacementView | None  # where a home of its plan fits, checked (``api.massing``)
 
 
@@ -340,17 +343,15 @@ def _live(worker: Worker, job: Job) -> LiveView | None:
         detail=step.detail,
         view=step.view,
         observations=[files[n] for n in views],
-        since=stepped.since,
-        newest_view_at=_made_at(_attempt_dir(worker, job, step.attempt) / views[-1])
-        if views
-        else None,
+        step_s=round(time.time() - stepped.since, 1),
+        newest_view_s=_age(_attempt_dir(worker, job, step.attempt) / views[-1]) if views else None,
         placement=None if massing is None else placement_view(massing),
     )
 
 
-def _made_at(path: Path) -> datetime:
-    """When ``path`` was last written."""
-    return datetime.fromtimestamp(path.stat().st_mtime, UTC)
+def _age(path: Path) -> float:
+    """How long ago ``path`` was last written, in seconds."""
+    return round(time.time() - path.stat().st_mtime, 1)
 
 
 def _view_number(name: str) -> int:
