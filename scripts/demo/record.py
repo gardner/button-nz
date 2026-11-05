@@ -246,7 +246,17 @@ def design(run: Run, brief: str) -> None:
     print("design took", until_accepted(page), "s", flush=True)
     page.wait_for_timeout(2000)
     run.cast.mark("accepted: every check measured, each with its rule")
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(6000)  # the overlay's accepted view: the design, its checks
+    leave_overlay(page)
+
+
+def leave_overlay(page: Page) -> None:
+    """Hide "Muse at work" once its run is accepted: it stays open, large, to
+    show the result (#166), over the design panel the take shows next."""
+    hide = page.get_by_role("region", name="Muse at work").get_by_role("button", name="Hide")
+    if hide.count() and hide.first.is_visible():
+        hide.first.click()
+        page.wait_for_timeout(1500)
 
 
 def stand_in_3d(run: Run) -> None:
@@ -296,6 +306,8 @@ def revise(run: Run, change: str) -> None:
     run.cast.mark("a change in plain words: Muse revises, the evaluator checks again (live)")
     wait_for(page, lambda t: any(status in t for status in IN_PROGRESS), 60, status_text)
     print("revision took", until_accepted(page), "s", flush=True)
+    page.wait_for_timeout(4000)  # the overlay's accepted view
+    leave_overlay(page)
     page.wait_for_timeout(3000)
 
 
@@ -337,6 +349,8 @@ def place_product(run: Run) -> None:
     page.get_by_text(f"Placing the {name}").wait_for(timeout=30_000)
     run.cast.mark(f"placing the {name} on the site (live)")
     print("placing took", until_accepted(page), "s", flush=True)
+    page.wait_for_timeout(4000)  # the overlay's accepted view
+    leave_overlay(page)
     page.wait_for_timeout(2000)
     run.cast.mark(f"the {name}, placed and checked against its footprint and every rule")
     map_view(run, "3D")
