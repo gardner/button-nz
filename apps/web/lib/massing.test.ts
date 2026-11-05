@@ -47,7 +47,7 @@ describe("the instant massing in words", () => {
 });
 
 describe("the instant massing on the map", () => {
-  it("is its walls and outline as polygons, labelled at the walls' middle", () => {
+  it("is its walls and outline as polygons, labelled just below them, clear of the block", () => {
     const layers = massingLayers(PLACEMENT);
     expect(layers.walls.features).toEqual([
       {
@@ -59,8 +59,9 @@ describe("the instant massing on the map", () => {
     expect(layers.outline.features[0].geometry.coordinates).toEqual([
       LIVE.placement.outline,
     ]);
-    const [lon, lat] = layers.centre;
+    // Below the walls' middle, at the outline's southernmost point.
+    const [lon, lat] = layers.labelAt;
     expect(lon).toBeCloseTo(171.862045, 6);
-    expect(lat).toBeCloseTo(-42.115855, 6);
+    expect(lat).toBeCloseTo(-42.1159, 6);
   });
 });

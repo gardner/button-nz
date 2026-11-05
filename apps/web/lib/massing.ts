@@ -42,7 +42,7 @@ export function clearanceWords(placement: Placement): string[] {
 export interface MassingLayers {
   walls: FeatureCollection<null>;
   outline: FeatureCollection<null>;
-  centre: LonLat; // where its label goes
+  labelAt: LonLat; // where its label hangs from: just below it
 }
 
 /** The placement as the map draws it. */
@@ -50,7 +50,7 @@ export function massingLayers(placement: Placement): MassingLayers {
   return {
     walls: polygon("walls", placement.walls),
     outline: polygon("outline", placement.outline),
-    centre: centre(placement.walls),
+    labelAt: [middle(placement.walls), south(placement.outline)],
   };
 }
 
@@ -67,10 +67,13 @@ function polygon(id: string, ring: LonLat[]): FeatureCollection<null> {
   };
 }
 
-/** The mean of a closed ring's corners (its first is its last). */
-function centre(ring: LonLat[]): LonLat {
+/** The mean longitude of a closed ring's corners (its first is its last). */
+function middle(ring: LonLat[]): number {
   const corners = ring.slice(0, -1);
-  const mean = (i: 0 | 1) =>
-    corners.reduce((sum, p) => sum + p[i], 0) / corners.length;
-  return [mean(0), mean(1)];
+  return corners.reduce((sum, [lon]) => sum + lon, 0) / corners.length;
+}
+
+/** A ring's southernmost latitude. */
+function south(ring: LonLat[]): number {
+  return Math.min(...ring.map(([, lat]) => lat));
 }

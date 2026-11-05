@@ -456,6 +456,13 @@ describe("a ready site", () => {
       paint: { "line-dasharray": [2, 2] },
     });
     expect(map.layers.has("massing-walls-extrusion")).toBe(false);
+    // Framed clear of the Muse at work panel on the right, as wide as the
+    // hero an accepted design gets there.
+    await vi.waitFor(() =>
+      expect(map.fitOptions.at(-1)).toMatchObject({
+        padding: { right: 440 },
+      }),
+    );
     const label = await vi.waitFor(() => {
       const found = document.querySelector('[data-label="massing"]');
       expect(found).not.toBeNull();

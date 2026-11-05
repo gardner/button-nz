@@ -136,7 +136,9 @@ function SiteOverlays({
     <>
       {/* The site framed, tilted as the switch says, until there is a
           design to frame (below). */}
-      {!framed && <FitTo bounds={siteBounds} pitch={three ? PITCH_3D : 0} />}
+      {!framed && (
+        <SiteFit bounds={siteBounds} three={three} massing={!!placement} />
+      )}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}
@@ -162,6 +164,27 @@ function SiteOverlays({
         </>
       )}
     </>
+  );
+}
+
+/** The site framed, tilted as the switch says; with a massing on it, clear
+ * of the small Muse at work panel on the right (as wide as the hero that
+ * takes its place). */
+function SiteFit({
+  bounds,
+  three,
+  massing,
+}: {
+  bounds: Bounds | null;
+  three: boolean;
+  massing: boolean;
+}) {
+  return (
+    <FitTo
+      bounds={bounds}
+      pitch={three ? PITCH_3D : 0}
+      right={massing ? HERO_WIDTH + 40 : undefined}
+    />
   );
 }
 

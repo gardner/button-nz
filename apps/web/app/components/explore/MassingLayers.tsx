@@ -46,7 +46,7 @@ export function MassingLayers({
             "fill-extrusion-color": MASSING,
             "fill-extrusion-base": 0,
             "fill-extrusion-height": HEIGHT_M,
-            "fill-extrusion-opacity": 0.6,
+            "fill-extrusion-opacity": 0.8,
           }}
         />
       ) : (
@@ -58,7 +58,7 @@ export function MassingLayers({
           line={{ "line-color": MASSING, "line-width": 2 }}
         />
       )}
-      <MassingLabel at={layers.centre} lines={clearanceWords(placement)} />
+      <MassingLabel at={layers.labelAt} lines={clearanceWords(placement)} />
     </>
   );
 }
@@ -86,7 +86,10 @@ function MassingLabel({ at, lines }: { at: LonLat; lines: string[] }) {
       detail.className = "text-zinc-300";
       detail.textContent = said;
       element.append(title, detail);
-      marker = new Marker({ element }).setLngLat([lon, lat]).addTo(map);
+      // Hung below the massing, so it doesn't cover what it describes.
+      marker = new Marker({ element, anchor: "top", offset: [0, 6] })
+        .setLngLat([lon, lat])
+        .addTo(map);
     });
     return () => {
       gone = true;
