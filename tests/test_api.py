@@ -114,11 +114,12 @@ class Service:
         model: Callable[[], Model] = scripted,
         runner: Runner = fake_runner,
         illustrator: Illustrator | None = None,
+        site: Callable[[], DesignSite] = synthetic_site,
     ) -> None:
         self.store = Store(tmp_path / "button.db")
         self.worker = Worker(
             self.store,
-            site=synthetic_site,
+            site=site,
             model=model,
             runs_dir=tmp_path / "runs",
             runner=runner,
@@ -450,7 +451,7 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
     class Watching:
         service: Service
         job_id: str
-        seen: list[object]
+        seen: list[dict[str, object]]
 
     watch = Watching()
     watch.seen = []
@@ -464,7 +465,12 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
     watch.job_id = job_id = service.queue()
     assert service.client.get(f"/designs/{job_id}").json()["live"] is None  # not started
     assert service.worker.run_next()
-    assert watch.seen[0] == {
+    live = watch.seen[0]
+    # when the step began and the newest view was made, and the massing: see
+    # test_api_massing
+    for key in ("since", "newest_view_at", "placement"):
+        live.pop(key)
+    assert live == {
         "attempt": 1,
         "phase": "rendering",
         "detail": "",

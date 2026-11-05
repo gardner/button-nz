@@ -22,7 +22,7 @@ import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -35,6 +35,7 @@ from button_nz.api.features import features_router, site_features_router
 from button_nz.api.fixed import FixedSurvey, SurveyReplaced
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
+from button_nz.api.massing import PlacementView, placement_view
 from button_nz.api.products import products_router
 from button_nz.api.site_view import site_view as view_of
 from button_nz.api.sites import Sites, SiteService, sites_router
@@ -81,6 +82,9 @@ class LiveView(BaseModel):
     detail: str  # the LiDAR view asked for, when observing
     view: int  # the observation-<n> that ask makes, when observing (else 0)
     observations: list[str]  # the views made so far in this attempt: URLs
+    since: datetime  # when this step began
+    newest_view_at: datetime | None  # when the newest of those views was made; None: none yet
+    placement: PlacementView | None  # where a home of its plan fits, checked (``api.massing``)
 
 
 class ProductView(BaseModel):
@@ -323,18 +327,30 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
 
 
 def _live(worker: Worker, job: Job) -> LiveView | None:
-    step = worker.step(job.id)
-    if step is None:
+    stepped = worker.step(job.id)
+    if stepped is None:
         return None
+    step = stepped.step
     files = _files(worker, job, step.attempt)
     views = sorted((n for n in files if n.startswith("observation-")), key=_view_number)
+    massing = worker.massing(job.id)
     return LiveView(
         attempt=step.attempt,
         phase=str(step.phase),
         detail=step.detail,
         view=step.view,
         observations=[files[n] for n in views],
+        since=stepped.since,
+        newest_view_at=_made_at(_attempt_dir(worker, job, step.attempt) / views[-1])
+        if views
+        else None,
+        placement=None if massing is None else placement_view(massing),
     )
+
+
+def _made_at(path: Path) -> datetime:
+    """When ``path`` was last written."""
+    return datetime.fromtimestamp(path.stat().st_mtime, UTC)
 
 
 def _view_number(name: str) -> int:
