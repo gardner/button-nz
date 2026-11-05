@@ -9,7 +9,7 @@ and nothing still to be produced is given a number.
 | # | Artifact | Where | State |
 |---|---|---|---|
 | 1 | Working application | `apps/web` + `button_nz.api`, served from this machine ([deploy.md](deploy.md)) | **Done.** Open at https://button.nz (no access code; no daily cap on design runs), any address, with the owner's survey fixed. The smoke check (`check.sh`) passes |
-| 2 | Demo video | `scripts/demo/` records and cuts it from one live run | **Cut** (2 min 13 s) from the final take on 5 Nov, with the owner's survey. The team lead uploads it; its link goes in [pitch.md](pitch.md) |
+| 2 | Demo video | A live screencast of https://button.nz, narrated by the team lead (5 Nov). A cut from the automated final take (`scripts/demo/`, 2 min 58 s, narrated with its SRT) is the fallback | The team lead uploads it; its link goes in [pitch.md](pitch.md) |
 | 3 | Source repository | https://github.com/gardner/button-nz, GNU GPL (`LICENSE`) | **Done.** Public |
 | 4 | Technical README | [README.md](../README.md): architecture, the Meta models and where, data and licences, the sandbox, limitations, reproduction | **Done** |
 | 5 | Evaluation report | [docs/results](results/README.md) | **Done:** Experiments A and C, the model comparison, the batch run, the AI visual, the town screen, impact and the SAM 3D experiment |
@@ -72,15 +72,16 @@ The final take (`record.py`, updated for the map-first page in #97):
 its LINZ aerial photo draped on its own LiDAR, made by
 `python -m button_nz.bench.relief`, and captioned as not the live run.
 
-**The final take** (5 Nov, NZDT; 2 min 13 s cut) ran live with the owner's
-survey. The design was accepted on attempt 2, and the revision on attempt 1,
-at 2.33 m from the title boundary (2 m required). The cut ends on the six real
-prefabs that fit. The take then tried to place the largest, the Russley
-Portables Methven (15 × 4.2 m). None of its three attempts passed: the first
-put something below the floor, the second's script raised an error, and on the
-third the floor would sit 1.24 m above the lowest ground on this slope, where
-at most 1 m is allowed. The recording stopped before the verdict
-showed, so the cut leaves the placement out rather than show it unfinished.
+**The final automated take** (5 Nov, NZDT) ran live with the owner's survey.
+All three runs were accepted on attempt 1 with every check passed: the design
+at 2.32 m from the title boundary, the revision at 2.08 m, and the Russley
+Portables Methven placed at its exact 15.0 × 4.2 m footprint. Its cut opens
+on the town in 3D, rendered frame by frame on the GPU. It cuts the waits to a
+few seconds of "Muse at work" each, and the SRT gives each step's real
+duration. The music is original, made with MiniMax-Music3 from a text
+description: wordless female voices with hand drums. A MiniMax-H3 clip was
+made but left out, because its licence forbids showing outputs in the US, EU,
+UK and South Korea.
 
 Earlier takes showed the team's survey decisions, captioned as such; the
 owner says those are wrong for this site, so the submission's video is the
