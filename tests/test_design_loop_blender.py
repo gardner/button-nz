@@ -1,7 +1,9 @@
-"""The design loop end to end: real sandboxed Blender, real evaluator, and a
-scripted model that revises after a failed check. Run with `pytest -m blender`."""
+"""The design loop end to end, a spec through real sandboxed Blender and the
+real evaluator; and the trusted passes with scripts of every kind. Run with
+`pytest -m blender`."""
 
 import json
+import re
 import struct
 from collections.abc import Sequence
 from pathlib import Path
@@ -13,15 +15,18 @@ from numpy.typing import NDArray
 
 from button_nz.agent.conversation import Turn
 from button_nz.agent.loop import DesignSite, design
-from button_nz.blender_worker.scene_input import DwellingFinishes, scene_input
-from button_nz.evaluation import SiteContext, Status
+from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
+from button_nz.blender_worker.run import run_design
+from button_nz.blender_worker.scene_input import DwellingFinishes, scene_input, with_finishes
+from button_nz.evaluation import Report, SiteContext, Status, evaluate
 from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 
 pytestmark = pytest.mark.blender
 
-# A 6 m x 5 m, 3.6 m tall dwelling whose floor sits 0.3 m above the ground.
+# A 6 m x 5 m, 3.6 m tall dwelling whose floor sits 0.3 m above the ground: a
+# script, as the trusted passes see any script, built by the spec builder or not.
 DWELLING = """
 bpy.ops.mesh.primitive_cube_add(size=1, location=({x}, 0.0, 0.3 + 1.8))
 dwelling = bpy.context.active_object
@@ -30,50 +35,52 @@ dwelling.scale = (6.0, 5.0, 3.6)
 dwelling["floor_area_m2"] = 26.0
 dwelling["storeys"] = 1
 """
-TOO_CLOSE = DWELLING.format(x=-16.5)  # west wall 0.5 m from the title boundary
 MOVED = DWELLING.format(x=0.0)
+PLACED = re.compile(r"  - 1: .*?floor underside at z (-?[0-9.]+) to")
 
 
-class RevisingModel:
-    """Places the dwelling too close, then moves it once told the setback failed."""
+class SpecModel:
+    """Proposes a gable on placement 1, its floor at the lowest level offered;
+    then, told a check failed, the same with a flat roof."""
 
     def __init__(self) -> None:
         self.feedback: list[str] = []
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        if conversation[-1].role != "feedback":
-            return TOO_CLOSE
-        self.feedback.append(conversation[-1].text)
-        return MOVED if "title_boundary_setback: fail" in conversation[-1].text else TOO_CLOSE
+        found = PLACED.search(conversation[0].text)
+        assert found is not None
+        roof = {"form": "gable", "pitch_deg": 15}
+        if conversation[-1].role == "feedback":
+            self.feedback.append(conversation[-1].text)
+            roof = {"form": "flat", "pitch_deg": 0}
+        spec = {"placement": 1, "floor_z_m": float(found[1]), "roof": roof, "eaves_m": 0.6}
+        return json.dumps(spec)
 
 
-def test_a_failed_placement_is_revised_and_accepted(tmp_path: Path) -> None:
+def flat_site() -> DesignSite:
     dem = np.full((20, 40), 100.0)
     grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
     parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)  # local x -20..20, y -10..10
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]),
-        frame,
-        SiteContext(parcels=(parcel,), terrain=grid),
+    frame = LocalFrame.centred_on(grid.bbox)
+    return DesignSite(
+        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
     )
-    model = RevisingModel()
 
-    result = design("A 26 m² studio.", site, model, tmp_path)
 
-    first, second = result.attempts
-    assert first.report is not None and first.report.status is Status.FAIL
-    setback = next(c for c in first.report.checks if c.name == "title_boundary_setback")
-    assert setback.measured["distance_m"] == pytest.approx(0.5, abs=1e-6)
-    assert "0.50 m from the title boundary" in model.feedback[0]
-    assert result.accepted is second
-    assert second.report is not None
-    statuses = {c.name: c.status for c in second.report.checks}
+def test_a_spec_is_built_measured_and_accepted(tmp_path: Path) -> None:
+    result = design("A 60 m² home.", flat_site(), SpecModel(), tmp_path)
+
+    assert result.accepted is result.attempts[0]
+    report = result.attempts[0].report
+    assert report is not None
+    statuses = {c.name: c.status for c in report.checks}
     assert statuses["title_boundary_setback"] is Status.PASS
-    assert statuses["floor_level"] is Status.PASS  # floor 0.3 m above flat ground
-    assert (tmp_path / "attempt-2" / "design.glb").is_file()
+    assert statuses["floor_level"] is statuses["height"] is Status.PASS
+    assert (tmp_path / "attempt-1" / "design.glb").is_file()
+    trace = json.loads((tmp_path / "attempt-1" / "attempt.json").read_text(encoding="utf-8"))
+    assert json.loads(trace["spec"])["roof"]["form"] == "gable"
     summary = json.loads((tmp_path / "design.json").read_text(encoding="utf-8"))
-    assert summary["accepted_attempt"] == 2
+    assert summary["accepted_attempt"] == 1
 
 
 def test_the_demo_site_runs_through_the_loop(tmp_path: Path) -> None:
@@ -81,35 +88,31 @@ def test_the_demo_site_runs_through_the_loop(tmp_path: Path) -> None:
     Muse demo uses, minus the API key."""
     from button_nz.agent.demo import run
 
-    result = run(tmp_path, "A small studio.", RevisingModel())
+    result = run(tmp_path, "A small studio.", SpecModel())
     assert result.attempts[0].report is not None
     by_name = {c.name: c for c in result.attempts[0].report.checks}
     assert 189.0 < by_name["floor_level"].measured["lowest_ground_m"] < 191.5
 
 
-class PlacingModel:
-    """Places the dwelling well inside the title, once."""
-
-    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        return MOVED
+def run_script(script: str, out_dir: Path, finishes: DwellingFinishes | None = None) -> Report:
+    """``script`` through the trusted passes on the flat site, measured and checked."""
+    site = flat_site()
+    scene = site.scene if finishes is None else with_finishes(site.scene, finishes)
+    outputs = run_design(scene, script, out_dir)
+    datum = float(site.scene["frame"]["datum_m"])
+    proposal = to_proposal(parse_measurements(outputs.measurements), site.frame, datum)
+    return evaluate(proposal, site.context)
 
 
 def test_the_render_finishes_the_roof_and_walls_as_the_host_says(tmp_path: Path) -> None:
-    dem = np.full((20, 40), 100.0)
-    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
-    )
     finishes: DwellingFinishes = {
         "walls": {"rgba": [0.9, 0.1, 0.1, 1.0], "texture": "white_planks_clean"},
         "roof": {"rgba": [0.1, 0.1, 0.9, 1.0], "texture": "corrugated_iron"},
     }
 
-    result = design("A studio.", site, PlacingModel(), tmp_path, finishes=finishes)
+    report = run_script(MOVED, tmp_path / "attempt-1", finishes)
 
-    assert result.accepted is not None
+    assert report.status is not Status.FAIL
     glb = tmp_path / "attempt-1" / "design.glb"
     assert glb.stat().st_size < 10_000_000
     gltf = glb_json(glb)
@@ -143,25 +146,14 @@ def test_the_render_finishes_the_roof_and_walls_as_the_host_says(tmp_path: Path)
     assert along > 5.0  # and v along it, so the boards and their relief run level
 
 
-class MirroringModel:
-    """Places a mirrored dwelling: every triangle wound the other way."""
-
-    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        return MOVED.replace("(6.0, 5.0, 3.6)", "(6.0, 5.0, -3.6)")
+# A mirrored dwelling: every triangle wound the other way.
+MIRRORED = MOVED.replace("(6.0, 5.0, 3.6)", "(6.0, 5.0, -3.6)")
 
 
 def test_the_roof_is_the_roof_whichever_way_its_triangles_wind(tmp_path: Path) -> None:
-    dem = np.full((20, 40), 100.0)
-    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
-    )
+    report = run_script(MIRRORED, tmp_path / "attempt-1")
 
-    result = design("A studio.", site, MirroringModel(), tmp_path)
-
-    assert result.accepted is not None
+    assert report.status is not Status.FAIL
     gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
     node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
     top = {
@@ -189,21 +181,8 @@ bpy.ops.object.join()
 )
 
 
-class DeckModel:
-    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        return WITH_DECK
-
-
 def test_a_deck_is_not_roof(tmp_path: Path) -> None:
-    dem = np.full((20, 40), 100.0)
-    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
-    )
-
-    design("A studio with a deck.", site, DeckModel(), tmp_path, max_attempts=1)
+    run_design(flat_site().scene, WITH_DECK, tmp_path / "attempt-1")  # rendered, not checked
 
     gltf = glb_json(tmp_path / "attempt-1" / "design.glb")
     node = next(n for n in gltf["nodes"] if n["name"] == "Dwelling")
@@ -242,26 +221,13 @@ def glb_values(glb: Path, gltf: dict[str, Any], accessor: int) -> NDArray[Any]:
     return values.reshape(-1, width) if width > 1 else values
 
 
-class EmptyModel:
-    """Leaves a Dwelling mesh with no faces."""
-
-    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        return """
+# Leaves a Dwelling mesh with no faces.
+EMPTY = """
 dwelling = bpy.data.objects.new("Dwelling", bpy.data.meshes.new("Dwelling"))
 bpy.context.collection.objects.link(dwelling)
 """
 
 
 def test_an_empty_dwelling_is_feedback_not_a_crash(tmp_path: Path) -> None:
-    dem = np.full((20, 40), 100.0)
-    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
-    )
-
-    result = design("A studio.", site, EmptyModel(), tmp_path, max_attempts=1)
-
-    assert result.accepted is None
-    assert "Dwelling" in result.attempts[0].feedback
+    with pytest.raises(DesignError, match="Dwelling"):
+        run_script(EMPTY, tmp_path / "attempt-1")

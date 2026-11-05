@@ -48,10 +48,10 @@ ACCEPTED = (
 DESCRIPTIONS = {
     "scene.json": "the georeferenced site scene: terrain, nDSM, parcels, local frame",
     "script/design.blend": "the Blender file the model's script saved",
-    "design.py": "the model's Blender Python script",
+    "design.py": "the Blender Python script built from the model's design spec",
     "design.glb, design.png": "the measured design, exported and rendered",
     "measurements.json": "what the trusted pass measured",
-    "attempt.json": "the agent's trace: observations, script, verdict and feedback",
+    "attempt.json": "the agent's trace: observations, spec, script, verdict and feedback",
     "observation-<k>.png": "the LiDAR views given with the brief, then those the model asked for",
     "visual.png, visual.json": "the AI visual and its silhouette check (accepted designs only)",
 }

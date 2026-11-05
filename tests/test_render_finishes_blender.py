@@ -4,7 +4,6 @@ sandboxed Blender; run with `pytest -m blender`."""
 import io
 import os
 import struct
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -13,14 +12,7 @@ import pytest
 from PIL import Image
 
 from button_nz import blender_worker
-from button_nz.agent.conversation import Turn
-from button_nz.agent.loop import DesignSite, design
-from button_nz.blender_worker.scene_input import scene_input
-from button_nz.evaluation import SiteContext
-from button_nz.geo.crs import LocalFrame
-from button_nz.geo.geometry import Ring
-from button_nz.geo.terrain import TerrainGrid
-from test_design_loop_blender import MOVED, glb_json
+from test_design_loop_blender import MOVED, glb_json, run_script
 
 pytestmark = pytest.mark.blender
 
@@ -42,30 +34,9 @@ dwelling.data.materials.append(material)
 """
 
 
-class SwappingModel:
-    def __init__(self, saved: Path) -> None:
-        self.path = "//" + os.path.relpath(WEATHERBOARD, saved)
-
-    def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str:
-        return MOVED + SWAPPING.format(path=self.path)
-
-
 def test_the_models_image_at_a_textures_path_is_not_the_texture(tmp_path: Path) -> None:
-    dem = np.full((20, 40), 100.0)
-    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
-    parcel: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
-    frame = LocalFrame.centred_on(grid.bbox)
-    site = DesignSite(
-        scene_input(grid, frame, [parcel]), frame, SiteContext(parcels=(parcel,), terrain=grid)
-    )
-
-    design(
-        "A studio.",
-        site,
-        SwappingModel(tmp_path / "attempt-1" / "script"),
-        tmp_path,
-        max_attempts=1,
-    )
+    path = "//" + os.path.relpath(WEATHERBOARD, tmp_path / "attempt-1" / "script")
+    run_script(MOVED + SWAPPING.format(path=path), tmp_path / "attempt-1")
 
     glb = tmp_path / "attempt-1" / "design.glb"
     gltf = glb_json(glb)

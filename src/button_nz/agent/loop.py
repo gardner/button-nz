@@ -1,5 +1,6 @@
-"""The design loop: the model writes a Blender script, the sandbox builds it,
-the independent evaluator checks what was built, and the model revises.
+"""The design loop: the model proposes a design spec, ``agent.build`` turns it
+into a Blender script, the sandbox builds it, the independent evaluator checks
+what was built, and the model revises the spec.
 
 The loop stops at the first attempt with no failed check, or after
 ``max_attempts``. Unknown checks are reported, never upgraded to passes, and
@@ -13,13 +14,15 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 
+from button_nz.agent.build import check, spec_to_script
 from button_nz.agent.conversation import Model, ModelReplyError, Observe, Turn
 from button_nz.agent.observe import Observation, ObservationError, observe, standard_views
-from button_nz.agent.placement import describe_placements
-from button_nz.agent.prompt import describe, placing, system_prompt
+from button_nz.agent.offers import Offers, offered
+from button_nz.agent.prompt import describe, describe_offers, placing, system_prompt
 from button_nz.agent.proposal import DesignError, parse_measurements, to_proposal
 from button_nz.agent.room import describe_room
 from button_nz.agent.site import DesignSite
+from button_nz.agent.spec import TOOL, SpecError, parse_spec
 from button_nz.blender_worker.run import DesignOutputs, run_design
 from button_nz.blender_worker.scene_input import (
     DEFAULT_FINISHES,
@@ -35,6 +38,7 @@ __all__ = [
     "DesignResult",
     "DesignSite",
     "Model",
+    "NoPlacementError",
     "Revision",
     "Runner",
     "Turn",
@@ -44,14 +48,19 @@ __all__ = [
 type Runner = Callable[[SceneInput, str, Path], DesignOutputs]
 
 
+class NoPlacementError(ValueError):
+    """Nowhere on the site passes the siting checks for any plan offered: no
+    design can be proposed, so none is asked for."""
+
+
 @dataclass(frozen=True)
 class Revision:
-    """A design to change: the script that built it, the evaluator's verdict on
-    it, and every change the owner has asked for, in their own words, oldest
-    first. The script already includes all but the latest change, so only that
-    one is asked for; the earlier ones are named so they are kept."""
+    """A design to change: its spec (JSON), the evaluator's verdict on it, and
+    every change the owner has asked for, in their own words, oldest first. The
+    spec already includes all but the latest change, so only that one is asked
+    for; the earlier ones are named so they are kept."""
 
-    script: str
+    spec: str
     feedback: str
     instructions: tuple[str, ...]
 
@@ -68,7 +77,8 @@ class Revision:
 @dataclass(frozen=True)
 class Attempt:
     number: int
-    script: str
+    spec: str  # as the model sent it (JSON), or "" if it sent none
+    script: str  # built from the spec, or "" if it wasn't built
     feedback: str
     report: Report | None  # None if the script didn't produce a measurable dwelling
     directory: Path
@@ -101,7 +111,7 @@ class DesignResult:
 class Phase(StrEnum):
     THINKING = "thinking"  # the model is asked for its next move
     OBSERVING = "observing"  # a LiDAR view it asked for is being made
-    RENDERING = "rendering"  # Blender runs its script
+    RENDERING = "rendering"  # Blender builds its spec
     CHECKING = "checking"  # the evaluator measures what was rendered
 
 
@@ -154,9 +164,13 @@ def design(
     keep_clear = [tuple(local(p) for p in ring) for ring in site.context.preservation_areas]
     buildings = [tuple(local(p) for p in ring) for ring in site.context.confirmed_buildings]
     places = describe_frontages(site.frontages, local) + describe_room(site.context, local)
-    places += describe_placements(site, product)
-    fixed = product is not None
-    prompt = system_prompt(site.scene, keep_clear, buildings, places, fixed_footprint=fixed)
+    offers = offered(site, product)
+    if not offers.offers:
+        raise NoPlacementError(
+            "No placement passes the siting checks: " + "; ".join(offers.missing)
+        )
+    places += describe_offers(offers)
+    prompt = system_prompt(site.scene, keep_clear, buildings, places)
     asked = brief if product is None else f"{brief}\n\n{placing(product, roof)}"
     scene = with_finishes(site.scene, finishes)  # the render's: the host's, never the model's
     views = standard_views(site) if allow_observations else ()
@@ -166,7 +180,7 @@ def design(
     conversation += _give(views, runs_dir / "attempt-1")
     if revising is not None:
         conversation += [
-            Turn("design", revising.script),
+            Turn("design", revising.spec),
             Turn("feedback", revising.feedback),
             Turn("user", revising.request),
         ]
@@ -185,11 +199,13 @@ def design(
             on_step,
             observed=tuple(request.tool for request, _ in views) if number == 1 else (),
         )
-        script = ask.script()
-        if script is None:
-            attempt = Attempt(number, "", ask.error, None, directory)
+        spec = ask.spec()
+        if spec is None:
+            attempt = Attempt(number, "", "", ask.error, None, directory)
         else:
-            attempt = _attempt(number, script, site, scene, runner, directory, product, on_step)
+            attempt = _attempt(
+                number, spec, offers, site, scene, runner, directory, product, on_step
+            )
         attempt = replace(attempt, observations=ask.observed, given=ask.given)
         _write_attempt(attempt)
         attempts.append(attempt)
@@ -200,7 +216,7 @@ def design(
         if attempt.judged and not evaluator_feedback:  # only errors earn another go
             break
         conversation += [
-            Turn("design", attempt.script),
+            Turn("design", attempt.spec),
             # The render is evaluator feedback: a contract error can come with one.
             Turn("feedback", attempt.feedback, attempt.render if evaluator_feedback else None),
         ]
@@ -235,8 +251,8 @@ def _give(views: tuple[tuple[Observe, Observation], ...], directory: Path) -> li
 
 @dataclass
 class _Ask:
-    """One attempt's exchange: answer observation requests until a script arrives.
-    Once the budget is spent the model is offered only the script tool, and has
+    """One attempt's exchange: answer observation requests until a spec arrives.
+    Once the budget is spent the model is offered only the design tool, and has
     two more turns to use it before the attempt is lost."""
 
     model: Model
@@ -254,7 +270,7 @@ class _Ask:
     def __post_init__(self) -> None:
         self.given = len(self.observed)
 
-    def script(self) -> str | None:
+    def spec(self) -> str | None:
         for _ in range(self.max_observations + 2):
             self.on_step(Step(self.number, Phase.THINKING))
             try:
@@ -267,7 +283,7 @@ class _Ask:
             self._answer(action)
         self.error = (
             f"You used all {self.max_observations} observations without submitting a design. "
-            "Call run_blender_script with your design."
+            f"Call {TOOL} with your design."
         )
         return None
 
@@ -312,7 +328,8 @@ class _Ask:
 
 def _attempt(
     number: int,
-    script: str,
+    spec: str,
+    offers: Offers,
     site: DesignSite,
     scene: SceneInput,
     runner: Runner,
@@ -320,6 +337,11 @@ def _attempt(
     product: Footprint | None,
     on_step: Callable[[Step], None],
 ) -> Attempt:
+    try:
+        parsed = parse_spec(spec)
+        script = spec_to_script(parsed, check(parsed, offers))
+    except SpecError as error:  # refused before Blender: feedback for the next attempt
+        return Attempt(number, spec, "", str(error), None, directory)
     on_step(Step(number, Phase.RENDERING))
     outputs = runner(scene, script, directory)
     report: Report | None = None
@@ -340,6 +362,7 @@ def _attempt(
         feedback = str(error)
     return Attempt(
         number,
+        spec,
         script,
         feedback,
         report,
@@ -356,6 +379,7 @@ def _write_attempt(attempt: Attempt) -> None:
     trace = {
         "number": attempt.number,
         "status": attempt.status,
+        "spec": attempt.spec,
         "script": attempt.script,
         "feedback": attempt.feedback,
         "observations": list(attempt.observations),

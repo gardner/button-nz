@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from button_nz.agent.conversation import Model, Observe, Turn
 from button_nz.agent.loop import DesignSite, Runner
 from button_nz.api.app import create_app
-from button_nz.api.jobs import Illustrator, Worker
+from button_nz.api.jobs import Illustrator, Worker, _revision  # pyright: ignore[reportPrivateUsage]
 from button_nz.api.store import Store
 from button_nz.blender_worker.run import BlenderError, DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
@@ -25,6 +25,7 @@ from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.perception.visual import VISUAL_MODEL, Visual, visual_client
 from meshes import box
+from specs import NAMES, name_of, spec
 
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
 GOOD = {
@@ -38,7 +39,7 @@ NEAR = GOOD | {"triangles": box(0.5, 7, 0.3, 6.5, 12, 3.9)}  # 0.5 m from the ed
 
 class ScriptedModel:
     def __init__(self, *replies: str | Observe) -> None:
-        self.replies = list(replies)
+        self.replies = [spec(r) if isinstance(r, str) and r in NAMES else r for r in replies]
         self.seen: list[list[Turn]] = []
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
@@ -55,7 +56,7 @@ def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     mask.write_bytes(b"\x89PNG mask")
     outline.write_bytes(b"\x89PNG outline")
     (out_dir / "design.py").write_text(script, encoding="utf-8")
-    measurements = {"good": GOOD, "near": NEAR}[script]
+    measurements = {"good": GOOD, "near": NEAR}[name_of(script)]
     (out_dir / "measurements.json").write_text(json.dumps(measurements), encoding="utf-8")
     return DesignOutputs(measurements, out_dir / "design.py", None, png, mask, outline)
 
@@ -266,7 +267,7 @@ def test_a_finished_design_can_be_revised_in_plain_words(tmp_path: Path) -> None
     service.worker.run_next()
     seen = model.seen[-1]
     assert [t.role for t in seen][-3:] == ["design", "feedback", "user"]
-    assert seen[-3].text == "good"  # the accepted attempt's script
+    assert seen[-3].text == spec("good")  # the accepted attempt's spec
     assert seen[-1].text == "Move it away from the street."
     assert service.client.get(f"/designs/{child['id']}").json()["status"] == "done"
 
@@ -476,3 +477,10 @@ def test_a_running_design_says_what_it_is_doing(tmp_path: Path) -> None:
         ],
     }
     assert service.client.get(f"/designs/{job_id}").json()["live"] is None  # done
+
+
+def test_a_design_from_before_specs_cant_be_revised(tmp_path: Path) -> None:
+    trace = tmp_path / "attempt.json"
+    trace.write_text(json.dumps({"script": "bpy...", "feedback": "f"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="before designs were specs"):
+        _revision(trace, ("Move it.",))

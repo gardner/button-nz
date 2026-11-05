@@ -30,6 +30,7 @@ from button_nz.agent.loop import Attempt, Runner, design
 from button_nz.agent.model import EFFORTS, ChatModel
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.run import run_design
+from button_nz.evaluation import Status
 from button_nz.perception.confirm import SiteDecisions
 
 
@@ -67,22 +68,28 @@ class RunResult:
     verdicts: tuple[str, ...]  # each attempt's pass, fail, unknown, rejected or error
     seconds: float
     error: str | None  # why the run couldn't complete, if it couldn't
-    script_seconds: tuple[float, ...] = ()  # each model call that wrote a script (#165)
+    design_seconds: tuple[float, ...] = ()  # each model call that proposed a design (#165)
+    model_seconds: float = 0.0  # every model call, views asked for included
+    failed_checks: tuple[tuple[str, ...], ...] = ()  # each attempt's failed checks
 
 
 @dataclass
 class _Timed:
-    """``model``, timing each call that wrote a script; a call asking for a
-    LiDAR view, or replying with neither, isn't one."""
+    """``model``, timing every call, and apart each call that proposed a
+    design; a call asking for a LiDAR view, or replying with neither, isn't one."""
 
     model: Model
-    script_seconds: list[float] = field(default_factory=list[float])
+    design_seconds: list[float] = field(default_factory=list[float])
+    model_seconds: float = 0.0
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         started = time.monotonic()
-        action = self.model.propose(conversation, allow_observations)
+        try:
+            action = self.model.propose(conversation, allow_observations)
+        finally:
+            self.model_seconds += time.monotonic() - started
         if isinstance(action, str):
-            self.script_seconds.append(time.monotonic() - started)
+            self.design_seconds.append(time.monotonic() - started)
         return action
 
 
@@ -138,10 +145,14 @@ def _run_one(
         )
     except Exception as error:  # recorded, not dropped: the report counts it
         run = _measured(b, condition.name, repeat, finished, None, time.monotonic() - started)
-        return replace(run, error=repr(error), script_seconds=tuple(timed.script_seconds))
+        return replace(run, error=repr(error), **_times(timed))
     seconds = time.monotonic() - started
     run = _measured(b, condition.name, repeat, outcome.attempts, outcome.accepted, seconds)
-    return replace(run, script_seconds=tuple(timed.script_seconds))
+    return replace(run, **_times(timed))
+
+
+def _times(timed: _Timed) -> dict[str, Any]:
+    return {"design_seconds": tuple(timed.design_seconds), "model_seconds": timed.model_seconds}
 
 
 def _measured(
@@ -164,7 +175,15 @@ def _measured(
         verdicts=tuple(_verdict(a) for a in attempts),
         seconds=seconds,
         error=None,
+        failed_checks=tuple(_failed(a) for a in attempts),
     )
+
+
+def _failed(attempt: Attempt) -> tuple[str, ...]:
+    """The checks that failed on ``attempt``: none if it wasn't judged."""
+    if attempt.report is None:
+        return ()
+    return tuple(c.name for c in attempt.report.checks if c.status is Status.FAIL)
 
 
 def _verdict(attempt: Attempt) -> str:
@@ -180,7 +199,7 @@ def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
         mine = [r for r in results if r.condition == name]
         done = [r for r in mine if r.error is None]
         attempts = sum(r.attempts for r in done)
-        scripts = [s for r in done for s in r.script_seconds]
+        calls = [s for r in done for s in r.design_seconds]
         first_failed = [
             r for r in done if r.verdicts and r.verdicts[0] in ("fail", "rejected", "error")
         ]
@@ -195,7 +214,8 @@ def summarise(results: Sequence[RunResult]) -> dict[str, dict[str, Any]]:
             "mean_attempts": attempts / len(done) if done else None,
             "mean_observations": sum(r.observations for r in done) / len(done) if done else None,
             "mean_seconds": sum(r.seconds for r in done) / len(done) if done else None,
-            "mean_script_seconds": sum(scripts) / len(scripts) if scripts else None,
+            "mean_design_seconds": sum(calls) / len(calls) if calls else None,
+            "mean_model_seconds": sum(r.model_seconds for r in done) / len(done) if done else None,
         }
     return summary
 
@@ -210,28 +230,53 @@ def report(results: Sequence[RunResult], meta: Mapping[str, object]) -> str:
         f"condition. Each run is the design loop {_site(meta)}: sandboxed Blender builds "
         "each attempt and the independent evaluator checks it. Accepted means no check "
         "failed on the final attempt; repair rate is over runs whose first attempt failed "
-        "or errored. Under `errors` the model hears only execution errors, so a script "
-        "that runs ends the run; an incomplete run keeps the attempts that finished. "
-        "A script call is one model call that wrote a script, timed from asking to the reply.",
+        "or errored. Under `errors` the model hears only execution errors, so a design "
+        "that builds ends the run; an incomplete run keeps the attempts that finished. "
+        "A design call is one model call that proposed a design (a spec), timed from "
+        "asking to the reply; model s is every model call in a run, views asked for included.",
         "",
         "| Condition | Runs | Accepted | Execution rate | Repair rate | Mean attempts "
-        "| Mean observations | Mean s | Mean s per script call | Incomplete |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| Mean observations | Mean s | Mean model s | Mean s per design call | Incomplete |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for name, s in summarise(results).items():
         accepted = f"{s['accepted']} ({s['accepted'] / s['runs']:.0%})"
         cells = [_rate(s["execution_rate"]), _rate(s["repair_rate"])]
-        means = ("mean_attempts", "mean_observations", "mean_seconds", "mean_script_seconds")
+        means = (
+            "mean_attempts",
+            "mean_observations",
+            "mean_seconds",
+            "mean_model_seconds",
+            "mean_design_seconds",
+        )
         cells += [_number(s[k]) for k in means]
         lines.append(
             f"| {name} | {s['runs']} | {accepted} | {' | '.join(cells)} | {s['incomplete']} |"
         )
+    lines += ["", "## Runs", "", *_runs(results)]
     failures = [r for r in results if r.error]
     lines += ["", "## Incomplete runs", ""]
     lines += [f"- brief {r.brief}, {r.condition}, run {r.repeat}: {r.error}" for r in failures] or [
         "None."
     ]
     return "\n".join(lines) + "\n"
+
+
+def _runs(results: Sequence[RunResult]) -> list[str]:
+    """A row per run: its times, attempts, verdict and each attempt's failed checks."""
+    rows = [
+        "| Brief | Condition | Run | Model s | Design calls (s) | Total s | Attempts "
+        "| Accepted | Failed checks, by attempt |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in results:
+        calls = ", ".join(f"{s:.1f}" for s in r.design_seconds) or "–"
+        failed = "; ".join(", ".join(names) or "–" for names in r.failed_checks) or "–"
+        rows.append(
+            f"| {r.brief} | {r.condition} | {r.repeat} | {r.model_seconds:.1f} | {calls} "
+            f"| {r.seconds:.1f} | {r.attempts} | {'yes' if r.accepted else 'no'} | {failed} |"
+        )
+    return rows
 
 
 def _rate(value: float | None) -> str:

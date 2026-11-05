@@ -10,7 +10,16 @@ import numpy as np
 import pytest
 
 from button_nz.agent.conversation import ModelReplyError, Observe
-from button_nz.agent.loop import DesignResult, DesignSite, Phase, Revision, Step, Turn, design
+from button_nz.agent.loop import (
+    DesignResult,
+    DesignSite,
+    NoPlacementError,
+    Phase,
+    Revision,
+    Step,
+    Turn,
+    design,
+)
 from button_nz.blender_worker.run import DesignOutputs
 from button_nz.blender_worker.scene_input import SceneInput, scene_input
 from button_nz.evaluation import Footprint, SiteContext, Status
@@ -19,6 +28,7 @@ from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 from button_nz.sites.frontages import Frontage
 from meshes import box
+from specs import NAMES, name_of, spec
 
 # One 40 m x 20 m parcel; the local frame's origin is NZTM (0, 0), datum 100 m.
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
@@ -51,10 +61,11 @@ def site() -> DesignSite:
 
 
 class ScriptedModel:
-    """Replays scripts in order and records every conversation it was shown."""
+    """Replays named specs (``specs.NAMES``), other replies as they are, in
+    order, and records every conversation it was shown."""
 
     def __init__(self, *scripts: str | Observe) -> None:
-        self.scripts = list(scripts)
+        self.scripts = [spec(s) if isinstance(s, str) and s in NAMES else s for s in scripts]
         self.seen: list[list[Turn]] = []
         self.allowed: list[bool] = []
 
@@ -66,7 +77,7 @@ class ScriptedModel:
 
 def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
-    measurements = {"error": None} | MEASURED[script.strip()]
+    measurements = {"error": None} | MEASURED[name_of(script)]
     png = out_dir / "design.png"
     png.write_bytes(b"png")
     failed = measurements.get("error") is not None
@@ -140,7 +151,8 @@ def test_the_conversation_starts_with_the_contract_and_the_brief(
 def test_every_attempt_is_traced_on_disk(site: DesignSite, tmp_path: Path) -> None:
     run(site, ScriptedModel("near", "good"), tmp_path)
     first = json.loads((tmp_path / "attempt-1" / "attempt.json").read_text(encoding="utf-8"))
-    assert first["script"] == "near"
+    assert first["spec"] == spec("near")
+    assert first["script"].startswith("# Built by button_nz.agent.build")
     assert first["status"] == "fail"
     assert any(c["name"] == "title_boundary_setback" for c in first["checks"])
     summary = json.loads((tmp_path / "design.json").read_text(encoding="utf-8"))
@@ -154,7 +166,7 @@ class SilentModel(ScriptedModel):
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         if not self.seen:
             self.seen.append(list(conversation))
-            raise ModelReplyError("The reply did not call run_blender_script.")
+            raise ModelReplyError("The reply did not call propose_design.")
         return super().propose(conversation, allow_observations)
 
 
@@ -164,7 +176,7 @@ def test_a_reply_without_a_script_is_an_attempt_with_feedback(
     model = SilentModel("good")
     result = run(site, model, tmp_path)
     assert result.attempts[0].status == "error"
-    assert "run_blender_script" in model.seen[1][-1].text
+    assert "propose_design" in model.seen[1][-1].text
     assert result.accepted is result.attempts[1]
 
 
@@ -361,14 +373,14 @@ def test_without_evaluator_feedback_a_rejected_design_also_ends_the_run(
 def test_a_revision_continues_from_the_design_it_changes(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("good")
     before = Revision(
-        script="near", feedback="Evaluator verdict: fail.", instructions=("Move it east.",)
+        spec=spec("near"), feedback="Evaluator verdict: fail.", instructions=("Move it east.",)
     )
     result = design(
         "Add a small dwelling.", site, model, tmp_path, runner=fake_runner, revising=before
     )
     roles = [t.role for t in model.seen[0]]
     assert roles == ["system", "user", *["view"] * len(GIVEN), "design", "feedback", "user"]
-    assert model.seen[0][-3].text == "near" and model.seen[0][-1].text == "Move it east."
+    assert model.seen[0][-3].text == spec("near") and model.seen[0][-1].text == "Move it east."
     assert result.accepted is result.attempts[0]
 
 
@@ -473,51 +485,24 @@ def test_muse_is_told_where_a_plain_rectangle_fits(site: DesignSite, tmp_path: P
     assert "rather than cut a corner" in contract
 
 
-def test_muse_is_asked_for_a_compact_plan_not_a_long_narrow_box(
-    site: DesignSite, tmp_path: Path
-) -> None:
-    """The largest rectangle on a long section is long and narrow; filled, it
-    looked out of place. A typical NZ cottage is at most about twice as long as wide."""
-    model = ScriptedModel("good")
-    run(site, model, tmp_path)
-    contract = model.seen[0][0].text
-    assert "at most about twice its width" in contract
-    assert "not a size to fill" in contract
-
-
-def test_the_compact_plan_gives_way_to_the_brief_and_a_narrow_room(
-    site: DesignSite, tmp_path: Path
-) -> None:
-    """On a section 4 m wide a 60 m² brief can't be twice as long as wide; a brief
-    may ask for a long plan outright."""
-    model = ScriptedModel("good")
-    run(site, model, tmp_path)
-    contract = model.seen[0][0].text
-    assert "unless the brief asks for that shape" in contract
-    assert "too narrow for the brief's size at that proportion" in contract
-
-
 def test_a_deck_is_suggested_where_it_suits_not_required(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("good")
     run(site, model, tmp_path)
     contract = model.seen[0][0].text
-    assert "Where the brief and the site suit one, add a deck" in contract
+    assert "where the brief and the site suit one, add a deck" in contract
     assert "sunny (north) or living side" in contract
-    assert "counts toward the setbacks" in contract
-    assert "nothing below the floor's underside" in contract
+    assert "eaves and deck included" in contract  # in the setbacks
+    assert "a deck adds to what is checked" in contract
     assert "can do without" in contract
 
 
-def test_a_placed_product_keeps_its_footprint_without_the_compact_plan(
-    site: DesignSite, tmp_path: Path
-) -> None:
-    """A real prefab's walls are fixed: it may be long and narrow."""
+def test_muse_is_told_the_spec_not_a_script(site: DesignSite, tmp_path: Path) -> None:
     model = ScriptedModel("good")
-    product = Footprint("Long Cabin", 6.0, 5.0)
-    design("Add it.", site, model, tmp_path, 1, runner=fake_runner, product=product)
+    run(site, model, tmp_path)
     contract = model.seen[0][0].text
-    assert "twice its width" not in contract
-    assert "add a deck" in contract
+    assert "call the propose_design tool with a design spec" in contract
+    assert "an offered placement's number" in contract
+    assert "Blender Python" not in contract and "bpy" not in contract
 
 
 def test_an_ask_says_which_observation_it_will_make(site: DesignSite, tmp_path: Path) -> None:
@@ -538,3 +523,49 @@ def test_an_ask_says_which_observation_it_will_make(site: DesignSite, tmp_path: 
     assert observing.view == len(GIVEN) + 1
     assert (tmp_path / "attempt-1" / f"observation-{observing.view}.png").exists()
     assert all(s.view == 0 for s in steps if s.phase is not Phase.OBSERVING)
+
+
+class CountingRunner:
+    def __init__(self) -> None:
+        self.scripts: list[str] = []
+
+    def __call__(self, scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
+        self.scripts.append(script)
+        return fake_runner(scene, script, out_dir)
+
+
+def test_a_spec_that_cant_be_built_is_refused_before_blender(
+    site: DesignSite, tmp_path: Path
+) -> None:
+    too_high = json.loads(spec("good")) | {"floor_z_m": 5.0}
+    model = ScriptedModel(json.dumps(too_high), "{not json", "good")
+    runner = CountingRunner()
+    result = design("Add a small dwelling.", site, model, tmp_path, runner=runner)
+    first, second, third = result.attempts
+    assert first.status == second.status == "error" and not first.judged
+    assert "floor range" in first.feedback and "JSON" in second.feedback
+    assert model.seen[1][-1].text == first.feedback  # fed back as the call's result
+    assert [name_of(s) for s in runner.scripts] == ["good"]
+    assert result.accepted is third
+
+
+def test_the_spec_is_built_on_the_placement_it_names(site: DesignSite, tmp_path: Path) -> None:
+    runner = CountingRunner()
+    result = design("Add one.", site, ScriptedModel("good"), tmp_path, 1, runner=runner)
+    (script,) = runner.scripts
+    assert result.attempts[0].script == script
+    assert 'dwelling["floor_area_m2"]' in script and "VERTICES = " in script
+
+
+def test_a_site_with_no_placement_asks_the_model_for_nothing(tmp_path: Path) -> None:
+    dem = np.full((20, 40), 100.0)
+    grid = TerrainGrid((0.0, 0.0, 40.0, 20.0), 1.0, dem, np.zeros_like(dem), ("synthetic",))
+    tiny: Ring = ((10.0, 5.0), (16.0, 5.0), (16.0, 11.0), (10.0, 11.0), (10.0, 5.0))
+    frame = LocalFrame(origin=(0.0, 0.0))
+    site = DesignSite(
+        scene_input(grid, frame, [tiny]), frame, SiteContext(parcels=(tiny,), terrain=grid)
+    )
+    model = ScriptedModel()
+    with pytest.raises(NoPlacementError, match="10 × 7 m plan"):
+        design("Add one.", site, model, tmp_path, runner=fake_runner)
+    assert model.seen == []
