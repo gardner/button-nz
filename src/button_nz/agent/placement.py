@@ -60,7 +60,7 @@ ROUNDING_M = 0.01  # the room is drawn in this far: a corner printed to the cm s
 PROMPT_EAVES_M = 0.6
 # a bespoke design's plain plans, 66 to 70 m² outside the walls: long and narrow
 # ones fit where a squarer one can't
-PROMPT_PLANS = ((10.0, 7.0), (12.0, 5.5), (15.0, 4.5))
+PROMPT_PLANS = ((10.0, 7.0), (11.0, 6.0), (9.0, 7.5))  # compact, as the prompt asks (#175)
 _EPS = 1e-9
 _CLEARANCES = {  # the checks whose distance is a clearance, and its name
     "title_boundary_setback": "title_boundary_m",

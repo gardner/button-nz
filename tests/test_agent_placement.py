@@ -350,3 +350,9 @@ def test_a_narrow_floor_range_is_printed_finely_enough_to_hold_a_passing_level()
     text = floor_range_text(101.002, 101.004)  # to the cm it would be 101.01 to 101.00
     low, high = (float(v) for v in text.split(" to "))
     assert 101.002 <= low <= high <= 101.004
+
+
+def test_bespoke_plans_offered_are_compact_like_a_home() -> None:
+    # The prompt asks for a compact plan (#175): offering a long box to copy undoes it.
+    for length, width in PROMPT_PLANS:
+        assert max(length, width) <= 2 * min(length, width), (length, width)
