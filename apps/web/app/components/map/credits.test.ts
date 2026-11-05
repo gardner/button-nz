@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collapseCredits } from "./BaseMap";
+import { ATTRIBUTION, collapseCredits } from "./BaseMap";
 
 describe("collapseCredits", () => {
   it("folds the credit line behind its ⓘ button, keeping every credit", () => {
@@ -13,5 +13,17 @@ describe("collapseCredits", () => {
     const credits = map.querySelector(".maplibregl-ctrl-attrib");
     expect(credits?.classList.contains("maplibregl-compact-show")).toBe(false);
     expect(credits?.textContent).toContain("LINZ, CC BY 4.0");
+  });
+});
+
+describe("ATTRIBUTION", () => {
+  it("credits the basemap, the sections and the heights each on its own line", () => {
+    const box = document.createElement("div");
+    box.innerHTML = ATTRIBUTION;
+    expect([...box.querySelectorAll("p")].map((p) => p.textContent)).toEqual([
+      "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0",
+      "Sections: LINZ NZ Primary Parcels, CC BY 4.0",
+      "Heights: LINZ 1 m LiDAR, CC BY 4.0",
+    ]);
   });
 });

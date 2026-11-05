@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { creditLines } from "@/lib/credit";
 import { passing } from "@/lib/fields";
 import { measured } from "@/lib/siteMap";
 import {
@@ -41,9 +42,10 @@ const TOWN_FILL: Paint<"fill"> = {
 };
 
 /** Reefton's urban aerial photos, under the town's sections. */
-const TOWN_CREDIT =
+const TOWN_CREDIT = creditLines([
   "Reefton: Buller 0.075m Urban Aerial Photos (2024-2025): Toitū Te Whenua " +
-  "Land Information New Zealand, Aerial Surveys, Buller District Council, CC BY 4.0";
+    "Land Information New Zealand, Aerial Surveys, Buller District Council, CC BY 4.0",
+]);
 
 /** Once a site is chosen, the town steps back behind it. */
 const TOWN_FILL_BEHIND: Paint<"fill"> = { ...TOWN_FILL, "fill-opacity": 0.12 };

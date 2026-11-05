@@ -36,5 +36,13 @@ export function creditOf(sources: Source[]): string | undefined {
   const credits = [...works].map(
     ([by, titles]) => `${titles.join(", ")}: ${by}`,
   );
-  return `This site: ${credits.join(" · ")}`;
+  return creditLines(["This site:", ...credits]);
+}
+
+/** A source's credit for the map, each line (HTML) on its own, all in one
+ * element: the map's credits box hides words outside one (MapLibre's ` | `
+ * between sources, see globals.css), so every credit must be inside. */
+export function creditLines(lines: string[]): string {
+  const shown = lines.map((line) => `<p>${line}</p>`).join("");
+  return `<div class="map-credits">${shown}</div>`;
 }
