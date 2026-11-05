@@ -19,6 +19,7 @@ directory: never through a symlink.
 
 import json
 import re
+import time
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from button_nz.api.features import features_router, site_features_router
 from button_nz.api.fixed import FixedSurvey, SurveyReplaced
 from button_nz.api.jobs import Worker
 from button_nz.api.limits import DailyCap
+from button_nz.api.massing import PlacementView, placement_view
 from button_nz.api.products import products_router
 from button_nz.api.site_view import site_view as view_of
 from button_nz.api.sites import Sites, SiteService, sites_router
@@ -81,6 +83,11 @@ class LiveView(BaseModel):
     detail: str  # the LiDAR view asked for, when observing
     view: int  # the observation-<n> that ask makes, when observing (else 0)
     observations: list[str]  # the views made so far in this attempt: URLs
+    # Ages, in seconds as this server measures them, never times: a browser's
+    # clock needn't agree with the server's.
+    step_s: float  # how long this step has been under way
+    newest_view_s: float | None  # how long ago the newest of those views was made; None: none yet
+    placement: PlacementView | None  # where a home of its plan fits, checked (``api.massing``)
 
 
 class ProductView(BaseModel):
@@ -323,18 +330,28 @@ def _job_view(store: Store, worker: Worker, job: Job) -> JobView:
 
 
 def _live(worker: Worker, job: Job) -> LiveView | None:
-    step = worker.step(job.id)
-    if step is None:
+    stepped = worker.step(job.id)
+    if stepped is None:
         return None
+    step = stepped.step
     files = _files(worker, job, step.attempt)
     views = sorted((n for n in files if n.startswith("observation-")), key=_view_number)
+    massing = worker.massing(job.id)
     return LiveView(
         attempt=step.attempt,
         phase=str(step.phase),
         detail=step.detail,
         view=step.view,
         observations=[files[n] for n in views],
+        step_s=round(time.time() - stepped.since, 1),
+        newest_view_s=_age(_attempt_dir(worker, job, step.attempt) / views[-1]) if views else None,
+        placement=None if massing is None else placement_view(massing),
     )
+
+
+def _age(path: Path) -> float:
+    """How long ago ``path`` was last written, in seconds."""
+    return round(time.time() - path.stat().st_mtime, 1)
 
 
 def _view_number(name: str) -> int:

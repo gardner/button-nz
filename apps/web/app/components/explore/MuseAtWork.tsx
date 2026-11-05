@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { Job, Live } from "@/lib/api";
 import { NO_VIEWS, watchViews } from "@/lib/museStage";
 
-import { Elapsed, Filmstrip, Steps } from "./MuseParts";
+import { Elapsed, Filmstrip, Fits, Steps } from "./MuseParts";
 import { MuseOverlay } from "./MuseOverlay";
 import type { Place } from "./MuseSiteShots";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
@@ -72,6 +72,7 @@ function MusePanel({ job, onEnlarge }: { job: Job; onEnlarge: () => void }) {
           </button>
         </span>
       </header>
+      {live?.placement && <Fits placement={live.placement} />}
       {live ? (
         <>
           <p className="text-sm text-zinc-300">Attempt {live.attempt}</p>

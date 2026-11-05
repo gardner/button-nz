@@ -8,8 +8,15 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { type Attempt, type Job, type Phase, parseJob } from "@/lib/api";
+import {
+  type Attempt,
+  type Job,
+  type Live,
+  type Phase,
+  parseJob,
+} from "@/lib/api";
 import { JOB } from "@/lib/fixtures";
+import { LIVE } from "@/lib/fixtures-sites";
 
 import { MuseAtWork } from "./MuseAtWork";
 
@@ -44,9 +51,22 @@ function running(phase: Phase, detail = "", views = [VIEW]): Job {
       detail,
       view: phase === "observing" ? views.length + 1 : 0,
       observations: views,
+      since: null,
+      newestViewAt: null,
+      placement: null,
     },
   };
 }
+
+/** `running`, with more said about its step: when it began, when its
+ * newest view was made, where a home fits. */
+function runningWith(phase: Phase, over: Partial<Live>, views = [VIEW]): Job {
+  const job = running(phase, "", views);
+  return { ...job, live: { ...job.live!, ...over } };
+}
+
+const PLACEMENT = parseJob({ ...JOB, status: "running", live: LIVE }).live!
+  .placement!;
 
 const MEASURED: Attempt = {
   number: 1,
@@ -220,6 +240,57 @@ describe("MuseAtWork, large", () => {
     expect(facts().textContent).not.toMatch(/Reefton/);
   });
 
+  it("shows where a home fits as its first item, found in seconds, while Muse designs it", () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    const job = runningWith("thinking", { placement: PLACEMENT });
+    render(<MuseAtWork job={job} place={REEFTON} />);
+    const first = overlay().querySelector("aside")!.firstElementChild!;
+    expect(first.textContent).toBe(
+      "In 2 s: a 10 × 4.8 m home fits here, 2.4 m from the boundary; Muse is now designing it.",
+    );
+  });
+
+  it("goes back to the site's pictures and facts when the newest view is a minute old, the step's time ticking (#188)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-05T00:16:17Z"));
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    const job = runningWith("thinking", {
+      since: "2026-11-05T00:12:35Z", // 3:42 ago
+      newestViewAt: "2026-11-05T00:15:17Z", // 60 s ago
+    });
+    render(<MuseAtWork job={job} place={REEFTON} />);
+    const title = () => within(overlay()).getByRole("heading", { level: 2 });
+    expect(title().textContent).toBe("Muse is designing its home · 3:42");
+    // The heading is announced as the stage changes; the ticking clock
+    // isn't, or a screen reader would read it out every second.
+    expect(title().getAttribute("aria-live")).toBe("polite");
+    expect(title().querySelector("[aria-hidden]")?.textContent).toBe(" · 3:42");
+    expect(screen.getByRole("region", { name: "Housing facts" })).toBeTruthy();
+    // Only the filmstrip's: the stale view is off the stage.
+    expect(
+      screen.getAllByRole("img", { name: "LiDAR view 1 of attempt 2" }),
+    ).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(title().textContent).toBe("Muse is designing its home · 3:43");
+  });
+
+  it("shows a new view while it is fresh, then the site's pictures once it has been read for 10 s", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-05T00:15:22Z"));
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+    const job = runningWith("thinking", {
+      since: "2026-11-05T00:15:17Z",
+      newestViewAt: "2026-11-05T00:15:17Z", // 5 s ago
+    });
+    render(<MuseAtWork job={job} place={REEFTON} />);
+    const views = () =>
+      screen.getAllByRole("img", { name: "LiDAR view 1 of attempt 2" });
+    expect(views()).toHaveLength(2); // the stage and the filmstrip
+    act(() => vi.advanceTimersByTime(6000));
+    expect(views()).toHaveLength(1);
+    expect(overlay().textContent).toMatch(/Muse is designing its home · 0:11/);
+  });
+
   it("shows no facts while Blender builds", () => {
     vi.stubGlobal("fetch", () => new Promise(() => {}));
     render(<MuseAtWork job={running("rendering")} place={REEFTON} />);
@@ -273,6 +344,11 @@ describe("MuseAtWork, small", () => {
     small(running("thinking"));
     const current = screen.getByRole("listitem", { current: "step" });
     expect(current.textContent).toMatch(/decides its next move/);
+  });
+
+  it("says where a home fits, at once", () => {
+    small(runningWith("rendering", { placement: PLACEMENT }));
+    expect(screen.getByText(/a 10 × 4\.8 m home fits here/)).toBeTruthy();
   });
 
   it("says a queued design is waiting its turn", () => {

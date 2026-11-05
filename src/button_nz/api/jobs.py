@@ -11,12 +11,18 @@ that went (until it exists, the visual is still being made), and ``visual.png``
 is there only if the visual was accepted. The visual is extra: its failure is
 recorded in ``visual.json`` and changes nothing about the job, its verdict or
 its acceptance.
+
+While a job runs, the worker keeps its current step and when it began, and,
+solved before the design starts, where a home of its plan fits
+(``api.massing``): the owner sees that in well under a second.
 """
 
 import json
 import logging
 import threading
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -24,6 +30,7 @@ from typing import Any
 from button_nz.agent.conversation import Model
 from button_nz.agent.loop import Attempt, DesignSite, Revision, Runner, Step, design
 from button_nz.api.fixed import FixedSurvey, read_fixed
+from button_nz.api.massing import Massing, massing_of
 from button_nz.api.store import AttemptRecord, Job, Store
 from button_nz.blender_worker.run import run_design
 from button_nz.evaluation import Footprint
@@ -41,6 +48,14 @@ NO_SILHOUETTE = (
 # (design.png, dwelling-mask.png, dwelling-outline.png)
 type Illustrator = Callable[[Path, Path, Path], Visual]
 type SiteFor = Callable[[str], tuple[DesignSite, Path | None]]  # a site id: where, and its survey
+
+
+@dataclass(frozen=True)
+class Stepped:
+    """A running job's current step, and when it began (``time.time``)."""
+
+    step: Step
+    since: float
 
 
 class Worker:
@@ -67,7 +82,8 @@ class Worker:
         self.runner = runner
         self.max_attempts = max_attempts
         self.illustrator = illustrator
-        self._steps: dict[str, Step] = {}  # each running job's current step
+        self._steps: dict[str, Stepped] = {}  # each running job's current step
+        self._massings: dict[str, Massing | None] = {}  # each running job's, once solved
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -155,15 +171,24 @@ class Worker:
         except OSError:
             log.exception("could not save the visual of %s", accepted.directory)
 
-    def step(self, job_id: str) -> Step | None:
-        """What job ``job_id`` is doing now, while it runs."""
+    def step(self, job_id: str) -> Stepped | None:
+        """What job ``job_id`` is doing now, while it runs, and since when."""
         return self._steps.get(job_id)
+
+    def massing(self, job_id: str) -> Massing | None:
+        """Where a home of running job ``job_id``'s plan fits; None until it
+        is solved, for a revision, or where no plan places."""
+        return self._massings.get(job_id)
 
     def _design(self, job: Job) -> Attempt | None:
         try:
             return self._run_design(job)
         finally:
             self._steps.pop(job.id, None)
+            self._massings.pop(job.id, None)
+
+    def _on_step(self, job_id: str, step: Step) -> None:
+        self._steps[job_id] = Stepped(step, time.time())
 
     def _run_design(self, job: Job) -> Attempt | None:
         def record(attempt: Attempt) -> None:
@@ -173,22 +198,41 @@ class Worker:
                 )
             )
 
+        started = time.monotonic()
         site, survey, fixed = self._where(job)
+        decided = self._confirmed_site(self.runs_dir / job.id, site, survey, fixed)
+        self._solve_massing(job, decided, started)
         result = design(
             job.brief,
-            self._confirmed_site(self.runs_dir / job.id, site, survey, fixed),
+            decided,
             self.model(),
             self.runs_dir / job.id,
             self.max_attempts,
             runner=self.runner,
             allow_observations=job.allow_observations,
             on_attempt=record,
-            on_step=lambda step: self._steps.__setitem__(job.id, step),
+            on_step=lambda step: self._on_step(job.id, step),
             revising=self._revising(job),
             product=self._placing(job),
             **self._look(job),
         )
         return result.accepted
+
+    def _solve_massing(self, job: Job, site: DesignSite, started: float) -> None:
+        """Where a home of ``job``'s plan fits on ``site``, for the owner to see
+        at once. A revision gets none: it starts from its parent's design."""
+        if job.parent_id is not None:
+            return
+        massing = massing_of(site, self._placing(job), started)
+        self._massings[job.id] = massing
+        if massing is not None:
+            log.info(
+                "design %s: a %g x %g m home fits, found in %.3f s",
+                job.id,
+                massing.length_m,
+                massing.width_m,
+                massing.found_in_s,
+            )
 
     def _look(self, job: Job) -> dict[str, Any]:
         """The placed product's roof in words and render finishes; the defaults

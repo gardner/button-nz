@@ -3,7 +3,7 @@
 import { creditOf } from "@/lib/credit";
 import { useEffect, useState } from "react";
 
-import type { Job } from "@/lib/api";
+import type { Job, Placement } from "@/lib/api";
 import { type Bounds, boundsOf } from "@/lib/geo";
 import { type DesignMap, EMPTY_SITE_MAP, type SiteMap } from "@/lib/siteMap";
 import type { SiteState } from "@/lib/sites";
@@ -16,6 +16,7 @@ import { checkLabel } from "./AttemptRow";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
+import { MassingLayers } from "./MassingLayers";
 import { PrefabSection } from "./PrefabSection";
 import { ReliefView } from "./ReliefView";
 import { SurveyPanel } from "./SurveyPanel";
@@ -58,6 +59,7 @@ export function ReadySite({
     version > 0 && shown !== undefined && chain.made.get(shown.id) !== version;
 
   const askedPrefabs = useProgress(shown, onProgress);
+  const massing = useMassing(shown, accepted);
 
   return (
     <>
@@ -67,6 +69,7 @@ export function ReadySite({
         three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
+        placement={massing}
         selected={selected}
         onFeature={(id) => {
           setSelected(id);
@@ -97,19 +100,48 @@ export function ReadySite({
   );
 }
 
+/** Where a home fits for the shown run (#188): its live placement while it
+ * runs, kept once it is accepted (its `live` gone) until the design's map
+ * replaces it on the map, however long that takes to come. */
+function useMassing(
+  shown: Job | undefined,
+  accepted: boolean,
+): Placement | null {
+  const live = livePlacement(shown);
+  const [kept, setKept] = useState<Kept | null>(null);
+  if (live && kept?.placement !== live)
+    setKept({ id: shown!.id, placement: live });
+  return live ?? (accepted ? keptFor(kept, shown) : null);
+}
+
+interface Kept {
+  id: string; // the run it is of
+  placement: Placement;
+}
+
+function livePlacement(shown: Job | undefined): Placement | null {
+  return shown?.live?.placement ?? null;
+}
+
+function keptFor(kept: Kept | null, shown: Job | undefined): Placement | null {
+  return kept !== null && kept.id === shown?.id ? kept.placement : null;
+}
+
 /** The credit for the site's own data, once its sources have come. */
 function siteCredit(site: SiteState): string | undefined {
   return site.site ? creditOf(site.site.sources) : undefined;
 }
 
 /** What a ready site draws on the map: its rules and survey, and the
- * accepted design with its distances. */
+ * accepted design with its distances, or, while the run makes it, where a
+ * home fits. */
 function SiteOverlays({
   siteBounds,
   credit,
   three,
   siteMap,
   designMap,
+  placement,
   selected,
   onFeature,
 }: {
@@ -118,6 +150,7 @@ function SiteOverlays({
   three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
+  placement: Placement | null;
   selected: string | null;
   onFeature: (id: string) => void;
 }) {
@@ -126,7 +159,9 @@ function SiteOverlays({
     <>
       {/* The site framed, tilted as the switch says, until there is a
           design to frame (below). */}
-      {!framed && <FitTo bounds={siteBounds} pitch={three ? PITCH_3D : 0} />}
+      {!framed && (
+        <SiteFit bounds={siteBounds} three={three} massing={!!placement} />
+      )}
       {/* Always there, empty until its data comes, so its layers are
           added first and stay under the design's (MapLibre stacks layers
           in the order they are added). */}
@@ -137,6 +172,9 @@ function SiteOverlays({
         credit={credit}
         onFeature={(f) => onFeature(f.id)}
       />
+      {placement && !designMap && (
+        <MassingLayers placement={placement} three={three} />
+      )}
       {designMap && (
         <>
           <DesignLayers map={designMap} three={three} />
@@ -149,6 +187,27 @@ function SiteOverlays({
         </>
       )}
     </>
+  );
+}
+
+/** The site framed, tilted as the switch says; with a massing on it, clear
+ * of the small Muse at work panel on the right (as wide as the hero that
+ * takes its place). */
+function SiteFit({
+  bounds,
+  three,
+  massing,
+}: {
+  bounds: Bounds | null;
+  three: boolean;
+  massing: boolean;
+}) {
+  return (
+    <FitTo
+      bounds={bounds}
+      pitch={three ? PITCH_3D : 0}
+      right={massing ? HERO_WIDTH + 40 : undefined}
+    />
   );
 }
 

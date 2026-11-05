@@ -13,6 +13,7 @@ import {
   ADDRESSES,
   CHECKS,
   DESIGN_MAP,
+  LIVE,
   SITE_MAP,
   SITE_READY,
   TOWN,
@@ -427,6 +428,92 @@ describe("a ready site", () => {
     render(<Explore pollMs={5} />);
     const panel = await screen.findByRole("region", { name: "Muse at work" });
     expect(panel.textContent).toMatch(/Blender builds and renders it/);
+  });
+
+  it("draws where a home fits, plainly provisional, until the accepted design replaces it (#188)", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    const routes: Record<string, unknown> = {
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        live: LIVE,
+      },
+      "GET /api/designs/abc123/map": DESIGN_MAP,
+    };
+    serve(routes);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(drawn("massing-walls")).toBe(1));
+    const map = FakeMap.last!;
+    expect(drawn("massing-outline")).toBe(1);
+    // Flat in 2D: a dashed outline in a neutral colour, never the design's.
+    expect(map.layers.get("massing-outline-line")).toMatchObject({
+      paint: { "line-dasharray": [2, 2] },
+    });
+    expect(map.layers.has("massing-walls-extrusion")).toBe(false);
+    // Framed clear of the Muse at work panel on the right, as wide as the
+    // hero an accepted design gets there.
+    await vi.waitFor(() =>
+      expect(map.fitOptions.at(-1)).toMatchObject({
+        padding: { right: 440 },
+      }),
+    );
+    const label = await vi.waitFor(() => {
+      const found = document.querySelector('[data-label="massing"]');
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(label.textContent).toBe(
+      "Where a home fits (checked)2.4 m from the boundary · 2.2 m from the section line · 6.8 m from the street",
+    );
+    // A low block in 3D, see-through: a massing, not the design.
+    fireEvent.click(screen.getByRole("button", { name: "3D" }));
+    await vi.waitFor(() =>
+      expect(map.layers.has("massing-walls-extrusion")).toBe(true),
+    );
+    expect(map.layers.get("massing-walls-extrusion")).toMatchObject({
+      paint: { "fill-extrusion-base": 0, "fill-extrusion-height": 1 },
+    });
+    // Accepted: the design stands where the massing was.
+    routes["GET /api/designs/abc123"] = ACCEPTED;
+    await vi.waitFor(() =>
+      expect(map.layers.has("design-walls-extrusion")).toBe(true),
+    );
+    expect(map.sources.has("massing-walls")).toBe(false);
+    expect(document.querySelector('[data-label="massing"]')).toBeNull();
+  });
+
+  it("keeps where a home fits until the accepted design's map has come", async () => {
+    window.history.replaceState(null, "", `/?site=${SITE}&design=abc123`);
+    const routes: Record<string, unknown> = {
+      "GET /api/town/reefton": TOWN,
+      [`GET /api/sites/${SITE}`]: SITE_READY,
+      [`GET /api/sites/${SITE}/map`]: SITE_MAP,
+      [`GET /api/sites/${SITE}/features`]: SURVEY,
+      "GET /api/designs/abc123": {
+        ...ACCEPTED,
+        status: "running",
+        attempts: [],
+        accepted_attempt: null,
+        live: LIVE,
+      },
+      // GET /api/designs/abc123/map never answers.
+    };
+    serve(routes);
+    render(<Explore pollMs={5} />);
+    await vi.waitFor(() => expect(drawn("massing-walls")).toBe(1));
+    routes["GET /api/designs/abc123"] = ACCEPTED; // done: `live` is gone
+    expect(
+      (await screen.findAllByText("Accepted: attempt 1")).length,
+    ).toBeGreaterThan(0);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(drawn("massing-walls")).toBe(1);
+    expect(document.querySelector('[data-label="massing"]')).not.toBeNull();
   });
 
   it("keeps the small Muse at work below the top bar on a short screen, scrolling rather than covering it", async () => {

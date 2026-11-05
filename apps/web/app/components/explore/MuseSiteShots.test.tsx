@@ -63,6 +63,9 @@ function running(phase: Phase, attempt = 1): Job {
       detail: "render_contours",
       view: 0,
       observations: [],
+      since: null,
+      newestViewAt: null,
+      placement: null,
     },
   };
 }
