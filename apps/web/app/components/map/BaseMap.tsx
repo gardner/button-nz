@@ -13,6 +13,7 @@ import {
   useState,
 } from "react";
 
+import { creditLines } from "@/lib/credit";
 import type { Bounds } from "@/lib/geo";
 
 /** The aerial basemap, LINZ's, proxied by the API so its key stays there. */
@@ -21,10 +22,11 @@ export const AERIAL_TILES = "/api/tiles/aerial/{z}/{x}/{y}.webp";
  * which the API serves from LINZ's NZ Primary Parcels (#86), and the
  * heights the 3D view stands on, from LINZ's 1 m LiDAR. A town or a site
  * credits its own photos and LiDAR on its layers, while they are shown. */
-export const ATTRIBUTION =
-  "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0 · " +
-  "Sections: LINZ NZ Primary Parcels, CC BY 4.0 · " +
-  "Heights: LINZ 1 m LiDAR, CC BY 4.0";
+export const ATTRIBUTION = creditLines([
+  "Aerial: Toitū Te Whenua LINZ basemap, CC BY 4.0",
+  "Sections: LINZ NZ Primary Parcels, CC BY 4.0",
+  "Heights: LINZ 1 m LiDAR, CC BY 4.0",
+]);
 
 /** Fold the map's credits behind their ⓘ button. A site's own sources make
  * the full line too long to leave open over the map; MapLibre's compact

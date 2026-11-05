@@ -33,6 +33,58 @@ body {
   bottom: auto;
 }
 
+/* From xl (HERO_FIXED) the right is the design's (Muse at work, the hero),
+   so the credits sit at the foot of the map just right of the panel (left
+   1rem, 440px wide), opening up and to the right, as MapLibre lays out its
+   bottom-left credits. */
+@media (width >= 80rem) {
+  .maplibregl-map .maplibregl-ctrl-bottom-right {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: 28.5rem;
+  }
+
+  .maplibregl-ctrl-bottom-right
+    > .maplibregl-ctrl-attrib.maplibregl-compact-show {
+    padding: 2px 8px 2px 28px;
+  }
+
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib-button {
+    right: auto;
+    left: 0;
+  }
+}
+
+/* Opened, the credits are a small box, one source to a line. Each source's
+   credit is a .map-credits block of lines (lib/credit.ts); the only words
+   outside one are MapLibre's " | " between sources, set at no size. */
+.maplibregl-ctrl-attrib.maplibregl-compact-show {
+  max-width: 20rem;
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+  max-height: 50vh;
+  overflow-y: auto;
+  font-size: 0;
+  line-height: 0;
+}
+
+.maplibregl-ctrl-attrib-inner .map-credits {
+  padding: 2px 0;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.maplibregl-ctrl-attrib-inner .map-credits + .map-credits {
+  margin-top: 4px;
+}
+
+.maplibregl-ctrl-attrib-inner .map-credits p {
+  padding-left: 1em;
+  text-indent: -1em; /* a line that wraps hangs under its first words */
+}
+
 /* The build overlay (BuildOverlay, #152): each step's work fades in, the
    title's parcels are drawn on, and a line sweeps the photo while SAM 3.1
    looks it over. Nothing moves for anyone who asks for less motion. */
