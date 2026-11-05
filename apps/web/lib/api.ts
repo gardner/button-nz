@@ -25,6 +25,7 @@ import {
   parseFeature,
   parseSurvey,
 } from "./features";
+import type { LonLat } from "./geo";
 import { API, request, send } from "./http";
 import {
   type Product,
@@ -92,6 +93,28 @@ export interface Live {
   detail: string; // the view asked for, when observing
   view: number; // the observation-<n> that ask makes, when observing (else 0)
   observations: string[]; // URLs through the proxy
+  // When this step began, and when its newest view was made (#188); null
+  // from an API before them, and the latter while there is no view yet.
+  since: string | null;
+  newestViewAt: string | null;
+  placement: Placement | null; // where a home of its plan fits, if one does
+}
+
+/** Where a home of the run's plan fits on its site, solved and checked by
+ * the evaluator as the run started, before Muse has said anything: shown
+ * until the accepted design replaces it. */
+export interface Placement {
+  plan: { lengthM: number; widthM: number; eavesM: number };
+  walls: LonLat[]; // a closed ring
+  outline: LonLat[]; // the walls and their eaves, seen from above
+  clearances: {
+    titleBoundaryM: number; // metres from the outline, as measured
+    sectionLineM: number | null; // null: the site has no such line
+    buildingM: number | null;
+    streetEdgeM: number | null; // from the walls
+  };
+  floorRangeM: [number, number]; // the floor underside's passing levels
+  foundInS: number; // how long after the run started it was known
 }
 
 /** A catalogue product a design places, as it was when placed: its walls are
@@ -275,7 +298,49 @@ function parseLive(raw: unknown): Live {
     observations: list(live, "observations").map(
       (url) => `${API}${asText(url, "observation")}`,
     ),
+    since: "since" in live ? optional(live, "since", text) : null,
+    newestViewAt:
+      "newest_view_at" in live ? optional(live, "newest_view_at", text) : null,
+    placement:
+      "placement" in live
+        ? optional(live, "placement", (f, k) => parsePlacement(f[k]))
+        : null,
   };
+}
+
+function parsePlacement(raw: unknown): Placement {
+  const placement = record(raw, "placement");
+  const plan = record(placement.plan, "plan");
+  const clear = record(placement.clearances, "clearances");
+  const maybe = (key: string) =>
+    key in clear ? optional(clear, key, number) : null;
+  return {
+    plan: {
+      lengthM: number(plan, "length_m"),
+      widthM: number(plan, "width_m"),
+      eavesM: number(plan, "eaves_m"),
+    },
+    walls: ring(placement.walls, "walls"),
+    outline: ring(placement.outline, "outline"),
+    clearances: {
+      titleBoundaryM: number(clear, "title_boundary_m"),
+      sectionLineM: maybe("section_line_m"),
+      buildingM: maybe("building_m"),
+      streetEdgeM: maybe("street_edge_m"),
+    },
+    floorRangeM: numbers(placement.floor_range_m, 2) as [number, number],
+    foundInS: number(placement, "found_in_s"),
+  };
+}
+
+/** A closed ring of lon/lat positions: a polygon's outside, at least a
+ * triangle. */
+function ring(raw: unknown, what: string): LonLat[] {
+  const positions = asList(raw, what).map((p) => numbers(p, 2) as LonLat);
+  const [first, last] = [positions[0], positions.at(-1)];
+  if (positions.length < 4 || first[0] !== last![0] || first[1] !== last![1])
+    throw new ApiError(`expected ${what} to be a closed ring`);
+  return positions;
 }
 
 function parsePlaced(raw: unknown): PlacedProduct {

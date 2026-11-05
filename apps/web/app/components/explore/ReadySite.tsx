@@ -3,7 +3,7 @@
 import { creditOf } from "@/lib/credit";
 import { useEffect, useState } from "react";
 
-import type { Job } from "@/lib/api";
+import type { Job, Placement } from "@/lib/api";
 import { type Bounds, boundsOf } from "@/lib/geo";
 import { type DesignMap, EMPTY_SITE_MAP, type SiteMap } from "@/lib/siteMap";
 import type { SiteState } from "@/lib/sites";
@@ -16,6 +16,7 @@ import { checkLabel } from "./AttemptRow";
 import { DesignDock } from "./DesignDock";
 import { DistanceLabels } from "./DistanceLabels";
 import { HERO_WIDTH, HeroMedia } from "./HeroMedia";
+import { MassingLayers } from "./MassingLayers";
 import { PrefabSection } from "./PrefabSection";
 import { ReliefView } from "./ReliefView";
 import { SurveyPanel } from "./SurveyPanel";
@@ -67,6 +68,7 @@ export function ReadySite({
         three={three}
         siteMap={siteMap.map}
         designMap={accepted ? designMap.map : null}
+        placement={provisional(shown)}
         selected={selected}
         onFeature={(id) => {
           setSelected(id);
@@ -97,19 +99,26 @@ export function ReadySite({
   );
 }
 
+/** Until the shown run has a design, where a home fits (#188). */
+function provisional(shown: Job | undefined): Placement | null {
+  return shown?.live?.placement ?? null;
+}
+
 /** The credit for the site's own data, once its sources have come. */
 function siteCredit(site: SiteState): string | undefined {
   return site.site ? creditOf(site.site.sources) : undefined;
 }
 
 /** What a ready site draws on the map: its rules and survey, and the
- * accepted design with its distances. */
+ * accepted design with its distances, or, while the run makes it, where a
+ * home fits. */
 function SiteOverlays({
   siteBounds,
   credit,
   three,
   siteMap,
   designMap,
+  placement,
   selected,
   onFeature,
 }: {
@@ -118,6 +127,7 @@ function SiteOverlays({
   three: boolean;
   siteMap: SiteMap | null;
   designMap: DesignMap | null;
+  placement: Placement | null;
   selected: string | null;
   onFeature: (id: string) => void;
 }) {
@@ -137,6 +147,9 @@ function SiteOverlays({
         credit={credit}
         onFeature={(f) => onFeature(f.id)}
       />
+      {placement && !designMap && (
+        <MassingLayers placement={placement} three={three} />
+      )}
       {designMap && (
         <>
           <DesignLayers map={designMap} three={three} />

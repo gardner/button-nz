@@ -36,7 +36,16 @@ function live(
     ? Math.max(0, ...observations.map(viewNumberOf)) + 1
     : 0,
 ): Live {
-  return { attempt: 2, phase, detail, view, observations };
+  return {
+    attempt: 2,
+    phase,
+    detail,
+    view,
+    observations,
+    since: null,
+    newestViewAt: null,
+    placement: null,
+  };
 }
 
 function viewNumberOf(src: string): number {
@@ -114,6 +123,35 @@ describe("stageOf", () => {
     expect(stageOf(j, NO_VIEWS.names)).toMatchObject({
       kind: "view",
       tool: null,
+    });
+  });
+
+  it("goes back to the site's pictures once the newest view is over 10 s old and Muse still thinks (#188)", () => {
+    const now = Date.parse("2026-11-05T00:13:35Z");
+    const thinking = {
+      ...live("thinking", [VIEW_1, VIEW_3]),
+      since: "2026-11-05T00:12:36Z",
+    };
+    const old = job({
+      live: { ...thinking, newestViewAt: "2026-11-05T00:12:35Z" }, // 60 s
+    });
+    expect(stageOf(old, NO_VIEWS.names, now)).toEqual({
+      kind: "designing",
+      since: "2026-11-05T00:12:36Z",
+    });
+    const fresh = job({
+      live: { ...thinking, newestViewAt: "2026-11-05T00:13:30Z" }, // 5 s
+    });
+    expect(stageOf(fresh, NO_VIEWS.names, now)).toMatchObject({
+      kind: "view",
+      src: VIEW_3,
+    });
+  });
+
+  it("keeps the newest view where the API doesn't say when it was made", () => {
+    const j = job({ live: live("thinking", [VIEW_1]) });
+    expect(stageOf(j, NO_VIEWS.names, Date.now() + 3_600_000)).toMatchObject({
+      kind: "view",
     });
   });
 

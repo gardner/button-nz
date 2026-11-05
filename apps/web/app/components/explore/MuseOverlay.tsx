@@ -9,9 +9,17 @@ import type { SiteShot } from "@/lib/siteShots";
 
 import { BADGE, MARK, checkLabel } from "./AttemptRow";
 import { HousingFacts } from "./HousingFacts";
-import { Elapsed, Filmstrip, Steps, viewLabel, viewName } from "./MuseParts";
+import {
+  Elapsed,
+  Filmstrip,
+  Fits,
+  Steps,
+  viewLabel,
+  viewName,
+} from "./MuseParts";
 import { type Place, SiteShots, useSiteShots } from "./MuseSiteShots";
 import { PrefabsMeanwhile } from "./PrefabsMeanwhile";
+import { useNow } from "./useTurn";
 
 /** The run, large: about 90% of the screen, slightly see-through like the
  * site's build (BuildOverlay). On the stage, the one thing the run made
@@ -28,7 +36,8 @@ export function MuseOverlay({
   place: Place;
   onHide: () => void;
 }) {
-  const stage = stageOf(job, names);
+  const now = useNow(1000); // a view grows stale as the clock runs
+  const stage = stageOf(job, names, now);
   const live = job.live;
   const checked = job.attempts.at(-1);
   const facts = factsFor(place);
@@ -45,6 +54,7 @@ export function MuseOverlay({
           {factsUnder(job, stage) && <HousingFacts facts={facts} />}
         </div>
         <aside className="flex min-h-0 flex-col gap-5 overflow-y-auto pr-1">
+          {live?.placement && <Fits placement={live.placement} />}
           {live && <Steps phase={live.phase} detail={live.detail} />}
           <Filmstrip attempts={job.attempts} live={live} />
           {checked && <CheckList attempt={checked} />}
@@ -121,6 +131,25 @@ const SCENES: {
     </Scene>
   ),
   view: (stage) => <ViewScene stage={stage} />,
+  // A view read long since: the site's pictures again, the step's time
+  // ticking, so a long think never looks stuck (#188).
+  designing: (stage, props) => (
+    <Scene
+      title={
+        <>
+          Muse is designing its home
+          {stage.since !== null && (
+            <>
+              {" · "}
+              <Elapsed since={stage.since} plain />
+            </>
+          )}
+        </>
+      }
+    >
+      <Wait {...props} />
+    </Scene>
+  ),
   building: (_, { shots }) => (
     <Scene title="Blender builds and renders it">
       <Working shots={shots}>Running Muse&apos;s script in Blender…</Working>
@@ -160,7 +189,7 @@ function scene(stage: Stage, props: SceneProps): ReactNode {
   return draw(stage, props);
 }
 
-function Scene({ title, children }: { title: string; children: ReactNode }) {
+function Scene({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <h2 aria-live="polite" className="text-xl font-medium">

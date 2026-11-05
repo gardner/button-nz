@@ -18,6 +18,17 @@ export function useTurn(ms: number): number {
   return turn;
 }
 
+/** The time, read again every `ms`: a clock for what changes as it passes
+ * (the time a run has taken, a picture that grows stale). */
+export function useNow(ms: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(timer);
+  }, [ms]);
+  return now;
+}
+
 const LESS_MOTION = "(prefers-reduced-motion: reduce)";
 
 /** Whether the viewer asks for less motion (a video can't be stopped by

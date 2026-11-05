@@ -19,6 +19,7 @@ export type Stage =
       number: number; // its number in its attempt (observation-<n>.png)
       tool: string | null;
     }
+  | { kind: "designing"; since: string | null } // a view read long since: Muse still at work, since its step began
   | { kind: "fixing"; attempt: Attempt } // the attempt that failed, Muse writing the next
   | { kind: "building" } // Blender building and rendering the script
   | { kind: "measuring" } // the evaluator measuring the rules
@@ -30,8 +31,16 @@ export type Stage =
     }
   | { kind: "stopped"; attempt: Attempt | null; error: string | null }; // done, nothing accepted
 
-/** What is on the stage now; `names` are the live views' tools, as watched. */
-export function stageOf(job: Job, names: ReadonlyMap<string, string>): Stage {
+/** How long the newest view stays on the stage while Muse thinks over it
+ * (#188): after that, one picture held for minutes looks stuck. */
+export const FRESH_VIEW_MS = 10_000;
+
+/** What is on the stage `now`; `names` are the live views' tools, as watched. */
+export function stageOf(
+  job: Job,
+  names: ReadonlyMap<string, string>,
+  now: number = Date.now(),
+): Stage {
   if (job.status === "done" || job.status === "failed") return finished(job);
   const live = job.live;
   if (!live) return { kind: "waiting", queued: job.status === "queued" };
@@ -43,7 +52,7 @@ export function stageOf(job: Job, names: ReadonlyMap<string, string>): Stage {
     case "checking":
       return { kind: "measuring" };
     case "thinking":
-      return thinking(job, live, names);
+      return thinking(job, live, names, now);
   }
 }
 
@@ -63,14 +72,24 @@ function finished(job: Job): Stage {
   };
 }
 
-/** While Muse thinks: the newest view of this attempt (it is reading it), or
- * else the attempt before, which failed (it is fixing it). */
+/** While Muse thinks: the newest view of this attempt (it is reading it),
+ * until it has been there `FRESH_VIEW_MS`; or else the attempt before, which
+ * failed (it is fixing it). */
 function thinking(
   job: Job,
   live: Live,
   names: ReadonlyMap<string, string>,
+  now: number,
 ): Stage {
   const newest = live.observations.at(-1);
+  // An API that doesn't say when the view was made: it stays, as before.
+  const made = live.newestViewAt;
+  if (
+    newest !== undefined &&
+    made !== null &&
+    now - Date.parse(made) > FRESH_VIEW_MS
+  )
+    return { kind: "designing", since: live.since };
   if (newest !== undefined)
     return {
       kind: "view",

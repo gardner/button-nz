@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import type { Attempt, Live, Phase } from "@/lib/api";
+import type { Attempt, Live, Phase, Placement } from "@/lib/api";
+import { fitsWords } from "@/lib/massing";
 import { viewNumber } from "@/lib/museStage";
+
+import { useNow } from "./useTurn";
 
 /** The steps of one attempt, in the order a run takes them (Muse decides,
  * then reads a view or has its script built, as many times as it asks). */
@@ -137,19 +138,36 @@ function framesOf(attempt: Attempt): Frame[] {
   ];
 }
 
-/** Minutes and seconds since the run started, ticking. */
-export function Elapsed({ since }: { since: string | null }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+/** Minutes and seconds since `since` (the run's start, say), ticking; small
+ * and grey, or `plain` in the words around it. */
+export function Elapsed({
+  since,
+  plain = false,
+}: {
+  since: string | null;
+  plain?: boolean;
+}) {
+  const now = useNow(1000);
   if (since === null) return null;
   const seconds = Math.max(0, Math.floor((now - Date.parse(since)) / 1000));
   const shown = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   return (
-    <span className="font-mono text-sm tabular-nums text-zinc-400">
+    <span
+      className={
+        plain ? "tabular-nums" : "font-mono text-sm tabular-nums text-zinc-400"
+      }
+    >
       {shown}
     </span>
+  );
+}
+
+/** Where a home of the run's plan fits, checked, as the run's first item:
+ * known in seconds, long before Muse has said anything (#188). */
+export function Fits({ placement }: { placement: Placement }) {
+  return (
+    <p className="rounded-xl bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100 ring-1 ring-emerald-400/30">
+      {fitsWords(placement)}
+    </p>
   );
 }

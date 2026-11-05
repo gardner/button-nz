@@ -279,3 +279,28 @@ export const DESIGN_MAP = {
   }),
   unknown: [],
 };
+
+/** GET /designs/{id}'s `live` while a run is under way (#188): the step and
+ * when it began, the newest view and when it was made, and where a home of
+ * the run's plan fits, solved as it started. */
+export const LIVE = {
+  attempt: 1,
+  phase: "thinking",
+  detail: "",
+  view: 0,
+  observations: ["/designs/abc123/attempts/1/observation-4.png"],
+  since: "2026-11-05T00:12:35.200000Z",
+  newest_view_at: "2026-11-05T00:12:35.100000Z",
+  placement: {
+    plan: { length_m: 10.0, width_m: 4.8, eaves_m: 0.6 },
+    walls: square(171.86201, -42.11589, 0.00007)[0],
+    outline: square(171.862, -42.1159, 0.00009)[0],
+    clearances: {
+      title_boundary_m: 2.413,
+      section_line_m: 2.187,
+      street_edge_m: 6.76,
+    },
+    floor_range_m: [189.633, 190.47],
+    found_in_s: 1.6,
+  },
+};
