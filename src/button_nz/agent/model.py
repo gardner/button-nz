@@ -1,8 +1,9 @@
 """A design model on the Meta Model API (OpenAI-compatible), e.g. Muse Spark.
 
-Each design attempt goes back to the model as its own ``run_blender_script``
-tool call, the evaluator's verdict as that call's result, and the preview
-render as an image, so the model sees what it built as well as the numbers.
+Each design attempt goes back to the model as its own ``propose_design`` tool
+call (its spec), the evaluator's verdict as that call's result, and the
+preview render as an image, so the model sees what was built as well as the
+numbers.
 """
 
 import base64
@@ -19,6 +20,7 @@ from PIL import Image
 
 from button_nz.agent.conversation import ModelReplyError, Observe, Turn
 from button_nz.agent.observe import OBSERVATION_TOOLS
+from button_nz.agent.spec import TOOL, spec_tool
 
 __all__ = ["EFFORTS", "META_BASE_URL", "ChatModel", "ModelReplyError"]
 
@@ -27,22 +29,7 @@ META_BASE_URL = "https://api.meta.ai/v1"
 # them (4 Nov 2026; it refuses "none"). Unset, the API's default applies (#165).
 EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
 MAX_SIDE_PX = 800  # images to the model: a render's detail, ~60% fewer tokens than 1280
-TOOL = "run_blender_script"
-TOOLS: list[dict[str, Any]] = [
-    {
-        "type": "function",
-        "function": {
-            "name": TOOL,
-            "description": "Run a complete Blender Python script in the site scene. "
-            "It must create the mesh object 'Dwelling'.",
-            "parameters": {
-                "type": "object",
-                "properties": {"code": {"type": "string", "description": "The bpy script."}},
-                "required": ["code"],
-            },
-        },
-    }
-]
+TOOLS: list[dict[str, Any]] = [spec_tool()]
 
 
 @dataclass(frozen=True)
@@ -81,11 +68,10 @@ class ChatModel:
             arguments = _arguments(call.function.arguments)
             if call.function.name != TOOL:
                 return Observe(call.function.name, arguments)
-            code = arguments.get("code")
-            if isinstance(code, str) and code.strip():
-                return code
+            if arguments:
+                return json.dumps(arguments)  # the spec: the design loop reads it
         raise ModelReplyError(
-            f"The reply did not call {TOOL} with a script. Call it with your script."
+            f"The reply did not call {TOOL} with a design spec. Call it with your spec."
         )
 
 
@@ -97,7 +83,7 @@ def _arguments(raw: str | None) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise ModelReplyError(
             f"Your tool call's arguments were malformed or truncated JSON ({error.msg}). "
-            "Send the complete call again; keep the script short enough to fit."
+            "Send the complete call again."
         ) from error
     if not isinstance(arguments, dict):
         raise ModelReplyError("Your tool call's arguments were malformed: expected a JSON object.")
@@ -130,7 +116,7 @@ def _messages(conversation: Sequence[Turn]) -> list[dict[str, Any]]:
 
 def _call(n: int, turn: Turn) -> dict[str, Any]:
     if turn.role == "design":
-        name, arguments = TOOL, json.dumps({"code": turn.text})
+        name, arguments = TOOL, turn.text or "{}"
     else:
         request = json.loads(turn.text)
         name, arguments = request["tool"], json.dumps(request["arguments"])

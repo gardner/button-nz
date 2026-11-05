@@ -4,6 +4,7 @@ before a script is written, and measured as the evaluator measures it."""
 import json
 import math
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,16 @@ from numpy.typing import NDArray
 from shapely import LineString, Polygon
 
 import button_nz.agent.placement as placement_module
+from button_nz.agent.offers import floor_range_text, offered
 from button_nz.agent.placement import (
     MAX_CONFIRMED,
     PROMPT_PLANS,
     TARGET_MARGIN_M,
     Placement,
-    describe_placements,
-    floor_range_text,
     least_ground_range,
     solve,
 )
+from button_nz.agent.prompt import describe_offers
 from button_nz.agent.site import DesignSite
 from button_nz.blender_worker.scene_input import scene_input
 from button_nz.demo_site import DEMO_SITE_DIR, load_demo_site
@@ -195,31 +196,65 @@ def test_the_solver_is_fast_on_the_demo_site() -> None:
 
 def test_the_prompt_gives_each_placement_in_local_coordinates_and_scene_z() -> None:
     site = _design_site(_site(slope_x=0.05), origin=(10.0, 15.0))
-    text = describe_placements(site, Footprint("Studio", 9.0, 6.0))
+    offers = offered(site, Footprint("Studio", 9.0, 6.0))
+    text = describe_offers(offers)
     datum = site.scene["frame"]["datum_m"]
     (best, *_) = solve(site.context, 9.0, 6.0, eaves_m=0.6).placements
     cx, cy = site.frame.to_local((best.walls.centroid.x, best.walls.centroid.y))
-    assert f"centre ({cx:.2f}, {cy:.2f})" in text
+    assert f"1: a 9 × 6 m plan: centre ({cx:.2f}, {cy:.2f})" in text
     assert f"{best.clearances['title_boundary_m']:.2f} m from the title boundary" in text
     low = math.ceil((best.floor_range_m[0] - datum) * 100) / 100
     high = math.floor((best.floor_range_m[1] - datum) * 100) / 100
     assert f"floor underside at z {low:.2f} to {high:.2f}" in text
-    assert "9 × 6 m" in text and "0.6 m eaves" in text
+    assert "0.6 m eaves" in text
     assert text.count("centre (") == 3
+    first = offers.offers[0]
+    assert first.centre == pytest.approx((cx, cy))
+    assert first.floor_range == pytest.approx(tuple(level - datum for level in best.floor_range_m))
+    assert (first.length_m, first.width_m, first.angle_deg) == (9.0, 6.0, best.angle_deg)
+
+
+def test_each_placement_names_its_sides_and_steepest_roofs() -> None:
+    offers = offered(_design_site(_site()))
+    text = describe_offers(offers)
+    long_a, short_a, long_b, short_b = offers.offers[0].sides()
+    assert (
+        f"its long walls face {long_a} and {long_b}, its short walls {short_a} and {short_b}"
+        in text
+    )
+    assert "a gable or hip at" in text and "a skillion rising to a long wall at" in text
 
 
 def test_a_bespoke_design_gets_a_placement_for_each_plain_plan() -> None:
-    text = describe_placements(_design_site(_site()))
-    for length, width in PROMPT_PLANS:
-        assert f"{length:g} × {width:g} m" in text
-    assert text.count("centre (") == len(PROMPT_PLANS)
+    offers = offered(_design_site(_site()))
+    assert [(o.length_m, o.width_m) for o in offers.offers] == list(PROMPT_PLANS)
+    assert [o.number for o in offers.offers] == [1, 2, 3]
+
+
+def test_each_plan_is_also_offered_its_placement_nearest_the_street() -> None:
+    street = Frontage("Victory Street", True, (((0.0, 0.0), (20.0, 0.0)),))
+    site = replace(_design_site(_site()), frontages=(street,))
+    offers = offered(site, Footprint("Studio", 9.0, 6.0))
+    *best, nearest = offers.offers
+    assert len(best) == 3
+    assert nearest.centre[1] < min(o.centre[1] for o in best)  # the street is to the south
+    assert "from the street edge" in offers.offers[0].summary
 
 
 def test_the_prompt_says_when_nothing_can_be_placed() -> None:
-    text = describe_placements(_design_site(_site(slope_x=0.4)), Footprint("Long", 10.0, 4.0))
+    offers = offered(_design_site(_site(slope_x=0.4)), Footprint("Long", 10.0, 4.0))
+    assert offers.offers == ()
+    text = describe_offers(offers)
     assert "10 × 4 m" in text and "no placement" in text and "floor level" in text
     assert "the search" in text and "may" in text  # a sampled miss, not an impossibility
-    assert "wherever it fits" not in text and "fits nowhere" not in text
+
+
+def test_a_narrow_floor_range_is_printed_finely_enough_to_hold_a_passing_level() -> None:
+    assert floor_range_text(0.24, 1.23) == "0.24 to 1.23"
+    assert floor_range_text(0.2401, 1.2299) == "0.25 to 1.22"  # drawn in: both pass
+    text = floor_range_text(101.002, 101.004)  # to the cm it would be 101.01 to 101.00
+    low, high = (float(v) for v in text.split(" to "))
+    assert 101.002 <= low <= high <= 101.004
 
 
 def _design_site(context: SiteContext, origin: Point = (0.0, 0.0)) -> DesignSite:
@@ -342,14 +377,6 @@ def test_a_finer_angle_step_finds_a_plan_turned_to_contours_between_the_coarse_o
     fine = least_ground_range(site, 15.0, 4.2, angle_step_deg=2.5)
     assert coarse is not None and fine is not None
     assert coarse > MAX_FLOOR_ABOVE_GROUND_M >= fine
-
-
-def test_a_narrow_floor_range_is_printed_finely_enough_to_hold_a_passing_level() -> None:
-    assert floor_range_text(0.24, 1.23) == "0.24 to 1.23"
-    assert floor_range_text(0.2401, 1.2299) == "0.25 to 1.22"  # drawn in: both pass
-    text = floor_range_text(101.002, 101.004)  # to the cm it would be 101.01 to 101.00
-    low, high = (float(v) for v in text.split(" to "))
-    assert 101.002 <= low <= high <= 101.004
 
 
 def test_bespoke_plans_offered_are_compact_like_a_home() -> None:

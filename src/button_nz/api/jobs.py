@@ -308,9 +308,15 @@ def _confirmed_buildings(survey: Survey | None, decided: dict[str, str]) -> list
 
 
 def _revision(trace: Path, instructions: tuple[str, ...]) -> Revision:
-    """The accepted attempt a revision starts from, from its trace."""
+    """The accepted attempt a revision starts from, from its trace. A design
+    accepted before designs were specs (#165) has none to change."""
     attempt = json.loads(trace.read_text(encoding="utf-8"))
-    return Revision(attempt["script"], attempt["feedback"], instructions)
+    if not attempt.get("spec"):
+        raise ValueError(
+            "this design was made before designs were specs, so it can't be revised: "
+            "design it again"
+        )
+    return Revision(attempt["spec"], attempt["feedback"], instructions)
 
 
 def _reason(error: Exception) -> str:

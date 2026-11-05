@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
-# design/feedback: a script and the evaluator's verdict on it.
+# design/feedback: a design spec (JSON) and the evaluator's verdict on it.
 # request/observation: the model asking for a LiDAR view, and the view.
 # view: a LiDAR view given with the brief, unasked.
 type Role = Literal["system", "user", "design", "feedback", "request", "observation", "view"]
@@ -27,11 +27,11 @@ class Observe:
 
 
 class ModelReplyError(ValueError):
-    """The model replied with neither a design script nor an observation request."""
+    """The model replied with neither a design spec nor an observation request."""
 
 
 class Model(Protocol):
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
-        """The next design script, or (if ``allow_observations``) an observation
-        request. Raises ModelReplyError if the reply has neither."""
+        """The next design spec, as JSON, or (if ``allow_observations``) an
+        observation request. Raises ModelReplyError if the reply has neither."""
         ...

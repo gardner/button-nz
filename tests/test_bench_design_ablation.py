@@ -25,6 +25,7 @@ from button_nz.geo.crs import LocalFrame
 from button_nz.geo.geometry import Ring
 from button_nz.geo.terrain import TerrainGrid
 from meshes import box
+from specs import name_of, spec
 
 PARCEL: Ring = ((0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 20.0), (0.0, 0.0))
 GOOD = {"triangles": box(15, 7, 0.3, 21, 12, 3.9), "floor_area_m2": 26.0, "storeys": 1}
@@ -45,7 +46,7 @@ def site() -> DesignSite:
 
 def fake_runner(scene: SceneInput, script: str, out_dir: Path) -> DesignOutputs:
     out_dir.mkdir(parents=True, exist_ok=True)
-    measurements = {"error": None} | MEASURED[script]
+    measurements = {"error": None} | MEASURED[name_of(script)]
     return DesignOutputs(measurements, out_dir / "design.py", None, None)
 
 
@@ -60,7 +61,7 @@ class Scripted:
         if allow_observations and not any(t.role == "observation" for t in conversation):
             return Observe("render_height_map", {"mode": "slope"})
         told = [t.text for t in conversation if t.role == "feedback"]
-        return "good" if any("setback" in text for text in told) else "near"
+        return spec("good" if any("setback" in text for text in told) else "near")
 
 
 def test_each_condition_is_run_and_logged(site: DesignSite, tmp_path: Path) -> None:
@@ -81,7 +82,7 @@ class NeverLooks:
     """Designs straight away, asking for no view."""
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
-        return "good"
+        return spec("good")
 
 
 def test_views_given_with_the_brief_are_not_counted_as_asked_for(
@@ -150,12 +151,12 @@ def test_the_report_states_method_and_sample_sizes() -> None:
     assert "muse-spark-1.3" in text
     assert "| one_shot | 1 | 0 (0%) |" in text
     assert "| evaluator | 1 | 1 (100%) |" in text
-    assert "a script that runs ends the run" in text  # what `errors` measures
+    assert "a design that builds ends the run" in text  # what `errors` measures
 
 
 class Always:
-    def __init__(self, script: str) -> None:
-        self.script = script
+    def __init__(self, name: str) -> None:
+        self.script = spec(name)
 
     def propose(self, conversation: Sequence[Turn], allow_observations: bool) -> str | Observe:
         return self.script
@@ -219,23 +220,51 @@ def test_the_report_says_which_site_and_who_decided() -> None:
     assert "with no confirmed buildings or keep-clear areas" in plain
 
 
-def test_each_script_call_is_timed(site: DesignSite, tmp_path: Path) -> None:
-    """The calls that wrote a script, not the LiDAR views asked for before them (#165)."""
+def test_each_design_call_is_timed(site: DesignSite, tmp_path: Path) -> None:
+    """The calls that proposed a design, not the LiDAR views asked for before
+    them (#165); every model call counts toward the run's model time."""
     evaluator_lidar = [c for c in CONDITIONS if c.name == "evaluator_lidar"]
     (result,) = run(["A studio."], evaluator_lidar, 1, site, Scripted(), tmp_path, fake_runner)
     assert result.observations == 1 and result.attempts == 2
-    assert len(result.script_seconds) == 2  # one per attempt's script, none for the view
-    assert all(s >= 0.0 for s in result.script_seconds)
+    assert len(result.design_seconds) == 2  # one per attempt's design, none for the view
+    assert all(s >= 0.0 for s in result.design_seconds)
+    assert result.model_seconds >= sum(result.design_seconds)
     logged = json.loads((tmp_path / "results.jsonl").read_text(encoding="utf-8"))
-    assert len(logged["script_seconds"]) == 2
+    assert len(logged["design_seconds"]) == 2
 
 
-def test_the_report_gives_the_mean_script_call() -> None:
+def test_the_checks_each_attempt_failed_are_recorded(site: DesignSite, tmp_path: Path) -> None:
+    evaluator = [c for c in CONDITIONS if c.name == "evaluator"]
+    (result,) = run(["A studio."], evaluator, 1, site, Scripted(), tmp_path, fake_runner)
+    assert result.failed_checks == (("title_boundary_setback",), ())
+
+
+def test_the_report_gives_the_mean_design_call_and_model_time() -> None:
     timed = [
-        replace(_result("evaluator", True, True, ("fail", "pass")), script_seconds=(100.0, 50.0)),
-        replace(_result("evaluator", True, False, ("pass",)), script_seconds=(60.0,)),
+        replace(
+            _result("evaluator", True, True, ("fail", "pass")),
+            design_seconds=(100.0, 50.0),
+            model_seconds=170.0,
+        ),
+        replace(
+            _result("evaluator", True, False, ("pass",)), design_seconds=(60.0,), model_seconds=90.0
+        ),
     ]
-    assert summarise(timed)["evaluator"]["mean_script_seconds"] == pytest.approx(70.0)
+    summary = summarise(timed)["evaluator"]
+    assert summary["mean_design_seconds"] == pytest.approx(70.0)
+    assert summary["mean_model_seconds"] == pytest.approx(130.0)
     text = report(timed, {"model": "m", "briefs": 1, "repeats": 1})
-    assert "Mean s per script call" in text
-    assert "| 70.0 |" in text
+    assert "Mean s per design call" in text and "Mean model s" in text
+    assert "| 70.0 |" in text and "| 130.0 |" in text
+
+
+def test_the_report_lists_each_run() -> None:
+    run_ = replace(
+        _result("evaluator", True, True, ("fail", "pass")),
+        design_seconds=(10.0, 12.0),
+        model_seconds=30.0,
+        failed_checks=(("height", "floor_level"), ()),
+    )
+    text = report([run_], {"model": "m", "briefs": 1, "repeats": 1})
+    assert "| 0 | evaluator | 0 | 30.0 | 10.0, 12.0 | 10.0 | 2 | yes |" in text
+    assert "height, floor_level; –" in text

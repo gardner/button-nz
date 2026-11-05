@@ -24,7 +24,7 @@ half their walls.
 """
 
 import math
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import cast
@@ -36,18 +36,15 @@ from shapely import LineString, MultiPolygon, Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 
 from button_nz.agent.room import buffer_at_least, longest_edge_angle, room_of
-from button_nz.agent.site import DesignSite
 from button_nz.evaluation import checks
 from button_nz.evaluation.checks import MAX_FLOOR_ABOVE_GROUND_M, MIN_SEPARATION_M
 from button_nz.evaluation.model import (
     Check,
-    Footprint,
     InvalidProposal,
     Proposal,
     SiteContext,
     Status,
 )
-from button_nz.geo.geometry import Point
 from button_nz.sites.frontages import Frontage
 
 ANGLE_STEP_DEG = 15.0
@@ -118,10 +115,13 @@ def solve(
     section_clear_m: float = MIN_SEPARATION_M,
     frontages: Sequence[Frontage] | None = None,
     angle_step_deg: float = ANGLE_STEP_DEG,
+    nearest_street: bool = False,
 ) -> Solution:
     """Up to ``count`` placements of the plan on ``site`` passing every siting
     check, best first. Below 2 m, ``section_clear_m`` lets a section line come
-    back unknown (never crossed)."""
+    back unknown (never crossed). ``nearest_street`` ranks the nearest the
+    street edge first (then the least ground range), for a design the owner
+    wants as near the street as the rules allow."""
     title, lines = checks.title_and_internal_lines(site)
     room = _room(site, lines, section_clear_m)
     tried = _tried(room, site, length_m, width_m, eaves_m, angle_step_deg)
@@ -130,7 +130,8 @@ def solve(
     spread = _cell_spread(tried.walls, site)
     chosen: list[Placement] = []
     asked = 0
-    for i in _ranked(tried, spread, title, lines, site, _street(frontages)):
+    street = _street(frontages)
+    for i in _ranked(tried, spread, title, lines, site, street, nearest_street):
         walls, outline = tried.walls[i], tried.outlines[i]
         if any(walls.intersection(c.walls).area >= 0.5 * walls.area - _EPS for c in chosen):
             continue
@@ -242,9 +243,10 @@ def _ranked(
     lines: BaseGeometry,
     site: SiteContext,
     street: BaseGeometry,
+    nearest_street: bool = False,
 ) -> list[int]:
     """The candidates whose cells are flat enough, best first, by the stated
-    preference."""
+    preference (or nearest the street first)."""
     flat = np.flatnonzero(spread <= MAX_FLOOR_ABOVE_GROUND_M + _EPS)
     outlines = np.array(tried.outlines, dtype=object)[flat]
     near = [title.boundary, lines, union_all([Polygon(r) for r in site.confirmed_buildings])]
@@ -255,6 +257,8 @@ def _ranked(
     walls = np.array(tried.walls, dtype=object)[flat]
     far = np.zeros(len(flat)) if street.is_empty else _distances(walls, street)
     ground = np.round(spread[flat] / GROUND_STEP_M)
+    if nearest_street:
+        return cast(list[int], flat[np.lexsort((ground, far))].tolist())
     order = np.lexsort((-far, ground, -np.minimum(margin, TARGET_MARGIN_M)))
     return cast(list[int], flat[order].tolist())
 
@@ -329,90 +333,3 @@ def _with_street(placement: Placement, frontages: Sequence[Frontage] | None) -> 
         placement.highest_ground_m,
         placement.checks,
     )
-
-
-def describe_placements(
-    site: DesignSite, product: Footprint | None = None, eaves_m: float = PROMPT_EAVES_M
-) -> str:
-    """For the design agent, in its local coordinates and scene z: the best
-    placements of a ``product``'s footprint, or for a bespoke design the best
-    of each of ``PROMPT_PLANS``; or why a plan has none."""
-    if product is None:
-        plans, count = PROMPT_PLANS, 1
-    else:
-        plans, count = ((product.length_m, product.width_m),), 3
-    datum = float(site.scene["frame"]["datum_m"])
-    lines = [
-        f"- placements found by search, best first, with {eaves_m:g} m eaves all round: "
-        "each passes the evaluator's title setback (with the eaves), section line (kept "
-        f"{MIN_SEPARATION_M:g} m clear), kept area and floor level checks and is "
-        f"{MIN_SEPARATION_M:g} m from every listed building, aiming "
-        f"for {TARGET_MARGIN_M:g} m clear of each {MIN_SEPARATION_M:g} m line. Walls' "
-        "corners in local x, y:"
-    ]
-    number = 0
-    for length, width in plans:
-        plan = f"{length:g} × {width:g} m plan"
-        solution = solve(site.context, length, width, eaves_m, count, frontages=site.frontages)
-        for placement in solution.placements:
-            number += 1
-            text = _placement_text(placement, site.frame.to_local, datum)
-            lines.append(f"  - {number}: a {plan}: {text}")
-        if not solution.placements:
-            lines.append(f"  - a {plan}: {_none_placed(solution)}")
-    lines.append(
-        "  Stand the Dwelling's walls on one of these, unless the brief is better served "
-        "elsewhere, with its floor's underside within that placement's range."
-    )
-    return "\n".join(lines) + "\n"
-
-
-def _none_placed(solution: Solution) -> str:
-    """Why the search found none: it samples poses, so one it didn't try may pass."""
-    least = solution.least_ground_range_m
-    if least is None:
-        return (
-            "no placement found: with the section lines kept clear, the search fitted it "
-            "at none of the positions and angles it tried (others may fit)."
-        )
-    if least <= MAX_FLOOR_ABOVE_GROUND_M:
-        return "no placement found: none the search tried passes every siting check."
-    return (
-        "no placement found that passes floor level: at every position the search tried, "
-        f"the ground under it varies by at least {least:.2f} m, more than the "
-        f"{MAX_FLOOR_ABOVE_GROUND_M:g} m allowed (a position it didn't try may pass)."
-    )
-
-
-def _placement_text(placement: Placement, local: Callable[[Point], Point], datum: float) -> str:
-    centre = local((placement.walls.centroid.x, placement.walls.centroid.y))
-    corners = [local((float(x), float(y))) for x, y in list(placement.walls.exterior.coords)[:-1]]
-    names = {
-        "title_boundary_m": "the title boundary",
-        "section_line_m": "the section line",
-        "building_m": "the nearest listed building",
-        "street_edge_m": "the street edge",
-    }
-    clear = ", ".join(
-        f"{placement.clearances[k]:.2f} m from {name}"
-        for k, name in names.items()
-        if k in placement.clearances
-    )
-    low, high = (level - datum for level in placement.floor_range_m)
-    return (
-        f"centre ({centre[0]:.2f}, {centre[1]:.2f}), long walls at "
-        f"{placement.angle_deg:.1f}° from the x axis: "
-        + ", ".join(f"({x:.2f}, {y:.2f})" for x, y in corners)
-        + f"; {clear}; floor underside at z {floor_range_text(low, high)}."
-    )
-
-
-def floor_range_text(low: float, high: float) -> str:
-    """``low`` to ``high``, each drawn in to the centimetre so both printed
-    levels pass, or as finely as it takes for the range to hold one."""
-    for places in range(2, 7):
-        scale = 10**places
-        inner = math.ceil(low * scale - _EPS) / scale, math.floor(high * scale + _EPS) / scale
-        if inner[0] <= inner[1]:
-            return f"{inner[0]:.{places}f} to {inner[1]:.{places}f}"
-    return f"{low:.6f} to {high:.6f}"

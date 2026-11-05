@@ -1,8 +1,12 @@
-"""What the design model is told: the scene contract, the rules it is checked
-against, the site in its local frame, and each attempt's verdicts."""
+"""What the design model is told: the design spec, the rules it is checked
+against, the site in its local frame with the placements it is offered, and
+each attempt's verdicts."""
 
 from collections.abc import Sequence
 
+from button_nz.agent.build import FASCIA_M, FLOOR_M, steepest_pitch
+from button_nz.agent.offers import Offer, Offers, heading
+from button_nz.agent.placement import PROMPT_EAVES_M
 from button_nz.blender_worker.scene_input import SceneInput
 from button_nz.evaluation import Footprint, Report
 from button_nz.evaluation.checks import (
@@ -13,67 +17,61 @@ from button_nz.evaluation.checks import (
 )
 from button_nz.geo.geometry import Ring
 
-CONTRACT = """You design a small detached dwelling on a real New Zealand property by \
-writing Blender Python (bpy) scripts. Each script runs in a scene that already holds \
-the site; call the run_blender_script tool with the complete script.
+STOREY_WALLS_M = 2.4  # the walls the steepest pitches are given for
 
-Scene contract:
-- Units are metres in a local frame: x east, y north, z up. z is relative to the \
-datum below.
-- Create exactly one mesh object named "Dwelling" whose geometry is the building's \
-outside envelope: a closed, solid mesh with a roof over its walls (no doors or \
-windows cut through it) whose \
-lowest point is the underside of a floor \
-spanning its walls (no piles or steps below it). Put all building geometry \
-(walls, roof, decks, eaves) in that one mesh: other geometry is rejected. Model a \
-deck as a thin slab with posts or balusters, not a solid block: anything solid \
-1 m above the floor counts as walls. Floor area is measured inside the walls, \
-1 m above the floor; setbacks from everything the building covers, eaves included. \
-Changes to the site and other objects (lights, cameras) are discarded.
-- Set Dwelling["floor_area_m2"] to the internal floor area and \
-Dwelling["storeys"] to the number of storeys.
-- Your script can use `bpy`, `math` and `scene` (the scene description, including \
-the terrain heights: scene["terrain"]).
-- Do not delete or change the site objects (Terrain, AboveGround, Parcel.*).
+CONTRACT = """You design a small detached dwelling on a real New Zealand property. You \
+don't model it: call the propose_design tool with a design spec, choosing one of the \
+placements offered below and the parameters that best serve the brief. Tested code \
+builds the spec in Blender as one closed envelope: the walls on their floor, the roof \
+over them and its eaves, and a deck if it has one.
 
-An independent evaluator measures the Dwelling you build and checks it. You cannot \
-argue with a check; change the design instead. Checks, from Schedule 1A of the \
+The spec, in a local frame in metres (x east, y north, z up, z relative to the datum \
+below):
+- placement: an offered placement's number. It fixes the walls: their plan, where \
+they stand and which way they face.
+- floor_z_m: the floor's underside, within that placement's floor range.
+- wall_height_m: from the floor's underside, a {floor_m:g} m floor and then walls this \
+high (2.1 to 3.0; 2.4 if omitted).
+- roof: its form, gable or hip (the ridge along the long walls), skillion (one slope, \
+rising to the wall named by high_side) or flat, at pitch_deg. Over the walls is a \
+{fascia_m:g} m roof edge, then the roof's rise: (half the plan's width + the eaves) \
+x tan(pitch) for a gable or hip, the roof's whole depth across x tan(pitch) for a \
+skillion, none for a flat roof.
+- eaves_m: how far the roof overhangs the walls all round, 0 to {eaves:g}.
+- deck (optional): beside the wall facing side, depth_m out from it (1 to 3), width_m \
+along it (the whole wall if omitted); a thin slab level with the floor.
+- openings (optional): windows and doors on each side, for the illustration; the \
+massing model doesn't cut them.
+Sides are the compass points the placement's walls face, as each placement lists them.
+
+An independent evaluator measures the Dwelling that is built and checks it. You \
+cannot argue with a check; change the spec instead. Checks, from Schedule 1A of the \
 Building Act 2004 (the granny flats exemption):
 - inside the title's parcels;
 - at least {sep:g} m from the title boundary, from internal section lines \
 (reported as unknown if closer: their legal status is unconfirmed) and from \
-confirmed residential buildings;
+confirmed residential buildings, measured from everything the building covers, \
+eaves and deck included;
 - internal floor area at most {area:g} m²; single storey; at most {height:g} m \
-above the floor;
-- floor at most {floor:g} m above the lowest ground under the footprint, and not \
+above the floor (its underside);
+- floor at most {floor:g} m above the lowest ground under the walls, and not \
 below the highest;
 - clear of the owner's preservation areas.
 "Unknown" means it could not be verified; it is reported, never treated as a pass.
+Every offered placement passes the siting checks with its walls and {eaves:g} m eaves; \
+a deck adds to what is checked, so give it a side with room to spare.
 
 If observation tools are offered (hillshade, contours, height maps, cross-sections, \
 elevation statistics), you may call them before a design to look at the measured \
-site, in the same local coordinates, with heights as your script's z. They \
-re-present the LiDAR; use them when you are unsure about slopes, banks or what \
-stands on the ground.
+site, in the same local coordinates, with heights in scene z. They re-present the \
+LiDAR; use them when you are unsure about slopes, banks or what stands on the ground.
 """
 
-# How it should look, within the rules. A long narrow box filling the largest
-# rectangle on a long section looked out of place; a real product's walls are
-# fixed, so it is told only of the deck.
-HOME = "\nTo look like a real New Zealand home, within those rules:\n"
-COMPACT = (
-    "- Keep the plan compact, like a typical NZ cottage or small home: its length at "
-    "most about twice its width, not a long narrow box, unless the brief asks for that "
-    "shape or the room is too narrow for the brief's size at that proportion. A "
-    "rectangle offered below that is longer than that is room to place the plan in, not "
-    "a size to fill.\n"
-)
-DECK = (
-    "- Where the brief and the site suit one, add a deck on the sunny (north) or living "
-    "side, part of the Dwelling: a thin slab level with the floor, with balusters above "
-    "it and nothing below the floor's underside. It counts toward the setbacks and must "
-    "keep the floor-level and height rules; a compact studio or a tight site can do "
-    "without.\n"
+# How it should look, within the rules.
+HOME = (
+    "\nTo look like a real New Zealand home, within those rules: where the brief and the "
+    "site suit one, add a deck on the sunny (north) or living side. A compact studio or "
+    "a tight site can do without.\n"
 )
 
 
@@ -82,20 +80,21 @@ def system_prompt(
     keep_clear: Sequence[Ring] = (),
     buildings: Sequence[Ring] = (),
     frontages: str = "",
-    fixed_footprint: bool = False,
 ) -> str:
     """The contract and the site. ``keep_clear`` (the owner's preservation areas)
     and ``buildings`` (existing ones the owner listed) are local rings;
-    ``frontages`` describes which edges face which road
-    (``sites.frontages.describe_frontages``). With a ``fixed_footprint`` (a
-    real product placed), it isn't asked for a compact plan."""
+    ``frontages`` describes the site in words: which edges face which road
+    (``sites.frontages.describe_frontages``), the room, the offered placements."""
     rules = CONTRACT.format(
         sep=MIN_SEPARATION_M,
         area=MAX_FLOOR_AREA_M2,
         height=MAX_HEIGHT_ABOVE_FLOOR_M,
         floor=MAX_FLOOR_ABOVE_GROUND_M,
+        floor_m=FLOOR_M,
+        fascia_m=FASCIA_M,
+        eaves=PROMPT_EAVES_M,
     )
-    rules += HOME + ("" if fixed_footprint else COMPACT) + DECK
+    rules += HOME
     heights = scene["terrain"]["heights"]
     site = (
         f"{rules}\nThe site:\n"
@@ -133,9 +132,35 @@ def placing(product: Footprint, roof: str | None = None) -> str:
     text = (
         f"Place this real prefab: the {product.name}. Its walls are a "
         f"{product.length_m:g} × {product.width_m:g} m rectangle, measured outside: "
-        "build the Dwelling's walls to exactly that, either way round, wherever and "
-        "facing whichever way best suits the brief and the site."
+        "the placements offered are its footprint; choose the one that best suits the "
+        "brief and the site."
     )
     if roof is None:
         return text
     return f"{text} Give it the roof its supplier builds: {roof}, within the height limit."
+
+
+def describe_offers(offers: Offers) -> str:
+    """The placements offered, numbered, each with its sides and steepest roofs;
+    and, for a plan with none, why."""
+    lines = [f"- {heading(offers.eaves_m)}. Walls' corners in local x, y:"]
+    lines += [
+        f"  - {offer.number}: {_offer_text(offer, offers.eaves_m)}" for offer in offers.offers
+    ]
+    lines += [f"  - {reason}" for reason in offers.missing]
+    lines.append("  Choose one of these by its number.")
+    return "\n".join(lines) + "\n"
+
+
+def _offer_text(offer: Offer, eaves_m: float) -> str:
+    long_a, short_a, long_b, short_b = offer.sides()
+    gable, skillion = (
+        steepest_pitch(offer, form, STOREY_WALLS_M, eaves_m) for form in ("gable", "skillion")
+    )
+    return (
+        f"a {offer.length_m:g} × {offer.width_m:g} m plan: {offer.summary}; its long walls "
+        f"face {long_a} and {long_b}, its short walls {short_a} and {short_b}. With "
+        f"{STOREY_WALLS_M:g} m walls and {eaves_m:g} m eaves, the steepest roof within the "
+        f"height limit: a gable or hip at {gable:.1f}°, a skillion rising to a long wall at "
+        f"{skillion:.1f}°."
+    )
